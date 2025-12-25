@@ -315,7 +315,7 @@ export default function Home() {
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#fff",
+    // Não definir backgroundColor aqui para deixar o SaravafyScreen controlar o fundo
   },
   container: {
     flex: 1,
