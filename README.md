@@ -108,6 +108,36 @@ npm run ios
 npm run web
 ```
 
+## 🧹 Manutenção (tags de orixás)
+
+Existe um script local para:
+
+1. descobrir como os nomes dos orixás aparecem em `tags` e nas letras; e
+2. varrer as letras e adicionar o nome do orixá como tag quando ele for citado.
+
+### Variáveis necessárias
+
+- Para apenas **reportar** (somente leitura): `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+- Para **aplicar** atualizações (escrita): defina também `SUPABASE_SERVICE_ROLE_KEY`.
+
+### Rodar relatório (não altera dados)
+
+```bash
+npm run orixa:report
+```
+
+### Aplicar tags baseado nas letras (altera dados)
+
+```bash
+npm run orixa:apply
+```
+
+Opcional: limitar quantidade de registros (para testar):
+
+```bash
+node scripts/orixa-tags.mjs apply --limit=50
+```
+
 ## 🔐 Fluxo de Autenticação
 
 1. **Usuário não autenticado**: Redirecionado automaticamente para `/login`

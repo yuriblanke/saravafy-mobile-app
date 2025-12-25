@@ -12,6 +12,10 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import {
+  PreferencesProvider,
+  usePreferences,
+} from "@/contexts/PreferencesContext";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -44,34 +48,43 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <PreferencesProvider>
+        <RootLayoutNav />
+      </PreferencesProvider>
     </AuthProvider>
   );
 }
 
 function RootLayoutNav() {
-  const colorScheme = useColorScheme();
+  const systemColorScheme = useColorScheme();
+  const { themeMode } = usePreferences();
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
-    if (isLoading || segments.length === 0) return;
+    if (isLoading) return;
 
-    const inAuthGroup = segments[0] === "(auth)";
-    const inAppGroup = segments[0] === "(app)";
+    const firstSegment = segments[0];
+    const inAuthGroup = firstSegment === "(auth)";
+    const inAppGroup = firstSegment === "(app)";
 
     if (!user && !inAuthGroup) {
       // Redirecionar para login se não autenticado
-      router.replace("/(auth)/login");
+      router.replace("/login");
     } else if (user && !inAppGroup) {
       // Redirecionar para home se autenticado
-      router.replace("/(app)/home");
+      router.replace("/home");
     }
   }, [user, segments, isLoading]);
 
+  const effectiveScheme =
+    themeMode === "system" ? systemColorScheme : themeMode;
+
   return (
-    <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+    <ThemeProvider
+      value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
+    >
       <Slot />
     </ThemeProvider>
   );

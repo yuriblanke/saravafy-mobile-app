@@ -35,35 +35,79 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
+  const parseParams = (raw: string): Record<string, string> => {
+    const params = new URLSearchParams(raw);
+    const out: Record<string, string> = {};
+    for (const [key, value] of params.entries()) {
+      out[key] = value;
+    }
+    return out;
+  };
+
   // Função para processar deep links
-  const processDeepLink = (url: string) => {
+  const processDeepLink = async (url: string) => {
     console.log("Processando deep link:", url);
 
-    // Extrair tokens da URL
+    // 1) Query params via expo-linking
     const parsedUrl = Linking.parse(url);
-    const queryParams = parsedUrl.queryParams;
+    const queryParams = (parsedUrl.queryParams ?? {}) as Record<string, any>;
 
-    if (queryParams) {
-      const access_token = queryParams.access_token as string;
-      const refresh_token = queryParams.refresh_token as string;
+    // 2) Fragment params (muito comum no OAuth: #access_token=...)
+    const fragmentIndex = url.indexOf("#");
+    const fragmentRaw = fragmentIndex >= 0 ? url.slice(fragmentIndex + 1) : "";
+    const fragmentParams = fragmentRaw ? parseParams(fragmentRaw) : {};
+
+    // Merge: fragment pode sobrescrever query
+    const mergedParams: Record<string, string> = {
+      ...Object.fromEntries(
+        Object.entries(queryParams)
+          .filter(([, v]) => typeof v === "string")
+          .map(([k, v]) => [k, v as string])
+      ),
+      ...fragmentParams,
+    };
+
+    const code = mergedParams.code;
+    const access_token = mergedParams.access_token;
+    const refresh_token = mergedParams.refresh_token;
+
+    try {
+      if (code) {
+        console.log(
+          "Code encontrado no callback, trocando por sessão (PKCE)..."
+        );
+        const { data, error } = await supabase.auth.exchangeCodeForSession(
+          code
+        );
+        if (error) {
+          console.error("Erro ao trocar code por sessão:", error.message);
+          return;
+        }
+        console.log("Sessão estabelecida via exchangeCodeForSession!");
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        return;
+      }
 
       if (access_token && refresh_token) {
-        console.log("Tokens encontrados no deep link, estabelecendo sessão...");
-        supabase.auth
-          .setSession({
-            access_token,
-            refresh_token,
-          })
-          .then(({ error }) => {
-            if (error) {
-              console.error("Erro ao estabelecer sessão:", error.message);
-            } else {
-              console.log("Sessão estabelecida via deep link!");
-            }
-          });
-      } else {
-        console.log("Tokens não encontrados no deep link");
+        console.log("Tokens encontrados no callback, estabelecendo sessão...");
+        const { data, error } = await supabase.auth.setSession({
+          access_token,
+          refresh_token,
+        });
+        if (error) {
+          console.error("Erro ao estabelecer sessão:", error.message);
+          return;
+        }
+        console.log("Sessão estabelecida via setSession!");
+        setSession(data.session);
+        setUser(data.session?.user ?? null);
+        return;
       }
+
+      console.log("Callback recebido, mas sem code/tokens:", mergedParams);
+    } catch (error) {
+      console.error("Erro ao processar deep link:", error);
     }
   };
 
@@ -163,20 +207,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       );
       console.log("Resultado do navegador:", result);
 
-      // Após retorno, buscar sessão atualizada
-      if (result.type === "success") {
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.getSession();
-        if (sessionError) {
-          console.error(
-            "Erro ao obter sessão após OAuth:",
-            sessionError.message
-          );
-        } else {
-          console.log("Sessão após OAuth:", sessionData.session);
-          setSession(sessionData.session);
-          setUser(sessionData.session?.user ?? null);
-        }
+      // Processar o callback retornado pelo browser (pode vir com `code` ou tokens)
+      if (
+        result.type === "success" &&
+        "url" in result &&
+        typeof result.url === "string"
+      ) {
+        await processDeepLink(result.url);
       }
 
       // Não aguarda o resultado - deixa o listener onAuthStateChange processar

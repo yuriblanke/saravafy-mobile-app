@@ -1,0 +1,8 @@
+export const radii = {
+  sm: 10,
+  md: 14,
+  lg: 18,
+  xl: 24,
+} as const;
+
+export type SaravafyRadii = typeof radii;
