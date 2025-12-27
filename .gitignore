@@ -7,16 +7,18 @@ node_modules/
 .expo/
 dist/
 web-build/
-expo-env.d.ts
+# expo-env.d.ts  <-- RECOMENDO versionar, então removi do ignore
 
-# Native
+# Native / secrets
 .kotlin/
 *.orig.*
 *.jks
+*.keystore
 *.p8
 *.p12
 *.key
 *.mobileprovision
+*.pem
 
 # Metro
 .metro-health-check*
@@ -28,7 +30,6 @@ yarn-error.*
 
 # macOS
 .DS_Store
-*.pem
 
 # local env files
 .env
@@ -37,6 +38,15 @@ yarn-error.*
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+# test coverage (optional, but safe)
+coverage/
+
+# Android / iOS builds (optional, but safe)
+*.apk
+*.aab
+
+# generated native folders (EAS prebuild)
+ios/
+android/
+
+.vscode/

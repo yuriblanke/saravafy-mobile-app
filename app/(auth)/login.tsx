@@ -22,8 +22,8 @@ export default function LoginScreen() {
 
   const logoSource =
     variant === "light"
-      ? require("@/assets/images/saravafy_logo_full_light.png")
-      : require("@/assets/images/saravafy_logo_full_dark.png");
+      ? require("@/assets/images/saravafy-logo-full-light.png")
+      : require("@/assets/images/saravafy-logo-full-dark.png");
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {

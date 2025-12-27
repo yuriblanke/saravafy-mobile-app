@@ -5,16 +5,16 @@
     "slug": "saravafy-mobile-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/app_icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "saravafy",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/images/saravafy_logo_full_dark.png",
+      "image": "./assets/images/saravafy-splash-full-light.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff",
       "dark": {
-        "image": "./assets/images/saravafy_logo_full_light.png",
+        "image": "./assets/images/saravafy-splash-full-dark.png",
         "resizeMode": "contain",
         "backgroundColor": "#000000"
       }
@@ -23,10 +23,11 @@
       "supportsTablet": true
     },
     "android": {
-      "icon": "./assets/images/app_icon.png",
+      "versionCode": 1,
+      "icon": "./assets/images/app-icon.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/app_icon.png",
-        "backgroundColor": "#ffffff"
+        "foregroundImage": "./assets/images/pre-adaptative-icon.png",
+        "backgroundColor": "#18443B"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
@@ -35,7 +36,7 @@
     "web": {
       "bundler": "metro",
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/app-icon.png"
     },
     "plugins": ["expo-router", "expo-dev-client"],
     "experiments": {
