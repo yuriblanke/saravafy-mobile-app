@@ -2,12 +2,15 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -51,6 +54,9 @@ export default function Home() {
   const { effectiveTheme } =
     require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
+  const router = useRouter();
+
+  const [submitModalVisible, setSubmitModalVisible] = useState(false);
   // Estado para modal de adicionar à coleção
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [selectedPonto, setSelectedPonto] = useState<Ponto | null>(null);
@@ -109,6 +115,26 @@ export default function Home() {
       <View style={styles.screen}>
         <AppHeaderWithPreferences />
         <View style={styles.container}>
+          <View style={styles.submitRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar ponto"
+              onPress={() => {
+                if (!user) {
+                  router.push("/login");
+                  return;
+                }
+                setSubmitModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed ? styles.submitButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.submitButtonText}>Enviar ponto</Text>
+            </Pressable>
+          </View>
+
           <View style={styles.searchWrap}>
             <View
               style={[
@@ -308,6 +334,18 @@ export default function Home() {
           </Pressable>
         </View>
       </BottomSheet>
+
+      <SubmitPontoModal
+        visible={submitModalVisible}
+        variant={variant}
+        onClose={() => setSubmitModalVisible(false)}
+        onSubmitted={() => {
+          Alert.alert(
+            "Enviado para curadoria",
+            "Seu ponto foi enviado e será validado pelos curadores do Saravafy. Quando aprovado, ele entrará para a biblioteca do app."
+          );
+        }}
+      />
     </SaravafyScreen>
   );
 }
@@ -320,6 +358,26 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingTop: spacing.md,
+  },
+  submitRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.sm,
+  },
+  submitButton: {
+    alignSelf: "flex-start",
+    backgroundColor: colors.forest400,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+  },
+  submitButtonPressed: {
+    opacity: 0.9,
+  },
+  submitButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "900",
   },
   bodyText: {
     fontSize: 16,

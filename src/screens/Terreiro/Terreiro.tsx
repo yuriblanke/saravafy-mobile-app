@@ -805,8 +805,8 @@ export default function Terreiro() {
                 const handlePress = () => {
                   if (!isEditingThisCollection && !isNew && pontosCount === 0) {
                     router.push({
-                      pathname: "/collection/" + item.id,
-                      params: { name },
+                      pathname: "/collection/[id]",
+                      params: { id: item.id, name },
                     });
                   }
                 };
