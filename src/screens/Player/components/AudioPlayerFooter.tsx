@@ -1,9 +1,8 @@
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
-import { usePlayerAudio } from "../hooks/usePlayerAudio";
 
 export function AudioPlayerFooter(props: {
   ponto: PlayerPonto | null;
@@ -18,7 +17,8 @@ export function AudioPlayerFooter(props: {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const accent = variant === "light" ? colors.forest500 : colors.brass600;
+  // Botão principal dourado (sem implementar áudio)
+  const accent = variant === "light" ? colors.brass500 : colors.brass600;
   const borderColor =
     variant === "light"
       ? colors.surfaceCardBorderLight
@@ -26,9 +26,9 @@ export function AudioPlayerFooter(props: {
   const bg =
     variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
 
-  const { hasAudio, isPlaying, progress, togglePlayPause } = usePlayerAudio({
-    audioUrl: ponto?.audio_url ?? null,
-  });
+  const hasAudio = Boolean(ponto?.audio_url);
+  const progress = 0;
+  const isPlaying = false;
 
   return (
     <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
@@ -38,7 +38,7 @@ export function AudioPlayerFooter(props: {
             style={[styles.nowPlaying, { color: textSecondary }]}
             numberOfLines={1}
           >
-            {hasAudio ? "Tocando" : "Sem áudio"}
+            {hasAudio ? "Áudio (em desenvolvimento)" : "Sem áudio"}
           </Text>
           <Text
             style={[styles.title, { color: textPrimary }]}
@@ -51,20 +51,22 @@ export function AudioPlayerFooter(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? "Pausar" : "Tocar"}
-          disabled={!hasAudio}
           onPress={() => {
-            void togglePlayPause();
+            Alert.alert(
+              "Em desenvolvimento",
+              "Reprodução de áudio em desenvolvimento."
+            );
           }}
           style={({ pressed }) => [
             styles.playBtn,
             { borderColor: accent },
-            (!hasAudio || pressed) && styles.playBtnPressed,
+            pressed && styles.playBtnPressed,
           ]}
         >
           <Ionicons
             name={isPlaying ? "pause" : "play"}
             size={20}
-            color={hasAudio ? accent : textSecondary}
+            color={accent}
           />
         </Pressable>
       </View>

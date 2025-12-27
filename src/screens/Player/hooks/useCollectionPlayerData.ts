@@ -17,6 +17,24 @@ export type CollectionPlayerItem = {
   ponto: PlayerPonto;
 };
 
+type PlayerDataParams =
+  | { collectionId: string }
+  | { mode: "all"; query?: string };
+
+function normalize(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function matchesQuery(ponto: PlayerPonto, query: string) {
+  const q = normalize(query);
+  if (!q) return true;
+  if (normalize(ponto.title).includes(q)) return true;
+  if (normalize(ponto.lyrics).includes(q)) return true;
+  return ponto.tags.some((t) => normalize(t).includes(q));
+}
+
 function coerceTags(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((v): v is string => typeof v === "string");
@@ -47,8 +65,10 @@ function getErrorMessage(e: unknown): string {
   return String(e);
 }
 
-export function useCollectionPlayerData(params: { collectionId: string }) {
-  const { collectionId } = params;
+export function useCollectionPlayerData(params: PlayerDataParams) {
+  const isAllMode = "mode" in params && params.mode === "all";
+  const collectionId = "collectionId" in params ? params.collectionId : "";
+  const query = isAllMode && "query" in params ? params.query ?? "" : "";
 
   const [items, setItems] = useState<CollectionPlayerItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -60,7 +80,7 @@ export function useCollectionPlayerData(params: { collectionId: string }) {
   );
 
   const load = useCallback(async () => {
-    if (!collectionId) {
+    if (!isAllMode && !collectionId) {
       setItems([]);
       setError("Collection inválida.");
       return;
@@ -70,13 +90,22 @@ export function useCollectionPlayerData(params: { collectionId: string }) {
     setError(null);
 
     try {
-      const res = await supabase
-        .from("collections_pontos")
-        .select(
-          "position, pontos:ponto_id (id, title, lyrics, tags, audio_url, duration_seconds, cover_url, artist)"
-        )
-        .eq("collection_id", collectionId)
-        .order("position", { ascending: true });
+      const res = isAllMode
+        ? await supabase
+            .from("pontos")
+            .select(
+              "id, title, lyrics, tags, audio_url, duration_seconds, cover_url, artist"
+            )
+            .eq("is_active", true)
+            .eq("restricted", false)
+            .order("title", { ascending: true })
+        : await supabase
+            .from("collections_pontos")
+            .select(
+              "position, pontos:ponto_id (id, title, lyrics, tags, audio_url, duration_seconds, cover_url, artist)"
+            )
+            .eq("collection_id", collectionId)
+            .order("position", { ascending: true });
 
       if (res.error) {
         const anyErr = res.error as any;
@@ -91,43 +120,81 @@ export function useCollectionPlayerData(params: { collectionId: string }) {
       }
 
       const rows = (res.data ?? []) as any[];
-      const next: CollectionPlayerItem[] = rows
-        .map((row) => {
-          const ponto = row?.pontos;
-          if (!ponto || typeof ponto !== "object") return null;
 
-          const title =
-            (typeof ponto.title === "string" && ponto.title.trim()) || "Ponto";
-          const lyrics =
-            (typeof ponto.lyrics === "string" && ponto.lyrics) || "";
+      const mappedPontos: PlayerPonto[] = isAllMode
+        ? (rows
+            .map((row) => {
+              if (!row || typeof row !== "object") return null;
 
-          const mapped: PlayerPonto = {
-            id: String(ponto.id ?? ""),
-            title,
-            artist: typeof ponto.artist === "string" ? ponto.artist : null,
-            duration_seconds:
-              typeof ponto.duration_seconds === "number"
-                ? ponto.duration_seconds
-                : null,
-            audio_url:
-              typeof ponto.audio_url === "string" ? ponto.audio_url : null,
-            cover_url:
-              typeof ponto.cover_url === "string" ? ponto.cover_url : null,
-            lyrics,
-            tags: coerceTags(ponto.tags),
-          };
+              const title =
+                (typeof row.title === "string" && row.title.trim()) || "Ponto";
+              const lyrics =
+                (typeof row.lyrics === "string" && row.lyrics) || "";
 
-          const position =
-            typeof row.position === "number"
-              ? row.position
-              : Number(row.position);
+              const mapped: PlayerPonto = {
+                id: String(row.id ?? ""),
+                title,
+                artist: typeof row.artist === "string" ? row.artist : null,
+                duration_seconds:
+                  typeof row.duration_seconds === "number"
+                    ? row.duration_seconds
+                    : null,
+                audio_url:
+                  typeof row.audio_url === "string" ? row.audio_url : null,
+                cover_url:
+                  typeof row.cover_url === "string" ? row.cover_url : null,
+                lyrics,
+                tags: coerceTags(row.tags),
+              };
 
-          if (!mapped.id) return null;
-          if (!Number.isFinite(position)) return null;
+              if (!mapped.id) return null;
+              return mapped;
+            })
+            .filter(Boolean) as PlayerPonto[])
+        : [];
 
-          return { position, ponto: mapped };
-        })
-        .filter(Boolean) as CollectionPlayerItem[];
+      const next: CollectionPlayerItem[] = isAllMode
+        ? mappedPontos
+            .filter((p) => matchesQuery(p, query))
+            .map((p, idx) => ({ position: idx + 1, ponto: p }))
+        : (rows
+            .map((row) => {
+              const ponto = row?.pontos;
+              if (!ponto || typeof ponto !== "object") return null;
+
+              const title =
+                (typeof ponto.title === "string" && ponto.title.trim()) ||
+                "Ponto";
+              const lyrics =
+                (typeof ponto.lyrics === "string" && ponto.lyrics) || "";
+
+              const mapped: PlayerPonto = {
+                id: String(ponto.id ?? ""),
+                title,
+                artist: typeof ponto.artist === "string" ? ponto.artist : null,
+                duration_seconds:
+                  typeof ponto.duration_seconds === "number"
+                    ? ponto.duration_seconds
+                    : null,
+                audio_url:
+                  typeof ponto.audio_url === "string" ? ponto.audio_url : null,
+                cover_url:
+                  typeof ponto.cover_url === "string" ? ponto.cover_url : null,
+                lyrics,
+                tags: coerceTags(ponto.tags),
+              };
+
+              const position =
+                typeof row.position === "number"
+                  ? row.position
+                  : Number(row.position);
+
+              if (!mapped.id) return null;
+              if (!Number.isFinite(position)) return null;
+
+              return { position, ponto: mapped };
+            })
+            .filter(Boolean) as CollectionPlayerItem[]);
 
       setItems(next);
     } catch (e) {

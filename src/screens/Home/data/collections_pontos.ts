@@ -3,28 +3,115 @@ import { supabase } from "@/lib/supabase";
 export type CollectionPonto = {
   collection_id: string;
   ponto_id: string;
+  position: number;
+  added_by: string;
 };
 
 const TABLE = "collections_pontos";
 
-export async function addPontoToCollection(
-  collectionId: string,
-  pontoId: string
-): Promise<boolean> {
-  // Check if already exists
-  const { data, error } = await supabase
+function isUniqueViolation(e: any): boolean {
+  return e && typeof e === "object" && e.code === "23505";
+}
+
+function isDuplicatePontoConstraint(e: any): boolean {
+  // PK: (collection_id, ponto_id)
+  const msg = typeof e?.message === "string" ? e.message : "";
+  const details = typeof e?.details === "string" ? e.details : "";
+  const hint = typeof e?.hint === "string" ? e.hint : "";
+  const hay = `${msg} ${details} ${hint}`.toLowerCase();
+  return (
+    hay.includes("collection_id") &&
+    hay.includes("ponto_id") &&
+    (hay.includes("duplicate") || hay.includes("unique") || hay.includes("key"))
+  );
+}
+
+function isPositionConstraint(e: any): boolean {
+  // UNIQUE(collection_id, position)
+  const msg = typeof e?.message === "string" ? e.message : "";
+  const details = typeof e?.details === "string" ? e.details : "";
+  const hint = typeof e?.hint === "string" ? e.hint : "";
+  const hay = `${msg} ${details} ${hint}`.toLowerCase();
+  return hay.includes("position") && hay.includes("collection");
+}
+
+async function fetchNextPosition(collectionId: string): Promise<number> {
+  const res = await supabase
     .from(TABLE)
-    .select("*")
+    .select("position")
     .eq("collection_id", collectionId)
-    .eq("ponto_id", pontoId)
-    .single();
+    .order("position", { ascending: false })
+    .limit(1);
 
-  if (data) return true; // Already exists
+  if (res.error) {
+    const anyErr = res.error as any;
+    const message =
+      typeof anyErr?.message === "string" && anyErr.message.trim()
+        ? anyErr.message
+        : "Erro ao calcular posição.";
+    throw new Error(message);
+  }
 
-  const { error: insertError } = await supabase
-    .from(TABLE)
-    .insert({ collection_id: collectionId, ponto_id: pontoId });
+  const max =
+    Array.isArray(res.data) && res.data.length > 0
+      ? Number((res.data[0] as any)?.position)
+      : 0;
+  const maxSafe = Number.isFinite(max) ? max : 0;
+  return maxSafe + 1;
+}
 
-  if (insertError) return false;
-  return true;
+export async function addPontoToCollection(params: {
+  collectionId: string;
+  pontoId: string;
+  addedBy: string;
+}): Promise<{ ok: boolean; alreadyExists?: boolean }> {
+  const { collectionId, pontoId, addedBy } = params;
+
+  // Pode haver corrida com outras inserções por causa do UNIQUE(collection_id, position).
+  // Fazemos poucas tentativas: re-calcula max(position) e tenta inserir.
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const position = await fetchNextPosition(collectionId);
+
+    const payload: CollectionPonto = {
+      collection_id: collectionId,
+      ponto_id: pontoId,
+      position,
+      added_by: addedBy,
+    };
+
+    // Preferência: insert idempotente via onConflict + ignoreDuplicates
+    const res = await supabase
+      .from(TABLE)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .insert(
+        payload as any,
+        {
+          onConflict: "collection_id,ponto_id",
+          // ignoreDuplicates existe no supabase-js v2; se não existir, o TS pode reclamar,
+          // mas o runtime ignora campos desconhecidos.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ignoreDuplicates: true as any,
+        } as any
+      );
+
+    if (!res.error) {
+      return { ok: true };
+    }
+
+    const anyErr = res.error as any;
+
+    if (isUniqueViolation(anyErr) && isDuplicatePontoConstraint(anyErr)) {
+      // Já existia (PK). Tratar como sucesso.
+      return { ok: true, alreadyExists: true };
+    }
+
+    if (isUniqueViolation(anyErr) && isPositionConstraint(anyErr)) {
+      // Outra inserção pegou a mesma posição; tenta novamente.
+      continue;
+    }
+
+    return { ok: false };
+  }
+
+  return { ok: false };
 }

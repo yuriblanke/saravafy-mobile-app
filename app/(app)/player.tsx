@@ -1,1 +1,3 @@
-export { default } from "@/src/screens/Player/PlayerScreen";
+import PlayerScreen from "@/src/screens/Player/PlayerScreen";
+
+export default PlayerScreen;

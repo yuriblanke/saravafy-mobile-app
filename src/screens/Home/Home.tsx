@@ -18,6 +18,13 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  createCollection,
+  fetchAccessibleCollections,
+  fetchAllowedTerreiros,
+  type AccessibleCollection,
+  type AllowedTerreiro,
+} from "./data/collections";
 import { addPontoToCollection } from "./data/collections_pontos";
 import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
@@ -78,6 +85,18 @@ export default function Home() {
   const [isAdding, setIsAdding] = useState(false);
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  const [allowedTerreiros, setAllowedTerreiros] = useState<AllowedTerreiro[]>(
+    []
+  );
+  const [collections, setCollections] = useState<AccessibleCollection[]>([]);
+  const [isSheetLoading, setIsSheetLoading] = useState(false);
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [collectionFilter, setCollectionFilter] = useState<
+    "ALL" | "ME" | string
+  >("ALL");
+  const [newCollectionTitle, setNewCollectionTitle] = useState("");
+  const [isCreatingCollection, setIsCreatingCollection] = useState(false);
   const variant = effectiveTheme;
   const textPrimary =
     variant === "light" ? colors.forest800 : colors.textPrimaryOnDark;
@@ -106,6 +125,63 @@ export default function Home() {
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  const loadSheetData = async () => {
+    if (!user?.id) return;
+
+    setIsSheetLoading(true);
+    setSheetError(null);
+
+    try {
+      const terreirosRes = await fetchAllowedTerreiros(user.id);
+      if (terreirosRes.error) throw new Error(terreirosRes.error);
+
+      setAllowedTerreiros(terreirosRes.data);
+
+      const allowedIds = terreirosRes.data.map((t) => t.terreiro_id);
+      const collectionsRes = await fetchAccessibleCollections({
+        userId: user.id,
+        allowedTerreiroIds: allowedIds,
+      });
+      if (collectionsRes.error) throw new Error(collectionsRes.error);
+
+      setCollections(collectionsRes.data);
+    } catch (e) {
+      setAllowedTerreiros([]);
+      setCollections([]);
+      setSheetError(getErrorMessage(e));
+    } finally {
+      setIsSheetLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!addModalVisible) return;
+    if (!user?.id) return;
+    void loadSheetData();
+  }, [addModalVisible, user?.id]);
+
+  const filteredCollections = useMemo(() => {
+    if (!user?.id) return [] as AccessibleCollection[];
+
+    if (collectionFilter === "ME") {
+      return collections.filter((c) => c.owner_user_id === user.id);
+    }
+
+    if (collectionFilter === "ALL") return collections;
+
+    // Terreiro específico
+    return collections.filter((c) => c.owner_terreiro_id === collectionFilter);
+  }, [collections, collectionFilter, user?.id]);
+
+  const getCollectionOwnerLabel = (c: AccessibleCollection) => {
+    if (!user?.id) return "";
+    if (c.owner_user_id === user.id) return "Você";
+    if (c.owner_terreiro_id) {
+      return `Terreiro: ${c.terreiro_title ?? "Terreiro"}`;
+    }
+    return "";
+  };
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -139,26 +215,6 @@ export default function Home() {
       <View style={styles.screen}>
         <AppHeaderWithPreferences />
         <View style={styles.container}>
-          <View style={styles.submitRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enviar ponto"
-              onPress={() => {
-                if (!user) {
-                  router.push("/login");
-                  return;
-                }
-                setSubmitModalVisible(true);
-              }}
-              style={({ pressed }) => [
-                styles.submitButton,
-                pressed ? styles.submitButtonPressed : null,
-              ]}
-            >
-              <Text style={styles.submitButtonText}>Enviar ponto</Text>
-            </Pressable>
-          </View>
-
           <View style={styles.searchWrap}>
             <View
               style={[
@@ -192,6 +248,27 @@ export default function Home() {
               ) : null}
             </View>
           </View>
+
+          <View style={styles.submitRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar ponto"
+              onPress={() => {
+                if (!user) {
+                  router.push("/login");
+                  return;
+                }
+                setSubmitModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed ? styles.submitButtonPressed : null,
+              ]}
+            >
+              <Text style={styles.submitButtonText}>+ Enviar ponto</Text>
+            </Pressable>
+          </View>
+
           {isLoading ? (
             <Text style={[styles.bodyText, { color: textSecondary }]}>
               Carregando…
@@ -250,57 +327,80 @@ export default function Home() {
               extraData={variant}
               renderItem={({ item }) => (
                 <View style={styles.cardGap}>
-                  <SurfaceCard variant={variant} style={styles.cardContainer}>
-                    <View
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      router.push({
+                        pathname: "/player",
+                        params: {
+                          source: "all",
+                          q: searchQuery,
+                          initialPontoId: item.id,
+                        },
+                      });
+                    }}
+                  >
+                    <SurfaceCard variant={variant} style={styles.cardContainer}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.cardTitle,
+                            { color: textPrimary, flex: 1 },
+                          ]}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
+                          {item.title}
+                        </Text>
+                        {user ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Adicionar à coleção"
+                            style={styles.addToCollectionBtn}
+                            hitSlop={10}
+                            onPress={(e) => {
+                              // Evita abrir o player quando a intenção é adicionar
+                              // à coleção.
+                              e.stopPropagation();
+
+                              setSelectedPonto(item);
+                              setAddModalVisible(true);
+                              setAddSuccess(false);
+                              setAddError(null);
+                            }}
+                          >
+                            <Ionicons
+                              name="add"
+                              size={18}
+                              color={
+                                variant === "light"
+                                  ? colors.brass500
+                                  : colors.brass600
+                              }
+                            />
+                          </Pressable>
+                        ) : null}
+                      </View>
+                      <View style={styles.tagsRow}>
+                        {item.tags.map((tag) => (
+                          <TagChip key={tag} label={tag} variant={variant} />
+                        ))}
+                      </View>
                       <Text
-                        style={[
-                          styles.cardTitle,
-                          { color: textPrimary, flex: 1 },
-                        ]}
-                        numberOfLines={2}
+                        style={[styles.cardPreview, { color: textSecondary }]}
+                        numberOfLines={6}
                         ellipsizeMode="tail"
                       >
-                        {item.title}
+                        {getLyricsPreview(item.lyrics, 6)}
                       </Text>
-                      {user ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          style={styles.iconCircle}
-                          hitSlop={10}
-                          onPress={() => {
-                            setSelectedPonto(item);
-                            setAddModalVisible(true);
-                            setAddSuccess(false);
-                            setAddError(null);
-                          }}
-                        >
-                          <Ionicons
-                            name="add-circle-outline"
-                            size={22}
-                            color={textPrimary}
-                          />
-                        </Pressable>
-                      ) : null}
-                    </View>
-                    <View style={styles.tagsRow}>
-                      {item.tags.map((tag) => (
-                        <TagChip key={tag} label={tag} variant={variant} />
-                      ))}
-                    </View>
-                    <Text
-                      style={[styles.cardPreview, { color: textSecondary }]}
-                      numberOfLines={6}
-                      ellipsizeMode="tail"
-                    >
-                      {getLyricsPreview(item.lyrics, 6)}
-                    </Text>
-                  </SurfaceCard>
+                    </SurfaceCard>
+                  </Pressable>
                 </View>
               )}
             />
@@ -314,59 +414,299 @@ export default function Home() {
         variant={variant}
       >
         <View style={{ paddingBottom: 16 }}>
-          <Text style={{ fontWeight: "bold", fontSize: 18, marginBottom: 12 }}>
-            Adicionar à coleção
-          </Text>
-          {/* TODO: Listar coleções do usuário/terreiro, alternar perfil, respeitar permissões */}
-          {/* Exemplo de feedback visual e loading */}
-          {isAdding ? (
-            <Text style={{ color: colors.forest400 }}>Adicionando…</Text>
-          ) : addSuccess ? (
-            <Text style={{ color: colors.forest500 }}>
-              Adicionado com sucesso!
+          <View style={styles.sheetHeaderRow}>
+            <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+              Adicionar à coleção
             </Text>
-          ) : addError ? (
-            <Text style={{ color: colors.brass600 }}>{addError}</Text>
-          ) : (
-            <Text
-              style={{ color: colors.textSecondaryOnLight, marginBottom: 8 }}
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => setAddModalVisible(false)}
+              hitSlop={10}
+              style={styles.sheetCloseBtn}
             >
-              Selecione uma coleção para adicionar o ponto.
+              <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
+                ×
+              </Text>
+            </Pressable>
+          </View>
+
+          {isSheetLoading ? (
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Carregando coleções…
             </Text>
+          ) : sheetError ? (
+            <View style={{ gap: spacing.sm }}>
+              <Text style={[styles.bodyText, { color: colors.brass600 }]}>
+                {sheetError}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void loadSheetData()}
+                style={[
+                  styles.retryBtn,
+                  variant === "light"
+                    ? styles.retryBtnLight
+                    : styles.retryBtnDark,
+                ]}
+              >
+                <Text style={[styles.retryText, { color: textPrimary }]}>
+                  Tentar novamente
+                </Text>
+              </Pressable>
+            </View>
+          ) : (
+            <>
+              <View style={styles.sheetFilterRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setCollectionFilter("ALL")}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    collectionFilter === "ALL" && styles.filterChipActive,
+                    pressed && styles.filterChipPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      {
+                        color:
+                          collectionFilter === "ALL"
+                            ? colors.brass600
+                            : textSecondary,
+                      },
+                    ]}
+                  >
+                    Todos
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setCollectionFilter("ME")}
+                  style={({ pressed }) => [
+                    styles.filterChip,
+                    collectionFilter === "ME" && styles.filterChipActive,
+                    pressed && styles.filterChipPressed,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.filterChipText,
+                      {
+                        color:
+                          collectionFilter === "ME"
+                            ? colors.brass600
+                            : textSecondary,
+                      },
+                    ]}
+                  >
+                    Você
+                  </Text>
+                </Pressable>
+
+                {allowedTerreiros.map((t) => (
+                  <Pressable
+                    key={t.terreiro_id}
+                    accessibilityRole="button"
+                    onPress={() => setCollectionFilter(t.terreiro_id)}
+                    style={({ pressed }) => [
+                      styles.filterChip,
+                      collectionFilter === t.terreiro_id &&
+                        styles.filterChipActive,
+                      pressed && styles.filterChipPressed,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.filterChipText,
+                        {
+                          color:
+                            collectionFilter === t.terreiro_id
+                              ? colors.brass600
+                              : textSecondary,
+                        },
+                      ]}
+                    >
+                      {t.terreiro_title}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              <View style={styles.createRow}>
+                <TextInput
+                  value={newCollectionTitle}
+                  onChangeText={(v) => setNewCollectionTitle(v.slice(0, 40))}
+                  placeholder="Nova coleção (até 40)"
+                  placeholderTextColor={textSecondary}
+                  style={[
+                    styles.createInput,
+                    {
+                      color: textPrimary,
+                      borderColor:
+                        variant === "light"
+                          ? colors.inputBorderLight
+                          : colors.inputBorderDark,
+                      backgroundColor:
+                        variant === "light"
+                          ? colors.inputBgLight
+                          : colors.inputBgDark,
+                    },
+                  ]}
+                  autoCapitalize="sentences"
+                  autoCorrect={false}
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={isCreatingCollection || isAdding}
+                  onPress={async () => {
+                    if (!user?.id || !selectedPonto) return;
+
+                    const title = newCollectionTitle.trim().slice(0, 40);
+                    if (!title) {
+                      setAddError("Informe um título (até 40 caracteres). ");
+                      return;
+                    }
+
+                    setIsCreatingCollection(true);
+                    setAddError(null);
+
+                    const ownerTerreiroId =
+                      collectionFilter !== "ALL" && collectionFilter !== "ME"
+                        ? collectionFilter
+                        : null;
+                    const ownerUserId = ownerTerreiroId ? null : user.id;
+
+                    const created = await createCollection({
+                      title,
+                      ownerUserId,
+                      ownerTerreiroId,
+                    });
+
+                    if (created.error || !created.data?.id) {
+                      setIsCreatingCollection(false);
+                      setAddError(created.error || "Erro ao criar coleção.");
+                      return;
+                    }
+
+                    const added = await addPontoToCollection({
+                      collectionId: created.data.id,
+                      pontoId: selectedPonto.id,
+                      addedBy: user.id,
+                    });
+
+                    setIsCreatingCollection(false);
+                    if (!added.ok) {
+                      setAddError("Erro ao adicionar ponto à coleção.");
+                      return;
+                    }
+
+                    setAddSuccess(true);
+                    setNewCollectionTitle("");
+                    await loadSheetData();
+
+                    Alert.alert("Ponto adicionado à coleção");
+                    setAddModalVisible(false);
+                  }}
+                  style={({ pressed }) => [
+                    styles.createBtn,
+                    pressed && styles.createBtnPressed,
+                  ]}
+                >
+                  <Text style={styles.createBtnText}>Criar</Text>
+                </Pressable>
+              </View>
+
+              {isAdding ? (
+                <Text style={[styles.bodyText, { color: textSecondary }]}>
+                  Adicionando…
+                </Text>
+              ) : addSuccess ? (
+                <Text style={[styles.bodyText, { color: colors.forest500 }]}>
+                  Ponto adicionado à coleção
+                </Text>
+              ) : addError ? (
+                <Text style={[styles.bodyText, { color: colors.brass600 }]}>
+                  {addError}
+                </Text>
+              ) : (
+                <Text style={[styles.bodyText, { color: textSecondary }]}>
+                  Selecione uma coleção para adicionar o ponto.
+                </Text>
+              )}
+
+              <View style={styles.sheetList}>
+                {filteredCollections.map((c) => {
+                  const title = (c.title ?? "").trim() || "Coleção";
+                  const ownerLabel = getCollectionOwnerLabel(c);
+
+                  return (
+                    <Pressable
+                      key={c.id}
+                      accessibilityRole="button"
+                      disabled={isAdding || isCreatingCollection}
+                      onPress={async () => {
+                        if (!user?.id || !selectedPonto) return;
+
+                        setIsAdding(true);
+                        setAddError(null);
+                        setAddSuccess(false);
+
+                        const res = await addPontoToCollection({
+                          collectionId: c.id,
+                          pontoId: selectedPonto.id,
+                          addedBy: user.id,
+                        });
+
+                        setIsAdding(false);
+                        if (!res.ok) {
+                          setAddError("Erro ao adicionar ponto à coleção.");
+                          return;
+                        }
+
+                        setAddSuccess(true);
+                        Alert.alert("Ponto adicionado à coleção");
+                        setAddModalVisible(false);
+                      }}
+                      style={({ pressed }) => [
+                        styles.collectionRow,
+                        pressed && styles.collectionRowPressed,
+                      ]}
+                    >
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text
+                          style={[
+                            styles.collectionTitle,
+                            { color: textPrimary },
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {title}
+                        </Text>
+                        {ownerLabel ? (
+                          <Text
+                            style={[
+                              styles.collectionOwner,
+                              { color: textSecondary },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {ownerLabel}
+                          </Text>
+                        ) : null}
+                      </View>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={18}
+                        color={textSecondary}
+                      />
+                    </Pressable>
+                  );
+                })}
+              </View>
+            </>
           )}
-          {/* Exemplo de botão de ação (substituir por lista real de coleções) */}
-          <Pressable
-            style={{
-              marginTop: 12,
-              backgroundColor: colors.forest400,
-              borderRadius: 8,
-              padding: 10,
-              alignItems: "center",
-            }}
-            onPress={async () => {
-              if (!selectedPonto) return;
-              setIsAdding(true);
-              setAddError(null);
-              // Exemplo: adicionar à coleção fictícia "colecao1"
-              const ok = await addPontoToCollection(
-                "colecao1",
-                selectedPonto.id
-              );
-              setIsAdding(false);
-              if (ok) {
-                setAddSuccess(true);
-                setTimeout(() => {
-                  setAddModalVisible(false);
-                }, 1200);
-              } else {
-                setAddError("Erro ao adicionar ponto à coleção.");
-              }
-            }}
-          >
-            <Text style={{ color: "#fff", fontWeight: "bold" }}>
-              Adicionar à coleção (exemplo)
-            </Text>
-          </Pressable>
         </View>
       </BottomSheet>
 
@@ -396,22 +736,24 @@ const styles = StyleSheet.create({
   },
   submitRow: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    paddingTop: 0,
     paddingBottom: spacing.sm,
   },
   submitButton: {
-    alignSelf: "flex-start",
-    backgroundColor: colors.forest400,
-    borderRadius: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    alignSelf: "flex-end",
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.brass600,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    backgroundColor: "transparent",
   },
   submitButtonPressed: {
     opacity: 0.9,
   },
   submitButtonText: {
-    color: "#fff",
-    fontSize: 13,
+    color: colors.brass600,
+    fontSize: 12,
     fontWeight: "900",
   },
   bodyText: {
@@ -502,8 +844,8 @@ const styles = StyleSheet.create({
   cardContainer: {
     borderRadius: 18,
     // SurfaceCard já aplica sombra e background via theme
-    paddingVertical: spacing.lg,
-    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.md,
   },
   cardTitle: {
     fontSize: 17,
@@ -525,12 +867,119 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
     marginBottom: 0,
   },
-  iconCircle: {
-    borderRadius: 999,
+  addToCollectionBtn: {
+    borderRadius: 8,
     backgroundColor: "transparent",
     alignItems: "center",
     justifyContent: "center",
     width: 28,
     height: 28,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.brass600,
+  },
+
+  sheetHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.md,
+  },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  sheetCloseBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetCloseText: {
+    fontSize: 22,
+    lineHeight: 22,
+    fontWeight: "600",
+  },
+  sheetFilterRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: spacing.xs,
+    marginBottom: spacing.md,
+  },
+  filterChip: {
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surfaceCardBorder,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: "transparent",
+  },
+  filterChipActive: {
+    borderColor: colors.brass600,
+  },
+  filterChipPressed: {
+    opacity: 0.85,
+  },
+  filterChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  createRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  createInput: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  createBtn: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.brass600,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createBtnPressed: {
+    opacity: 0.85,
+  },
+  createBtnText: {
+    color: colors.brass600,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  sheetList: {
+    marginTop: spacing.md,
+    gap: spacing.xs,
+  },
+  collectionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surfaceCardBorder,
+    backgroundColor: "transparent",
+  },
+  collectionRowPressed: {
+    opacity: 0.85,
+  },
+  collectionTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  collectionOwner: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "700",
   },
 });

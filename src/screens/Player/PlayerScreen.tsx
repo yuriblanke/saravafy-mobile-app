@@ -20,6 +20,7 @@ import {
 } from "react-native";
 import { AudioPlayerFooter } from "./components/AudioPlayerFooter";
 import { PlayerContent } from "./components/PlayerContent";
+import { PlayerSearchModal } from "./components/PlayerSearchModal";
 import {
   useCollectionPlayerData,
   type CollectionPlayerItem,
@@ -39,6 +40,9 @@ function parseIntSafe(value: unknown): number | null {
 export default function PlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+
+  const source = typeof params.source === "string" ? params.source : null;
+  const searchQuery = typeof params.q === "string" ? params.q : "";
 
   const collectionId = String(params.collectionId ?? "");
   const initialPontoId =
@@ -65,12 +69,13 @@ export default function PlayerScreen() {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const { items, isLoading, error, isEmpty, reload } = useCollectionPlayerData({
-    collectionId,
-  });
+  const { items, isLoading, error, isEmpty, reload } = useCollectionPlayerData(
+    source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
+  );
 
-  const [lyricsFontSize, setLyricsFontSize] = useState(18);
+  const [lyricsFontSize, setLyricsFontSize] = useState(20);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
@@ -250,18 +255,12 @@ export default function PlayerScreen() {
 
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Menu"
-              onPress={() => {
-                // Placeholder de ações
-              }}
+              accessibilityLabel="Buscar ponto"
+              onPress={() => setIsSearchOpen(true)}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons
-                name="ellipsis-vertical"
-                size={18}
-                color={textPrimary}
-              />
+              <Ionicons name="search" size={18} color={textPrimary} />
             </Pressable>
           </View>
         </View>
@@ -297,6 +296,12 @@ export default function PlayerScreen() {
         </View>
 
         <AudioPlayerFooter ponto={activePonto} variant={variant} />
+
+        <PlayerSearchModal
+          visible={isSearchOpen}
+          variant={variant}
+          onClose={() => setIsSearchOpen(false)}
+        />
       </View>
     </SaravafyScreen>
   );

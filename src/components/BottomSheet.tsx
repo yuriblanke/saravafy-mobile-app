@@ -93,6 +93,15 @@ export function BottomSheet({
           onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
           {...(panResponder ? panResponder.panHandlers : null)}
         >
+          <View style={styles.handleWrap} pointerEvents="none">
+            <View
+              style={[
+                styles.handle,
+                variant === "light" ? styles.handleLight : styles.handleDark,
+              ]}
+            />
+          </View>
+
           <Pressable onPress={() => undefined}>{children}</Pressable>
         </Animated.View>
       </Pressable>
@@ -115,7 +124,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 18,
     borderTopRightRadius: 18,
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.xl,
   },
   sheetDark: {
@@ -127,5 +136,23 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceCardBgLight,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.surfaceCardBorderLight,
+  },
+
+  handleWrap: {
+    alignItems: "center",
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  handle: {
+    width: 44,
+    height: 4,
+    borderRadius: 999,
+    opacity: 0.6,
+  },
+  handleDark: {
+    backgroundColor: colors.textMutedOnDark,
+  },
+  handleLight: {
+    backgroundColor: colors.textMutedOnLight,
   },
 });
