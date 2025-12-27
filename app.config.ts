@@ -1,6 +1,24 @@
 import type { ExpoConfig } from "expo/config";
 
-const IS_DEV_CLIENT = process.env.EAS_BUILD_PROFILE === "development";
+/**
+ * Build variant resolution (works locally + EAS)
+ * Priority:
+ * 1) APP_VARIANT
+ * 2) EAS_BUILD_PROFILE
+ * 3) production (default)
+ */
+const PROFILE =
+  process.env.APP_VARIANT ?? process.env.EAS_BUILD_PROFILE ?? "production";
+
+const IS_DEV_CLIENT = PROFILE === "dev" || PROFILE === "development";
+
+const IOS_BUNDLE_ID = IS_DEV_CLIENT
+  ? "com.yuriblanke.saravafy.dev"
+  : "com.yuriblanke.saravafy";
+
+const ANDROID_PACKAGE = IS_DEV_CLIENT
+  ? "com.yuriblanke.saravafy.dev"
+  : "com.yuriblanke.saravafy";
 
 const config: ExpoConfig = {
   owner: "yuriblanke",
@@ -26,17 +44,13 @@ const config: ExpoConfig = {
 
   ios: {
     supportsTablet: true,
-    bundleIdentifier: IS_DEV_CLIENT
-      ? "com.yuriblanke.saravafymobileapp.dev"
-      : "com.yuriblanke.saravafymobileapp",
+    bundleIdentifier: IOS_BUNDLE_ID,
     buildNumber: "1",
   },
 
   android: {
     versionCode: 1,
-    package: IS_DEV_CLIENT
-      ? "com.yuriblanke.saravafymobileapp.dev"
-      : "com.yuriblanke.saravafymobileapp",
+    package: ANDROID_PACKAGE,
     icon: "./assets/images/app-icon.png",
     adaptiveIcon: {
       foregroundImage: "./assets/images/pre-adaptative-icon.png",

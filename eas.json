@@ -7,7 +7,8 @@
     "development": {
       "node": "20.19.6",
       "env": {
-        "EAS_RUN_LINT": "0"
+        "EAS_RUN_LINT": "0",
+        "APP_VARIANT": "development"
       },
       "developmentClient": true,
       "distribution": "internal",
@@ -18,8 +19,10 @@
     "preview": {
       "node": "20.19.6",
       "env": {
-        "EAS_RUN_LINT": "0"
+        "EAS_RUN_LINT": "0",
+        "APP_VARIANT": "preview"
       },
+      "autoIncrement": true,
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -28,8 +31,10 @@
     "production": {
       "node": "20.19.6",
       "env": {
-        "EAS_RUN_LINT": "0"
+        "EAS_RUN_LINT": "0",
+        "APP_VARIANT": "production"
       },
+      "autoIncrement": true,
       "distribution": "internal",
       "android": {
         "buildType": "apk"
