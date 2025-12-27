@@ -57,7 +57,7 @@ function safeLocaleCompare(a: string, b: string) {
 
 type TerreiroRow = {
   id: string;
-  name: string;
+  title: string;
   avatar_url?: string | null;
   image_url?: string | null;
 };
@@ -79,14 +79,14 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   const allowedRoles = ["admin", "editor"] as const;
 
   const selectWithAllTerreiroFields =
-    "terreiro_id, role, terreiros(id, name, avatar_url, image_url)";
+    "terreiro_id, role, terreiros(id, title, avatar_url, image_url)";
   const selectWithImageOnly =
-    "terreiro_id, role, terreiros(id, name, image_url)";
-  const selectWithoutImages = "terreiro_id, role, terreiros(id, name)";
+    "terreiro_id, role, terreiros(id, title, image_url)";
+  const selectWithoutImages = "terreiro_id, role, terreiros(id, title)";
 
-  const selectTerreirosAll = "id, name, avatar_url, image_url";
-  const selectTerreirosImageOnly = "id, name, image_url";
-  const selectTerreirosWithoutImages = "id, name";
+  const selectTerreirosAll = "id, title, avatar_url, image_url";
+  const selectTerreirosImageOnly = "id, title, image_url";
+  const selectTerreirosWithoutImages = "id, title";
 
   let joined: any = await supabase
     .from("terreiro_members")
@@ -146,7 +146,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
       const terreiro = Array.isArray(rawTerreiro)
         ? rawTerreiro[0]
         : rawTerreiro;
-      if (!terreiro?.id || !terreiro?.name) continue;
+      if (!terreiro?.id || !terreiro?.title) continue;
 
       const avatarUrl =
         (typeof terreiro.avatar_url === "string" && terreiro.avatar_url) ||
@@ -157,7 +157,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
       if (!existing) {
         byId.set(terreiro.id, {
           id: terreiro.id,
-          name: terreiro.name,
+          name: terreiro.title,
           avatarUrl,
           role,
         });
@@ -286,7 +286,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
         (typeof t.image_url === "string" && t.image_url) ||
         undefined;
 
-      return { id: t.id, name: t.name, avatarUrl, role };
+      return { id: t.id, name: t.title, avatarUrl, role };
     })
     .filter(Boolean) as ManagedTerreiro[];
 

@@ -67,9 +67,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       ...fragmentParams,
     };
 
+    console.log("Deep link recebido:", url);
+    console.log("mergedParams keys:", Object.keys(mergedParams));
+
+    const oauthError = mergedParams.error;
+    const oauthErrorDescription = mergedParams.error_description;
+    if (oauthError || oauthErrorDescription) {
+      console.error("OAuth callback retornou erro:", {
+        error: oauthError ?? "",
+        error_description: oauthErrorDescription ?? "",
+      });
+      return;
+    }
+
     const code = mergedParams.code;
     const access_token = mergedParams.access_token;
     const refresh_token = mergedParams.refresh_token;
+    const hasAccessToken = Boolean(access_token);
+    const hasRefreshToken = Boolean(refresh_token);
 
     try {
       if (code) {
@@ -90,7 +105,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       if (access_token && refresh_token) {
-        console.log("Tokens encontrados no callback, estabelecendo sessão...");
+        console.log("Tokens encontrados no callback, estabelecendo sessão...", {
+          hasAccessToken,
+          hasRefreshToken,
+        });
         const { data, error } = await supabase.auth.setSession({
           access_token,
           refresh_token,
@@ -105,7 +123,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
         return;
       }
 
-      console.log("Callback recebido, mas sem code/tokens:", mergedParams);
+      console.log("Callback recebido, mas sem code/tokens:", {
+        url,
+        mergedParamsKeys: Object.keys(mergedParams),
+        hasAccessToken,
+        hasRefreshToken,
+      });
     } catch (error) {
       console.error("Erro ao processar deep link:", error);
     }
@@ -169,9 +192,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     try {
       console.log("signInWithGoogle chamado");
 
-      // Força o uso do deep link fixo, independente do ambiente
-      const redirectUri = "saravafy://auth/callback";
-      console.log("Redirect URI:", redirectUri); // Deve ser exatamente saravafy://auth/callback
+      // Gera o redirect dinamicamente a partir do scheme/config do app
+      const redirectUri = Linking.createURL("auth/callback");
+
+      console.log("Redirect URI:", redirectUri);
 
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",

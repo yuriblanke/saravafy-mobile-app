@@ -26,9 +26,25 @@ function coerceTags(value: unknown): string[] {
 }
 
 export async function fetchAllPontos(): Promise<Ponto[]> {
-  const { data, error } = await supabase.from(PONTOS_TABLE).select("*");
+  const { data, error } = await supabase
+    .from(PONTOS_TABLE)
+    .select("id, title, lyrics, tags")
+    .eq("is_active", true)
+    .eq("restricted", false)
+    .order("title", { ascending: true });
 
-  if (error) throw error;
+  if (error) {
+    const anyErr = error as any;
+    const message =
+      typeof anyErr?.message === "string" && anyErr.message.trim()
+        ? anyErr.message
+        : "Erro ao carregar pontos.";
+    const extra = [anyErr?.code, anyErr?.details, anyErr?.hint]
+      .filter((v) => typeof v === "string" && v.trim().length > 0)
+      .join(" | ");
+
+    throw new Error(extra ? `${message} (${extra})` : message);
+  }
   return (data ?? []).map((row: any) => ({
     id: row.id,
     title: row.title,

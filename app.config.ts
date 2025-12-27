@@ -5,7 +5,7 @@ const IS_DEV_CLIENT = process.env.EAS_BUILD_PROFILE === "development";
 const config: ExpoConfig = {
   owner: "yuriblanke",
   name: IS_DEV_CLIENT ? "Saravafy Dev" : "Saravafy",
-  slug: "saravafy-mobile-app",
+  slug: "saravafy",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/images/app-icon.png",

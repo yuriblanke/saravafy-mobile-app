@@ -2,7 +2,6 @@ import { supabase } from "@/lib/supabase";
 
 export type TerreiroCollection = {
   id: string;
-  name?: string | null;
   title?: string | null;
   description?: string | null;
   pontosCount?: number;
@@ -23,7 +22,7 @@ function isMissingColumnError(error: unknown, columnName: string) {
 export async function fetchCollectionsDoTerreiro(terreiroId: string) {
   if (!terreiroId) return [] as TerreiroCollection[];
 
-  const baseSelect = ["id", "name", "title", "description"].join(", ");
+  const baseSelect = ["id", "title", "description"].join(", ");
 
   const queryWith = async (
     fkColumn: "owner_terreiro_id" | "ownerTerreiroId"
@@ -46,14 +45,7 @@ export async function fetchCollectionsDoTerreiro(terreiroId: string) {
   if (res.error && isMissingColumnError(res.error, "description")) {
     res = await supabase
       .from("collections")
-      .select(["id", "name", "title"].join(", "))
-      .eq("owner_terreiro_id", terreiroId);
-  }
-
-  if (res.error && isMissingColumnError(res.error, "title")) {
-    res = await supabase
-      .from("collections")
-      .select(["id", "name", "description"].join(", "))
+      .select(["id", "title"].join(", "))
       .eq("owner_terreiro_id", terreiroId);
   }
 

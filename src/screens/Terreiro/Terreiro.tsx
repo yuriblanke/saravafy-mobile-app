@@ -149,7 +149,7 @@ export default function Terreiro() {
   const [collections, setCollections] = useState<TerreiroCollection[]>([]);
   const [creatingCollection, setCreatingCollection] = useState<null | {
     id: string; // id temporário
-    name: string;
+    title: string;
     isNew: true;
   }>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -311,7 +311,7 @@ export default function Terreiro() {
   const startEditCollectionTitle = (collection: TerreiroCollection) => {
     if (!canEdit) return;
     const current =
-      (typeof collection.name === "string" && collection.name.trim()) || "";
+      (typeof collection.title === "string" && collection.title.trim()) || "";
 
     setEditingCollectionId(collection.id);
     setDraftCollectionTitle(current);
@@ -330,9 +330,9 @@ export default function Terreiro() {
   const saveNewCollection = async () => {
     if (!canEdit) return;
     if (!creatingCollection) return;
-    const name = (draftCollectionTitle ?? "").trim();
-    if (!name) {
-      setNewCollectionError("O nome não pode ficar vazio.");
+    const title = (draftCollectionTitle ?? "").trim();
+    if (!title) {
+      setNewCollectionError("O título não pode ficar vazio.");
       return;
     }
     setIsSavingCollectionTitle(true);
@@ -341,7 +341,7 @@ export default function Terreiro() {
       const res = await supabase
         .from("collections")
         .insert({
-          name,
+          title,
           owner_terreiro_id: terreiroId,
           owner_user_id: null,
         })
@@ -379,9 +379,9 @@ export default function Terreiro() {
     try {
       const res = await supabase
         .from("collections")
-        .update({ name: nextName })
+        .update({ title: nextName })
         .eq("id", collectionId)
-        .select("id, name")
+        .select("id, title")
         .single();
 
       if (res.error) {
@@ -392,14 +392,14 @@ export default function Terreiro() {
         );
       }
 
-      const savedName =
-        (typeof res.data?.name === "string" && res.data.name.trim()) ||
+      const savedTitle =
+        (typeof res.data?.title === "string" && res.data.title.trim()) ||
         nextName;
 
       setCollections((prev) =>
         prev.map((c) => {
           if (c.id !== collectionId) return c;
-          return { ...c, name: savedName };
+          return { ...c, title: savedTitle };
         })
       );
 
@@ -439,9 +439,9 @@ export default function Terreiro() {
     try {
       const res = await supabase
         .from("terreiros")
-        .update({ name: nextName })
+        .update({ title: nextName })
         .eq("id", terreiroId)
-        .select("id, name")
+        .select("id, title")
         .single();
 
       if (res.error) {
@@ -453,7 +453,7 @@ export default function Terreiro() {
       }
 
       const savedName =
-        (typeof res.data?.name === "string" && res.data.name.trim()) ||
+        (typeof res.data?.title === "string" && res.data.title.trim()) ||
         nextName;
 
       if (
@@ -736,7 +736,7 @@ export default function Terreiro() {
                 onPress={() => {
                   // Cria um id temporário único
                   const tempId = `new-${Date.now()}`;
-                  setCreatingCollection({ id: tempId, name: "", isNew: true });
+                  setCreatingCollection({ id: tempId, title: "", isNew: true });
                   setEditingCollectionId(tempId);
                   setDraftCollectionTitle("");
                   setCollectionTitleSelection({ start: 0, end: 0 });
@@ -791,7 +791,6 @@ export default function Terreiro() {
                 const isEditingThisCollection = editingCollectionId === item.id;
                 const isNew = (item as any).isNew;
                 const name =
-                  (typeof item.name === "string" && item.name.trim()) ||
                   ("title" in item &&
                     typeof item.title === "string" &&
                     item.title.trim()) ||
@@ -801,12 +800,16 @@ export default function Terreiro() {
                     ? item.pontosCount
                     : 0;
 
-                // Navega para a tela de Collection se a coleção estiver vazia
+                // Navega para a tela de Collection
                 const handlePress = () => {
-                  if (!isEditingThisCollection && !isNew && pontosCount === 0) {
+                  if (!isEditingThisCollection && !isNew) {
                     router.push({
                       pathname: "/collection/[id]",
-                      params: { id: item.id, name },
+                      params: {
+                        id: item.id,
+                        collectionId: item.id,
+                        collectionTitle: name,
+                      },
                     });
                   }
                 };
@@ -816,9 +819,7 @@ export default function Terreiro() {
                     <SurfaceCard variant={variant}>
                       <Pressable
                         onPress={handlePress}
-                        disabled={
-                          isEditingThisCollection || isNew || pontosCount !== 0
-                        }
+                        disabled={isEditingThisCollection || isNew}
                         style={{ flex: 1 }}
                       >
                         <View style={styles.cardHeaderRow}>
@@ -995,9 +996,9 @@ export default function Terreiro() {
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
             Coleção
           </Text>
-          {collectionActionsTarget?.name ? (
+          {collectionActionsTarget?.title ? (
             <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
-              {collectionActionsTarget.name}
+              {collectionActionsTarget.title}
             </Text>
           ) : null}
 
@@ -1063,9 +1064,9 @@ export default function Terreiro() {
           <Text style={[styles.sheetTitle, { color: warningColor }]}>
             Excluir coleção?
           </Text>
-          {collectionPendingDelete?.name ? (
+          {collectionPendingDelete?.title ? (
             <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
-              {collectionPendingDelete.name}
+              {collectionPendingDelete.title}
             </Text>
           ) : null}
 

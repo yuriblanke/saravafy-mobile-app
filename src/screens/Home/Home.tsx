@@ -28,6 +28,21 @@ function normalize(value: string) {
   return value.trim().toLowerCase();
 }
 
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
+    return e.message;
+  }
+
+  if (e && typeof e === "object") {
+    const anyErr = e as any;
+    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
+      return anyErr.message;
+    }
+  }
+
+  return String(e);
+}
+
 export function matchesQuery(point: Ponto, query: string) {
   const q = normalize(query);
   if (!q) return true;
@@ -79,7 +94,16 @@ export default function Home() {
   useEffect(() => {
     fetchAllPontos()
       .then(setPontos)
-      .catch(() => setLoadError("Erro ao carregar pontos."))
+      .catch((e) => {
+        if (__DEV__) {
+          const msg = getErrorMessage(e);
+          console.info("[Pontos] erro ao carregar", {
+            message: msg,
+            raw: e,
+          });
+        }
+        setLoadError(__DEV__ ? getErrorMessage(e) : "Erro ao carregar pontos.");
+      })
       .finally(() => setIsLoading(false));
   }, []);
 
@@ -184,7 +208,18 @@ export default function Home() {
                   setIsLoading(true);
                   fetchAllPontos()
                     .then(setPontos)
-                    .catch(() => setLoadError("Erro ao carregar pontos."))
+                    .catch((e) => {
+                      if (__DEV__) {
+                        console.info("[Pontos] erro ao carregar", {
+                          error: e instanceof Error ? e.message : String(e),
+                        });
+                      }
+                      setLoadError(
+                        __DEV__ && e instanceof Error && e.message
+                          ? e.message
+                          : "Erro ao carregar pontos."
+                      );
+                    })
                     .finally(() => setIsLoading(false));
                 }}
                 style={[

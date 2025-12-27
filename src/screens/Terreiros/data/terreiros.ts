@@ -8,8 +8,8 @@ export async function fetchTerreirosWithRole(
   // Busca todos os terreiros
   const res = await supabase
     .from("terreiros")
-    .select("id, name, terreiro_members(role)")
-    .order("name", { ascending: true });
+    .select("id, title, terreiro_members(role)")
+    .order("title", { ascending: true });
 
   if (res.error) {
     throw new Error(res.error.message ?? "Erro ao carregar terreiros");
@@ -21,13 +21,13 @@ export async function fetchTerreirosWithRole(
       const r = t.terreiro_members[0]?.role;
       if (r === "admin" || r === "editor") role = r;
     }
-    return { id: t.id, name: t.name, role };
+    return { id: t.id, name: t.title, role };
   });
 }
 
 type TerreiroRow = {
   id: string;
-  name: string;
+  title: string;
   avatar_url?: string | null;
   image_url?: string | null;
 };
