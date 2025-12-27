@@ -13,7 +13,7 @@ type Props<T extends string> = {
   variant: "light" | "dark";
   value: T;
   onChange: (next: T) => void;
-  options: ReadonlyArray<PreferencesRadioOption<T>>;
+  options: readonly PreferencesRadioOption<T>[];
 };
 
 export function PreferencesRadioGroup<T extends string>({

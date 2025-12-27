@@ -29,7 +29,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "800",
     letterSpacing: 0.2,
-    textTransform: "uppercase",
   },
   content: {
     gap: 0,

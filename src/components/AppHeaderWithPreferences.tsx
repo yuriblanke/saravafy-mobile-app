@@ -89,7 +89,6 @@ export function AppHeaderWithPreferences() {
   const [isCreateTerreiroOpen, setIsCreateTerreiroOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isEditTerreiroOpen, setIsEditTerreiroOpen] = useState(false);
-  const [editTerreiroId, setEditTerreiroId] = useState<string | null>(null);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -141,11 +140,6 @@ export function AppHeaderWithPreferences() {
     activeContext.kind === "USER_PROFILE"
       ? userDisplayName
       : activeTerreiro?.name ?? "Terreiro";
-
-  const contextSubtitle =
-    activeContext.kind === "USER_PROFILE"
-      ? "Usando como: Meu perfil"
-      : "Usando como: Página do terreiro";
 
   const contextAvatarUrl =
     activeContext.kind === "USER_PROFILE"
@@ -363,7 +357,6 @@ export function AppHeaderWithPreferences() {
                       router.replace("/terreiro" as any);
                     }}
                     onPressEdit={() => {
-                      setEditTerreiroId(t.id);
                       setIsPreferencesOpen(false);
                       setIsEditTerreiroOpen(true);
                     }}
@@ -414,22 +407,20 @@ export function AppHeaderWithPreferences() {
                   },
                   { key: "light", label: "Claro" },
                   { key: "dark", label: "Escuro" },
-                ] as const satisfies ReadonlyArray<PreferencesRadioOption<ThemeMode>>
+                ] as const satisfies readonly PreferencesRadioOption<ThemeMode>[]
               }
             />
           </PreferencesSection>
 
           <View style={[styles.blockDivider, { backgroundColor: dividerColor }]} />
 
-          <PreferencesSection title="Modo Curimba" variant={variant}>
-            <PreferencesSwitchItem
-              variant={variant}
-              title="Modo Curimba"
-              description="Durante a gira: apenas letras, sem áudio, e tela sempre ligada."
-              value={curimbaEnabled}
-              onValueChange={onToggleCurimba}
-            />
-          </PreferencesSection>
+          <PreferencesSwitchItem
+            variant={variant}
+            title="Modo Curimba"
+            description="Durante a gira: apenas letras, sem áudio, e tela sempre ligada."
+            value={curimbaEnabled}
+            onValueChange={onToggleCurimba}
+          />
 
           <View style={styles.finalGap} />
 
@@ -482,7 +473,6 @@ export function AppHeaderWithPreferences() {
         variant={variant}
         onClose={() => {
           setIsEditTerreiroOpen(false);
-          setEditTerreiroId(null);
         }}
       >
         <View />

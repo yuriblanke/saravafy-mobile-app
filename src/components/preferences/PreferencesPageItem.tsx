@@ -39,22 +39,8 @@ export function PreferencesPageItem({
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
-  const Row = isActive ? View : Pressable;
-
-  return (
-    <Row
-      {...(!isActive
-        ? {
-            accessibilityRole: "button" as const,
-            onPress: onPressSwitch,
-          }
-        : {})}
-      style={({ pressed }: any) => [
-        styles.row,
-        { borderColor },
-        !isActive && pressed ? styles.rowPressed : null,
-      ]}
-    >
+  const content = (
+    <>
       <View style={styles.left} pointerEvents="none">
         <View style={styles.avatarWrap}>
           {avatarUrl ? (
@@ -102,7 +88,25 @@ export function PreferencesPageItem({
       >
         <Ionicons name="pencil" size={18} color={textMuted} />
       </Pressable>
-    </Row>
+    </>
+  );
+
+  if (isActive) {
+    return <View style={[styles.row, { borderColor }]}>{content}</View>;
+  }
+
+  return (
+    <Pressable
+      accessibilityRole="button"
+      onPress={onPressSwitch}
+      style={({ pressed }) => [
+        styles.row,
+        { borderColor },
+        pressed ? styles.rowPressed : null,
+      ]}
+    >
+      {content}
+    </Pressable>
   );
 }
 
