@@ -65,6 +65,7 @@ function safeLocaleCompare(a: string, b: string) {
 type TerreiroRow = {
   id: string;
   title: string;
+  cover_image_url?: string | null;
   avatar_url?: string | null;
   image_url?: string | null;
 };
@@ -86,14 +87,25 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   const allowedRoles = ["admin", "editor"] as const;
 
   const selectWithAllTerreiroFields =
+    "terreiro_id, role, terreiros(id, title, cover_image_url, avatar_url, image_url)";
+  const selectWithAllTerreiroFieldsWithoutCover =
     "terreiro_id, role, terreiros(id, title, avatar_url, image_url)";
   const selectWithImageOnly =
+    "terreiro_id, role, terreiros(id, title, cover_image_url, image_url)";
+  const selectWithImageOnlyWithoutCover =
     "terreiro_id, role, terreiros(id, title, image_url)";
-  const selectWithoutImages = "terreiro_id, role, terreiros(id, title)";
+  const selectWithoutImages =
+    "terreiro_id, role, terreiros(id, title, cover_image_url)";
+  const selectWithoutImagesWithoutCover =
+    "terreiro_id, role, terreiros(id, title)";
 
-  const selectTerreirosAll = "id, title, avatar_url, image_url";
-  const selectTerreirosImageOnly = "id, title, image_url";
-  const selectTerreirosWithoutImages = "id, title";
+  const selectTerreirosAll =
+    "id, title, cover_image_url, avatar_url, image_url";
+  const selectTerreirosAllWithoutCover = "id, title, avatar_url, image_url";
+  const selectTerreirosImageOnly = "id, title, cover_image_url, image_url";
+  const selectTerreirosImageOnlyWithoutCover = "id, title, image_url";
+  const selectTerreirosWithoutImages = "id, title, cover_image_url";
+  const selectTerreirosWithoutImagesWithoutCover = "id, title";
 
   let joined: any = await supabase
     .from("terreiro_members")
@@ -104,12 +116,30 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   if (
     joined.error &&
     typeof joined.error.message === "string" &&
+    joined.error.message.includes("cover_image_url") &&
+    joined.error.message.includes("does not exist")
+  ) {
+    joined = await supabase
+      .from("terreiro_members")
+      .select(selectWithAllTerreiroFieldsWithoutCover)
+      .eq("user_id", userId)
+      .in("role", [...allowedRoles]);
+  }
+
+  if (
+    joined.error &&
+    typeof joined.error.message === "string" &&
     joined.error.message.includes("avatar_url") &&
     joined.error.message.includes("does not exist")
   ) {
     joined = await supabase
       .from("terreiro_members")
-      .select(selectWithImageOnly)
+      .select(
+        typeof joined.error.message === "string" &&
+          joined.error.message.includes("cover_image_url")
+          ? selectWithImageOnlyWithoutCover
+          : selectWithImageOnly
+      )
       .eq("user_id", userId)
       .in("role", [...allowedRoles]);
   }
@@ -122,7 +152,12 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   ) {
     joined = await supabase
       .from("terreiro_members")
-      .select(selectWithoutImages)
+      .select(
+        typeof joined.error.message === "string" &&
+          joined.error.message.includes("cover_image_url")
+          ? selectWithoutImagesWithoutCover
+          : selectWithoutImages
+      )
       .eq("user_id", userId)
       .in("role", [...allowedRoles]);
   }
@@ -156,6 +191,8 @@ export async function fetchTerreirosQueAdministro(userId: string) {
       if (!terreiro?.id || !terreiro?.title) continue;
 
       const avatarUrl =
+        (typeof terreiro.cover_image_url === "string" &&
+          terreiro.cover_image_url) ||
         (typeof terreiro.avatar_url === "string" && terreiro.avatar_url) ||
         (typeof terreiro.image_url === "string" && terreiro.image_url) ||
         undefined;
@@ -229,12 +266,29 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   if (
     terreiros.error &&
     typeof terreiros.error.message === "string" &&
+    terreiros.error.message.includes("cover_image_url") &&
+    terreiros.error.message.includes("does not exist")
+  ) {
+    terreiros = await supabase
+      .from("terreiros")
+      .select(selectTerreirosAllWithoutCover)
+      .in("id", ids);
+  }
+
+  if (
+    terreiros.error &&
+    typeof terreiros.error.message === "string" &&
     terreiros.error.message.includes("avatar_url") &&
     terreiros.error.message.includes("does not exist")
   ) {
     terreiros = await supabase
       .from("terreiros")
-      .select(selectTerreirosImageOnly)
+      .select(
+        typeof terreiros.error.message === "string" &&
+          terreiros.error.message.includes("cover_image_url")
+          ? selectTerreirosImageOnlyWithoutCover
+          : selectTerreirosImageOnly
+      )
       .in("id", ids);
   }
 
@@ -246,7 +300,12 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   ) {
     terreiros = await supabase
       .from("terreiros")
-      .select(selectTerreirosWithoutImages)
+      .select(
+        typeof terreiros.error.message === "string" &&
+          terreiros.error.message.includes("cover_image_url")
+          ? selectTerreirosWithoutImagesWithoutCover
+          : selectTerreirosWithoutImages
+      )
       .in("id", ids);
   }
 
@@ -289,6 +348,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
       if (!role) return null;
 
       const avatarUrl =
+        (typeof t.cover_image_url === "string" && t.cover_image_url) ||
         (typeof t.avatar_url === "string" && t.avatar_url) ||
         (typeof t.image_url === "string" && t.image_url) ||
         undefined;
@@ -315,6 +375,12 @@ type PreferencesContextValue = {
   hasLoadedTerreirosAdmin: boolean;
   hasAttemptedTerreirosAdmin: boolean;
   fetchTerreirosQueAdministro: (userId: string) => Promise<void>;
+
+  applyTerreiroPatch: (patch: {
+    terreiroId: string;
+    terreiroName?: string;
+    terreiroAvatarUrl?: string;
+  }) => void;
 
   curimbaEnabled: boolean;
   setCurimbaEnabled: (enabled: boolean) => void;
@@ -678,9 +744,22 @@ export function PreferencesProvider({
 
     let res: any = await supabase
       .from("terreiros")
-      .select("id, title, avatar_url, image_url")
+      .select("id, title, cover_image_url, avatar_url, image_url")
       .eq("id", terreiroId)
       .maybeSingle();
+
+    if (
+      res.error &&
+      typeof res.error.message === "string" &&
+      res.error.message.includes("cover_image_url") &&
+      res.error.message.includes("does not exist")
+    ) {
+      res = await supabase
+        .from("terreiros")
+        .select("id, title, avatar_url, image_url")
+        .eq("id", terreiroId)
+        .maybeSingle();
+    }
 
     if (
       res.error &&
@@ -690,9 +769,22 @@ export function PreferencesProvider({
     ) {
       res = await supabase
         .from("terreiros")
-        .select("id, title, image_url")
+        .select("id, title, cover_image_url, image_url")
         .eq("id", terreiroId)
         .maybeSingle();
+
+      if (
+        res.error &&
+        typeof res.error.message === "string" &&
+        res.error.message.includes("cover_image_url") &&
+        res.error.message.includes("does not exist")
+      ) {
+        res = await supabase
+          .from("terreiros")
+          .select("id, title, image_url")
+          .eq("id", terreiroId)
+          .maybeSingle();
+      }
     }
 
     if (res.error) return null;
@@ -700,6 +792,7 @@ export function PreferencesProvider({
       | {
           id: string;
           title: string;
+          cover_image_url?: string | null;
           avatar_url?: string | null;
           image_url?: string | null;
         }
@@ -708,6 +801,7 @@ export function PreferencesProvider({
     if (!row?.id || !row.title) return null;
 
     const avatarUrl =
+      (typeof row.cover_image_url === "string" && row.cover_image_url) ||
       (typeof row.avatar_url === "string" && row.avatar_url) ||
       (typeof row.image_url === "string" && row.image_url) ||
       undefined;
@@ -925,6 +1019,58 @@ export function PreferencesProvider({
     }
   };
 
+  const applyTerreiroPatch = (patch: {
+    terreiroId: string;
+    terreiroName?: string;
+    terreiroAvatarUrl?: string;
+  }) => {
+    if (!patch.terreiroId) return;
+
+    setTerreirosAdmin((prev) => {
+      const next = prev.map((t) => {
+        if (t.id !== patch.terreiroId) return t;
+        return {
+          ...t,
+          name: patch.terreiroName ?? t.name,
+          avatarUrl: patch.terreiroAvatarUrl ?? t.avatarUrl,
+        };
+      });
+
+      const exists = next.some((t) => t.id === patch.terreiroId);
+      if (exists) return next;
+
+      // Se ainda não estava na lista (ex.: acabou de criar), adiciona no fim.
+      return [
+        ...next,
+        {
+          id: patch.terreiroId,
+          name: patch.terreiroName ?? "Terreiro",
+          avatarUrl: patch.terreiroAvatarUrl,
+          role: "admin" as TerreiroRole,
+        },
+      ].sort((a, b) => safeLocaleCompare(a.name, b.name));
+    });
+
+    setActiveContext((prev) => {
+      if (prev.kind !== "TERREIRO_PAGE") return prev;
+      if (prev.terreiroId !== patch.terreiroId) return prev;
+      return {
+        ...prev,
+        terreiroName: patch.terreiroName ?? prev.terreiroName,
+        terreiroAvatarUrl: patch.terreiroAvatarUrl ?? prev.terreiroAvatarUrl,
+      };
+    });
+
+    setStartPagePreference((prev) => {
+      if (!prev || prev.type !== "TERREIRO") return prev;
+      if (prev.terreiroId !== patch.terreiroId) return prev;
+      return {
+        ...prev,
+        terreiroTitle: patch.terreiroName ?? prev.terreiroTitle,
+      };
+    });
+  };
+
   const value: PreferencesContextValue = {
     themeMode,
     setThemeMode,
@@ -938,6 +1084,7 @@ export function PreferencesProvider({
     hasLoadedTerreirosAdmin: didLoadTerreirosAdmin,
     hasAttemptedTerreirosAdmin: didAttemptTerreirosAdmin,
     fetchTerreirosQueAdministro: loadTerreirosQueAdministro,
+    applyTerreiroPatch,
     curimbaEnabled,
     setCurimbaEnabled,
     curimbaOnboardingDismissed,

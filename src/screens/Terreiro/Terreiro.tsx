@@ -422,22 +422,48 @@ export default function Terreiro() {
                     <Ionicons name="eye" size={20} color={accentColor} />
                   </Pressable>
                 ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Abrir menu do terreiro"
-                    hitSlop={10}
-                    onPress={() => setIsTerreiroMenuOpen(true)}
-                    style={({ pressed }) => [
-                      styles.iconButton,
-                      pressed ? styles.iconButtonPressed : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="ellipsis-vertical"
-                      size={20}
-                      color={textMuted}
-                    />
-                  </Pressable>
+                  <>
+                    {canEdit ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Editar terreiro"
+                        hitSlop={10}
+                        onPress={() => {
+                          if (!resolvedTerreiroId) return;
+                          router.push({
+                            pathname: "/terreiro-editor" as any,
+                            params: {
+                              mode: "edit",
+                              terreiroId: resolvedTerreiroId,
+                            },
+                          });
+                        }}
+                        style={({ pressed }) => [
+                          styles.iconButton,
+                          pressed ? styles.iconButtonPressed : null,
+                        ]}
+                      >
+                        <Ionicons name="pencil" size={20} color={textMuted} />
+                      </Pressable>
+                    ) : null}
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Abrir menu do terreiro"
+                      hitSlop={10}
+                      onPress={() => setIsTerreiroMenuOpen(true)}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        pressed ? styles.iconButtonPressed : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name="ellipsis-vertical"
+                        size={20}
+                        color={textMuted}
+                      />
+                    </Pressable>
+                  </>
                 )}
               </View>
             </View>

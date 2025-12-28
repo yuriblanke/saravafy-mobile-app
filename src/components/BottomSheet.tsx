@@ -3,7 +3,9 @@ import {
   Animated,
   PanResponder,
   Pressable,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -24,12 +26,15 @@ export function BottomSheet({
   children,
   enableSwipeToClose = true,
 }: Props) {
+  const { height: screenHeight } = useWindowDimensions();
   const translateY = useRef(new Animated.Value(0)).current;
   const [sheetHeight, setSheetHeight] = useState(0);
+  const scrollYRef = useRef(0);
 
   useEffect(() => {
     if (!visible) {
       translateY.setValue(0);
+      scrollYRef.current = 0;
     }
   }, [translateY, visible]);
 
@@ -51,7 +56,12 @@ export function BottomSheet({
     if (!enableSwipeToClose) return null;
 
     return PanResponder.create({
+      onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
+        if (scrollYRef.current > 0) return false;
+        return gesture.dy > 6 && Math.abs(gesture.dx) < 12;
+      },
       onMoveShouldSetPanResponder: (_evt, gesture) => {
+        if (scrollYRef.current > 0) return false;
         return gesture.dy > 6 && Math.abs(gesture.dx) < 12;
       },
       onPanResponderMove: (_evt, gesture) => {
@@ -81,30 +91,48 @@ export function BottomSheet({
 
   if (!visible) return null;
 
+  const maxSheetHeight = Math.round(screenHeight * 0.85);
+
   return (
     <View style={styles.portal} pointerEvents="box-none">
-      <Pressable style={styles.backdrop} onPress={onClose}>
-        <Animated.View
-          style={[
-            styles.sheet,
-            variant === "light" ? styles.sheetLight : styles.sheetDark,
-            { transform: [{ translateY }] },
-          ]}
-          onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
-          {...(panResponder ? panResponder.panHandlers : null)}
-        >
-          <View style={styles.handleWrap} pointerEvents="none">
-            <View
-              style={[
-                styles.handle,
-                variant === "light" ? styles.handleLight : styles.handleDark,
-              ]}
-            />
-          </View>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Fechar"
+        style={styles.backdrop}
+        onPress={onClose}
+      />
 
+      <Animated.View
+        style={[
+          styles.sheet,
+          variant === "light" ? styles.sheetLight : styles.sheetDark,
+          { maxHeight: maxSheetHeight, transform: [{ translateY }] },
+        ]}
+        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+        {...(panResponder ? panResponder.panHandlers : null)}
+      >
+        <View style={styles.handleWrap} pointerEvents="none">
+          <View
+            style={[
+              styles.handle,
+              variant === "light" ? styles.handleLight : styles.handleDark,
+            ]}
+          />
+        </View>
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            const nextY = e.nativeEvent.contentOffset?.y ?? 0;
+            scrollYRef.current = nextY > 0 ? nextY : 0;
+          }}
+        >
           <Pressable onPress={() => undefined}>{children}</Pressable>
-        </Animated.View>
-      </Pressable>
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -114,11 +142,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     zIndex: 999,
     elevation: 999,
+    justifyContent: "flex-end",
   },
   backdrop: {
-    flex: 1,
+    ...StyleSheet.absoluteFillObject,
     backgroundColor: colors.overlayBackdrop,
-    justifyContent: "flex-end",
   },
   sheet: {
     borderTopLeftRadius: 18,
@@ -154,5 +182,12 @@ const styles = StyleSheet.create({
   },
   handleLight: {
     backgroundColor: colors.textMutedOnLight,
+  },
+
+  scroll: {
+    flexGrow: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
   },
 });

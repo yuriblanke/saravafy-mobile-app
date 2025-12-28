@@ -37,6 +37,10 @@ export function PreferencesPageItem({
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
+  const interactiveBg =
+    variant === "light" ? colors.inputBgLight : colors.inputBgDark;
+  const pressedBg = variant === "light" ? colors.paper50 : colors.forest700;
+
   const content = (
     <>
       <View style={styles.left} pointerEvents="none">
@@ -80,7 +84,10 @@ export function PreferencesPageItem({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Editar ${title}`}
-        onPress={onPressEdit}
+        onPress={(e) => {
+          e.stopPropagation?.();
+          onPressEdit();
+        }}
         hitSlop={12}
         style={({ pressed }) => [
           styles.editBtn,
@@ -102,8 +109,8 @@ export function PreferencesPageItem({
       onPress={onPressSwitch}
       style={({ pressed }) => [
         styles.row,
-        { borderColor },
-        pressed ? styles.rowPressed : null,
+        { borderColor, backgroundColor: interactiveBg },
+        pressed ? [styles.rowPressed, { backgroundColor: pressedBg }] : null,
       ]}
     >
       {content}
@@ -123,7 +130,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
   },
   rowPressed: {
-    opacity: 0.82,
+    opacity: 0.94,
   },
   left: {
     flexDirection: "row",

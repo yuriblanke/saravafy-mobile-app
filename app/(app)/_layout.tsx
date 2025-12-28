@@ -6,6 +6,7 @@ export default function AppLayout() {
       <Stack.Screen name="home" />
       <Stack.Screen name="terreiro" />
       <Stack.Screen name="terreiros" />
+      <Stack.Screen name="terreiro-editor" />
     </Stack>
   );
 }

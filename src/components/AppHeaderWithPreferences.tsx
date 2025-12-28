@@ -10,6 +10,7 @@ import {
 } from "@/src/components/preferences";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -60,7 +61,6 @@ export function AppHeaderWithPreferences() {
     curimbaEnabled,
     setCurimbaEnabled,
     startPagePreference,
-    clearStartPagePreference,
   } = usePreferences();
 
   const variant = effectiveTheme;
@@ -90,9 +90,7 @@ export function AppHeaderWithPreferences() {
       : colors.surfaceCardBorder;
 
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
-  const [isCreateTerreiroOpen, setIsCreateTerreiroOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
-  const [isEditTerreiroOpen, setIsEditTerreiroOpen] = useState(false);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -244,13 +242,6 @@ export function AppHeaderWithPreferences() {
         </View>
 
         <View style={styles.headerIdentity}>
-          <Text
-            style={[styles.headerIdentityText, { color: textPrimary }]}
-            numberOfLines={1}
-          >
-            {contextTitle}
-          </Text>
-
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Abrir preferências"
@@ -261,29 +252,33 @@ export function AppHeaderWithPreferences() {
               pressed ? styles.avatarTriggerPressed : null,
             ]}
           >
-            <View style={styles.avatarWrap}>
-              {contextAvatarUrl ? (
-                <Image
-                  source={{ uri: contextAvatarUrl }}
-                  style={styles.avatarImage}
-                />
-              ) : (
-                <View
-                  style={[
-                    styles.avatarPlaceholder,
-                    variant === "light"
-                      ? styles.avatarPlaceholderLight
-                      : styles.avatarPlaceholderDark,
-                  ]}
-                >
-                  <Text style={[styles.avatarInitials, { color: textPrimary }]}>
-                    {contextInitials}
-                  </Text>
-                </View>
-              )}
-            </View>
+            <View style={styles.avatarTriggerStack} pointerEvents="none">
+              <View style={styles.avatarWrap}>
+                {contextAvatarUrl ? (
+                  <Image
+                    source={{ uri: contextAvatarUrl }}
+                    style={styles.avatarImage}
+                  />
+                ) : (
+                  <View
+                    style={[
+                      styles.avatarPlaceholder,
+                      variant === "light"
+                        ? styles.avatarPlaceholderLight
+                        : styles.avatarPlaceholderDark,
+                    ]}
+                  >
+                    <Text
+                      style={[styles.avatarInitials, { color: textPrimary }]}
+                    >
+                      {contextInitials}
+                    </Text>
+                  </View>
+                )}
+              </View>
 
-            <Ionicons name="chevron-down" size={14} color={textMuted} />
+              <Ionicons name="chevron-down" size={14} color={textMuted} />
+            </View>
           </Pressable>
         </View>
       </View>
@@ -305,9 +300,15 @@ export function AppHeaderWithPreferences() {
                 avatarUrl={userPhotoUrl}
                 initials={initials}
                 isActive={activeContext.kind === "USER_PROFILE"}
-                onPressSwitch={() => {
-                  setActiveContext({ kind: "USER_PROFILE" });
-                  setIsPreferencesOpen(false);
+                onPressSwitch={async () => {
+                  try {
+                    await Promise.resolve(
+                      setActiveContext({ kind: "USER_PROFILE" })
+                    );
+                    await Haptics.selectionAsync();
+                  } catch {
+                    // silêncio
+                  }
                   router.replace("/home");
                 }}
                 onPressEdit={() => {
@@ -349,20 +350,29 @@ export function AppHeaderWithPreferences() {
                       activeContext.kind === "TERREIRO_PAGE" &&
                       activeContext.terreiroId === t.id
                     }
-                    onPressSwitch={() => {
-                      setActiveContext({
-                        kind: "TERREIRO_PAGE",
-                        terreiroId: t.id,
-                        terreiroName: t.name,
-                        terreiroAvatarUrl: t.avatarUrl,
-                        role: t.role,
-                      });
-                      setIsPreferencesOpen(false);
+                    onPressSwitch={async () => {
+                      try {
+                        await Promise.resolve(
+                          setActiveContext({
+                            kind: "TERREIRO_PAGE",
+                            terreiroId: t.id,
+                            terreiroName: t.name,
+                            terreiroAvatarUrl: t.avatarUrl,
+                            role: t.role,
+                          })
+                        );
+                        await Haptics.selectionAsync();
+                      } catch {
+                        // silêncio
+                      }
                       router.replace("/terreiro" as any);
                     }}
                     onPressEdit={() => {
                       setIsPreferencesOpen(false);
-                      setIsEditTerreiroOpen(true);
+                      router.push({
+                        pathname: "/terreiro-editor" as any,
+                        params: { mode: "edit", terreiroId: t.id },
+                      });
                     }}
                   />
                 ))
@@ -378,7 +388,10 @@ export function AppHeaderWithPreferences() {
             accessibilityRole="button"
             onPress={() => {
               setIsPreferencesOpen(false);
-              setIsCreateTerreiroOpen(true);
+              router.push({
+                pathname: "/terreiro-editor" as any,
+                params: { mode: "create" },
+              });
             }}
             style={({ pressed }) => [
               styles.createTerreiroBtn,
@@ -395,41 +408,12 @@ export function AppHeaderWithPreferences() {
 
           <PreferencesSection title="Página inicial" variant={variant}>
             <View style={styles.startPageRow}>
-              <Text style={[styles.startPageLabel, { color: textSecondary }]}>
-                Página inicial:
-              </Text>
               <Text style={[styles.startPageValue, { color: textPrimary }]}>
                 {startPagePreference?.type === "TERREIRO"
                   ? startPagePreference.terreiroTitle ?? "Terreiro"
                   : "Home (Pontos)"}
               </Text>
             </View>
-
-            {startPagePreference?.type === "TERREIRO" ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={async () => {
-                  if (!user?.id) return;
-                  try {
-                    await clearStartPagePreference(user.id);
-                    showToast("Preferências de inicialização restauradas.");
-                  } catch {
-                    showToast("Não foi possível restaurar as preferências.");
-                  }
-                }}
-                style={({ pressed }) => [
-                  styles.startPageRemoveRow,
-                  { borderColor: dividerColor },
-                  pressed ? styles.startPageRemovePressed : null,
-                ]}
-              >
-                <Text
-                  style={[styles.startPageRemoveText, { color: textPrimary }]}
-                >
-                  Remover preferências de inicialização
-                </Text>
-              </Pressable>
-            ) : null}
           </PreferencesSection>
 
           <View
@@ -463,48 +447,39 @@ export function AppHeaderWithPreferences() {
             style={[styles.blockDivider, { backgroundColor: dividerColor }]}
           />
 
-          <PreferencesSwitchItem
-            variant={variant}
-            title="Modo Curimba"
-            description="Durante a gira: apenas letras, sem áudio, e tela sempre ligada."
-            value={curimbaEnabled}
-            onValueChange={onToggleCurimba}
-          />
+          <View style={styles.curimbaLogoutWrap}>
+            <PreferencesSwitchItem
+              variant={variant}
+              title="Modo Curimba"
+              description="Durante a gira: apenas letras, sem áudio, e tela sempre ligada."
+              value={curimbaEnabled}
+              onValueChange={onToggleCurimba}
+            />
 
-          <View style={styles.finalGap} />
-
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              setIsPreferencesOpen(false);
-              Alert.alert("Sair", "Deseja sair da sua conta?", [
-                { text: "Cancelar", style: "cancel" },
-                {
-                  text: "Sair",
-                  style: "destructive",
-                  onPress: async () => {
-                    await signOut();
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIsPreferencesOpen(false);
+                Alert.alert("Sair", "Deseja sair da sua conta?", [
+                  { text: "Cancelar", style: "cancel" },
+                  {
+                    text: "Sair",
+                    style: "destructive",
+                    onPress: async () => {
+                      await signOut();
+                    },
                   },
-                },
-              ]);
-            }}
-            style={({ pressed }) => [
-              styles.logoutRow,
-              pressed ? styles.logoutPressed : null,
-            ]}
-          >
-            <Text style={styles.logoutText}>Sair</Text>
-          </Pressable>
+                ]);
+              }}
+              style={({ pressed }) => [
+                styles.logoutRow,
+                pressed ? styles.logoutPressed : null,
+              ]}
+            >
+              <Text style={styles.logoutText}>Sair</Text>
+            </Pressable>
+          </View>
         </View>
-      </BottomSheet>
-
-      {/* Modal: criar terreiro (placeholder silencioso) */}
-      <BottomSheet
-        visible={isCreateTerreiroOpen}
-        variant={variant}
-        onClose={() => setIsCreateTerreiroOpen(false)}
-      >
-        <View />
       </BottomSheet>
 
       {/* Modal: editar perfil (placeholder silencioso) */}
@@ -512,17 +487,6 @@ export function AppHeaderWithPreferences() {
         visible={isEditProfileOpen}
         variant={variant}
         onClose={() => setIsEditProfileOpen(false)}
-      >
-        <View />
-      </BottomSheet>
-
-      {/* Modal: editar terreiro (placeholder silencioso) */}
-      <BottomSheet
-        visible={isEditTerreiroOpen}
-        variant={variant}
-        onClose={() => {
-          setIsEditTerreiroOpen(false);
-        }}
       >
         <View />
       </BottomSheet>
@@ -557,21 +521,18 @@ const styles = StyleSheet.create({
     marginTop: 3,
   },
   headerIdentity: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 10,
-    maxWidth: 220,
-  },
-  headerIdentityText: {
-    fontSize: 13,
-    fontWeight: "700",
-    maxWidth: 160,
-    opacity: 0.95,
+    justifyContent: "center",
   },
   avatarTrigger: {
-    flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    justifyContent: "center",
+    paddingHorizontal: 2,
+  },
+  avatarTriggerStack: {
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 1,
   },
   avatarTriggerPressed: {
     opacity: 0.82,
@@ -610,6 +571,9 @@ const styles = StyleSheet.create({
 
   menuWrap: {
     gap: spacing.lg,
+  },
+  curimbaLogoutWrap: {
+    gap: spacing.md,
   },
   pagesList: {
     gap: spacing.xs,
@@ -664,9 +628,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     opacity: 0.9,
   },
-  finalGap: {
-    height: spacing.lg,
-  },
   logoutRow: {
     minHeight: 44,
     paddingVertical: 12,
@@ -684,30 +645,8 @@ const styles = StyleSheet.create({
     paddingTop: spacing.xs,
     paddingBottom: spacing.sm,
   },
-  startPageLabel: {
-    fontSize: 12,
-    fontWeight: "700",
-    marginBottom: 4,
-    opacity: 0.9,
-  },
   startPageValue: {
     fontSize: 15,
-    fontWeight: "800",
-  },
-  startPageRemoveRow: {
-    marginTop: spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  startPageRemovePressed: {
-    opacity: 0.82,
-  },
-  startPageRemoveText: {
-    fontSize: 13,
     fontWeight: "800",
   },
 });

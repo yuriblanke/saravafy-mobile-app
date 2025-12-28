@@ -1,16 +1,21 @@
 import type { ExpoConfig } from "expo/config";
 
 /**
- * Build variant resolution (works locally + EAS)
- * Priority:
- * 1) APP_VARIANT
- * 2) EAS_BUILD_PROFILE
- * 3) production (default)
+ * Build variant resolution (SAFE for runtime)
+ * Source of truth:
+ * - EAS_BUILD_PROFILE (development | preview | production)
+ * - default: production
  */
-const PROFILE =
-  process.env.APP_VARIANT ?? process.env.EAS_BUILD_PROFILE ?? "production";
+const BUILD_PROFILE = process.env.EAS_BUILD_PROFILE ?? "production";
 
-const IS_DEV_CLIENT = PROFILE === "dev" || PROFILE === "development";
+const APP_VARIANT =
+  BUILD_PROFILE === "development"
+    ? "development"
+    : BUILD_PROFILE === "preview"
+    ? "preview"
+    : "production";
+
+const IS_DEV_CLIENT = BUILD_PROFILE === "development";
 
 const IOS_BUNDLE_ID = IS_DEV_CLIENT
   ? "com.yuriblanke.saravafy.dev"
@@ -74,6 +79,7 @@ const config: ExpoConfig = {
 
   extra: {
     router: {},
+    appVariant: APP_VARIANT, // ← isso é o que o app deve ler em runtime
     eas: {
       projectId: "9483283e-1bc6-4a07-8433-ef7bf3db8f12",
     },
