@@ -1,4 +1,6 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -7,9 +9,15 @@ import { Separator } from "@/src/components/Separator";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useFocusEffect } from "@react-navigation/native";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   FlatList,
@@ -24,36 +32,22 @@ import {
   type TerreiroCollection,
 } from "./data/collections";
 
-type ViewMode = "edit" | "read_only_preview";
-
 export default function Terreiro() {
-  // --- Estados para modal explicativo do modo visitante ---
-  const [isViewAsVisitorInfoOpen, setIsViewAsVisitorInfoOpen] = useState(false);
-  const [viewAsVisitorDontShowAgain, setViewAsVisitorDontShowAgain] =
-    useState(false);
-  const [
-    viewAsVisitorOnboardingDismissed,
-    setViewAsVisitorOnboardingDismissed,
-  ] = useState(false);
-
-  // Chave de storage para o onboarding do modo visitante
-  const VIEW_AS_VISITOR_ONBOARDING_KEY = "viewAsVisitorOnboardingDismissed";
-
-  // Carrega preferência do storage
-  useEffect(() => {
-    AsyncStorage.getItem(VIEW_AS_VISITOR_ONBOARDING_KEY).then((v) => {
-      setViewAsVisitorOnboardingDismissed(v === "1");
-    });
-  }, []);
-
-  // Salva preferência no storage
-  const persistViewAsVisitorOnboarding = (dismissed: boolean) => {
-    setViewAsVisitorOnboardingDismissed(dismissed);
-    AsyncStorage.setItem(VIEW_AS_VISITOR_ONBOARDING_KEY, dismissed ? "1" : "0");
-  };
   const router = useRouter();
-  const { effectiveTheme, activeContext, setActiveContext, terreirosAdmin } =
-    usePreferences();
+  const params = useLocalSearchParams<{
+    bootStart?: string;
+    bootOffline?: string;
+    terreiroId?: string;
+    terreiroTitle?: string;
+  }>();
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const {
+    effectiveTheme,
+    activeContext,
+    setStartPageTerreiro,
+    clearStartPageSnapshotOnly,
+  } = usePreferences();
 
   const variant = effectiveTheme;
 
@@ -66,45 +60,42 @@ export default function Terreiro() {
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
-  const terreiroName =
+  const resolvedTerreiroId =
     activeContext.kind === "TERREIRO_PAGE"
-      ? activeContext.terreiroName ?? "Terreiro"
-      : "Terreiro";
+      ? activeContext.terreiroId
+      : typeof params.terreiroId === "string"
+      ? params.terreiroId
+      : "";
 
-  const terreiroId =
-    activeContext.kind === "TERREIRO_PAGE" ? activeContext.terreiroId : "";
+  const resolvedTerreiroName =
+    activeContext.kind === "TERREIRO_PAGE"
+      ? activeContext.terreiroName
+      : typeof params.terreiroTitle === "string"
+      ? params.terreiroTitle
+      : undefined;
+
+  const terreiroName = resolvedTerreiroName ?? "Terreiro";
+
+  const terreiroId = resolvedTerreiroId;
 
   const activeTerreiroRole =
     activeContext.kind === "TERREIRO_PAGE" ? activeContext.role : null;
   const isAdminOrEditor =
     activeTerreiroRole === "admin" || activeTerreiroRole === "editor";
 
-  const [viewMode, setViewMode] = useState<ViewMode>("read_only_preview");
-  const [didInitializeViewMode, setDidInitializeViewMode] = useState(false);
+  const [isTerreiroMenuOpen, setIsTerreiroMenuOpen] = useState(false);
+  const [isViewingAsVisitor, setIsViewingAsVisitor] = useState(false);
 
-  useEffect(() => {
-    if (!isAdminOrEditor) {
-      setViewMode("read_only_preview");
-      setDidInitializeViewMode(true);
-      return;
-    }
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        setIsViewingAsVisitor(false);
+        setIsTerreiroMenuOpen(false);
+      };
+    }, [])
+  );
 
-    // Admin/editor: default é modo de edição, mas só inicializa 1x (não sobrescreve o toggle do usuário).
-    if (!didInitializeViewMode) {
-      setViewMode("edit");
-      setDidInitializeViewMode(true);
-    }
-  }, [didInitializeViewMode, isAdminOrEditor]);
-
-  const canEdit = isAdminOrEditor && viewMode === "edit";
-
-  const [isEditingTitle, setIsEditingTitle] = useState(false);
-  const [draftTitle, setDraftTitle] = useState(terreiroName);
-  const [isSavingTitle, setIsSavingTitle] = useState(false);
-  const titleInputRef = useRef<TextInput | null>(null);
-  const [titleSelection, setTitleSelection] = useState<
-    { start: number; end: number } | undefined
-  >(undefined);
+  const canEdit = isAdminOrEditor && !isViewingAsVisitor;
 
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(
     null
@@ -126,26 +117,6 @@ export default function Terreiro() {
     useState<TerreiroCollection | null>(null);
   const [isDeletingCollection, setIsDeletingCollection] = useState(false);
 
-  useEffect(() => {
-    // Mantém o draft em sincronia quando não estamos editando.
-    if (!isEditingTitle) {
-      setDraftTitle(terreiroName);
-    }
-  }, [isEditingTitle, terreiroName]);
-
-  useEffect(() => {
-    // Se trocar para modo somente leitura, encerra edição local.
-    if (!canEdit && isEditingTitle) {
-      setIsEditingTitle(false);
-    }
-  }, [canEdit, isEditingTitle]);
-
-  useEffect(() => {
-    if (!canEdit && editingCollectionId) {
-      setEditingCollectionId(null);
-    }
-  }, [canEdit, editingCollectionId]);
-
   const [collections, setCollections] = useState<TerreiroCollection[]>([]);
   const [creatingCollection, setCreatingCollection] = useState<null | {
     id: string; // id temporário
@@ -156,25 +127,47 @@ export default function Terreiro() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (activeContext.kind !== "TERREIRO_PAGE") {
-      router.replace("/home");
+    if (!canEdit) {
+      if (editingCollectionId) {
+        setEditingCollectionId(null);
+      }
+
+      if (creatingCollection) {
+        setCreatingCollection(null);
+        setDraftCollectionTitle("");
+        setCollectionTitleSelection(undefined);
+      }
     }
-  }, [activeContext.kind, router]);
+  }, [canEdit, editingCollectionId, creatingCollection]);
+
+  useEffect(() => {
+    if (activeContext.kind === "TERREIRO_PAGE") return;
+    if (params.bootStart === "1") return;
+
+    router.replace("/home");
+  }, [activeContext.kind, params.bootStart, router]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function run() {
-      if (!terreiroId) return;
+      if (!resolvedTerreiroId) return;
       setIsLoading(true);
       setError(null);
 
       try {
-        const data = await fetchCollectionsDoTerreiro(terreiroId);
+        const data = await fetchCollectionsDoTerreiro(resolvedTerreiroId);
         if (cancelled) return;
         setCollections(data);
       } catch (e) {
         if (cancelled) return;
+
+        if (params.bootOffline === "1") {
+          clearStartPageSnapshotOnly().catch(() => undefined);
+          router.replace("/home");
+          return;
+        }
+
         if (__DEV__) {
           console.info("[Terreiro] erro ao carregar coleções", {
             error: e instanceof Error ? e.message : String(e),
@@ -190,7 +183,12 @@ export default function Terreiro() {
     return () => {
       cancelled = true;
     };
-  }, [terreiroId]);
+  }, [
+    clearStartPageSnapshotOnly,
+    params.bootOffline,
+    resolvedTerreiroId,
+    router,
+  ]);
 
   const headerSubtitle = useMemo(() => {
     return "Página do terreiro";
@@ -263,41 +261,8 @@ export default function Terreiro() {
     }
   };
 
-  const startEditTitle = () => {
-    if (!canEdit) return;
-    if (!terreiroId) return;
-    setDraftTitle(terreiroName);
-    setIsEditingTitle(true);
-    const end = (terreiroName ?? "").length;
-    setTitleSelection({ start: end, end });
-  };
-
-  const cancelEditTitle = () => {
-    setDraftTitle(terreiroName);
-    setIsEditingTitle(false);
-  };
-
-  useEffect(() => {
-    if (!isEditingTitle) return;
-
-    // Foca o campo automaticamente e posiciona o cursor (caret) no fim do texto.
-    const end = (draftTitle ?? "").length;
-    setTitleSelection({ start: end, end });
-
-    const id = setTimeout(() => {
-      titleInputRef.current?.focus();
-    }, 50);
-
-    return () => {
-      clearTimeout(id);
-    };
-  }, [isEditingTitle]);
-
   useEffect(() => {
     if (!editingCollectionId) return;
-
-    const end = (draftCollectionTitle ?? "").length;
-    setCollectionTitleSelection({ start: end, end });
 
     const id = setTimeout(() => {
       collectionTitleInputRef.current?.focus();
@@ -425,69 +390,6 @@ export default function Terreiro() {
     }
   };
 
-  const saveTitle = async () => {
-    if (!canEdit) return;
-    if (!terreiroId) return;
-
-    const nextName = (draftTitle ?? "").trim();
-    if (!nextName) {
-      Alert.alert("Nome inválido", "O nome do terreiro não pode ficar vazio.");
-      return;
-    }
-
-    setIsSavingTitle(true);
-    try {
-      const res = await supabase
-        .from("terreiros")
-        .update({ title: nextName })
-        .eq("id", terreiroId)
-        .select("id, title")
-        .single();
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string"
-            ? res.error.message
-            : "Erro ao atualizar nome do terreiro"
-        );
-      }
-
-      const savedName =
-        (typeof res.data?.title === "string" && res.data.title.trim()) ||
-        nextName;
-
-      if (
-        activeContext.kind === "TERREIRO_PAGE" &&
-        activeContext.terreiroId === terreiroId
-      ) {
-        setActiveContext({
-          kind: "TERREIRO_PAGE",
-          terreiroId,
-          terreiroName: savedName,
-          terreiroAvatarUrl: activeContext.terreiroAvatarUrl,
-        });
-      }
-
-      setIsEditingTitle(false);
-    } catch (e) {
-      if (__DEV__) {
-        console.info("[Terreiro] erro ao salvar título", {
-          terreiroId,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-
-      Alert.alert(
-        "Erro",
-        e instanceof Error
-          ? e.message
-          : "Não foi possível atualizar o nome do terreiro."
-      );
-    } finally {
-      setIsSavingTitle(false);
-    }
-  };
-
   return (
     <SaravafyScreen variant={variant}>
       <View style={styles.screen}>
@@ -497,221 +399,46 @@ export default function Terreiro() {
           <View style={styles.contextHeader}>
             <View style={styles.titleRow}>
               <View style={styles.titleLeft}>
-                {isEditingTitle ? (
-                  <View
-                    style={[
-                      styles.titleEditWrap,
-                      {
-                        backgroundColor: titleInputBg,
-                        borderColor: titleInputBorder,
-                      },
-                    ]}
-                  >
-                    <TextInput
-                      ref={(node) => {
-                        titleInputRef.current = node;
-                      }}
-                      value={draftTitle}
-                      onChangeText={setDraftTitle}
-                      style={[styles.titleInput, { color: textPrimary }]}
-                      placeholder="Nome do terreiro"
-                      placeholderTextColor={textSecondary}
-                      selectionColor={accentColor}
-                      multiline={false}
-                      numberOfLines={1}
-                      autoCorrect={false}
-                      autoCapitalize="sentences"
-                      editable={!isSavingTitle}
-                      autoFocus
-                      selection={titleSelection}
-                      onSelectionChange={(e) => {
-                        setTitleSelection(e.nativeEvent.selection);
-                      }}
-                      onSubmitEditing={() => {
-                        saveTitle();
-                      }}
-                    />
-                  </View>
-                ) : (
-                  <Text
-                    style={[styles.title, { color: textPrimary }]}
-                    numberOfLines={2}
-                  >
-                    {terreiroName}
-                  </Text>
-                )}
-
-                {canEdit && !isEditingTitle ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Editar título do terreiro"
-                    hitSlop={10}
-                    onPress={startEditTitle}
-                    style={({ pressed }) => [
-                      styles.brushButton,
-                      pressed ? styles.iconButtonPressed : null,
-                    ]}
-                  >
-                    <Ionicons name="brush" size={18} color={accentColor} />
-                  </Pressable>
-                ) : null}
+                <Text
+                  style={[styles.title, { color: textPrimary }]}
+                  numberOfLines={2}
+                >
+                  {terreiroName}
+                </Text>
               </View>
 
               <View style={styles.headerActions}>
-                {isEditingTitle ? (
-                  <>
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Cancelar edição"
-                      hitSlop={10}
-                      onPress={cancelEditTitle}
-                      disabled={isSavingTitle}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed ? styles.iconButtonPressed : null,
-                        isSavingTitle ? styles.iconButtonDisabled : null,
-                      ]}
-                    >
-                      <Ionicons name="close" size={20} color={textMuted} />
-                    </Pressable>
-
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Salvar título"
-                      hitSlop={10}
-                      onPress={() => {
-                        saveTitle();
-                      }}
-                      disabled={isSavingTitle}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed ? styles.iconButtonPressed : null,
-                        isSavingTitle ? styles.iconButtonDisabled : null,
-                      ]}
-                    >
-                      <Ionicons
-                        name="checkmark"
-                        size={22}
-                        color={accentColor}
-                      />
-                    </Pressable>
-                  </>
-                ) : isAdminOrEditor ? (
+                {isViewingAsVisitor ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel={
-                      viewMode === "read_only_preview"
-                        ? "Desativar visualização como visitante"
-                        : "Ativar visualização como visitante"
-                    }
-                    accessibilityHint="Alterna entre editar e visualizar como visitante"
+                    accessibilityLabel="Sair da visualização como visitante"
                     hitSlop={10}
-                    onPress={() => {
-                      if (
-                        !viewAsVisitorOnboardingDismissed &&
-                        viewMode === "edit"
-                      ) {
-                        setIsViewAsVisitorInfoOpen(true);
-                        setViewAsVisitorDontShowAgain(false);
-                        return;
-                      }
-                      setViewMode((prev) =>
-                        prev === "edit" ? "read_only_preview" : "edit"
-                      );
-                    }}
+                    onPress={() => setIsViewingAsVisitor(false)}
+                    style={({ pressed }) => [
+                      styles.iconButton,
+                      pressed ? styles.iconButtonPressed : null,
+                    ]}
+                  >
+                    <Ionicons name="eye" size={20} color={accentColor} />
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Abrir menu do terreiro"
+                    hitSlop={10}
+                    onPress={() => setIsTerreiroMenuOpen(true)}
                     style={({ pressed }) => [
                       styles.iconButton,
                       pressed ? styles.iconButtonPressed : null,
                     ]}
                   >
                     <Ionicons
-                      name={
-                        viewMode === "read_only_preview" ? "eye" : "eye-outline"
-                      }
+                      name="ellipsis-vertical"
                       size={20}
-                      color={accentColor}
-                      style={{
-                        opacity: viewMode === "read_only_preview" ? 1 : 0.85,
-                      }}
+                      color={textMuted}
                     />
                   </Pressable>
-                ) : null}
-                {/* Modal explicativo do modo visitante */}
-                <BottomSheet
-                  visible={isViewAsVisitorInfoOpen}
-                  variant={variant}
-                  onClose={() => setIsViewAsVisitorInfoOpen(false)}
-                >
-                  <View>
-                    <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-                      Visualizar como visitante
-                    </Text>
-                    <Text style={[styles.infoText, { color: textSecondary }]}>
-                      Ao ativar esse modo, a página será exibida exatamente como
-                      uma pessoa que não é dona do terreiro veria. Todas as
-                      opções de edição ficarão ocultas temporariamente. Nenhuma
-                      permissão real será alterada.
-                    </Text>
-                    <View style={styles.infoButtons}>
-                      <Pressable
-                        accessibilityRole="checkbox"
-                        onPress={() => setViewAsVisitorDontShowAgain((v) => !v)}
-                        style={[
-                          styles.infoCheckboxRow,
-                          viewAsVisitorDontShowAgain &&
-                            styles.infoCheckboxRowChecked,
-                        ]}
-                      >
-                        <View
-                          style={[
-                            styles.infoCheckbox,
-                            viewAsVisitorDontShowAgain &&
-                              styles.infoCheckboxChecked,
-                          ]}
-                        >
-                          {viewAsVisitorDontShowAgain ? (
-                            <Ionicons
-                              name="checkmark"
-                              size={16}
-                              color={colors.paper50}
-                            />
-                          ) : null}
-                        </View>
-                        <Text
-                          style={[
-                            styles.infoCheckboxLabel,
-                            { color: textPrimary },
-                          ]}
-                        >
-                          Não exibir essa mensagem novamente
-                        </Text>
-                      </Pressable>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => {
-                          if (viewAsVisitorDontShowAgain) {
-                            persistViewAsVisitorOnboarding(true);
-                          }
-                          setIsViewAsVisitorInfoOpen(false);
-                          setTimeout(() => {
-                            setViewMode("read_only_preview");
-                          }, 150);
-                        }}
-                        style={[styles.infoBtn, styles.infoBtnPrimary]}
-                      >
-                        <Text
-                          style={{
-                            color: colors.paper50,
-                            fontWeight: "bold",
-                            fontSize: 16,
-                          }}
-                        >
-                          Entendi
-                        </Text>
-                      </Pressable>
-                    </View>
-                  </View>
-                </BottomSheet>
+                )}
               </View>
             </View>
             <Text
@@ -1118,78 +845,82 @@ export default function Terreiro() {
           </View>
         </View>
       </BottomSheet>
-      {/* Modal explicativo do modo visitante */}
+
       <BottomSheet
-        visible={isViewAsVisitorInfoOpen}
+        visible={isTerreiroMenuOpen}
         variant={variant}
-        onClose={() => setIsViewAsVisitorInfoOpen(false)}
+        onClose={() => setIsTerreiroMenuOpen(false)}
       >
         <View>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-            Visualizar como visitante
+            Opções
           </Text>
-          <Text style={[styles.infoText, { color: textSecondary }]}>
-            Ao ativar esse modo, a página será exibida exatamente como uma
-            pessoa que não é dona do terreiro veria. Todas as opções de edição
-            ficarão ocultas temporariamente. Nenhuma permissão real será
-            alterada.
-          </Text>
-          <View style={styles.infoButtons}>
-            <Pressable
-              accessibilityRole="checkbox"
-              onPress={() => setViewAsVisitorDontShowAgain((v) => !v)}
-              style={[
-                styles.infoCheckboxRow,
-                viewAsVisitorDontShowAgain && {
-                  backgroundColor: accentColor + "22",
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.infoCheckbox,
-                  { borderColor: accentColor },
-                  viewAsVisitorDontShowAgain && {
-                    backgroundColor: accentColor,
-                    borderColor: accentColor,
-                  },
-                ]}
-              >
-                {viewAsVisitorDontShowAgain ? (
-                  <Ionicons name="checkmark" size={16} color={colors.paper50} />
-                ) : null}
-              </View>
-              <Text style={[styles.infoCheckboxLabel, { color: textPrimary }]}>
-                Não exibir essa mensagem novamente
-              </Text>
-            </Pressable>
+
+          <View style={styles.sheetActions}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => {
-                if (viewAsVisitorDontShowAgain) {
-                  persistViewAsVisitorOnboarding(true);
+              accessibilityLabel="Tornar essa página minha página inicial"
+              hitSlop={10}
+              onPress={async () => {
+                setIsTerreiroMenuOpen(false);
+
+                if (!user?.id || !resolvedTerreiroId) {
+                  return;
                 }
-                setIsViewAsVisitorInfoOpen(false);
-                setTimeout(() => {
-                  setViewMode("read_only_preview");
-                }, 150);
+
+                try {
+                  await setStartPageTerreiro(
+                    user.id,
+                    resolvedTerreiroId,
+                    resolvedTerreiroName ?? terreiroName
+                  );
+                  showToast("Sua página inicial foi atualizada.");
+                } catch (e) {
+                  Alert.alert(
+                    "Erro",
+                    e instanceof Error
+                      ? e.message
+                      : "Não foi possível atualizar sua página inicial."
+                  );
+                }
               }}
-              style={[
-                styles.infoBtn,
-                styles.infoBtnPrimary,
-                { backgroundColor: accentColor },
+              style={({ pressed }) => [
+                styles.sheetActionRow,
+                pressed ? styles.sheetActionPressed : null,
               ]}
             >
-              <Text
-                style={{
-                  color: colors.paper50,
-                  fontWeight: "bold",
-                  fontSize: 16,
-                }}
-              >
-                Entendi
+              <Ionicons name="home" size={18} color={accentColor} />
+              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                Tornar essa página minha página inicial
               </Text>
             </Pressable>
+
+            {isAdminOrEditor ? (
+              <>
+                <Separator variant={variant} />
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Visualizar como visitante"
+                  hitSlop={10}
+                  onPress={() => {
+                    setIsTerreiroMenuOpen(false);
+                    setIsViewingAsVisitor(true);
+                  }}
+                  style={({ pressed }) => [
+                    styles.sheetActionRow,
+                    pressed ? styles.sheetActionPressed : null,
+                  ]}
+                >
+                  <Ionicons name="eye" size={18} color={accentColor} />
+                  <Text
+                    style={[styles.sheetActionText, { color: textPrimary }]}
+                  >
+                    Visualizar como visitante
+                  </Text>
+                </Pressable>
+              </>
+            ) : null}
           </View>
         </View>
       </BottomSheet>

@@ -5,9 +5,9 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Slot, useRouter, useSegments } from "expo-router";
+import { Redirect, Slot, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
@@ -16,6 +16,7 @@ import {
   PreferencesProvider,
   usePreferences,
 } from "@/contexts/PreferencesContext";
+import { ToastProvider } from "@/contexts/ToastContext";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -36,12 +37,6 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    if (loaded) {
-      SplashScreen.hideAsync();
-    }
-  }, [loaded]);
-
   if (!loaded) {
     return null;
   }
@@ -49,7 +44,9 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <PreferencesProvider>
-        <RootLayoutNav />
+        <ToastProvider>
+          <RootLayoutNav />
+        </ToastProvider>
       </PreferencesProvider>
     </AuthProvider>
   );
@@ -57,35 +54,136 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const systemColorScheme = useColorScheme();
-  const { themeMode } = usePreferences();
+  const { themeMode, isReady, bootstrapStartPage, setActiveContext } =
+    usePreferences();
   const { user, isLoading } = useAuth();
   const segments = useSegments();
-  const router = useRouter();
+
+  const bootstrapStartPageRef = useRef(bootstrapStartPage);
+  const setActiveContextRef = useRef(setActiveContext);
 
   useEffect(() => {
-    if (isLoading) return;
+    bootstrapStartPageRef.current = bootstrapStartPage;
+  }, [bootstrapStartPage]);
 
-    const firstSegment = segments[0];
-    const inAuthGroup = firstSegment === "(auth)";
-    const inAppGroup = firstSegment === "(app)";
+  useEffect(() => {
+    setActiveContextRef.current = setActiveContext;
+  }, [setActiveContext]);
 
-    if (!user && !inAuthGroup) {
-      // Redirecionar para login se não autenticado
-      router.replace("/login");
-    } else if (user && !inAppGroup) {
-      // Redirecionar para home se autenticado
-      router.replace("/home");
-    }
-  }, [user, segments, isLoading]);
+  const [bootTarget, setBootTarget] = useState<
+    | { href: "/login"; params?: undefined }
+    | { href: "/home"; params?: undefined }
+    | {
+        href: "/terreiro";
+        params: {
+          bootStart?: string;
+          bootOffline?: string;
+          terreiroId?: string;
+          terreiroTitle?: string;
+        };
+      }
+    | null
+  >(null);
+
+  const [bootComplete, setBootComplete] = useState(false);
+
+  const firstSegment = segments[0];
+  const inAuthGroup = firstSegment === "(auth)";
+  const inAppGroup = firstSegment === "(app)";
+  const routeSegment = segments[1];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      if (isLoading) return;
+      if (!isReady) return;
+
+      // Reavaliou as condições de boot (ex.: login/logout/preferências carregadas):
+      // volta para o modo de boot até chegar no destino inicial.
+      if (!cancelled) setBootComplete(false);
+
+      if (!user?.id) {
+        // Sem sessão: sempre login.
+        setActiveContextRef.current({ kind: "USER_PROFILE" });
+        if (!cancelled) setBootTarget({ href: "/login" });
+        return;
+      }
+
+      const decision = await bootstrapStartPageRef.current(user.id);
+      if (cancelled) return;
+
+      if (decision.preferredHref === "/terreiro" && decision.terreiroContext) {
+        setActiveContextRef.current({
+          kind: "TERREIRO_PAGE",
+          terreiroId: decision.terreiroContext.terreiroId,
+          terreiroName: decision.terreiroContext.terreiroName,
+          terreiroAvatarUrl: decision.terreiroContext.terreiroAvatarUrl,
+          role: decision.terreiroContext.role,
+        });
+
+        setBootTarget({
+          href: "/terreiro",
+          params: {
+            bootStart: "1",
+            bootOffline: decision.terreiroContext.usedOfflineSnapshot
+              ? "1"
+              : "0",
+            terreiroId: decision.terreiroContext.terreiroId,
+            terreiroTitle: decision.terreiroContext.terreiroName,
+          },
+        });
+        return;
+      }
+
+      setActiveContextRef.current({ kind: "USER_PROFILE" });
+      setBootTarget({ href: "/home" });
+    };
+
+    run();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isLoading, isReady, user?.id]);
 
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;
+
+  const isAtTarget = useMemo(() => {
+    if (!bootTarget) return false;
+
+    if (bootTarget.href === "/login") {
+      return inAuthGroup && routeSegment === "login";
+    }
+
+    if (bootTarget.href === "/home") {
+      return inAppGroup && routeSegment === "home";
+    }
+
+    return inAppGroup && routeSegment === "terreiro";
+  }, [bootTarget, inAppGroup, inAuthGroup, routeSegment]);
+
+  useEffect(() => {
+    if (!bootTarget) return;
+    if (!isAtTarget) return;
+
+    // Assim que chegamos no destino inicial, liberamos navegação normal.
+    setBootComplete(true);
+    SplashScreen.hideAsync().catch(() => undefined);
+  }, [bootTarget, isAtTarget]);
 
   return (
     <ThemeProvider
       value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
     >
-      <Slot />
+      {!bootTarget ? null : bootComplete || isAtTarget ? (
+        <Slot />
+      ) : bootTarget.href === "/terreiro" ? (
+        <Redirect href={{ pathname: "/terreiro", params: bootTarget.params }} />
+      ) : (
+        <Redirect href={bootTarget.href as any} />
+      )}
     </ThemeProvider>
   );
 }

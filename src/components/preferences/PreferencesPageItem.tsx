@@ -24,9 +24,7 @@ export function PreferencesPageItem({
   onPressEdit,
 }: Props) {
   const textPrimary =
-    variant === "light"
-      ? colors.textPrimaryOnLight
-      : colors.textPrimaryOnDark;
+    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
     variant === "light"
       ? colors.textSecondaryOnLight
@@ -62,7 +60,10 @@ export function PreferencesPageItem({
         </View>
 
         <View style={styles.textCol}>
-          <Text style={[styles.title, { color: textPrimary }]} numberOfLines={1}>
+          <Text
+            style={[styles.title, { color: textPrimary }]}
+            numberOfLines={1}
+          >
             {title}
           </Text>
           {isActive ? (

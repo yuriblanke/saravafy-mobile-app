@@ -1,38 +1,55 @@
 # Saravafy Mobile App
 
-Aplicativo móvel desenvolvido com React Native, Expo e Supabase Auth.
+Aplicativo mobile desenvolvido com **React Native**, **Expo** e **Supabase**, focado em autenticação segura, arquitetura modular e suporte a múltiplos ambientes (dev / preview / production).
 
-## 📁 Estrutura do Projeto
+---
+
+## 📱 Visão Geral
+
+O Saravafy é um aplicativo mobile estruturado com:
+
+- Autenticação via Supabase
+- Navegação baseada em Expo Router
+- Separação clara entre rotas públicas e protegidas
+- Arquitetura preparada para múltiplos ambientes
+- Suporte a builds locais e via EAS
+
+---
+
+## 🧱 Estrutura do Projeto
 
 ```
 app/
-  ├── _layout.tsx           # Layout raiz com AuthProvider e proteção de rotas
-  ├── index.tsx             # Página inicial (redireciona para login)
-  ├── (auth)/               # Grupo de rotas públicas
+  ├── _layout.tsx           # Layout raiz + controle de autenticação
+  ├── index.tsx             # Redirecionamento inicial
+  ├── (auth)/               # Rotas públicas
   │   ├── _layout.tsx
-  │   └── login.tsx         # Tela de login com Google
-  └── (app)/                # Grupo de rotas protegidas
+  │   └── login.tsx         # Login com Google
+  └── (app)/                # Rotas protegidas
       ├── _layout.tsx
-      └── home.tsx          # Tela home (apenas usuários autenticados)
+      └── home.tsx          # Tela principal autenticada
 
 contexts/
-  └── AuthContext.tsx       # Contexto de autenticação
+  └── AuthContext.tsx       # Gerenciamento global de autenticação
 
 lib/
-  └── supabase.ts          # Cliente Supabase configurado
-
+  └── supabase.ts           # Cliente Supabase configurado
 ```
+
+---
 
 ## 🚀 Tecnologias
 
-- **React Native** 0.81.5
-- **Expo** SDK 54
-- **TypeScript** 5.9.2
-- **Expo Router** 6.0.21
-- **Supabase** (autenticação e backend)
-- **AsyncStorage** (persistência de sessão via Supabase)
+- React Native 0.81.x  
+- Expo SDK 54  
+- Expo Router  
+- TypeScript  
+- Supabase (Auth + Backend)  
+- AsyncStorage  
 
-## ⚙️ Configuração
+---
+
+## ⚙️ Configuração Inicial
 
 ### 1. Instalar dependências
 
@@ -40,160 +57,102 @@ lib/
 npm install
 ```
 
-### 2. Configurar Supabase
+---
 
-#### 2.1. Criar projeto no Supabase
+## 🔐 Configuração do Supabase
 
-1. Acesse [https://app.supabase.com](https://app.supabase.com)
-2. Crie um novo projeto
-3. Anote a **URL** e a **anon key** do projeto (Settings → API)
+### 1. Criar projeto
 
-#### 2.2. Configurar variáveis de ambiente
+1. Acesse https://app.supabase.com  
+2. Crie um novo projeto  
+3. Copie:
+   - Project URL  
+   - Anon Public Key  
 
-Edite o arquivo `.env` e adicione suas credenciais:
+### 2. Variáveis de ambiente
 
-```env
+Crie um arquivo `.env`:
+
+```
 EXPO_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
 EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key
 ```
 
-#### 2.3. Configurar Google Provider no Supabase
+---
 
-1. No painel do Supabase, vá em **Authentication** → **Providers**
-2. Habilite **Google**
-3. Configure o OAuth do Google:
-   - Acesse [Google Cloud Console](https://console.cloud.google.com/)
-   - Crie um projeto e ative a **Google+ API**
-   - Crie credenciais OAuth 2.0 para aplicação Web
-   - Adicione as URLs de redirect do Supabase (fornecidas no painel)
-4. Cole o **Client ID** e **Client Secret** no painel do Supabase
+### 3. Autenticação com Google
 
-#### 2.4. Configurar Redirect URLs no Supabase
+No painel do Supabase:
 
-No painel do Supabase, vá em **Authentication** → **URL Configuration** → **Redirect URLs** e adicione as seguintes URLs à allowlist:
-
-**Para desenvolvimento (Expo Go):**
+1. Vá em Authentication → Providers  
+2. Ative Google  
+3. Configure OAuth no Google Cloud Console  
+4. Adicione o redirect:
 
 ```
-https://auth.expo.io/@yuriblanke/saravafy-mobile-app
+saravafy://auth/callback
 ```
 
-**Para produção (build standalone):**
+> Se usar Expo Go, adicione também:
+> https://auth.expo.io/@yuriblanke/saravafy
 
-```
-saravafy://login
-```
+---
 
-**Importante:** O `app.json` já está configurado com:
+## 🧭 Fluxo de autenticação
 
-- `"owner": "yuriblanke"`
-- `"slug": "saravafy-mobile-app"`
-- `"scheme": "saravafy"`
+1. Usuário abre o app  
+2. Redirecionamento para `/login`  
+3. Login via Google  
+4. Sessão criada/restaurada  
+5. Redirecionamento para `/home`
 
-Essas configurações são necessárias para que o redirect funcione corretamente tanto no Expo Go quanto em builds.
-
-## 🏃 Como executar
-
-```bash
-# Iniciar o servidor de desenvolvimento
-npm start
-
-# Executar no Android
-npm run android
-
-# Executar no iOS
-npm run ios
-
-# Executar na web
-npm run web
-```
-
-## 🧹 Manutenção (tags de orixás)
-
-Existe um script local para:
-
-1. descobrir como os nomes dos orixás aparecem em `tags` e nas letras; e
-2. varrer as letras e adicionar o nome do orixá como tag quando ele for citado.
-
-### Variáveis necessárias
-
-- Para apenas **reportar** (somente leitura): `EXPO_PUBLIC_SUPABASE_URL` e `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
-- Para **aplicar** atualizações (escrita): defina também `SUPABASE_SERVICE_ROLE_KEY`.
-
-### Rodar relatório (não altera dados)
-
-```bash
-npm run orixa:report
-```
-
-### Aplicar tags baseado nas letras (altera dados)
-
-```bash
-npm run orixa:apply
-```
-
-Opcional: limitar quantidade de registros (para testar):
-
-```bash
-node scripts/orixa-tags.mjs apply --limit=50
-```
-
-## 🔐 Fluxo de Autenticação
-
-1. **Usuário não autenticado**: Redirecionado automaticamente para `/login`
-2. **Clica em "Entrar com Google"**: Supabase abre o fluxo OAuth do Google
-3. **Após autenticação**: Supabase cria/autentica o usuário e gerencia a sessão
-4. **Usuário autenticado**: Redirecionado automaticamente para `/home`
-5. **Logout**: Supabase invalida a sessão e redireciona para `/login`
+---
 
 ## 📱 Rotas
 
-- `/(auth)/login` - Tela de login (pública)
-- `/(app)/home` - Tela home (protegida)
+- `/(auth)/login` – Login  
+- `/(app)/home` – Área autenticada  
 
-## 🛠️ Funcionalidades Implementadas
+---
 
-- ✅ Autenticação com Google via Supabase Auth
-- ✅ Proteção de rotas com Expo Router
-- ✅ Persistência de sessão automática via Supabase
-- ✅ Redirecionamento automático baseado no estado de autenticação
-- ✅ Context API para gerenciamento de estado global
-- ✅ TypeScript em todos os arquivos
-- ✅ Gerenciamento de tokens e refresh automático
-
-## 📝 Próximos Passos
-
-- [ ] Adicionar mais telas ao app
-- [ ] Implementar splash screen personalizada
-- [ ] Adicionar tratamento de erros aprimorado
-- [ ] Criar tabelas e policies no Supabase
-- [ ] Adicionar testes
-- [ ] Configurar deep linking para produção
-
-## ⚠️ Notas Importantes
-
-- **Supabase como única fonte de autenticação**: O app não conversa diretamente com o Google
-- **Segurança**: Nunca commite o arquivo `.env` no repositório (já está no `.gitignore`)
-- **Deep Linking**: O scheme `saravafy://` está configurado no `app.json` para o redirect após autenticação
-- **Expo Go**: Funciona perfeitamente com Expo Go em desenvolvimento
-- **Produção**: Configure os URLs de redirect adequados no Supabase para cada plataforma
-
-## 🔧 Arquitetura
+## 🧠 Arquitetura
 
 ### AuthContext
 
-- Gerencia estado global de autenticação
-- Escuta mudanças via `onAuthStateChange`
-- Expõe `session`, `user`, `signInWithGoogle()` e `signOut()`
+- Centraliza estado de autenticação
+- Expõe `user`, `session`, `signInWithGoogle`, `signOut`
 
 ### Supabase Client
 
-- Configurado em `lib/supabase.ts`
-- Usa AsyncStorage para persistência automática
-- Auto-refresh de tokens habilitado
+- Localizado em `lib/supabase.ts`
+- Gerencia persistência e refresh automático
 
-### Proteção de Rotas
+### Proteção de rotas
 
-- Implementada em `app/_layout.tsx`
-- Baseada em grupos de rotas: `(auth)` e `(app)`
-- Redireciona automaticamente conforme estado de autenticação
+- Baseada em grupos `(auth)` e `(app)`
+- Redirecionamento automático conforme sessão
+
+---
+
+## 🧪 Desenvolvimento e Builds
+
+Os comandos de build, ambientes e EAS estão documentados em:
+
+📄 **README.dev.txt**
+
+---
+
+## 📌 Observações
+
+- Supabase é a única fonte de autenticação
+- Não versionar arquivos `.env`
+- `app.config.ts` é a fonte única de configuração do app
+
+---
+
+## 📄 Documentação complementar
+
+- `README.dev.txt` – builds, ambientes, EAS, scripts
+- `app.config.ts` – configuração do app
+- `eas.json` – pipelines de build
+

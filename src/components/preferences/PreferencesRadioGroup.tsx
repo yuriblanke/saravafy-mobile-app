@@ -23,9 +23,7 @@ export function PreferencesRadioGroup<T extends string>({
   options,
 }: Props<T>) {
   const textPrimary =
-    variant === "light"
-      ? colors.textPrimaryOnLight
-      : colors.textPrimaryOnDark;
+    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
     variant === "light"
       ? colors.textSecondaryOnLight
@@ -68,17 +66,21 @@ export function PreferencesRadioGroup<T extends string>({
               </View>
 
               <View style={styles.textCol}>
-                <Text style={[styles.label, { color: textPrimary }]}
-                  >{opt.label}</Text>
+                <Text style={[styles.label, { color: textPrimary }]}>
+                  {opt.label}
+                </Text>
                 {opt.description ? (
-                  <Text style={[styles.desc, { color: textSecondary }]}
-                    >{opt.description}</Text>
+                  <Text style={[styles.desc, { color: textSecondary }]}>
+                    {opt.description}
+                  </Text>
                 ) : null}
               </View>
             </Pressable>
 
             {showDivider ? (
-              <View style={[styles.divider, { backgroundColor: borderColor }]} />
+              <View
+                style={[styles.divider, { backgroundColor: borderColor }]}
+              />
             ) : null}
           </View>
         );

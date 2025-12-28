@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
+import { useToast } from "@/contexts/ToastContext";
 import {
   PreferencesPageItem,
   PreferencesRadioGroup,
@@ -8,9 +9,9 @@ import {
   type PreferencesRadioOption,
 } from "@/src/components/preferences";
 import { colors, spacing } from "@/src/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Ionicons } from "@expo/vector-icons";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -44,6 +45,7 @@ export function AppHeaderWithPreferences() {
   const router = useRouter();
   const pathname = usePathname();
   const { user, signOut } = useAuth();
+  const { showToast } = useToast();
   const {
     themeMode,
     setThemeMode,
@@ -57,6 +59,8 @@ export function AppHeaderWithPreferences() {
     fetchTerreirosQueAdministro,
     curimbaEnabled,
     setCurimbaEnabled,
+    startPagePreference,
+    clearStartPagePreference,
   } = usePreferences();
 
   const variant = effectiveTheme;
@@ -366,7 +370,9 @@ export function AppHeaderWithPreferences() {
             </View>
           </PreferencesSection>
 
-          <View style={[styles.blockDivider, { backgroundColor: dividerColor }]} />
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
 
           <Pressable
             accessibilityRole="button"
@@ -383,11 +389,52 @@ export function AppHeaderWithPreferences() {
             <Text style={styles.createTerreiroText}>Criar novo terreiro</Text>
           </Pressable>
 
-          <View style={[styles.blockDivider, { backgroundColor: dividerColor }]} />
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
 
-          <PreferencesSection title="Página inicial" variant={variant} />
+          <PreferencesSection title="Página inicial" variant={variant}>
+            <View style={styles.startPageRow}>
+              <Text style={[styles.startPageLabel, { color: textSecondary }]}>
+                Página inicial:
+              </Text>
+              <Text style={[styles.startPageValue, { color: textPrimary }]}>
+                {startPagePreference?.type === "TERREIRO"
+                  ? startPagePreference.terreiroTitle ?? "Terreiro"
+                  : "Home (Pontos)"}
+              </Text>
+            </View>
 
-          <View style={[styles.blockDivider, { backgroundColor: dividerColor }]} />
+            {startPagePreference?.type === "TERREIRO" ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={async () => {
+                  if (!user?.id) return;
+                  try {
+                    await clearStartPagePreference(user.id);
+                    showToast("Preferências de inicialização restauradas.");
+                  } catch {
+                    showToast("Não foi possível restaurar as preferências.");
+                  }
+                }}
+                style={({ pressed }) => [
+                  styles.startPageRemoveRow,
+                  { borderColor: dividerColor },
+                  pressed ? styles.startPageRemovePressed : null,
+                ]}
+              >
+                <Text
+                  style={[styles.startPageRemoveText, { color: textPrimary }]}
+                >
+                  Remover preferências de inicialização
+                </Text>
+              </Pressable>
+            ) : null}
+          </PreferencesSection>
+
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
 
           <PreferencesSection title="Aparência" variant={variant}>
             <Text style={[styles.sectionDesc, { color: textSecondary }]}>
@@ -412,7 +459,9 @@ export function AppHeaderWithPreferences() {
             />
           </PreferencesSection>
 
-          <View style={[styles.blockDivider, { backgroundColor: dividerColor }]} />
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
 
           <PreferencesSwitchItem
             variant={variant}
@@ -630,5 +679,35 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     color: colors.danger,
+  },
+  startPageRow: {
+    paddingTop: spacing.xs,
+    paddingBottom: spacing.sm,
+  },
+  startPageLabel: {
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 4,
+    opacity: 0.9,
+  },
+  startPageValue: {
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  startPageRemoveRow: {
+    marginTop: spacing.sm,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  startPageRemovePressed: {
+    opacity: 0.82,
+  },
+  startPageRemoveText: {
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

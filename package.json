@@ -1,15 +1,24 @@
 {
-  "name": "saravafy-mobile-app",
+  "name": "saravafy",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "scripts": {
-    "start": "expo start",
-    "android": "expo run:android",
-    "ios": "expo run:ios",
+    "start": "cross-env APP_VARIANT=production expo start",
+    "start:dev": "cross-env APP_VARIANT=dev expo start --dev-client",
+    "android": "cross-env APP_VARIANT=production expo run:android",
+    "android:dev": "cross-env APP_VARIANT=dev expo run:android",
+    "android:prod": "cross-env APP_VARIANT=production expo run:android --variant=release",
+    "ios": "cross-env APP_VARIANT=production expo run:ios",
+    "ios:dev": "cross-env APP_VARIANT=dev expo run:ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "eas:dev": "eas build -p android --profile development",
+    "eas:preview": "eas build -p android --profile preview",
+    "eas:prod": "eas build -p android --profile production",
+    "eas:build:list": "eas build:list",
+    "eas:build:download": "eas build:download",
     "eas-build-pre-build": "node ./scripts/eas-lint.mjs"
   },
   "dependencies": {
@@ -43,6 +52,7 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
     "eslint-config-expo": "^10.0.0",
     "pngjs": "^7.0.0",

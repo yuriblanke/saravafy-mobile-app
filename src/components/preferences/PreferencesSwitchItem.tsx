@@ -19,9 +19,7 @@ export function PreferencesSwitchItem({
   onValueChange,
 }: Props) {
   const textPrimary =
-    variant === "light"
-      ? colors.textPrimaryOnLight
-      : colors.textPrimaryOnDark;
+    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
     variant === "light"
       ? colors.textSecondaryOnLight
@@ -31,7 +29,9 @@ export function PreferencesSwitchItem({
     <View style={styles.row}>
       <View style={styles.textCol}>
         <Text style={[styles.title, { color: textPrimary }]}>{title}</Text>
-        <Text style={[styles.desc, { color: textSecondary }]}>{description}</Text>
+        <Text style={[styles.desc, { color: textSecondary }]}>
+          {description}
+        </Text>
       </View>
 
       <Switch
