@@ -1,12 +1,15 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  BackHandler,
   FlatList,
   Image,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -16,7 +19,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { supabase } from "@/lib/supabase";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
-import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, radii, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
@@ -57,6 +59,7 @@ type TerreiroContatoDbRow = {
   neighborhood: string | null;
   address: string;
   phone_whatsapp: string;
+  phone_is_whatsapp: boolean;
   instagram_handle: string;
   is_primary: boolean;
 };
@@ -91,16 +94,28 @@ const UF_OPTIONS = [
   { uf: "TO", label: "Tocantins" },
 ] as const;
 
-const CITIES_BY_UF: Record<string, string[]> = {
-  PR: ["Curitiba", "Londrina", "Maringá", "Ponta Grossa"],
-  SP: ["São Paulo", "Campinas", "Santos", "Ribeirão Preto"],
-  RJ: ["Rio de Janeiro", "Niterói", "Petrópolis"],
-  MG: ["Belo Horizonte", "Uberlândia", "Juiz de Fora"],
-  RS: ["Porto Alegre", "Caxias do Sul", "Pelotas"],
-  SC: ["Florianópolis", "Joinville", "Blumenau"],
-  BA: ["Salvador", "Feira de Santana"],
-  PE: ["Recife", "Olinda"],
-};
+type IbgeMunicipio = { nome?: string };
+
+async function fetchIbgeMunicipiosByUf(uf: string) {
+  const safeUf = (uf ?? "").trim().toUpperCase();
+  if (!safeUf) return [];
+
+  const url = `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${encodeURIComponent(
+    safeUf
+  )}/municipios?orderBy=nome`;
+
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`IBGE: não foi possível carregar cidades (${res.status}).`);
+  }
+
+  const data = (await res.json()) as unknown;
+  if (!Array.isArray(data)) return [];
+
+  return (data as IbgeMunicipio[])
+    .map((m) => (typeof m?.nome === "string" ? m.nome.trim() : ""))
+    .filter(Boolean);
+}
 
 function labelForUf(uf: string) {
   const match = UF_OPTIONS.find((o) => o.uf === uf);
@@ -114,6 +129,7 @@ function SelectModal({
   visible,
   variant,
   items,
+  emptyLabel,
   onClose,
   onSelect,
 }: {
@@ -121,6 +137,7 @@ function SelectModal({
   visible: boolean;
   variant: "light" | "dark";
   items: SelectItem[];
+  emptyLabel?: string;
   onClose: () => void;
   onSelect: (value: string) => void;
 }) {
@@ -172,29 +189,37 @@ function SelectModal({
 
           <View style={[styles.selectDivider, { backgroundColor: divider }]} />
 
-          <FlatList
-            data={items}
-            keyExtractor={(i) => i.key}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => (
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  onSelect(item.value);
-                  onClose();
-                }}
-                style={({ pressed }) => [
-                  styles.selectRow,
-                  pressed ? styles.selectRowPressed : null,
-                ]}
-              >
-                <Text style={[styles.selectRowText, { color: textPrimary }]}>
-                  {item.label}
-                </Text>
-              </Pressable>
-            )}
-          />
+          {items.length === 0 ? (
+            <View style={styles.selectEmptyWrap}>
+              <Text style={[styles.selectEmptyText, { color: textMuted }]}>
+                {emptyLabel ?? "Nenhuma opção disponível."}
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              data={items}
+              keyExtractor={(i) => i.key}
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    onSelect(item.value);
+                    onClose();
+                  }}
+                  style={({ pressed }) => [
+                    styles.selectRow,
+                    pressed ? styles.selectRowPressed : null,
+                  ]}
+                >
+                  <Text style={[styles.selectRowText, { color: textPrimary }]}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              )}
+            />
+          )}
         </View>
       </View>
     </Modal>
@@ -349,6 +374,32 @@ function snapshotOf(form: TerreiroForm) {
   });
 }
 
+async function upsertPrimaryContato(payload: {
+  terreiro_id: string;
+  city: string;
+  state: string;
+  neighborhood: string | null;
+  address: string;
+  phone_whatsapp: string;
+  phone_is_whatsapp: boolean;
+  instagram_handle: string;
+  is_primary: boolean;
+}) {
+  const res = await supabase
+    .from("terreiros_contatos")
+    .upsert(payload as any, { onConflict: "terreiro_id" })
+    .select("terreiro_id")
+    .single();
+
+  if (res.error) {
+    throw new Error(
+      typeof res.error.message === "string"
+        ? res.error.message
+        : "Não foi possível salvar o contato."
+    );
+  }
+}
+
 export default function TerreiroEditor() {
   const router = useRouter();
   const { mode, terreiroId } = useLocalSearchParams<{
@@ -357,12 +408,8 @@ export default function TerreiroEditor() {
   }>();
 
   const { user } = useAuth();
-  const {
-    effectiveTheme,
-    activeContext,
-    applyTerreiroPatch,
-    fetchTerreirosQueAdministro,
-  } = usePreferences();
+  const { effectiveTheme, applyTerreiroPatch, fetchTerreirosQueAdministro } =
+    usePreferences();
 
   const variant = effectiveTheme;
 
@@ -393,6 +440,9 @@ export default function TerreiroEditor() {
 
   const [isUfModalOpen, setIsUfModalOpen] = useState(false);
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
+
+  const [citiesByUf, setCitiesByUf] = useState<Record<string, string[]>>({});
+  const [citiesLoadingUf, setCitiesLoadingUf] = useState<string | null>(null);
 
   const initialSnapshotRef = useRef<string | null>(null);
   const webpLocalUriRef = useRef<string | null>(null);
@@ -442,10 +492,9 @@ export default function TerreiroEditor() {
           supabase
             .from("terreiros_contatos")
             .select(
-              "terreiro_id, city, state, neighborhood, address, phone_whatsapp, instagram_handle, is_primary"
+              "terreiro_id, city, state, neighborhood, address, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary"
             )
             .eq("terreiro_id", resolvedTerreiroId)
-            .eq("is_primary", true)
             .maybeSingle(),
         ]);
 
@@ -476,6 +525,10 @@ export default function TerreiroEditor() {
             neighborhood: c?.neighborhood ?? "",
             address: c?.address ?? "",
             phoneDigits: normalizePhoneDigits(c?.phone_whatsapp ?? ""),
+            isWhatsappUi:
+              typeof c?.phone_is_whatsapp === "boolean"
+                ? c.phone_is_whatsapp
+                : true,
             instagram: normalizeInstagram(c?.instagram_handle ?? ""),
           }));
         }
@@ -498,9 +551,63 @@ export default function TerreiroEditor() {
     initialSnapshotRef.current = snapshotOf(form);
   }, [form, loading]);
 
+  useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      if (saving) return true;
+
+      if (!dirty) {
+        router.back();
+        return true;
+      }
+
+      Alert.alert(
+        "Descartar alterações?",
+        "Suas alterações não foram salvas.",
+        [
+          { text: "Continuar", style: "cancel" },
+          {
+            text: "Descartar",
+            style: "destructive",
+            onPress: () => router.back(),
+          },
+        ]
+      );
+      return true;
+    });
+
+    return () => sub.remove();
+  }, [dirty, router, saving]);
+
   const citiesForSelectedUf = form.stateUF
-    ? CITIES_BY_UF[form.stateUF] ?? []
+    ? citiesByUf[form.stateUF] ?? []
     : [];
+
+  const isCityLoading = !!form.stateUF && citiesLoadingUf === form.stateUF;
+
+  const ensureCitiesForUf = async (uf: string) => {
+    const safeUf = (uf ?? "").trim().toUpperCase();
+    if (!safeUf) return;
+
+    if (citiesByUf[safeUf]?.length) return;
+    if (citiesLoadingUf === safeUf) return;
+
+    setCitiesLoadingUf(safeUf);
+    try {
+      const cities = await fetchIbgeMunicipiosByUf(safeUf);
+      setCitiesByUf((prev) => ({ ...prev, [safeUf]: cities }));
+    } catch (e) {
+      Alert.alert(
+        "Erro",
+        e instanceof Error
+          ? e.message
+          : "Não foi possível carregar as cidades do IBGE."
+      );
+    } finally {
+      setCitiesLoadingUf((prev) => (prev === safeUf ? null : prev));
+    }
+  };
 
   const onCancel = () => {
     if (!dirty) {
@@ -524,7 +631,7 @@ export default function TerreiroEditor() {
     }
 
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: "images",
       allowsEditing: true,
       quality: 1,
       exif: false,
@@ -595,34 +702,53 @@ export default function TerreiroEditor() {
           });
         }
 
-        const rpcRes = await supabase.rpc("fn_create_terreiro", {
-          p_title: title,
-          p_state: stateUF,
-          p_city: city,
-          p_address: address,
-          p_about: form.about.trim() ? form.about.trim() : null,
-          p_lines_of_work: form.linesOfWork.trim()
-            ? form.linesOfWork.trim()
-            : null,
-          p_cover_image_url: tempCoverUrl,
-          p_neighborhood: form.neighborhood.trim()
-            ? form.neighborhood.trim()
-            : null,
-          p_phone_digits: digits,
-          p_instagram_handle: instagram,
-        });
+        const tryRpcMinimal = async () =>
+          supabase.rpc("fn_create_terreiro", {
+            p_title: title,
+            p_about: form.about.trim() ? form.about.trim() : null,
+            p_lines_of_work: form.linesOfWork.trim()
+              ? form.linesOfWork.trim()
+              : null,
+            p_cover_image_url: tempCoverUrl,
+          });
 
-        if (rpcRes.error) {
-          throw new Error(
-            typeof rpcRes.error.message === "string"
-              ? rpcRes.error.message
-              : "Não foi possível criar o terreiro."
-          );
+        const tryRpcWithRequiredAddressArgs = async () =>
+          supabase.rpc("fn_create_terreiro", {
+            p_title: title,
+            p_state: stateUF,
+            p_city: city,
+            p_address: address,
+            p_about: form.about.trim() ? form.about.trim() : null,
+            p_lines_of_work: form.linesOfWork.trim()
+              ? form.linesOfWork.trim()
+              : null,
+            p_cover_image_url: tempCoverUrl,
+          });
+
+        let createdId: string | null = null;
+
+        const rpcMin = await tryRpcMinimal();
+        if (!rpcMin.error && typeof rpcMin.data === "string" && rpcMin.data) {
+          createdId = rpcMin.data;
         }
 
-        const createdId = rpcRes.data;
-        if (typeof createdId !== "string" || !createdId) {
-          throw new Error("Não foi possível obter o ID do terreiro criado.");
+        if (!createdId) {
+          const rpcReq = await tryRpcWithRequiredAddressArgs();
+          if (!rpcReq.error && typeof rpcReq.data === "string" && rpcReq.data) {
+            createdId = rpcReq.data;
+          }
+
+          if (!createdId) {
+            const msg =
+              (rpcReq.error && typeof rpcReq.error.message === "string"
+                ? rpcReq.error.message
+                : "") ||
+              (rpcMin.error && typeof rpcMin.error.message === "string"
+                ? rpcMin.error.message
+                : "");
+
+            throw new Error(msg || "Não foi possível criar o terreiro.");
+          }
         }
 
         // Garantir o caminho final obrigatório do cover.
@@ -648,6 +774,23 @@ export default function TerreiroEditor() {
 
           deleteTempCoverIfPossible(draftId).catch(() => undefined);
         }
+
+        // Gravar/atualizar contato primário via tabela dedicada.
+        const contatoPayload = {
+          terreiro_id: createdId,
+          city,
+          state: stateUF,
+          neighborhood: form.neighborhood.trim()
+            ? form.neighborhood.trim()
+            : null,
+          address,
+          phone_whatsapp: digits,
+          phone_is_whatsapp: !!form.isWhatsappUi,
+          instagram_handle: instagram,
+          is_primary: true,
+        };
+
+        await upsertPrimaryContato(contatoPayload);
 
         applyTerreiroPatch({
           terreiroId: createdId,
@@ -709,41 +852,12 @@ export default function TerreiroEditor() {
           : null,
         address,
         phone_whatsapp: digits,
+        phone_is_whatsapp: !!form.isWhatsappUi,
         instagram_handle: instagram,
         is_primary: true,
       };
 
-      const contatoUpdate = await supabase
-        .from("terreiros_contatos")
-        .update(contatoPayload as any)
-        .eq("terreiro_id", id)
-        .eq("is_primary", true)
-        .select("terreiro_id");
-
-      if (contatoUpdate.error) {
-        throw new Error(
-          typeof contatoUpdate.error.message === "string"
-            ? contatoUpdate.error.message
-            : "Não foi possível salvar o contato."
-        );
-      }
-
-      if (
-        !Array.isArray(contatoUpdate.data) ||
-        contatoUpdate.data.length === 0
-      ) {
-        const contatoInsert = await supabase
-          .from("terreiros_contatos")
-          .insert(contatoPayload as any);
-
-        if (contatoInsert.error) {
-          throw new Error(
-            typeof contatoInsert.error.message === "string"
-              ? contatoInsert.error.message
-              : "Não foi possível salvar o contato."
-          );
-        }
-      }
+      await upsertPrimaryContato(contatoPayload);
 
       applyTerreiroPatch({
         terreiroId: id,
@@ -775,6 +889,10 @@ export default function TerreiroEditor() {
       stateUF: next,
       city: prev.stateUF === next ? prev.city : "",
     }));
+
+    if (next) {
+      void ensureCitiesForUf(next);
+    }
   };
 
   const onChangeCity = (next: string) => {
@@ -782,6 +900,14 @@ export default function TerreiroEditor() {
   };
 
   const coverPreviewUri = form.coverImageUrl;
+
+  const canSubmit =
+    !saving &&
+    !loading &&
+    !!form.title.trim() &&
+    !!form.stateUF.trim() &&
+    !!form.city.trim() &&
+    !!form.address.trim();
 
   const ufItems: SelectItem[] = UF_OPTIONS.map((o) => ({
     key: o.uf,
@@ -798,45 +924,40 @@ export default function TerreiroEditor() {
   return (
     <SaravafyScreen variant={variant}>
       <View style={styles.root}>
+        <View style={styles.topBar}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Fechar"
+            hitSlop={12}
+            onPress={onCancel}
+            style={({ pressed }) => [
+              styles.topBarBtn,
+              pressed ? styles.topBarBtnPressed : null,
+            ]}
+          >
+            <Ionicons name="close" size={22} color={textMuted} />
+          </Pressable>
+
+          <Text style={[styles.topBarTitle, { color: textPrimary }]}>
+            {isEdit ? "Editar terreiro" : "Criar terreiro"}
+          </Text>
+
+          <View style={styles.topBarSpacer} />
+        </View>
+
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
         >
-          <SurfaceCard variant={variant}>
-            <Text style={[styles.sectionTitle, { color: textMuted }]}>
-              Dados do terreiro
-            </Text>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={pickCover}
-              style={({ pressed }) => [
-                styles.coverPicker,
-                {
-                  borderColor: inputBorder,
-                  backgroundColor: inputBg,
-                },
-                pressed ? styles.coverPickerPressed : null,
-              ]}
-            >
-              {coverPreviewUri ? (
-                <Image
-                  source={{ uri: coverPreviewUri }}
-                  style={styles.coverImage}
-                />
-              ) : (
-                <View style={styles.coverPlaceholder} />
-              )}
-            </Pressable>
-
+          <View style={styles.section}>
             <Text style={[styles.label, { color: textSecondary }]}>
-              Nome do terreiro
+              Nome do terreiro <Text style={styles.requiredStar}>*</Text>
             </Text>
             <TextInput
               value={form.title}
               onChangeText={(v) => setForm((p) => ({ ...p, title: v }))}
-              placeholder=""
+              placeholder="Nome do terreiro"
               placeholderTextColor={textSecondary}
               style={[
                 styles.input,
@@ -848,11 +969,42 @@ export default function TerreiroEditor() {
               ]}
             />
 
+            <Text style={[styles.label, { color: textSecondary }]}>Imagem</Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                coverPreviewUri ? "Trocar imagem" : "Adicionar imagem"
+              }
+              disabled={saving}
+              onPress={pickCover}
+              style={({ pressed }) => [
+                styles.coverRow,
+                { borderColor: inputBorder, backgroundColor: inputBg },
+                saving ? styles.rowDisabled : null,
+                pressed && !saving ? styles.rowPressed : null,
+              ]}
+            >
+              {coverPreviewUri ? (
+                <Image
+                  source={{ uri: coverPreviewUri }}
+                  style={styles.coverThumb}
+                />
+              ) : (
+                <View style={styles.coverIconWrap}>
+                  <Ionicons name="image-outline" size={18} color={textMuted} />
+                </View>
+              )}
+
+              <Text style={[styles.coverRowText, { color: textPrimary }]}>
+                {coverPreviewUri ? "Trocar imagem" : "Adicionar imagem"}
+              </Text>
+            </Pressable>
+
             <Text style={[styles.label, { color: textSecondary }]}>Sobre</Text>
             <TextInput
               value={form.about}
               onChangeText={(v) => setForm((p) => ({ ...p, about: v }))}
-              placeholder=""
+              placeholder="Conte um pouco sobre o terreiro, sua história e propósito"
               placeholderTextColor={textSecondary}
               multiline
               style={[
@@ -871,7 +1023,7 @@ export default function TerreiroEditor() {
             <TextInput
               value={form.linesOfWork}
               onChangeText={(v) => setForm((p) => ({ ...p, linesOfWork: v }))}
-              placeholder=""
+              placeholder="Linhas espirituais e frentes de trabalho do terreiro"
               placeholderTextColor={textSecondary}
               multiline
               style={[
@@ -883,17 +1035,19 @@ export default function TerreiroEditor() {
                 },
               ]}
             />
-          </SurfaceCard>
+          </View>
 
-          <View style={styles.gap} />
+          <View
+            style={[styles.sectionDivider, { backgroundColor: inputBorder }]}
+          />
 
-          <SurfaceCard variant={variant}>
+          <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: textMuted }]}>
               Contato principal
             </Text>
 
             <Text style={[styles.label, { color: textSecondary }]}>
-              Estado (UF)
+              Estado (UF) <Text style={styles.requiredStar}>*</Text>
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -920,13 +1074,16 @@ export default function TerreiroEditor() {
               <Ionicons name="chevron-down" size={16} color={textMuted} />
             </Pressable>
 
-            <Text style={[styles.label, { color: textSecondary }]}>Cidade</Text>
+            <Text style={[styles.label, { color: textSecondary }]}>
+              Cidade <Text style={styles.requiredStar}>*</Text>
+            </Text>
             <Pressable
               accessibilityRole="button"
               disabled={!form.stateUF || saving}
               onPress={() => {
                 if (!form.stateUF || saving) return;
                 setIsCityModalOpen(true);
+                void ensureCitiesForUf(form.stateUF);
               }}
               style={({ pressed }) => [
                 styles.selectField,
@@ -944,7 +1101,11 @@ export default function TerreiroEditor() {
                 ]}
                 numberOfLines={1}
               >
-                {form.city ? form.city : "Selecionar"}
+                {form.city
+                  ? form.city
+                  : isCityLoading
+                  ? "Carregando…"
+                  : "Selecionar"}
               </Text>
               <Ionicons name="chevron-down" size={16} color={textMuted} />
             </Pressable>
@@ -953,7 +1114,7 @@ export default function TerreiroEditor() {
             <TextInput
               value={form.neighborhood}
               onChangeText={(v) => setForm((p) => ({ ...p, neighborhood: v }))}
-              placeholder=""
+              placeholder="Bairro (opcional)"
               placeholderTextColor={textSecondary}
               style={[
                 styles.input,
@@ -966,12 +1127,12 @@ export default function TerreiroEditor() {
             />
 
             <Text style={[styles.label, { color: textSecondary }]}>
-              Endereço
+              Endereço <Text style={styles.requiredStar}>*</Text>
             </Text>
             <TextInput
               value={form.address}
               onChangeText={(v) => setForm((p) => ({ ...p, address: v }))}
-              placeholder=""
+              placeholder="Endereço"
               placeholderTextColor={textSecondary}
               style={[
                 styles.input,
@@ -992,7 +1153,7 @@ export default function TerreiroEditor() {
                 const digits = normalizePhoneDigits(v);
                 setForm((p) => ({ ...p, phoneDigits: digits }));
               }}
-              placeholder=""
+              placeholder="(11) 9 9999-9999"
               placeholderTextColor={textSecondary}
               keyboardType="number-pad"
               style={[
@@ -1005,28 +1166,28 @@ export default function TerreiroEditor() {
               ]}
             />
 
-            <Pressable
-              accessibilityRole="checkbox"
-              accessibilityState={{ checked: form.isWhatsappUi }}
-              onPress={() =>
-                setForm((p) => ({ ...p, isWhatsappUi: !p.isWhatsappUi }))
-              }
-              style={({ pressed }) => [
-                styles.checkboxRow,
-                pressed ? styles.checkboxRowPressed : null,
-              ]}
+            <View
+              accessible
+              accessibilityRole="switch"
+              accessibilityLabel="Este telefone é WhatsApp?"
+              style={styles.switchRow}
             >
-              <View
-                style={[
-                  styles.checkboxBox,
-                  { borderColor: inputBorder, backgroundColor: inputBg },
-                  form.isWhatsappUi ? styles.checkboxBoxChecked : null,
-                ]}
-              />
-              <Text style={[styles.checkboxText, { color: textSecondary }]}>
-                É WhatsApp?
+              <Text style={[styles.switchLabel, { color: textSecondary }]}>
+                Este telefone é WhatsApp?
               </Text>
-            </Pressable>
+              <Switch
+                value={!!form.isWhatsappUi}
+                onValueChange={(v) =>
+                  setForm((p) => ({ ...p, isWhatsappUi: v }))
+                }
+                disabled={saving}
+                trackColor={{
+                  false: inputBorder,
+                  true: colors.brass600,
+                }}
+                thumbColor={colors.paper50}
+              />
+            </View>
 
             <Text style={[styles.label, { color: textSecondary }]}>
               Instagram
@@ -1048,9 +1209,7 @@ export default function TerreiroEditor() {
                 },
               ]}
             />
-          </SurfaceCard>
-
-          <View style={styles.gap} />
+          </View>
 
           <View style={styles.footerBar}>
             <Pressable
@@ -1072,11 +1231,11 @@ export default function TerreiroEditor() {
             <Pressable
               accessibilityRole="button"
               onPress={onSave}
-              disabled={saving || loading}
+              disabled={!canSubmit}
               style={({ pressed }) => [
                 styles.saveBtn,
                 pressed ? styles.footerBtnPressed : null,
-                saving || loading ? styles.footerBtnDisabled : null,
+                !canSubmit ? styles.footerBtnDisabled : null,
               ]}
             >
               <Text style={styles.saveBtnText}>Salvar</Text>
@@ -1115,6 +1274,13 @@ export default function TerreiroEditor() {
           visible={isCityModalOpen}
           variant={variant}
           items={cityItems}
+          emptyLabel={
+            !form.stateUF
+              ? "Selecione um estado (UF)."
+              : isCityLoading
+              ? "Carregando…"
+              : "Nenhuma cidade encontrada."
+          }
           onClose={() => setIsCityModalOpen(false)}
           onSelect={onChangeCity}
         />
@@ -1127,13 +1293,37 @@ const styles = StyleSheet.create({
   root: {
     flex: 1,
   },
-  scrollContent: {
-    padding: spacing.lg,
-    paddingBottom: spacing.xl,
-    gap: spacing.lg,
+  topBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
   },
-  gap: {
-    height: spacing.lg,
+  topBarBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 999,
+  },
+  topBarBtnPressed: {
+    opacity: 0.7,
+  },
+  topBarTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "800",
+  },
+  topBarSpacer: {
+    width: 40,
+    height: 40,
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
   },
   sectionTitle: {
     fontSize: 12,
@@ -1141,9 +1331,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
     marginBottom: spacing.sm,
   },
+  section: {
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.md,
+  },
+  sectionDivider: {
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.9,
+  },
+  requiredStar: {
+    color: colors.brass600,
+    fontWeight: "900",
+  },
   label: {
     marginTop: spacing.sm,
-    marginBottom: 6,
+    marginBottom: spacing.xs,
     fontSize: 12,
     fontWeight: "700",
     opacity: 0.92,
@@ -1158,7 +1360,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   textArea: {
-    minHeight: 88,
+    minHeight: 72,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.md,
     paddingHorizontal: 12,
@@ -1249,48 +1451,65 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
-  coverPicker: {
-    width: "100%",
-    height: 160,
+  selectEmptyWrap: {
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.lg,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectEmptyText: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.9,
+    textAlign: "center",
+  },
+  coverRow: {
+    minHeight: 52,
     borderRadius: radii.md,
     borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    marginBottom: spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
-  coverPickerPressed: {
-    opacity: 0.94,
+  coverThumb: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    backgroundColor: "transparent",
   },
-  coverImage: {
-    width: "100%",
-    height: "100%",
+  coverIconWrap: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  coverPlaceholder: {
+  coverRowText: {
     flex: 1,
+    fontSize: 14,
+    fontWeight: "800",
   },
-  checkboxRow: {
+  rowPressed: {
+    opacity: 0.92,
+  },
+  rowDisabled: {
+    opacity: 0.6,
+  },
+  switchRow: {
     minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
+    gap: 12,
     marginTop: spacing.sm,
-    marginBottom: spacing.sm,
   },
-  checkboxRowPressed: {
-    opacity: 0.92,
-  },
-  checkboxBox: {
-    width: 18,
-    height: 18,
-    borderRadius: 4,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  checkboxBoxChecked: {
-    backgroundColor: colors.brass600,
-    borderColor: colors.brass600,
-  },
-  checkboxText: {
+  switchLabel: {
+    flex: 1,
     fontSize: 13,
     fontWeight: "700",
+    opacity: 0.92,
   },
   footerBar: {
     flexDirection: "row",
@@ -1334,7 +1553,7 @@ const styles = StyleSheet.create({
   },
   filler: {
     width: "100%",
-    height: 180,
+    height: 265,
     marginTop: spacing.lg,
   },
   bottomPad: {

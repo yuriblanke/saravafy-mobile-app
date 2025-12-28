@@ -7,6 +7,7 @@ type TerreiroContatoRow = {
   city?: string | null;
   state?: string | null;
   phone_whatsapp?: string | null;
+  phone_is_whatsapp?: boolean | null;
   instagram_handle?: string | null;
   is_primary?: boolean | null;
 };
@@ -20,9 +21,9 @@ export async function fetchTerreirosWithRole(
   userId: string
 ): Promise<TerreiroListItem[]> {
   const selectWithEverything =
-    "id, title, cover_image_url, terreiro_members(role, user_id), terreiros_contatos(terreiro_id, city, state, phone_whatsapp, instagram_handle, is_primary)";
+    "id, title, cover_image_url, terreiro_members(role, user_id), terreiros_contatos(terreiro_id, city, state, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary)";
   const selectWithoutCover =
-    "id, title, terreiro_members(role, user_id), terreiros_contatos(terreiro_id, city, state, phone_whatsapp, instagram_handle, is_primary)";
+    "id, title, terreiro_members(role, user_id), terreiros_contatos(terreiro_id, city, state, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary)";
   const selectWithoutContato =
     "id, title, cover_image_url, terreiro_members(role, user_id)";
   const selectWithoutContatoOrCover =
@@ -79,9 +80,8 @@ export async function fetchTerreirosWithRole(
     const contatoRes = await supabase
       .from("terreiros_contatos")
       .select(
-        "terreiro_id, city, state, neighborhood, address, phone_whatsapp, instagram_handle, is_primary"
+        "terreiro_id, city, state, neighborhood, address, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary"
       )
-      .eq("is_primary", true)
       .in("terreiro_id", ids);
 
     if (!contatoRes.error) {
@@ -106,9 +106,9 @@ export async function fetchTerreirosWithRole(
 
     let primaryContato: TerreiroContatoRow | undefined;
     if (Array.isArray(t?.terreiros_contatos)) {
-      primaryContato = (t.terreiros_contatos as TerreiroContatoRow[]).find(
-        (c) => c?.is_primary === true
-      );
+      const contatos = t.terreiros_contatos as TerreiroContatoRow[];
+      primaryContato =
+        contatos.find((c) => c?.is_primary === true) ?? contatos[0];
     }
 
     const fallbackContato =
