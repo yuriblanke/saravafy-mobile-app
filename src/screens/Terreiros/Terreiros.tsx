@@ -4,10 +4,13 @@ import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferen
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   FlatList,
+  Image,
+  Linking,
   Pressable,
   StyleSheet,
   Text,
@@ -27,6 +30,160 @@ function matchesTerreiroQuery(terreiro: TerreiroListItem, query: string) {
   const q = normalize(query);
   if (!q) return true;
   return normalize(terreiro.name ?? "").includes(q);
+}
+
+function formatCityState(city?: string, state?: string) {
+  const c = typeof city === "string" && city.trim() ? city.trim() : "";
+  const s = typeof state === "string" && state.trim() ? state.trim() : "";
+  if (!c && !s) return "";
+  if (c && s) return `${c} · ${s}`;
+  return c || s;
+}
+
+function normalizeInstagramHandle(handle?: string) {
+  if (typeof handle !== "string") return "";
+  const h = handle.trim().replace(/^@+/, "");
+  return h;
+}
+
+function normalizePhoneDigits(phoneDigits?: string) {
+  if (typeof phoneDigits !== "string") return "";
+  return phoneDigits.replace(/\D/g, "");
+}
+
+function TerreiroCard({
+  item,
+  variant,
+  textPrimary,
+  textSecondary,
+  textMuted,
+  onPress,
+}: {
+  item: TerreiroListItem;
+  variant: "light" | "dark";
+  textPrimary: string;
+  textSecondary: string;
+  textMuted: string;
+  onPress: () => void;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  const name =
+    (typeof item.name === "string" && item.name.trim()) || "Terreiro";
+
+  const cityState = formatCityState(item.city, item.state);
+  const phone = normalizePhoneDigits(item.phoneDigits);
+  const instagram = normalizeInstagramHandle(item.instagramHandle);
+
+  const hasActions = !!phone || !!instagram;
+
+  const hasImage =
+    !imageFailed &&
+    typeof item.coverImageUrl === "string" &&
+    item.coverImageUrl.trim().length > 0;
+
+  const accentColor = variant === "light" ? colors.brass600 : colors.brass500;
+  const pressedBg =
+    variant === "light" ? colors.paper200 : "rgba(243,239,233,0.08)";
+
+  return (
+    <Pressable accessibilityRole="button" onPress={onPress}>
+      <SurfaceCard variant={variant}>
+        <View style={styles.cardRow}>
+          <View style={styles.cardLeft}>
+            <Text
+              style={[styles.cardTitle, { color: textPrimary }]}
+              numberOfLines={2}
+            >
+              {name}
+            </Text>
+
+            {cityState ? (
+              <Text
+                style={[styles.cardMeta, { color: textSecondary }]}
+                numberOfLines={1}
+              >
+                {cityState}
+              </Text>
+            ) : null}
+
+            {hasActions ? (
+              <View style={styles.cardActionsRow}>
+                {phone ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Abrir WhatsApp"
+                    hitSlop={10}
+                    onPressIn={(e) => {
+                      (e as any)?.stopPropagation?.();
+                    }}
+                    onPress={(e) => {
+                      (e as any)?.stopPropagation?.();
+                      Linking.openURL(`https://wa.me/55${phone}`).catch(
+                        () => undefined
+                      );
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionIconBtn,
+                      pressed ? { backgroundColor: pressedBg } : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name="logo-whatsapp"
+                      size={18}
+                      color={accentColor}
+                    />
+                  </Pressable>
+                ) : null}
+
+                {instagram ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Abrir Instagram"
+                    hitSlop={10}
+                    onPressIn={(e) => {
+                      (e as any)?.stopPropagation?.();
+                    }}
+                    onPress={(e) => {
+                      (e as any)?.stopPropagation?.();
+                      Linking.openURL(
+                        `https://instagram.com/${instagram}`
+                      ).catch(() => undefined);
+                    }}
+                    style={({ pressed }) => [
+                      styles.actionIconBtn,
+                      pressed ? { backgroundColor: pressedBg } : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name="logo-instagram"
+                      size={18}
+                      color={accentColor}
+                    />
+                  </Pressable>
+                ) : null}
+
+                {!phone && !instagram ? (
+                  <Text style={[styles.cardMeta, { color: textMuted }]} />
+                ) : null}
+              </View>
+            ) : null}
+          </View>
+
+          {hasImage ? (
+            <View style={styles.cardRight}>
+              <Image
+                source={{ uri: item.coverImageUrl as string }}
+                resizeMode="cover"
+                style={styles.cardImage}
+                onError={() => setImageFailed(true)}
+              />
+            </View>
+          ) : null}
+        </View>
+      </SurfaceCard>
+    </Pressable>
+  );
 }
 
 export default function Terreiros() {
@@ -156,33 +313,28 @@ export default function Terreiros() {
               contentContainerStyle={styles.listContent}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
-                const name =
-                  (typeof item.name === "string" && item.name.trim()) ||
-                  "Terreiro";
-
                 return (
                   <View style={styles.cardGap}>
-                    <Pressable
-                      accessibilityRole="button"
+                    <TerreiroCard
+                      item={item}
+                      variant={variant}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      textMuted={textMuted}
                       onPress={() => {
+                        const name =
+                          (typeof item.name === "string" && item.name.trim()) ||
+                          "Terreiro";
                         setActiveContext({
                           kind: "TERREIRO_PAGE",
                           terreiroId: item.id,
                           terreiroName: name,
+                          terreiroAvatarUrl: item.coverImageUrl,
                           role: item.role ?? "follower",
                         });
                         router.push("/terreiro");
                       }}
-                    >
-                      <SurfaceCard variant={variant}>
-                        <Text
-                          style={[styles.cardTitle, { color: textPrimary }]}
-                          numberOfLines={2}
-                        >
-                          {name}
-                        </Text>
-                      </SurfaceCard>
-                    </Pressable>
+                    />
                   </View>
                 );
               }}
@@ -287,6 +439,43 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "800",
     lineHeight: 20,
+  },
+
+  cardRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: spacing.md,
+  },
+  cardLeft: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  cardRight: {
+    justifyContent: "flex-start",
+  },
+  cardImage: {
+    width: 92,
+    height: 92,
+    borderRadius: 12,
+  },
+  cardMeta: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  cardActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingTop: 2,
+  },
+  actionIconBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   modalBackdrop: {
