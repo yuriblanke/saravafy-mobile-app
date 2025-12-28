@@ -40,12 +40,12 @@ lib/
 
 ## 🚀 Tecnologias
 
-- React Native 0.81.x  
-- Expo SDK 54  
-- Expo Router  
-- TypeScript  
-- Supabase (Auth + Backend)  
-- AsyncStorage  
+- React Native 0.81.x
+- Expo SDK 54
+- Expo Router
+- TypeScript
+- Supabase (Auth + Backend)
+- AsyncStorage
 
 ---
 
@@ -63,11 +63,11 @@ npm install
 
 ### 1. Criar projeto
 
-1. Acesse https://app.supabase.com  
-2. Crie um novo projeto  
+1. Acesse https://app.supabase.com
+2. Crie um novo projeto
 3. Copie:
-   - Project URL  
-   - Anon Public Key  
+   - Project URL
+   - Anon Public Key
 
 ### 2. Variáveis de ambiente
 
@@ -84,9 +84,9 @@ EXPO_PUBLIC_SUPABASE_ANON_KEY=sua-anon-key
 
 No painel do Supabase:
 
-1. Vá em Authentication → Providers  
-2. Ative Google  
-3. Configure OAuth no Google Cloud Console  
+1. Vá em Authentication → Providers
+2. Ative Google
+3. Configure OAuth no Google Cloud Console
 4. Adicione o redirect:
 
 ```
@@ -100,18 +100,18 @@ saravafy://auth/callback
 
 ## 🧭 Fluxo de autenticação
 
-1. Usuário abre o app  
-2. Redirecionamento para `/login`  
-3. Login via Google  
-4. Sessão criada/restaurada  
+1. Usuário abre o app
+2. Redirecionamento para `/login`
+3. Login via Google
+4. Sessão criada/restaurada
 5. Redirecionamento para `/home`
 
 ---
 
 ## 📱 Rotas
 
-- `/(auth)/login` – Login  
-- `/(app)/home` – Área autenticada  
+- `/(auth)/login` – Login
+- `/(app)/home` – Área autenticada
 
 ---
 
@@ -138,7 +138,7 @@ saravafy://auth/callback
 
 Os comandos de build, ambientes e EAS estão documentados em:
 
-📄 **README.dev.txt**
+📄 **README.dev.md**
 
 ---
 
@@ -152,7 +152,6 @@ Os comandos de build, ambientes e EAS estão documentados em:
 
 ## 📄 Documentação complementar
 
-- `README.dev.txt` – builds, ambientes, EAS, scripts
+- `README.dev.md` – builds, ambientes, EAS, scripts
 - `app.config.ts` – configuração do app
 - `eas.json` – pipelines de build
-

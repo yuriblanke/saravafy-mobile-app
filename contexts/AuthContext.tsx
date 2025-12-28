@@ -5,6 +5,7 @@ import * as WebBrowser from "expo-web-browser";
 import React, {
   createContext,
   ReactNode,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -35,18 +36,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  const parseParams = (raw: string): Record<string, string> => {
-    const params = new URLSearchParams(raw);
-    const out: Record<string, string> = {};
-    for (const [key, value] of params.entries()) {
-      out[key] = value;
-    }
-    return out;
-  };
-
   // Função para processar deep links
-  const processDeepLink = async (url: string) => {
+  const processDeepLink = useCallback(async (url: string) => {
     console.log("Processando deep link:", url);
+
+    const parseParams = (raw: string): Record<string, string> => {
+      const params = new URLSearchParams(raw);
+      const out: Record<string, string> = {};
+      for (const [key, value] of params.entries()) {
+        out[key] = value;
+      }
+      return out;
+    };
 
     // 1) Query params via expo-linking
     const parsedUrl = Linking.parse(url);
@@ -132,7 +133,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error("Erro ao processar deep link:", error);
     }
-  };
+  }, []);
 
   // Verificar sessão inicial e configurar listener
   useEffect(() => {
@@ -185,7 +186,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       subscription.unsubscribe();
       urlSubscription.remove();
     };
-  }, []);
+  }, [processDeepLink]);
 
   // Fazer login com Google
   const signInWithGoogle = async () => {

@@ -86,6 +86,30 @@ export async function fetchTerreirosQueAdministro(userId: string) {
 
   const allowedRoles = ["admin", "editor"] as const;
 
+  const applyMemberUserFilter = async (query: any) => {
+    // Some environments use `terreiro_members.user_id`, others use `profile_id`.
+    // Try both, and fall back gracefully if a column does not exist.
+    const orFilter = `user_id.eq.${userId},profile_id.eq.${userId}`;
+
+    let res: any = await query.or(orFilter);
+
+    if (res?.error && typeof res.error.message === "string") {
+      const msg = res.error.message;
+      const missingProfileId =
+        msg.includes("profile_id") && msg.includes("does not exist");
+      const missingUserId =
+        msg.includes("user_id") && msg.includes("does not exist");
+
+      if (missingProfileId) {
+        res = await query.eq("user_id", userId);
+      } else if (missingUserId) {
+        res = await query.eq("profile_id", userId);
+      }
+    }
+
+    return res;
+  };
+
   const selectWithAllTerreiroFields =
     "terreiro_id, role, terreiros(id, title, cover_image_url, avatar_url, image_url)";
   const selectWithAllTerreiroFieldsWithoutCover =
@@ -107,11 +131,12 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   const selectTerreirosWithoutImages = "id, title, cover_image_url";
   const selectTerreirosWithoutImagesWithoutCover = "id, title";
 
-  let joined: any = await supabase
-    .from("terreiro_members")
-    .select(selectWithAllTerreiroFields)
-    .eq("user_id", userId)
-    .in("role", [...allowedRoles]);
+  let joined: any = await applyMemberUserFilter(
+    supabase
+      .from("terreiro_members")
+      .select(selectWithAllTerreiroFields)
+      .in("role", [...allowedRoles])
+  );
 
   if (
     joined.error &&
@@ -119,11 +144,12 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     joined.error.message.includes("cover_image_url") &&
     joined.error.message.includes("does not exist")
   ) {
-    joined = await supabase
-      .from("terreiro_members")
-      .select(selectWithAllTerreiroFieldsWithoutCover)
-      .eq("user_id", userId)
-      .in("role", [...allowedRoles]);
+    joined = await applyMemberUserFilter(
+      supabase
+        .from("terreiro_members")
+        .select(selectWithAllTerreiroFieldsWithoutCover)
+        .in("role", [...allowedRoles])
+    );
   }
 
   if (
@@ -132,16 +158,17 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     joined.error.message.includes("avatar_url") &&
     joined.error.message.includes("does not exist")
   ) {
-    joined = await supabase
-      .from("terreiro_members")
-      .select(
-        typeof joined.error.message === "string" &&
-          joined.error.message.includes("cover_image_url")
-          ? selectWithImageOnlyWithoutCover
-          : selectWithImageOnly
-      )
-      .eq("user_id", userId)
-      .in("role", [...allowedRoles]);
+    joined = await applyMemberUserFilter(
+      supabase
+        .from("terreiro_members")
+        .select(
+          typeof joined.error.message === "string" &&
+            joined.error.message.includes("cover_image_url")
+            ? selectWithImageOnlyWithoutCover
+            : selectWithImageOnly
+        )
+        .in("role", [...allowedRoles])
+    );
   }
 
   if (
@@ -150,16 +177,17 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     joined.error.message.includes("image_url") &&
     joined.error.message.includes("does not exist")
   ) {
-    joined = await supabase
-      .from("terreiro_members")
-      .select(
-        typeof joined.error.message === "string" &&
-          joined.error.message.includes("cover_image_url")
-          ? selectWithoutImagesWithoutCover
-          : selectWithoutImages
-      )
-      .eq("user_id", userId)
-      .in("role", [...allowedRoles]);
+    joined = await applyMemberUserFilter(
+      supabase
+        .from("terreiro_members")
+        .select(
+          typeof joined.error.message === "string" &&
+            joined.error.message.includes("cover_image_url")
+            ? selectWithoutImagesWithoutCover
+            : selectWithoutImages
+        )
+        .in("role", [...allowedRoles])
+    );
   }
 
   if (__DEV__) {
@@ -223,11 +251,12 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     );
   }
 
-  const members = await supabase
-    .from("terreiro_members")
-    .select("terreiro_id, role")
-    .eq("user_id", userId)
-    .in("role", [...allowedRoles]);
+  const members = await applyMemberUserFilter(
+    supabase
+      .from("terreiro_members")
+      .select("terreiro_id, role")
+      .in("role", [...allowedRoles])
+  );
 
   if (__DEV__) {
     const err = members.error
@@ -256,7 +285,97 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     new Set(memberRows.map((m) => m.terreiro_id).filter(Boolean))
   );
 
-  if (ids.length === 0) return [] as ManagedTerreiro[];
+  if (ids.length === 0) {
+    // Fallback: if the creator isn't in `terreiro_members` yet, include terreiros
+    // created by the user (common right after creation).
+    let created: any = await supabase
+      .from("terreiros")
+      .select(selectTerreirosAll)
+      .eq("created_by", userId);
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("created_by") &&
+      created.error.message.includes("does not exist")
+    ) {
+      return [] as ManagedTerreiro[];
+    }
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("cover_image_url") &&
+      created.error.message.includes("does not exist")
+    ) {
+      created = await supabase
+        .from("terreiros")
+        .select(selectTerreirosAllWithoutCover)
+        .eq("created_by", userId);
+    }
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("avatar_url") &&
+      created.error.message.includes("does not exist")
+    ) {
+      created = await supabase
+        .from("terreiros")
+        .select(
+          typeof created.error.message === "string" &&
+            created.error.message.includes("cover_image_url")
+            ? selectTerreirosImageOnlyWithoutCover
+            : selectTerreirosImageOnly
+        )
+        .eq("created_by", userId);
+    }
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("image_url") &&
+      created.error.message.includes("does not exist")
+    ) {
+      created = await supabase
+        .from("terreiros")
+        .select(
+          typeof created.error.message === "string" &&
+            created.error.message.includes("cover_image_url")
+            ? selectTerreirosWithoutImagesWithoutCover
+            : selectTerreirosWithoutImages
+        )
+        .eq("created_by", userId);
+    }
+
+    if (created.error) {
+      if (__DEV__) {
+        console.info("[TerreirosAdmin] created_by fallback error", {
+          userId,
+          error:
+            typeof created.error.message === "string"
+              ? created.error.message
+              : String(created.error),
+        });
+      }
+      return [] as ManagedTerreiro[];
+    }
+
+    const createdRows = (created.data ?? []) as TerreiroRow[];
+    const result: ManagedTerreiro[] = createdRows
+      .filter((t) => t?.id && t?.title)
+      .map((t) => {
+        const avatarUrl =
+          (typeof t.cover_image_url === "string" && t.cover_image_url) ||
+          (typeof t.avatar_url === "string" && t.avatar_url) ||
+          (typeof t.image_url === "string" && t.image_url) ||
+          undefined;
+
+        return { id: t.id, name: t.title, avatarUrl, role: "admin" };
+      });
+
+    return result.sort((a, b) => safeLocaleCompare(a.name, b.name));
+  }
 
   let terreiros: any = await supabase
     .from("terreiros")

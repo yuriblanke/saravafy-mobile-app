@@ -211,7 +211,7 @@ export function useCollectionPlayerData(params: PlayerDataParams) {
     } finally {
       setIsLoading(false);
     }
-  }, [collectionId]);
+  }, [collectionId, isAllMode, query]);
 
   useEffect(() => {
     load();

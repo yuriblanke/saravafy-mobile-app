@@ -8,7 +8,7 @@ import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -76,6 +76,7 @@ export default function Home() {
   const { effectiveTheme } =
     require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
+  const userId = user?.id ?? null;
   const router = useRouter();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
@@ -126,21 +127,21 @@ export default function Home() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const loadSheetData = async () => {
-    if (!user?.id) return;
+  const loadSheetData = useCallback(async () => {
+    if (!userId) return;
 
     setIsSheetLoading(true);
     setSheetError(null);
 
     try {
-      const terreirosRes = await fetchAllowedTerreiros(user.id);
+      const terreirosRes = await fetchAllowedTerreiros(userId);
       if (terreirosRes.error) throw new Error(terreirosRes.error);
 
       setAllowedTerreiros(terreirosRes.data);
 
       const allowedIds = terreirosRes.data.map((t) => t.terreiro_id);
       const collectionsRes = await fetchAccessibleCollections({
-        userId: user.id,
+        userId,
         allowedTerreiroIds: allowedIds,
       });
       if (collectionsRes.error) throw new Error(collectionsRes.error);
@@ -153,13 +154,12 @@ export default function Home() {
     } finally {
       setIsSheetLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     if (!addModalVisible) return;
-    if (!user?.id) return;
     void loadSheetData();
-  }, [addModalVisible, user?.id]);
+  }, [addModalVisible, loadSheetData]);
 
   const filteredCollections = useMemo(() => {
     if (!user?.id) return [] as AccessibleCollection[];

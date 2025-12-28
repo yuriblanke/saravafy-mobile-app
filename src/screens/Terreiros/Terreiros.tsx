@@ -6,7 +6,7 @@ import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -201,16 +201,17 @@ export default function Terreiros() {
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
   const { user } = useAuth();
+  const userId = user?.id ?? "";
   const [terreiros, setTerreiros] = useState<TerreiroListItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchTerreirosWithRole(user?.id ?? "");
+      const data = await fetchTerreirosWithRole(userId);
       setTerreiros(data);
     } catch (e) {
       if (__DEV__) {
@@ -223,12 +224,11 @@ export default function Terreiros() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
 
   useEffect(() => {
     load();
-    // Recarrega quando user muda
-  }, [user?.id]);
+  }, [load]);
 
   const filteredTerreiros = useMemo(() => {
     const q = normalize(searchQuery);

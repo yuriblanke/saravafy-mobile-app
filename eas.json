@@ -8,7 +8,7 @@
       "node": "20.19.6",
       "env": {
         "EAS_RUN_LINT": "0",
-        "APP_VARIANT": "development"
+        "APP_VARIANT": "dev"
       },
       "developmentClient": true,
       "distribution": "internal",

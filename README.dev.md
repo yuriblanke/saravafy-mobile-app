@@ -1,158 +1,187 @@
-# README.dev.md
+# Build & Instalação (Determinístico)
 
-========================
-COMANDOS RÁPIDOS
-========================
+Este documento descreve **o único fluxo suportado e validado** para build, instalação e alternância de variantes do app Saravafy, garantindo que o **nome exibido do app seja sempre previsível e consistente**.
 
-# DEV (instala Saravafy Dev no celular via USB)
+---
 
+## Instalar Saravafy Dev (USB / Dev Client)
+
+```sh
+npm install
 npm run android:dev
-
-# Inicia o bundler para o Dev Client
-
 npm run start:dev
+```
 
-# Build de produção local (APK)
+Nome exibido: **Saravafy Dev**  
+Rebuild nativo: **NÃO**
 
+Observação:
+Se o projeto já estiver na variante `dev`, reinstalações não exigem rebuild nativo.
+
+---
+
+## Reinstalar Saravafy Dev (sem rebuild)
+
+```sh
+npm run android:dev
+```
+
+Nome exibido: **Saravafy Dev**  
+Rebuild nativo: **NÃO**
+
+Comportamento esperado:
+Reinstalações sucessivas **não alteram o nome do app**.
+
+---
+
+## Rebuild nativo (obrigatório ao alternar Saravafy ↔ Saravafy Dev)
+
+```sh
+npx cross-env APP_VARIANT=dev npx expo prebuild --clean
+npm run android:dev
+```
+
+Nome exibido: **Saravafy Dev**  
+Rebuild nativo: **SIM**
+
+Motivo:
+A troca de variante altera configurações nativas. O `prebuild --clean` garante consistência total.
+
+---
+
+## Rebuild nativo (obrigatório ao alternar Saravafy Dev ↔ Saravafy)
+
+```sh
+npx cross-env APP_VARIANT=production npx expo prebuild --clean
+npm run android
+```
+
+Nome exibido: **Saravafy**  
+Rebuild nativo: **SIM**
+
+---
+
+## APK release local (Saravafy)
+
+```sh
 npm run android:prod
+```
 
-========================
-COMANDOS EAS (BUILD NA NUVEM)
-========================
+Nome exibido: **Saravafy**  
+Rebuild nativo: **SIM**
 
-# Build DEV (gera APK com Saravafy Dev)
+Observação:
+Este fluxo gera um artefato nativo de release local.
 
-npx eas build -p android --profile development
+---
 
-# Build PREVIEW (APK para testes internos)
+## EAS build development (Dev Client)
 
-npx eas build -p android --profile preview
+```sh
+npm run eas:dev
+```
 
-# Build PRODUÇÃO (APK final)
+Nome exibido: **Saravafy Dev**  
+Rebuild nativo: **SIM**
 
-npx eas build -p android --profile production
+Observação:
+O EAS sempre gera builds limpos, independentemente do estado local.
 
-Ver status dos builds
+---
 
-npx eas build:list
+## EAS build preview
 
-Baixar APK gerado
+```sh
+npm run eas:preview
+```
 
-npx eas build:download
+Nome exibido: **Saravafy**  
+Rebuild nativo: **SIM**
 
-========================
-OBSERVAÇÃO IMPORTANTE
-========================
+---
 
-A explicação completa está abaixo.
-Os comandos ficam no topo para acesso rápido no dia a dia.
+## EAS build production
 
-========================
-VISÃO GERAL
-========================
+```sh
+npm run eas:prod
+```
 
-Este projeto utiliza ambientes separados (dev / preview / production)
-controlados pela variável de ambiente APP_VARIANT.
+Nome exibido: **Saravafy**  
+Rebuild nativo: **SIM**
 
-Isso permite:
+---
 
-- Ter múltiplos apps instalados ao mesmo tempo
-- Separar desenvolvimento e produção
-- Evitar conflitos de cache, nome e identidade do app
+## EAS: listar builds
 
-========================
-CONTROLE DE AMBIENTE
-========================
+```sh
+npm run eas:build:list
+```
 
-Lógica usada no app.config.ts:
+Rebuild nativo: **NÃO**
 
-const PROFILE =
-process.env.APP_VARIANT ??
-process.env.EAS_BUILD_PROFILE ??
-"production";
+---
 
-const IS_DEV = PROFILE === "dev" || PROFILE === "development";
+## EAS: baixar um build
 
-Resultado:
+```sh
+npm run eas:build:download
+```
 
-Ambiente: Dev  
-Nome do app: Saravafy Dev  
-Package: com.yuriblanke.saravafy.dev
+Rebuild nativo: **NÃO**
 
-Ambiente: Preview  
-Nome do app: Saravafy  
-Package: com.yuriblanke.saravafy
+---
 
-Ambiente: Produção  
-Nome do app: Saravafy  
-Package: com.yuriblanke.saravafy
+## Desinstalar (Android)
 
-========================
-SCRIPTS DISPONÍVEIS
-========================
-
-package.json:
-
-{
-"scripts": {
-"android:dev": "cross-env APP_VARIANT=dev expo run:android",
-"android:prod": "cross-env APP_VARIANT=production expo run:android --variant=release",
-"start:dev": "cross-env APP_VARIANT=dev expo start --dev-client",
-"start": "cross-env APP_VARIANT=production expo start"
-}
-}
-
-========================
-IMPORTANTE (ANDROID)
-========================
-
-O Android NÃO atualiza automaticamente:
-
-- nome do app
-- ícone
-- identidade do pacote
-
-Sempre que mudar qualquer um desses itens:
-→ desinstale o app antes de reinstalar.
-
-========================
-AUTENTICAÇÃO (SUPABASE)
-========================
-
-Variáveis obrigatórias:
-
-EXPO_PUBLIC_SUPABASE_URL=
-EXPO_PUBLIC_SUPABASE_ANON_KEY=
-
-Deep link usado no projeto:
-
-saravafy://auth/callback
-
-========================
-DICAS ÚTEIS
-========================
-
-Limpar cache do Expo:
-
-npx expo start -c
-
-Remover apps instalados:
-
+```sh
 adb uninstall com.yuriblanke.saravafy
 adb uninstall com.yuriblanke.saravafy.dev
+```
 
-========================
-RESUMO RÁPIDO
-========================
+Rebuild nativo: **NÃO**
 
-Dev:
+---
+
+## Variáveis obrigatórias (Supabase)
+
+```sh
+EXPO_PUBLIC_SUPABASE_URL=
+EXPO_PUBLIC_SUPABASE_ANON_KEY=
+```
+
+---
+
+## Deep link utilizado no projeto
+
+```txt
+saravafy://auth/callback
+```
+
+---
+
+## Resumo rápido
+
+DEV local (USB):
+```sh
 npm run android:dev
+```
 
-Start Dev:
+Start Dev Client:
+```sh
 npm run start:dev
+```
 
-Build Preview (EAS):
+Build DEV (EAS):
+```sh
+npx eas build -p android --profile development
+```
+
+Build PREVIEW (EAS):
+```sh
 npx eas build -p android --profile preview
+```
 
-Build Produção (EAS):
+Build PRODUÇÃO (EAS):
+```sh
 npx eas build -p android --profile production
+```

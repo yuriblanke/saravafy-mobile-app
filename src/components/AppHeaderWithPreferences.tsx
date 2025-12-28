@@ -113,6 +113,8 @@ export function AppHeaderWithPreferences() {
       undefined
   );
 
+  const userId = user?.id ?? null;
+
   const activeTerreiro = useMemo(() => {
     if (activeContext.kind !== "TERREIRO_PAGE") return null;
     const fromList =
@@ -155,14 +157,14 @@ export function AppHeaderWithPreferences() {
 
   useEffect(() => {
     if (!isPreferencesOpen) return;
-    if (!user?.id) return;
+    if (!userId) return;
     if (loadingTerreirosAdmin) return;
     if (hasAttemptedTerreirosAdmin) return;
 
-    fetchTerreirosQueAdministro(user.id);
+    fetchTerreirosQueAdministro(userId);
   }, [
     isPreferencesOpen,
-    user?.id,
+    userId,
     loadingTerreirosAdmin,
     hasAttemptedTerreirosAdmin,
     fetchTerreirosQueAdministro,
@@ -368,7 +370,6 @@ export function AppHeaderWithPreferences() {
                       router.replace("/terreiro" as any);
                     }}
                     onPressEdit={() => {
-                      setIsPreferencesOpen(false);
                       router.push({
                         pathname: "/terreiro-editor" as any,
                         params: { mode: "edit", terreiroId: t.id },
@@ -387,7 +388,6 @@ export function AppHeaderWithPreferences() {
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              setIsPreferencesOpen(false);
               router.push({
                 pathname: "/terreiro-editor" as any,
                 params: { mode: "create" },

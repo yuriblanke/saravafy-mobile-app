@@ -1,4 +1,10 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   PanResponder,
@@ -38,7 +44,7 @@ export function BottomSheet({
     }
   }, [translateY, visible]);
 
-  const closeBySwipe = () => {
+  const closeBySwipe = useCallback(() => {
     if (!visible) return;
 
     const toValue = sheetHeight > 0 ? sheetHeight : 240;
@@ -50,7 +56,7 @@ export function BottomSheet({
       translateY.setValue(0);
       onClose();
     });
-  };
+  }, [onClose, sheetHeight, translateY, visible]);
 
   const panResponder = useMemo(() => {
     if (!enableSwipeToClose) return null;

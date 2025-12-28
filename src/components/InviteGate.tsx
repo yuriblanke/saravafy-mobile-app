@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   AppState,
   BackHandler,
@@ -10,11 +16,11 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, radii, spacing } from "@/src/theme";
-import { usePreferences } from "@/contexts/PreferencesContext";
 
 type InviteRole = "admin" | "editor";
 
@@ -65,7 +71,8 @@ export function InviteGate() {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const inputBg = variant === "light" ? colors.inputBgLight : colors.inputBgDark;
+  const inputBg =
+    variant === "light" ? colors.inputBgLight : colors.inputBgDark;
   const inputBorder =
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
@@ -130,30 +137,27 @@ export function InviteGate() {
     [normalizedUserEmail, pendingInvites, userId]
   );
 
-  const ensureModalForQueue = useCallback(
-    (queue: TerreiroInvite[]) => {
-      if (!queue.length) {
-        setCurrentInvite(null);
-        setIsModalVisible(false);
-        setIsProcessing(false);
-        setActionError(null);
-        priorityInviteIdRef.current = null;
-        return;
-      }
-
-      const first = queue[0];
-      setCurrentInvite(first);
-      setIsModalVisible(true);
-      setActionError(null);
+  const ensureModalForQueue = useCallback((queue: TerreiroInvite[]) => {
+    if (!queue.length) {
+      setCurrentInvite(null);
+      setIsModalVisible(false);
       setIsProcessing(false);
+      setActionError(null);
+      priorityInviteIdRef.current = null;
+      return;
+    }
 
-      // If we opened due to a priority invite, clear it after it becomes current.
-      if (priorityInviteIdRef.current === first.id) {
-        priorityInviteIdRef.current = null;
-      }
-    },
-    []
-  );
+    const first = queue[0];
+    setCurrentInvite(first);
+    setIsModalVisible(true);
+    setActionError(null);
+    setIsProcessing(false);
+
+    // If we opened due to a priority invite, clear it after it becomes current.
+    if (priorityInviteIdRef.current === first.id) {
+      priorityInviteIdRef.current = null;
+    }
+  }, []);
 
   const openGateNow = useCallback(async () => {
     try {
@@ -299,16 +303,14 @@ export function InviteGate() {
     setActionError(null);
 
     try {
-      const upsert = await supabase
-        .from("terreiro_members")
-        .upsert(
-          {
-            terreiro_id: currentInvite.terreiro_id,
-            user_id: userId,
-            role: currentInvite.role,
-          },
-          { onConflict: "terreiro_id,user_id" }
-        );
+      const upsert = await supabase.from("terreiro_members").upsert(
+        {
+          terreiro_id: currentInvite.terreiro_id,
+          user_id: userId,
+          role: currentInvite.role,
+        },
+        { onConflict: "terreiro_id,user_id" }
+      );
 
       if (upsert.error) {
         throw new Error(upsert.error.message);
@@ -334,7 +336,13 @@ export function InviteGate() {
       setIsProcessing(false);
       return;
     }
-  }, [currentInvite, ensureModalForQueue, refreshPendingInvites, showToast, userId]);
+  }, [
+    currentInvite,
+    ensureModalForQueue,
+    refreshPendingInvites,
+    showToast,
+    userId,
+  ]);
 
   const rejectInvite = useCallback(async () => {
     if (!currentInvite) return;

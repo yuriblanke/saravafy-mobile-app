@@ -1,9 +1,16 @@
-import React, { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { StyleSheet, Text, View } from "react-native";
 
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
-import { usePreferences } from "@/contexts/PreferencesContext";
 
 type ToastContextValue = {
   showToast: (message: string) => void;
