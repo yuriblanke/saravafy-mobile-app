@@ -29,6 +29,7 @@
     "expo": "~54.0.30",
     "expo-auth-session": "^7.0.10",
     "expo-av": "~16.0.8",
+    "expo-clipboard": "~8.0.8",
     "expo-constants": "~18.0.12",
     "expo-crypto": "~15.0.8",
     "expo-dev-client": "~6.0.20",
@@ -60,7 +61,6 @@
     "cross-env": "^7.0.3",
     "eslint": "^8.57.1",
     "eslint-config-expo": "^10.0.0",
-    "pngjs": "^7.0.0",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
   },

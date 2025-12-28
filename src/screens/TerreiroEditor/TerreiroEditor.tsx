@@ -1,13 +1,21 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   BackHandler,
   FlatList,
   Image,
+  Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Switch,
   Text,
@@ -17,11 +25,16 @@ import {
 
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { APP_INSTALL_URL } from "@/src/config/links";
 import { colors, radii, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
+import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -50,6 +63,7 @@ type TerreiroDbRow = {
   about: string | null;
   lines_of_work: string | null;
   cover_image_url: string | null;
+  created_by: string | null;
 };
 
 type TerreiroContatoDbRow = {
@@ -58,10 +72,37 @@ type TerreiroContatoDbRow = {
   state: string;
   neighborhood: string | null;
   address: string;
-  phone_whatsapp: string;
-  phone_is_whatsapp: boolean;
-  instagram_handle: string;
-  is_primary: boolean;
+  phone_whatsapp: string | null;
+  phone_is_whatsapp: boolean | null;
+  instagram_handle: string | null;
+  is_primary: boolean | null;
+};
+
+type TerreiroRole = "admin" | "editor";
+
+type TerreiroMemberRow = {
+  id: string;
+  terreiro_id: string;
+  role: TerreiroRole;
+  profile_id: string | null;
+  user_id: string | null;
+  created_at: string | null;
+};
+
+type TerreiroInviteRow = {
+  id: string;
+  terreiro_id: string;
+  email: string;
+  role: TerreiroRole;
+  status: string;
+  created_at: string | null;
+};
+
+type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  email?: string | null;
 };
 
 const UF_OPTIONS = [
@@ -295,19 +336,48 @@ function withCacheBust(url: string) {
   return url.includes("?") ? `${url}&v=${v}` : `${url}?v=${v}`;
 }
 
-async function ensureWebp(uri: string) {
-  const result = await ImageManipulator.manipulateAsync(uri, [], {
-    compress: 0.92,
-    format: ImageManipulator.SaveFormat.WEBP,
-  });
+function normalizeEmail(input: string) {
+  return (input ?? "").trim().toLowerCase();
+}
 
-  if (!result?.uri) throw new Error("Falha ao converter imagem para WEBP.");
-  if (!result.uri.toLowerCase().includes(".webp")) {
-    // Não permitir fallback silencioso
-    throw new Error("Encoder WEBP indisponível neste dispositivo.");
+function isValidEmail(input: string) {
+  const email = normalizeEmail(input);
+  if (!email) return false;
+  if (/\s/.test(email)) return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+function roleLabel(role: TerreiroRole) {
+  return role === "admin" ? "Admin" : "Editor";
+}
+
+async function ensureWebp(uri: string) {
+  const compressCandidates = [0.92, 0.86, 0.78, 0.7, 0.62] as const;
+  const maxBytes = 2 * 1024 * 1024; // limite do bucket (2 MB)
+
+  for (const compress of compressCandidates) {
+    const result = await ImageManipulator.manipulateAsync(uri, [], {
+      compress,
+      format: ImageManipulator.SaveFormat.WEBP,
+    });
+
+    if (!result?.uri) continue;
+    if (!result.uri.toLowerCase().includes(".webp")) {
+      throw new Error("Encoder WEBP indisponível neste dispositivo.");
+    }
+
+    // Usar a API moderna do expo-file-system para checar tamanho sem depender
+    // das tipagens do método legado getInfoAsync.
+    const info = new FileSystem.File(result.uri).info();
+    const size = typeof info?.size === "number" ? info.size : null;
+    if (size === null || size <= maxBytes) {
+      return result.uri;
+    }
   }
 
-  return result.uri;
+  throw new Error(
+    "A imagem ficou acima de 2 MB (limite do Storage). Tente uma imagem menor."
+  );
 }
 
 async function uploadCoverWebp(params: {
@@ -323,10 +393,19 @@ async function uploadCoverWebpToPath(params: {
   path: string;
   webpUri: string;
 }) {
-  const blob = await (await fetch(params.webpUri)).blob();
+  // Em Android/Expo, `fetch(file://...).blob()` pode falhar com "Network request failed".
+  // Preferimos ler o arquivo local via FileSystem e enviar bytes.
+  const file = new FileSystem.File(params.webpUri);
+  const info = file.info();
+  if (!info?.exists) {
+    throw new Error("Não foi possível acessar a imagem selecionada.");
+  }
+
+  const bytes = await file.bytes();
+
   const upload = await supabase.storage
     .from("terreiros-images")
-    .upload(params.path, blob, { upsert: true, contentType: "image/webp" });
+    .upload(params.path, bytes, { upsert: true, contentType: "image/webp" });
 
   if (upload.error) {
     throw new Error(
@@ -365,6 +444,16 @@ async function deleteTempCoverIfPossible(draftId: string) {
   }
 }
 
+async function deleteFinalCoverIfPossible(terreiroId: string) {
+  try {
+    await supabase.storage
+      .from("terreiros-images")
+      .remove([`terreiros/${terreiroId}/cover.webp`]);
+  } catch {
+    // silêncio
+  }
+}
+
 function snapshotOf(form: TerreiroForm) {
   return JSON.stringify({
     ...form,
@@ -380,9 +469,9 @@ async function upsertPrimaryContato(payload: {
   state: string;
   neighborhood: string | null;
   address: string;
-  phone_whatsapp: string;
+  phone_whatsapp: string | null;
   phone_is_whatsapp: boolean;
-  instagram_handle: string;
+  instagram_handle: string | null;
   is_primary: boolean;
 }) {
   const res = await supabase
@@ -394,8 +483,8 @@ async function upsertPrimaryContato(payload: {
   if (res.error) {
     throw new Error(
       typeof res.error.message === "string"
-        ? res.error.message
-        : "Não foi possível salvar o contato."
+        ? `Contato: ${res.error.message}`
+        : "Contato: não foi possível salvar."
     );
   }
 }
@@ -408,6 +497,7 @@ export default function TerreiroEditor() {
   }>();
 
   const { user } = useAuth();
+  const { showToast } = useToast();
   const { effectiveTheme, applyTerreiroPatch, fetchTerreirosQueAdministro } =
     usePreferences();
 
@@ -440,12 +530,26 @@ export default function TerreiroEditor() {
 
   const [isUfModalOpen, setIsUfModalOpen] = useState(false);
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
+  const [isInviteRoleModalOpen, setIsInviteRoleModalOpen] = useState(false);
+  const [isRolesSheetOpen, setIsRolesSheetOpen] = useState(false);
+  const [isInviteShareSheetOpen, setIsInviteShareSheetOpen] = useState(false);
+  const [inviteToShare, setInviteToShare] = useState<TerreiroInviteRow | null>(
+    null
+  );
 
   const [citiesByUf, setCitiesByUf] = useState<Record<string, string[]>>({});
   const [citiesLoadingUf, setCitiesLoadingUf] = useState<string | null>(null);
 
   const initialSnapshotRef = useRef<string | null>(null);
   const webpLocalUriRef = useRef<string | null>(null);
+  const coverRemoveRequestedRef = useRef(false);
+  const terreiroCreatedByRef = useRef<string | null>(null);
+  const initialTerreiroFieldsRef = useRef<{
+    title: string;
+    about: string;
+    linesOfWork: string;
+    coverImageUrl: string;
+  } | null>(null);
 
   const [form, setForm] = useState<TerreiroForm>(() => {
     const id = isEdit ? resolvedTerreiroId : Crypto.randomUUID();
@@ -472,6 +576,130 @@ export default function TerreiroEditor() {
     return snapshotOf(form) !== initialSnapshotRef.current;
   }, [form]);
 
+  const [adminLoading, setAdminLoading] = useState(false);
+  const [members, setMembers] = useState<TerreiroMemberRow[]>([]);
+  const [profilesById, setProfilesById] = useState<Record<string, ProfileRow>>(
+    {}
+  );
+  const [invitesPending, setInvitesPending] = useState<TerreiroInviteRow[]>([]);
+  const [myTerreiroRole, setMyTerreiroRole] = useState<TerreiroRole | null>(
+    null
+  );
+
+  const [inviteFormOpen, setInviteFormOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<TerreiroRole>("editor");
+  const [inviteInlineError, setInviteInlineError] = useState<string>("");
+  const [inviteSending, setInviteSending] = useState(false);
+
+  const buildInviteShareMessage = useCallback(
+    (invite: TerreiroInviteRow) => {
+      const terreiroName = (form.title || "").trim() || "Terreiro";
+      const emailConvidado = normalizeEmail(invite.email);
+
+      return (
+        `Você foi convidada para colaborar no terreiro “${terreiroName}” no Saravafy.\n\n` +
+        `O Saravafy ainda não foi lançado oficialmente na Play Store.\n` +
+        `Para instalar agora, será necessário permitir a instalação de apps fora da loja.\n\n` +
+        `1) Baixe o app pelo link: ${APP_INSTALL_URL}\n` +
+        `2) Ao instalar, aceite a permissão para apps desconhecidos\n` +
+        `3) Entre com o e-mail ${emailConvidado}\n\n` +
+        `Assim que entrar, o convite vai aparecer para você aceitar ou recusar.`
+      );
+    },
+    [form.title]
+  );
+
+  const openInviteShareSheet = useCallback((invite: TerreiroInviteRow) => {
+    setInviteToShare(invite);
+    setIsInviteShareSheetOpen(true);
+  }, []);
+
+  const closeInviteShareSheet = useCallback(() => {
+    setIsInviteShareSheetOpen(false);
+    setInviteToShare(null);
+  }, []);
+
+  const copyInviteMessage = useCallback(
+    async (message: string, toastMessage?: string) => {
+      await Clipboard.setStringAsync(message);
+      showToast(toastMessage ?? "Mensagem copiada.");
+    },
+    [showToast]
+  );
+
+  const shareInviteViaWhatsApp = useCallback(async () => {
+    if (!inviteToShare) return;
+
+    const message = buildInviteShareMessage(inviteToShare);
+    const can = await Linking.canOpenURL("whatsapp://send");
+
+    if (!can) {
+      await copyInviteMessage(message);
+      closeInviteShareSheet();
+      return;
+    }
+
+    try {
+      const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
+      await Linking.openURL(url);
+    } catch {
+      await copyInviteMessage(message);
+    } finally {
+      closeInviteShareSheet();
+    }
+  }, [
+    buildInviteShareMessage,
+    closeInviteShareSheet,
+    copyInviteMessage,
+    inviteToShare,
+  ]);
+
+  const shareInviteViaInstagram = useCallback(async () => {
+    if (!inviteToShare) return;
+
+    const message = buildInviteShareMessage(inviteToShare);
+    await Clipboard.setStringAsync(message);
+
+    try {
+      const can = await Linking.canOpenURL("instagram://app");
+      if (can) {
+        await Linking.openURL("instagram://app");
+      }
+    } finally {
+      showToast("Mensagem copiada. Cole no Instagram.");
+      closeInviteShareSheet();
+    }
+  }, [
+    buildInviteShareMessage,
+    closeInviteShareSheet,
+    inviteToShare,
+    showToast,
+  ]);
+
+  const copyInviteMessageOnly = useCallback(async () => {
+    if (!inviteToShare) return;
+    const message = buildInviteShareMessage(inviteToShare);
+    await copyInviteMessage(message);
+    closeInviteShareSheet();
+  }, [
+    buildInviteShareMessage,
+    closeInviteShareSheet,
+    copyInviteMessage,
+    inviteToShare,
+  ]);
+
+  const shareInviteMoreOptions = useCallback(async () => {
+    if (!inviteToShare) return;
+    const message = buildInviteShareMessage(inviteToShare);
+
+    try {
+      await Share.share({ message });
+    } finally {
+      closeInviteShareSheet();
+    }
+  }, [buildInviteShareMessage, closeInviteShareSheet, inviteToShare]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -486,7 +714,9 @@ export default function TerreiroEditor() {
         const [terreiroRes, contatoRes] = await Promise.all([
           supabase
             .from("terreiros")
-            .select("id, title, about, lines_of_work, cover_image_url")
+            .select(
+              "id, title, about, lines_of_work, cover_image_url, created_by"
+            )
             .eq("id", resolvedTerreiroId)
             .maybeSingle(),
           supabase
@@ -512,6 +742,14 @@ export default function TerreiroEditor() {
         if (!t?.id) throw new Error("Terreiro não encontrado.");
 
         if (!cancelled) {
+          terreiroCreatedByRef.current = t.created_by ?? null;
+          initialTerreiroFieldsRef.current = {
+            title: t.title ?? "",
+            about: t.about ?? "",
+            linesOfWork: t.lines_of_work ?? "",
+            coverImageUrl: t.cover_image_url ?? "",
+          };
+
           setForm((prev) => ({
             ...prev,
             id: t.id,
@@ -544,6 +782,201 @@ export default function TerreiroEditor() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isEdit, resolvedTerreiroId]);
+
+  const isTerreiroAdminSectionEnabled = isEdit;
+
+  const isAdmin = useMemo(() => {
+    const ownerId = terreiroCreatedByRef.current;
+    if (ownerId && user?.id && ownerId === user.id) return true;
+    return myTerreiroRole === "admin";
+  }, [myTerreiroRole, user?.id]);
+
+  const loadAdminData = async (id: string) => {
+    if (!id) return;
+    if (!user?.id) return;
+
+    setAdminLoading(true);
+    try {
+      const membersRes = await supabase
+        .from("terreiro_members")
+        .select("id, terreiro_id, role, profile_id, user_id, created_at")
+        .eq("terreiro_id", id)
+        .order("created_at", { ascending: true });
+
+      if (membersRes.error) {
+        throw new Error(
+          typeof membersRes.error.message === "string"
+            ? membersRes.error.message
+            : "Não foi possível carregar os membros."
+        );
+      }
+
+      const nextMembers = (membersRes.data ?? []) as TerreiroMemberRow[];
+      setMembers(nextMembers);
+
+      const nextMyRole = (() => {
+        const u = user.id;
+        const match = nextMembers.find(
+          (m) => m.profile_id === u || m.user_id === u
+        );
+        const role = match?.role;
+        return role === "admin" || role === "editor" ? role : null;
+      })();
+      setMyTerreiroRole(nextMyRole);
+
+      const profileIds = nextMembers
+        .map((m) => m.profile_id)
+        .filter((pid): pid is string => typeof pid === "string" && !!pid);
+
+      if (profileIds.length > 0) {
+        const profilesRes = await supabase
+          .from("profiles")
+          .select("id, full_name, avatar_url, email")
+          .in("id", profileIds);
+
+        if (!profilesRes.error && Array.isArray(profilesRes.data)) {
+          const map: Record<string, ProfileRow> = {};
+          for (const p of profilesRes.data as any[]) {
+            if (p?.id && typeof p.id === "string") {
+              map[p.id] = {
+                id: p.id,
+                full_name: typeof p.full_name === "string" ? p.full_name : null,
+                avatar_url:
+                  typeof p.avatar_url === "string" ? p.avatar_url : null,
+                email: typeof p.email === "string" ? p.email : null,
+              };
+            }
+          }
+          setProfilesById(map);
+        }
+      } else {
+        setProfilesById({});
+      }
+
+      const ownerId = terreiroCreatedByRef.current;
+      const computedIsAdmin =
+        (ownerId && ownerId === user.id) || nextMyRole === "admin";
+
+      if (computedIsAdmin) {
+        const invitesRes = await supabase
+          .from("terreiro_invites")
+          .select("id, terreiro_id, email, role, status, created_at")
+          .eq("terreiro_id", id)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false });
+
+        if (invitesRes.error) {
+          throw new Error(
+            typeof invitesRes.error.message === "string"
+              ? invitesRes.error.message
+              : "Não foi possível carregar os convites pendentes."
+          );
+        }
+
+        setInvitesPending((invitesRes.data ?? []) as TerreiroInviteRow[]);
+      } else {
+        setInvitesPending([]);
+      }
+    } catch (e) {
+      Alert.alert(
+        "Erro",
+        e instanceof Error
+          ? e.message
+          : "Não foi possível carregar a administração do terreiro."
+      );
+    } finally {
+      setAdminLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isEdit) {
+      setMembers([]);
+      setInvitesPending([]);
+      setProfilesById({});
+      setMyTerreiroRole(null);
+      setInviteFormOpen(false);
+      setInviteEmail("");
+      setInviteInlineError("");
+      return;
+    }
+
+    void loadAdminData(resolvedTerreiroId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, resolvedTerreiroId, user?.id]);
+
+  const inviteEmailValid = useMemo(
+    () => isValidEmail(inviteEmail),
+    [inviteEmail]
+  );
+
+  const sendInvite = async () => {
+    if (!isEdit) return;
+    if (!isAdmin) return;
+    if (!user?.id) return;
+    if (inviteSending) return;
+
+    const email = normalizeEmail(inviteEmail);
+    if (!isValidEmail(email)) {
+      setInviteInlineError("Informe um e-mail válido.");
+      return;
+    }
+
+    const pendingDup = invitesPending.some(
+      (i) => normalizeEmail(i.email) === email && i.status === "pending"
+    );
+    if (pendingDup) {
+      setInviteInlineError("Este e-mail já tem um convite pendente.");
+      return;
+    }
+
+    const memberEmailMatch = members.some((m) => {
+      const pid = m.profile_id;
+      if (!pid) return false;
+      const p = profilesById[pid];
+      const memberEmail = p?.email ? normalizeEmail(p.email) : "";
+      return memberEmail && memberEmail === email;
+    });
+    if (memberEmailMatch) {
+      setInviteInlineError("Esta pessoa já tem acesso ao terreiro.");
+      return;
+    }
+
+    setInviteSending(true);
+    setInviteInlineError("");
+    try {
+      const insertRes = await supabase
+        .from("terreiro_invites")
+        .insert({
+          terreiro_id: resolvedTerreiroId,
+          email,
+          role: inviteRole,
+          created_by: user.id,
+          status: "pending",
+        } as any)
+        .select("id")
+        .single();
+
+      if (insertRes.error) {
+        throw new Error(
+          typeof insertRes.error.message === "string"
+            ? insertRes.error.message
+            : "Não foi possível enviar o convite."
+        );
+      }
+
+      setInviteEmail("");
+      setInviteFormOpen(false);
+      await loadAdminData(resolvedTerreiroId);
+    } catch (e) {
+      Alert.alert(
+        "Erro",
+        e instanceof Error ? e.message : "Não foi possível enviar o convite."
+      );
+    } finally {
+      setInviteSending(false);
+    }
+  };
 
   useEffect(() => {
     if (loading) return;
@@ -646,6 +1079,7 @@ export default function TerreiroEditor() {
     try {
       const webpUri = await ensureWebp(uri);
       webpLocalUriRef.current = webpUri;
+      coverRemoveRequestedRef.current = false;
       setForm((prev) => ({ ...prev, coverImageUrl: webpUri }));
     } catch (e) {
       Alert.alert(
@@ -653,6 +1087,13 @@ export default function TerreiroEditor() {
         e instanceof Error ? e.message : "Não foi possível preparar a imagem."
       );
     }
+  };
+
+  const removeCover = () => {
+    if (saving) return;
+    coverRemoveRequestedRef.current = true;
+    webpLocalUriRef.current = null;
+    setForm((prev) => ({ ...prev, coverImageUrl: "" }));
   };
 
   const onSave = async () => {
@@ -767,8 +1208,8 @@ export default function TerreiroEditor() {
           if (updateRes.error) {
             throw new Error(
               typeof updateRes.error.message === "string"
-                ? updateRes.error.message
-                : "Não foi possível finalizar a imagem do terreiro."
+                ? `Terreiro: ${updateRes.error.message}`
+                : "Terreiro: não foi possível finalizar a imagem."
             );
           }
 
@@ -784,9 +1225,9 @@ export default function TerreiroEditor() {
             ? form.neighborhood.trim()
             : null,
           address,
-          phone_whatsapp: digits,
+          phone_whatsapp: digits ? digits : null,
           phone_is_whatsapp: !!form.isWhatsappUi,
-          instagram_handle: instagram,
+          instagram_handle: instagram ? instagram : null,
           is_primary: true,
         };
 
@@ -815,7 +1256,20 @@ export default function TerreiroEditor() {
       // EDIT: updates normais (sem RPC)
       const id = resolvedTerreiroId;
 
-      let coverImageUrl = form.coverImageUrl;
+      const initialTerreiro = initialTerreiroFieldsRef.current;
+      const titleChanged =
+        !initialTerreiro ||
+        title.trim() !== (initialTerreiro.title ?? "").trim();
+      const aboutChanged =
+        !initialTerreiro ||
+        form.about.trim() !== (initialTerreiro.about ?? "").trim();
+      const linesChanged =
+        !initialTerreiro ||
+        form.linesOfWork.trim() !== (initialTerreiro.linesOfWork ?? "").trim();
+
+      const wantsRemoveCover = coverRemoveRequestedRef.current;
+
+      let coverImageUrl = wantsRemoveCover ? "" : form.coverImageUrl;
       if (newWebp) {
         coverImageUrl = await uploadCoverWebp({
           terreiroId: id,
@@ -823,24 +1277,41 @@ export default function TerreiroEditor() {
         });
       }
 
-      const updateTerreiro = await supabase
-        .from("terreiros")
-        .update({
-          title,
-          about: form.about.trim() ? form.about.trim() : null,
-          lines_of_work: form.linesOfWork.trim()
-            ? form.linesOfWork.trim()
-            : null,
-          cover_image_url: coverImageUrl ? coverImageUrl : null,
-        })
-        .eq("id", id);
+      const shouldUpdateTerreiro =
+        wantsRemoveCover ||
+        !!newWebp ||
+        titleChanged ||
+        aboutChanged ||
+        linesChanged;
 
-      if (updateTerreiro.error) {
-        throw new Error(
-          typeof updateTerreiro.error.message === "string"
-            ? updateTerreiro.error.message
-            : "Não foi possível salvar o terreiro."
-        );
+      if (shouldUpdateTerreiro) {
+        const updateTerreiro = await supabase
+          .from("terreiros")
+          .update({
+            title,
+            about: form.about.trim() ? form.about.trim() : null,
+            lines_of_work: form.linesOfWork.trim()
+              ? form.linesOfWork.trim()
+              : null,
+            cover_image_url: wantsRemoveCover
+              ? null
+              : coverImageUrl
+              ? coverImageUrl
+              : null,
+          })
+          .eq("id", id);
+
+        if (updateTerreiro.error) {
+          throw new Error(
+            typeof updateTerreiro.error.message === "string"
+              ? `Terreiro: ${updateTerreiro.error.message}`
+              : "Terreiro: não foi possível salvar."
+          );
+        }
+
+        if (wantsRemoveCover) {
+          deleteFinalCoverIfPossible(id).catch(() => undefined);
+        }
       }
 
       const contatoPayload = {
@@ -851,9 +1322,9 @@ export default function TerreiroEditor() {
           ? form.neighborhood.trim()
           : null,
         address,
-        phone_whatsapp: digits,
+        phone_whatsapp: digits ? digits : null,
         phone_is_whatsapp: !!form.isWhatsappUi,
-        instagram_handle: instagram,
+        instagram_handle: instagram ? instagram : null,
         is_primary: true,
       };
 
@@ -870,7 +1341,14 @@ export default function TerreiroEditor() {
       }
 
       initialSnapshotRef.current = snapshotOf({ ...form, coverImageUrl });
+      initialTerreiroFieldsRef.current = {
+        title,
+        about: form.about,
+        linesOfWork: form.linesOfWork,
+        coverImageUrl: coverImageUrl ?? "",
+      };
       webpLocalUriRef.current = null;
+      coverRemoveRequestedRef.current = false;
 
       router.back();
     } catch (e) {
@@ -973,7 +1451,7 @@ export default function TerreiroEditor() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel={
-                coverPreviewUri ? "Trocar imagem" : "Adicionar imagem"
+                coverPreviewUri ? "Editar imagem" : "Adicionar imagem"
               }
               disabled={saving}
               onPress={pickCover}
@@ -996,9 +1474,29 @@ export default function TerreiroEditor() {
               )}
 
               <Text style={[styles.coverRowText, { color: textPrimary }]}>
-                {coverPreviewUri ? "Trocar imagem" : "Adicionar imagem"}
+                {coverPreviewUri ? "Editar imagem" : "Adicionar imagem"}
               </Text>
             </Pressable>
+
+            {coverPreviewUri ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Remover imagem"
+                disabled={saving}
+                onPress={removeCover}
+                style={({ pressed }) => [
+                  styles.coverRemoveBtn,
+                  pressed && !saving ? styles.rowPressed : null,
+                  saving ? styles.rowDisabled : null,
+                ]}
+              >
+                <Text
+                  style={[styles.coverRemoveText, { color: colors.danger }]}
+                >
+                  Remover imagem
+                </Text>
+              </Pressable>
+            ) : null}
 
             <Text style={[styles.label, { color: textSecondary }]}>Sobre</Text>
             <TextInput
@@ -1042,10 +1540,6 @@ export default function TerreiroEditor() {
           />
 
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: textMuted }]}>
-              Contato principal
-            </Text>
-
             <Text style={[styles.label, { color: textSecondary }]}>
               Estado (UF) <Text style={styles.requiredStar}>*</Text>
             </Text>
@@ -1143,6 +1637,340 @@ export default function TerreiroEditor() {
                 },
               ]}
             />
+
+            <View
+              style={[
+                styles.adminSectionWrap,
+                { borderColor: inputBorder, backgroundColor: inputBg },
+                !isTerreiroAdminSectionEnabled
+                  ? styles.adminSectionDisabled
+                  : null,
+              ]}
+            >
+              <View style={styles.adminHeaderRow}>
+                <Text style={[styles.adminTitle, { color: textPrimary }]}>
+                  Administração do terreiro
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Papéis no terreiro"
+                  hitSlop={10}
+                  onPress={() => setIsRolesSheetOpen(true)}
+                  style={({ pressed }) => [
+                    styles.adminInfoBtn,
+                    { borderColor: inputBorder },
+                    pressed ? styles.rowPressed : null,
+                  ]}
+                >
+                  <Text style={[styles.adminInfoBtnText, { color: textMuted }]}>
+                    i
+                  </Text>
+                </Pressable>
+              </View>
+
+              <Text style={[styles.adminSubtitle, { color: textSecondary }]}>
+                Convide pessoas da sua curimba para ajudar a organizar, criar
+                coleções e cuidar dos pontos do terreiro.
+              </Text>
+
+              <View
+                style={[
+                  styles.adminHighlightCard,
+                  { borderColor: inputBorder },
+                ]}
+              >
+                <Text
+                  style={[styles.adminHighlightText, { color: textPrimary }]}
+                >
+                  {
+                    "Quanto mais pessoas colaborando, mais vivo fica o acervo do terreiro.\nConvide sua curimba para criar coleções, organizar pontos e compartilhar esse cuidado."
+                  }
+                </Text>
+              </View>
+
+              {!isTerreiroAdminSectionEnabled ? (
+                <Text style={[styles.adminLockedText, { color: textMuted }]}>
+                  Salve o terreiro para poder convidar pessoas.
+                </Text>
+              ) : null}
+
+              <View style={styles.adminListHeaderRow}>
+                <Text style={[styles.adminListTitle, { color: textPrimary }]}>
+                  Pessoas com acesso
+                </Text>
+                {adminLoading ? (
+                  <Text style={[styles.adminListMeta, { color: textMuted }]}>
+                    Carregando…
+                  </Text>
+                ) : null}
+              </View>
+
+              {members.length === 0 && !adminLoading ? (
+                <Text style={[styles.adminEmptyText, { color: textMuted }]}>
+                  Nenhuma pessoa com acesso ainda.
+                </Text>
+              ) : (
+                <View style={styles.adminList}>
+                  {members.map((m) => {
+                    const pid = m.profile_id;
+                    const p = pid ? profilesById[pid] : undefined;
+                    const name =
+                      (p?.full_name && p.full_name.trim()) ||
+                      (p?.email && p.email.trim()) ||
+                      "Membro";
+                    const avatar = p?.avatar_url || "";
+
+                    return (
+                      <View key={m.id} style={styles.personRow}>
+                        {avatar ? (
+                          <Image
+                            source={{ uri: avatar }}
+                            style={styles.personAvatar}
+                          />
+                        ) : (
+                          <View style={styles.personAvatarPlaceholder}>
+                            <Ionicons
+                              name="person"
+                              size={16}
+                              color={textMuted}
+                            />
+                          </View>
+                        )}
+
+                        <View style={styles.personMeta}>
+                          <Text
+                            style={[styles.personName, { color: textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {name}
+                          </Text>
+                        </View>
+
+                        <Text
+                          style={[styles.personRole, { color: textSecondary }]}
+                        >
+                          {roleLabel(m.role)}
+                        </Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {isTerreiroAdminSectionEnabled && isAdmin ? (
+                <View style={styles.adminActionsWrap}>
+                  <Text style={[styles.adminListTitle, { color: textPrimary }]}>
+                    Convites pendentes
+                  </Text>
+
+                  {invitesPending.length === 0 && !adminLoading ? (
+                    <Text style={[styles.adminEmptyText, { color: textMuted }]}>
+                      Nenhum convite pendente.
+                    </Text>
+                  ) : (
+                    <View style={styles.adminList}>
+                      {invitesPending.map((i) => (
+                        <View key={i.id} style={styles.inviteRow}>
+                          <View style={styles.inviteMeta}>
+                            <Text
+                              style={[
+                                styles.inviteEmail,
+                                { color: textPrimary },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {i.email}
+                            </Text>
+                            <Text
+                              style={[
+                                styles.personRole,
+                                { color: textSecondary },
+                              ]}
+                            >
+                              {roleLabel(i.role)}
+                            </Text>
+                          </View>
+
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Compartilhar"
+                            onPress={() => openInviteShareSheet(i)}
+                            style={({ pressed }) => [
+                              styles.inviteShareBtn,
+                              {
+                                borderColor: inputBorder,
+                                backgroundColor: inputBg,
+                              },
+                              pressed ? styles.footerBtnPressed : null,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.inviteShareText,
+                                { color: textPrimary },
+                              ]}
+                            >
+                              Compartilhar
+                            </Text>
+                          </Pressable>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Convidar pessoas da curimba"
+                    disabled={saving || inviteSending}
+                    onPress={() => setInviteFormOpen(true)}
+                    style={({ pressed }) => [
+                      styles.inviteCtaBtn,
+                      pressed && !saving ? styles.footerBtnPressed : null,
+                      saving || inviteSending ? styles.footerBtnDisabled : null,
+                    ]}
+                  >
+                    <Text style={styles.inviteCtaText}>
+                      Convidar pessoas da curimba
+                    </Text>
+                  </Pressable>
+
+                  {inviteFormOpen ? (
+                    <View style={styles.inviteForm}>
+                      <Text style={[styles.label, { color: textSecondary }]}>
+                        E-mail
+                      </Text>
+                      <TextInput
+                        value={inviteEmail}
+                        onChangeText={(v) => {
+                          setInviteEmail(v);
+                          setInviteInlineError("");
+                        }}
+                        placeholder="local@dominio.tld"
+                        placeholderTextColor={textSecondary}
+                        autoCapitalize="none"
+                        keyboardType="email-address"
+                        editable={!inviteSending && !saving}
+                        style={[
+                          styles.input,
+                          {
+                            backgroundColor: inputBg,
+                            borderColor: inputBorder,
+                            color: textPrimary,
+                          },
+                        ]}
+                      />
+
+                      {normalizeEmail(inviteEmail) && !inviteEmailValid ? (
+                        <Text
+                          style={[
+                            styles.inlineErrorText,
+                            { color: colors.danger },
+                          ]}
+                        >
+                          Informe um e-mail válido.
+                        </Text>
+                      ) : null}
+
+                      {inviteInlineError ? (
+                        <Text
+                          style={[
+                            styles.inlineErrorText,
+                            { color: colors.danger },
+                          ]}
+                        >
+                          {inviteInlineError}
+                        </Text>
+                      ) : null}
+
+                      <Text style={[styles.label, { color: textSecondary }]}>
+                        Papel
+                      </Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={inviteSending || saving}
+                        onPress={() => setIsInviteRoleModalOpen(true)}
+                        style={({ pressed }) => [
+                          styles.selectField,
+                          {
+                            backgroundColor: inputBg,
+                            borderColor: inputBorder,
+                          },
+                          inviteSending || saving
+                            ? styles.selectDisabled
+                            : null,
+                          pressed && !inviteSending && !saving
+                            ? styles.selectPressed
+                            : null,
+                        ]}
+                      >
+                        <Text
+                          style={[styles.selectValue, { color: textPrimary }]}
+                          numberOfLines={1}
+                        >
+                          {roleLabel(inviteRole)}
+                        </Text>
+                        <Ionicons
+                          name="chevron-down"
+                          size={16}
+                          color={textMuted}
+                        />
+                      </Pressable>
+
+                      <View style={styles.inviteFormButtons}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Cancelar convite"
+                          disabled={inviteSending || saving}
+                          onPress={() => {
+                            setInviteFormOpen(false);
+                            setInviteInlineError("");
+                          }}
+                          style={({ pressed }) => [
+                            styles.cancelBtn,
+                            {
+                              borderColor: inputBorder,
+                              backgroundColor: inputBg,
+                            },
+                            pressed ? styles.footerBtnPressed : null,
+                            inviteSending || saving
+                              ? styles.footerBtnDisabled
+                              : null,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.footerBtnText,
+                              { color: textPrimary },
+                            ]}
+                          >
+                            Cancelar
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Enviar convite"
+                          disabled={
+                            !inviteEmailValid || inviteSending || saving
+                          }
+                          onPress={sendInvite}
+                          style={({ pressed }) => [
+                            styles.saveBtn,
+                            pressed ? styles.footerBtnPressed : null,
+                            !inviteEmailValid || inviteSending || saving
+                              ? styles.footerBtnDisabled
+                              : null,
+                          ]}
+                        >
+                          <Text style={styles.saveBtnText}>Enviar convite</Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+              ) : null}
+            </View>
 
             <Text style={[styles.label, { color: textSecondary }]}>
               Telefone
@@ -1284,6 +2112,159 @@ export default function TerreiroEditor() {
           onClose={() => setIsCityModalOpen(false)}
           onSelect={onChangeCity}
         />
+
+        <SelectModal
+          title="Papel"
+          visible={isInviteRoleModalOpen}
+          variant={variant}
+          items={[
+            { key: "admin", label: "Admin", value: "admin" },
+            { key: "editor", label: "Editor", value: "editor" },
+          ]}
+          onClose={() => setIsInviteRoleModalOpen(false)}
+          onSelect={(value) => {
+            setInviteRole(value === "admin" ? "admin" : "editor");
+          }}
+        />
+
+        <BottomSheet
+          visible={isRolesSheetOpen}
+          variant={variant}
+          onClose={() => setIsRolesSheetOpen(false)}
+        >
+          <View>
+            <Text style={[styles.rolesSheetTitle, { color: textPrimary }]}>
+              Papéis no terreiro
+            </Text>
+
+            <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
+              Admin
+            </Text>
+            <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
+              Pode:
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Alterar todos os dados do terreiro
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Convidar e remover pessoas
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Definir quem pode colaborar
+            </Text>
+
+            <View style={styles.rolesSheetSpacer} />
+
+            <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
+              Editor
+            </Text>
+            <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
+              Pode:
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Criar e editar coleções
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Organizar e adicionar pontos
+            </Text>
+            <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
+              Não pode:
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Alterar dados do terreiro
+            </Text>
+            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+              - Gerenciar pessoas ou permissões
+            </Text>
+
+            <View style={styles.rolesSheetSpacer} />
+
+            <Text style={[styles.rolesSheetFooter, { color: textSecondary }]}>
+              Esses papéis ajudam a organizar o cuidado coletivo com os pontos
+              do terreiro.
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Entendi"
+              onPress={() => setIsRolesSheetOpen(false)}
+              style={({ pressed }) => [
+                styles.rolesSheetCloseBtn,
+                pressed ? styles.footerBtnPressed : null,
+              ]}
+            >
+              <Text style={styles.rolesSheetCloseText}>Entendi</Text>
+            </Pressable>
+          </View>
+        </BottomSheet>
+
+        <BottomSheet
+          visible={isInviteShareSheetOpen}
+          variant={variant}
+          onClose={closeInviteShareSheet}
+        >
+          <View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar pelo WhatsApp"
+              onPress={shareInviteViaWhatsApp}
+              style={({ pressed }) => [
+                styles.shareOptionBtn,
+                pressed ? styles.footerBtnPressed : null,
+              ]}
+            >
+              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
+                Enviar pelo WhatsApp
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar pelo Instagram"
+              onPress={shareInviteViaInstagram}
+              style={({ pressed }) => [
+                styles.shareOptionBtn,
+                pressed ? styles.footerBtnPressed : null,
+              ]}
+            >
+              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
+                Enviar pelo Instagram
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Copiar mensagem"
+              onPress={copyInviteMessageOnly}
+              style={({ pressed }) => [
+                styles.shareOptionBtn,
+                pressed ? styles.footerBtnPressed : null,
+              ]}
+            >
+              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
+                Copiar mensagem
+              </Text>
+            </Pressable>
+
+            <View
+              style={[styles.shareDivider, { backgroundColor: inputBorder }]}
+            />
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Mais opções"
+              onPress={shareInviteMoreOptions}
+              style={({ pressed }) => [
+                styles.shareOptionBtn,
+                pressed ? styles.footerBtnPressed : null,
+              ]}
+            >
+              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
+                Mais opções…
+              </Text>
+            </Pressable>
+          </View>
+        </BottomSheet>
       </View>
     </SaravafyScreen>
   );
@@ -1491,6 +2472,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
+  coverRemoveBtn: {
+    alignSelf: "flex-start",
+    marginTop: spacing.xs,
+    paddingVertical: 6,
+    paddingHorizontal: 2,
+  },
+  coverRemoveText: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
   rowPressed: {
     opacity: 0.92,
   },
@@ -1510,6 +2501,245 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.92,
+  },
+
+  adminSectionWrap: {
+    marginTop: spacing.lg,
+    marginBottom: spacing.lg,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.md,
+  },
+  adminSectionDisabled: {
+    opacity: 0.72,
+  },
+  adminHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  adminTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  adminInfoBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  adminInfoBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
+    lineHeight: 14,
+  },
+  adminSubtitle: {
+    marginTop: spacing.xs,
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.92,
+  },
+  adminHighlightCard: {
+    marginTop: spacing.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.md,
+    padding: spacing.md,
+  },
+  adminHighlightText: {
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
+  },
+  adminLockedText: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  adminListHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+  },
+  adminListTitle: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  adminListMeta: {
+    fontSize: 12,
+    fontWeight: "800",
+    opacity: 0.9,
+  },
+  adminList: {
+    marginTop: spacing.sm,
+    gap: spacing.sm,
+  },
+  adminEmptyText: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    fontWeight: "700",
+    opacity: 0.85,
+  },
+  personRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  personAvatar: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: "transparent",
+  },
+  personAvatarPlaceholder: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    opacity: 0.9,
+  },
+  personMeta: {
+    flex: 1,
+  },
+  personName: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  personRole: {
+    fontSize: 12,
+    fontWeight: "900",
+    opacity: 0.92,
+  },
+  adminActionsWrap: {
+    marginTop: spacing.lg,
+  },
+  inviteRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  inviteMeta: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  inviteEmail: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  inviteShareBtn: {
+    minHeight: 34,
+    paddingHorizontal: 10,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteShareText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  inviteCtaBtn: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    borderRadius: radii.md,
+    backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  inviteCtaText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.paper50,
+  },
+  inviteForm: {
+    marginTop: spacing.md,
+  },
+  inlineErrorText: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  inviteFormButtons: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.md,
+  },
+
+  shareOptionBtn: {
+    minHeight: 44,
+    borderRadius: radii.md,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  shareOptionText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  shareDivider: {
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.9,
+    marginVertical: spacing.sm,
+  },
+
+  rolesSheetTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    marginBottom: spacing.md,
+  },
+  rolesSheetH: {
+    fontSize: 14,
+    fontWeight: "900",
+    marginTop: spacing.sm,
+    marginBottom: spacing.xs,
+  },
+  rolesSheetP: {
+    fontSize: 13,
+    fontWeight: "800",
+    opacity: 0.92,
+    marginBottom: spacing.xs,
+  },
+  rolesSheetBullet: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.92,
+    lineHeight: 18,
+  },
+  rolesSheetSpacer: {
+    height: spacing.md,
+  },
+  rolesSheetFooter: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.92,
+    marginTop: spacing.sm,
+    lineHeight: 18,
+  },
+  rolesSheetCloseBtn: {
+    marginTop: spacing.lg,
+    minHeight: 44,
+    borderRadius: radii.md,
+    backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  rolesSheetCloseText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.paper50,
   },
   footerBar: {
     flexDirection: "row",
