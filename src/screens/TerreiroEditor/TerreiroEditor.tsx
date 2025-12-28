@@ -1,8 +1,9 @@
-import { Picker } from "@react-native-picker/picker";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
+  FlatList,
   Image,
+  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -17,6 +18,7 @@ import { supabase } from "@/lib/supabase";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, radii, spacing } from "@/src/theme";
+import { Ionicons } from "@expo/vector-icons";
 import * as Crypto from "expo-crypto";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
@@ -60,34 +62,144 @@ type TerreiroContatoDbRow = {
 };
 
 const UF_OPTIONS = [
-  "AC",
-  "AL",
-  "AP",
-  "AM",
-  "BA",
-  "CE",
-  "DF",
-  "ES",
-  "GO",
-  "MA",
-  "MT",
-  "MS",
-  "MG",
-  "PA",
-  "PB",
-  "PR",
-  "PE",
-  "PI",
-  "RJ",
-  "RN",
-  "RS",
-  "RO",
-  "RR",
-  "SC",
-  "SP",
-  "SE",
-  "TO",
+  { uf: "AC", label: "Acre" },
+  { uf: "AL", label: "Alagoas" },
+  { uf: "AP", label: "Amapá" },
+  { uf: "AM", label: "Amazonas" },
+  { uf: "BA", label: "Bahia" },
+  { uf: "CE", label: "Ceará" },
+  { uf: "DF", label: "Distrito Federal" },
+  { uf: "ES", label: "Espírito Santo" },
+  { uf: "GO", label: "Goiás" },
+  { uf: "MA", label: "Maranhão" },
+  { uf: "MT", label: "Mato Grosso" },
+  { uf: "MS", label: "Mato Grosso do Sul" },
+  { uf: "MG", label: "Minas Gerais" },
+  { uf: "PA", label: "Pará" },
+  { uf: "PB", label: "Paraíba" },
+  { uf: "PR", label: "Paraná" },
+  { uf: "PE", label: "Pernambuco" },
+  { uf: "PI", label: "Piauí" },
+  { uf: "RJ", label: "Rio de Janeiro" },
+  { uf: "RN", label: "Rio Grande do Norte" },
+  { uf: "RS", label: "Rio Grande do Sul" },
+  { uf: "RO", label: "Rondônia" },
+  { uf: "RR", label: "Roraima" },
+  { uf: "SC", label: "Santa Catarina" },
+  { uf: "SP", label: "São Paulo" },
+  { uf: "SE", label: "Sergipe" },
+  { uf: "TO", label: "Tocantins" },
 ] as const;
+
+const CITIES_BY_UF: Record<string, string[]> = {
+  PR: ["Curitiba", "Londrina", "Maringá", "Ponta Grossa"],
+  SP: ["São Paulo", "Campinas", "Santos", "Ribeirão Preto"],
+  RJ: ["Rio de Janeiro", "Niterói", "Petrópolis"],
+  MG: ["Belo Horizonte", "Uberlândia", "Juiz de Fora"],
+  RS: ["Porto Alegre", "Caxias do Sul", "Pelotas"],
+  SC: ["Florianópolis", "Joinville", "Blumenau"],
+  BA: ["Salvador", "Feira de Santana"],
+  PE: ["Recife", "Olinda"],
+};
+
+function labelForUf(uf: string) {
+  const match = UF_OPTIONS.find((o) => o.uf === uf);
+  return match?.label ?? uf;
+}
+
+type SelectItem = { key: string; label: string; value: string };
+
+function SelectModal({
+  title,
+  visible,
+  variant,
+  items,
+  onClose,
+  onSelect,
+}: {
+  title: string;
+  visible: boolean;
+  variant: "light" | "dark";
+  items: SelectItem[];
+  onClose: () => void;
+  onSelect: (value: string) => void;
+}) {
+  const textPrimary =
+    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
+  const textMuted =
+    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+  const divider =
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
+  const sheetBg =
+    variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
+
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.selectBackdrop} onPress={onClose} />
+      <View style={styles.selectSheetWrap} pointerEvents="box-none">
+        <View
+          style={[
+            styles.selectSheet,
+            { backgroundColor: sheetBg, borderColor: divider },
+          ]}
+        >
+          <View style={styles.selectHeaderRow}>
+            <Text style={[styles.selectTitle, { color: textPrimary }]}>
+              {title}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Fechar"
+              hitSlop={10}
+              onPress={onClose}
+              style={({ pressed }) => [
+                styles.selectCloseBtn,
+                pressed ? styles.selectCloseBtnPressed : null,
+              ]}
+            >
+              <Text style={[styles.selectCloseText, { color: textMuted }]}>
+                ×
+              </Text>
+            </Pressable>
+          </View>
+
+          <View style={[styles.selectDivider, { backgroundColor: divider }]} />
+
+          <FlatList
+            data={items}
+            keyExtractor={(i) => i.key}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  onSelect(item.value);
+                  onClose();
+                }}
+                style={({ pressed }) => [
+                  styles.selectRow,
+                  pressed ? styles.selectRowPressed : null,
+                ]}
+              >
+                <Text style={[styles.selectRowText, { color: textPrimary }]}>
+                  {item.label}
+                </Text>
+              </Pressable>
+            )}
+          />
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
 function onlyDigits(value: string) {
   return value.replace(/\D/g, "");
@@ -156,19 +268,6 @@ function normalizeInstagram(input: string) {
 function withCacheBust(url: string) {
   const v = Date.now();
   return url.includes("?") ? `${url}&v=${v}` : `${url}?v=${v}`;
-}
-
-async function fetchCitiesForUF(uf: string): Promise<string[]> {
-  const res = await fetch(
-    `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`
-  );
-  if (!res.ok) throw new Error("Não foi possível carregar cidades.");
-  const data = (await res.json()) as Array<{ nome?: string }>;
-  const cities = data
-    .map((c) => (typeof c.nome === "string" ? c.nome : ""))
-    .filter(Boolean);
-  cities.sort((a, b) => a.localeCompare(b, "pt-BR", { sensitivity: "base" }));
-  return cities;
 }
 
 async function ensureWebp(uri: string) {
@@ -292,8 +391,8 @@ export default function TerreiroEditor() {
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
 
-  const [citiesByUf, setCitiesByUf] = useState<Record<string, string[]>>({});
-  const [citiesLoading, setCitiesLoading] = useState(false);
+  const [isUfModalOpen, setIsUfModalOpen] = useState(false);
+  const [isCityModalOpen, setIsCityModalOpen] = useState(false);
 
   const initialSnapshotRef = useRef<string | null>(null);
   const webpLocalUriRef = useRef<string | null>(null);
@@ -399,41 +498,8 @@ export default function TerreiroEditor() {
     initialSnapshotRef.current = snapshotOf(form);
   }, [form, loading]);
 
-  useEffect(() => {
-    let cancelled = false;
-
-    const run = async () => {
-      if (!form.stateUF) return;
-      if (citiesByUf[form.stateUF]) return;
-
-      setCitiesLoading(true);
-      try {
-        const cities = await fetchCitiesForUF(form.stateUF);
-        if (cancelled) return;
-        setCitiesByUf((prev) => ({ ...prev, [form.stateUF]: cities }));
-      } catch (e) {
-        if (!cancelled) {
-          Alert.alert(
-            "Erro",
-            e instanceof Error
-              ? e.message
-              : "Não foi possível carregar cidades."
-          );
-        }
-      } finally {
-        if (!cancelled) setCitiesLoading(false);
-      }
-    };
-
-    run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [citiesByUf, form.stateUF]);
-
   const citiesForSelectedUf = form.stateUF
-    ? citiesByUf[form.stateUF] ?? []
+    ? CITIES_BY_UF[form.stateUF] ?? []
     : [];
 
   const onCancel = () => {
@@ -717,6 +783,18 @@ export default function TerreiroEditor() {
 
   const coverPreviewUri = form.coverImageUrl;
 
+  const ufItems: SelectItem[] = UF_OPTIONS.map((o) => ({
+    key: o.uf,
+    label: `${o.label} (${o.uf})`,
+    value: o.uf,
+  }));
+
+  const cityItems: SelectItem[] = citiesForSelectedUf.map((c) => ({
+    key: c,
+    label: c,
+    value: c,
+  }));
+
   return (
     <SaravafyScreen variant={variant}>
       <View style={styles.root}>
@@ -817,47 +895,59 @@ export default function TerreiroEditor() {
             <Text style={[styles.label, { color: textSecondary }]}>
               Estado (UF)
             </Text>
-            <View
-              style={[
-                styles.pickerWrap,
+            <Pressable
+              accessibilityRole="button"
+              disabled={saving}
+              onPress={() => setIsUfModalOpen(true)}
+              style={({ pressed }) => [
+                styles.selectField,
                 { backgroundColor: inputBg, borderColor: inputBorder },
+                saving ? styles.selectDisabled : null,
+                pressed && !saving ? styles.selectPressed : null,
               ]}
             >
-              <Picker
-                selectedValue={form.stateUF}
-                onValueChange={(v) => onChangeUf(String(v))}
-                enabled={!saving}
-                style={{ color: textPrimary }}
-                dropdownIconColor={textPrimary}
+              <Text
+                style={[
+                  styles.selectValue,
+                  { color: form.stateUF ? textPrimary : textSecondary },
+                ]}
+                numberOfLines={1}
               >
-                <Picker.Item label="" value="" />
-                {UF_OPTIONS.map((uf) => (
-                  <Picker.Item key={uf} label={uf} value={uf} />
-                ))}
-              </Picker>
-            </View>
+                {form.stateUF
+                  ? `${labelForUf(form.stateUF)} (${form.stateUF})`
+                  : "Selecionar"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={textMuted} />
+            </Pressable>
 
             <Text style={[styles.label, { color: textSecondary }]}>Cidade</Text>
-            <View
-              style={[
-                styles.pickerWrap,
+            <Pressable
+              accessibilityRole="button"
+              disabled={!form.stateUF || saving}
+              onPress={() => {
+                if (!form.stateUF || saving) return;
+                setIsCityModalOpen(true);
+              }}
+              style={({ pressed }) => [
+                styles.selectField,
                 { backgroundColor: inputBg, borderColor: inputBorder },
-                !form.stateUF || citiesLoading ? styles.pickerDisabled : null,
+                !form.stateUF || saving ? styles.selectDisabled : null,
+                pressed && form.stateUF && !saving
+                  ? styles.selectPressed
+                  : null,
               ]}
             >
-              <Picker
-                selectedValue={form.city}
-                onValueChange={(v) => onChangeCity(String(v))}
-                enabled={!!form.stateUF && !citiesLoading && !saving}
-                style={{ color: textPrimary }}
-                dropdownIconColor={textPrimary}
+              <Text
+                style={[
+                  styles.selectValue,
+                  { color: form.city ? textPrimary : textSecondary },
+                ]}
+                numberOfLines={1}
               >
-                <Picker.Item label="" value="" />
-                {citiesForSelectedUf.map((c) => (
-                  <Picker.Item key={c} label={c} value={c} />
-                ))}
-              </Picker>
-            </View>
+                {form.city ? form.city : "Selecionar"}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={textMuted} />
+            </Pressable>
 
             <Text style={[styles.label, { color: textSecondary }]}>Bairro</Text>
             <TextInput
@@ -1010,6 +1100,24 @@ export default function TerreiroEditor() {
             </Text>
           </View>
         ) : null}
+
+        <SelectModal
+          title="Estado (UF)"
+          visible={isUfModalOpen}
+          variant={variant}
+          items={ufItems}
+          onClose={() => setIsUfModalOpen(false)}
+          onSelect={onChangeUf}
+        />
+
+        <SelectModal
+          title="Cidade"
+          visible={isCityModalOpen}
+          variant={variant}
+          items={cityItems}
+          onClose={() => setIsCityModalOpen(false)}
+          onSelect={onChangeCity}
+        />
       </View>
     </SaravafyScreen>
   );
@@ -1059,15 +1167,87 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     textAlignVertical: "top",
   },
-  pickerWrap: {
+  selectField: {
     minHeight: 44,
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: radii.md,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 10,
+  },
+  selectValue: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  selectPressed: {
+    opacity: 0.92,
+  },
+  selectDisabled: {
+    opacity: 0.6,
+  },
+  selectBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.overlayBackdrop,
+  },
+  selectSheetWrap: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  selectSheet: {
+    width: "100%",
+    maxHeight: "70%",
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
     overflow: "hidden",
+  },
+  selectHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    gap: spacing.sm,
+  },
+  selectTitle: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  selectCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    alignItems: "center",
     justifyContent: "center",
   },
-  pickerDisabled: {
-    opacity: 0.6,
+  selectCloseBtnPressed: {
+    opacity: 0.85,
+  },
+  selectCloseText: {
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 22,
+  },
+  selectDivider: {
+    height: StyleSheet.hairlineWidth,
+  },
+  selectRow: {
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.md,
+    justifyContent: "center",
+  },
+  selectRowPressed: {
+    opacity: 0.92,
+  },
+  selectRowText: {
+    fontSize: 14,
+    fontWeight: "800",
   },
   coverPicker: {
     width: "100%",
