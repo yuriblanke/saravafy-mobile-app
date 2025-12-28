@@ -17,6 +17,7 @@ import {
   usePreferences,
 } from "@/contexts/PreferencesContext";
 import { ToastProvider } from "@/contexts/ToastContext";
+import { InviteGate } from "@/src/components/InviteGate";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -177,6 +178,7 @@ function RootLayoutNav() {
     <ThemeProvider
       value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
     >
+      <InviteGate />
       {!bootTarget ? null : bootComplete || isAtTarget ? (
         <Slot />
       ) : bootTarget.href === "/terreiro" ? (
