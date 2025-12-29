@@ -5,7 +5,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Redirect, Slot, useSegments } from "expo-router";
+import { useRouter, Slot, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "react-native-reanimated";
@@ -79,6 +79,7 @@ function RootLayoutNav() {
     usePreferences();
   const { user, isLoading } = useAuth();
   const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
     console.log("[RootLayoutNav] MONTADO");
@@ -116,6 +117,8 @@ function RootLayoutNav() {
   const [bootComplete, setBootComplete] = useState(false);
 
   const lastBootRunRef = useRef<number>(0);
+  const lastIsLoadingRef = useRef(isLoading);
+  const lastIsReadyRef = useRef(isReady);
   const bootDebounceMs = 100; // Prevent boot effect from running more than once per 100ms
 
   // `useSegments()` can get a narrowed union type depending on route typings.
@@ -133,6 +136,22 @@ function RootLayoutNav() {
     const run = async () => {
       try {
         const now = Date.now();
+        
+        // Reset debounce timer when critical states change (isLoading/isReady transitions)
+        const criticalStateChanged = 
+          lastIsLoadingRef.current !== isLoading || 
+          lastIsReadyRef.current !== isReady;
+        
+        if (criticalStateChanged) {
+          console.log("[Boot] critical state changed, reset debounce", {
+            isLoading: { prev: lastIsLoadingRef.current, now: isLoading },
+            isReady: { prev: lastIsReadyRef.current, now: isReady },
+          });
+          lastBootRunRef.current = 0; // Reset debounce
+          lastIsLoadingRef.current = isLoading;
+          lastIsReadyRef.current = isReady;
+        }
+        
         if (now - lastBootRunRef.current < bootDebounceMs) {
           console.log("[Boot] SKIP: debounce ativo", {
             elapsed: now - lastBootRunRef.current,
@@ -254,26 +273,32 @@ function RootLayoutNav() {
     });
 
     if (!bootTarget) return;
-    if (!isAtTarget) return;
+    if (isAtTarget) {
+      // Assim que chegamos no destino inicial, liberamos navegação normal.
+      console.log("[Boot] chegou no target! setBootComplete(true)");
+      setBootComplete(true);
+      SplashScreen.hideAsync().catch(() => undefined);
+      return;
+    }
 
-    // Assim que chegamos no destino inicial, liberamos navegação normal.
-    console.log("[Boot] chegou no target! setBootComplete(true)");
-    setBootComplete(true);
-    SplashScreen.hideAsync().catch(() => undefined);
-  }, [bootTarget, isAtTarget, segments]);
+    // Não estamos no target: navegar programaticamente em vez de usar <Redirect>
+    // para evitar unmount/remount da árvore inteira.
+    console.log("[Boot] navegando para target:", bootTarget.href);
+    if (bootTarget.href === "/terreiro" && bootTarget.params) {
+      router.replace({ pathname: "/terreiro", params: bootTarget.params });
+    } else {
+      router.replace(bootTarget.href as any);
+    }
+    // NOTE: NÃO incluir segments/router nas dependências - causaria loop infinito
+    // pois router.replace() muda segments, re-executando este effect antes de isAtTarget atualizar.
+  }, [bootTarget, isAtTarget]);
 
   return (
     <ThemeProvider
       value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
     >
       <InviteGate />
-      {!bootTarget ? null : bootComplete || isAtTarget ? (
-        <Slot />
-      ) : bootTarget.href === "/terreiro" ? (
-        <Redirect href={{ pathname: "/terreiro", params: bootTarget.params }} />
-      ) : (
-        <Redirect href={bootTarget.href as any} />
-      )}
+      {bootTarget && (bootComplete || isAtTarget) ? <Slot /> : null}
     </ThemeProvider>
   );
 }
