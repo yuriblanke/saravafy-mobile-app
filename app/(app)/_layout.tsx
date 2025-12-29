@@ -1,15 +1,32 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
+import { useMyActiveTerreiroIdsQuery } from "@/src/queries/me";
 import { colors } from "@/src/theme";
 import { Stack, useSegments } from "expo-router";
 import React, { useMemo } from "react";
 import { View } from "react-native";
 
 export default function AppLayout() {
-  const { effectiveTheme } = usePreferences();
+  const { effectiveTheme, activeContext } = usePreferences();
+  const { user } = useAuth();
   const segments = useSegments();
+
+  const activeTerreiroId =
+    activeContext.kind === "TERREIRO_PAGE" ? activeContext.terreiroId : null;
+
+  const myUserId = user?.id ?? null;
+  const myTerreirosQuery = useMyActiveTerreiroIdsQuery(myUserId);
+  const myTerreiroIds = myTerreirosQuery.data ?? [];
+
+  useRealtimeTerreiroScope({
+    activeTerreiroId,
+    myTerreiroIds,
+    myUserId,
+  });
 
   const showGlobalHeader = useMemo(() => {
     // segments: ["(app)", "home" | "terreiro" | "collection" | ...]

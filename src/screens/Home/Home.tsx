@@ -8,6 +8,7 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Alert,
   FlatList,
@@ -27,6 +28,8 @@ import {
 import { addPontoToCollection } from "./data/collections_pontos";
 import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
+
+import { queryKeys } from "@/src/queries/queryKeys";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -86,12 +89,6 @@ export default function Home() {
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const [allowedTerreiros, setAllowedTerreiros] = useState<AllowedTerreiro[]>(
-    []
-  );
-  const [collections, setCollections] = useState<AccessibleCollection[]>([]);
-  const [isSheetLoading, setIsSheetLoading] = useState(false);
-  const [sheetError, setSheetError] = useState<string | null>(null);
   const [collectionFilter, setCollectionFilter] = useState<
     "ALL" | "ME" | string
   >("ALL");
@@ -135,17 +132,25 @@ export default function Home() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const loadSheetData = useCallback(async () => {
-    if (!userId) return;
+  const availableCollectionsQuery = useQuery({
+    queryKey: queryKeys.collections.available({ userId: userId ?? "", terreiroId: null }),
+    enabled: addModalVisible && !!userId,
+    staleTime: 60_000,
+    // Important: avoid any "loading flash". We always render the normal UI.
+    initialData: {
+      allowedTerreiros: [] as AllowedTerreiro[],
+      collections: [] as AccessibleCollection[],
+    },
+    queryFn: async () => {
+      if (!userId) {
+        return {
+          allowedTerreiros: [] as AllowedTerreiro[],
+          collections: [] as AccessibleCollection[],
+        };
+      }
 
-    setIsSheetLoading(true);
-    setSheetError(null);
-
-    try {
       const terreirosRes = await fetchAllowedTerreiros(userId);
       if (terreirosRes.error) throw new Error(terreirosRes.error);
-
-      setAllowedTerreiros(terreirosRes.data);
 
       const allowedIds = terreirosRes.data.map((t) => t.terreiro_id);
       const collectionsRes = await fetchAccessibleCollections({
@@ -154,15 +159,24 @@ export default function Home() {
       });
       if (collectionsRes.error) throw new Error(collectionsRes.error);
 
-      setCollections(collectionsRes.data);
-    } catch (e) {
-      setAllowedTerreiros([]);
-      setCollections([]);
-      setSheetError(getErrorMessage(e));
-    } finally {
-      setIsSheetLoading(false);
-    }
-  }, [userId]);
+      return {
+        allowedTerreiros: terreirosRes.data,
+        collections: collectionsRes.data,
+      };
+    },
+    placeholderData: (prev) =>
+      prev ?? {
+        allowedTerreiros: [] as AllowedTerreiro[],
+        collections: [] as AccessibleCollection[],
+      },
+  });
+
+  const allowedTerreiros = availableCollectionsQuery.data.allowedTerreiros;
+  const collections = availableCollectionsQuery.data.collections;
+
+  const sheetError = availableCollectionsQuery.isError
+    ? getErrorMessage(availableCollectionsQuery.error)
+    : null;
 
   const closeAddToCollectionSheet = useCallback(() => {
     setAddModalVisible(false);
@@ -174,12 +188,8 @@ export default function Home() {
 
   const openAddToCollectionSheet = useCallback(
     (ponto: Ponto) => {
-      // IMPORTANT: garantimos que o sheet já nasce em loading
-      // e sem dados antigos antes do primeiro frame visível.
-      setIsSheetLoading(true);
-      setSheetError(null);
-      setAllowedTerreiros([]);
-      setCollections([]);
+      // IMPORTANT: o sheet abre sem "piscar" loading.
+      // A lista é servida do cache (ou vazia) e refetch ocorre em background.
       setCollectionFilter("ALL");
       setIsFilterModalOpen(false);
       setIsCreateCollectionModalOpen(false);
@@ -191,9 +201,8 @@ export default function Home() {
       setAddError(null);
 
       setAddModalVisible(true);
-      void loadSheetData();
     },
-    [loadSheetData]
+    []
   );
 
   const filterItems: SelectItem[] = useMemo(() => {
@@ -277,8 +286,8 @@ export default function Home() {
 
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
-    await loadSheetData();
-  }, [collectionFilter, createCollectionTitle, loadSheetData, user?.id]);
+    await availableCollectionsQuery.refetch();
+  }, [availableCollectionsQuery.refetch, collectionFilter, createCollectionTitle, user?.id]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -521,64 +530,14 @@ export default function Home() {
             </Pressable>
           </View>
 
-          {isSheetLoading ? (
-            <View style={{ gap: spacing.sm }}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Carregando coleções…
-              </Text>
-              <View style={styles.sheetList}>
-                {Array.from({ length: 6 }).map((_, idx) => {
-                  const borderColor =
-                    variant === "light"
-                      ? colors.surfaceCardBorderLight
-                      : colors.surfaceCardBorder;
-                  const rowBg =
-                    variant === "light" ? colors.inputBgLight : colors.inputBgDark;
-                  const barBg =
-                    variant === "light"
-                      ? colors.surfaceCardBorderLight
-                      : colors.surfaceCardBorder;
-
-                  return (
-                    <View
-                      // eslint-disable-next-line react/no-array-index-key
-                      key={`skeleton-${idx}`}
-                      style={[
-                        styles.skeletonRow,
-                        { borderColor, backgroundColor: rowBg },
-                      ]}
-                    >
-                      <View style={styles.skeletonTextWrap}>
-                        <View
-                          style={[
-                            styles.skeletonBar,
-                            { width: "70%", backgroundColor: barBg },
-                          ]}
-                        />
-                        <View
-                          style={[
-                            styles.skeletonBar,
-                            styles.skeletonBarSmall,
-                            { width: "42%", backgroundColor: barBg },
-                          ]}
-                        />
-                      </View>
-                      <View
-                        style={[styles.skeletonChevron, { backgroundColor: barBg }]}
-                      />
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          ) : sheetError ? (
+          {sheetError ? (
             <View style={{ gap: spacing.sm }}>
               <Text style={[styles.bodyText, { color: colors.brass600 }]}>
                 {sheetError}
               </Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => void loadSheetData()}
+                onPress={() => void availableCollectionsQuery.refetch()}
                 style={[
                   styles.retryBtn,
                   variant === "light"
@@ -1228,36 +1187,6 @@ const styles = StyleSheet.create({
   sheetList: {
     marginTop: spacing.md,
     gap: spacing.xs,
-  },
-  skeletonRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  skeletonTextWrap: {
-    flex: 1,
-    minWidth: 0,
-    gap: 6,
-  },
-  skeletonBar: {
-    height: 10,
-    borderRadius: 999,
-    opacity: 0.55,
-  },
-  skeletonBarSmall: {
-    height: 8,
-    opacity: 0.45,
-  },
-  skeletonChevron: {
-    width: 16,
-    height: 16,
-    borderRadius: 4,
-    marginLeft: spacing.sm,
-    opacity: 0.45,
   },
   collectionRow: {
     flexDirection: "row",

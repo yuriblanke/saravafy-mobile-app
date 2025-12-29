@@ -18,6 +18,7 @@ import {
 } from "@/contexts/PreferencesContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -26,6 +27,16 @@ export {
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      // Realtime invalidations should refetch silently in background.
+      refetchOnWindowFocus: false,
+      retry: 1,
+    },
+  },
+});
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -43,13 +54,15 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
-      <PreferencesProvider>
-        <ToastProvider>
-          <RootLayoutNav />
-        </ToastProvider>
-      </PreferencesProvider>
-    </AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <AuthProvider>
+        <PreferencesProvider>
+          <ToastProvider>
+            <RootLayoutNav />
+          </ToastProvider>
+        </PreferencesProvider>
+      </AuthProvider>
+    </QueryClientProvider>
   );
 }
 
