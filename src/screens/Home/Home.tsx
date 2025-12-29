@@ -164,19 +164,37 @@ export default function Home() {
     }
   }, [userId]);
 
-  useEffect(() => {
-    if (!addModalVisible) return;
-    void loadSheetData();
-  }, [addModalVisible, loadSheetData]);
-
-  useEffect(() => {
-    if (!addModalVisible) return;
-    setCollectionFilter("ALL");
+  const closeAddToCollectionSheet = useCallback(() => {
+    setAddModalVisible(false);
     setIsFilterModalOpen(false);
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
-  }, [addModalVisible]);
+  }, []);
+
+  const openAddToCollectionSheet = useCallback(
+    (ponto: Ponto) => {
+      // IMPORTANT: garantimos que o sheet já nasce em loading
+      // e sem dados antigos antes do primeiro frame visível.
+      setIsSheetLoading(true);
+      setSheetError(null);
+      setAllowedTerreiros([]);
+      setCollections([]);
+      setCollectionFilter("ALL");
+      setIsFilterModalOpen(false);
+      setIsCreateCollectionModalOpen(false);
+      setCreateCollectionTitle("");
+      setCreateCollectionError(null);
+
+      setSelectedPonto(ponto);
+      setAddSuccess(false);
+      setAddError(null);
+
+      setAddModalVisible(true);
+      void loadSheetData();
+    },
+    [loadSheetData]
+  );
 
   const filterItems: SelectItem[] = useMemo(() => {
     return [
@@ -444,10 +462,7 @@ export default function Home() {
                             // à coleção.
                             e.stopPropagation();
 
-                            setSelectedPonto(item);
-                            setAddModalVisible(true);
-                            setAddSuccess(false);
-                            setAddError(null);
+                            openAddToCollectionSheet(item);
                           }}
                         >
                           <Ionicons
@@ -485,8 +500,9 @@ export default function Home() {
       {/* Modal de adicionar à coleção */}
       <BottomSheet
         visible={addModalVisible}
-        onClose={() => setAddModalVisible(false)}
+        onClose={closeAddToCollectionSheet}
         variant={variant}
+        snapPoints={["75%"]}
       >
         <View style={{ paddingBottom: 16 }}>
           <View style={styles.sheetHeaderRow}>
@@ -495,7 +511,7 @@ export default function Home() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => setAddModalVisible(false)}
+              onPress={closeAddToCollectionSheet}
               hitSlop={10}
               style={styles.sheetCloseBtn}
             >
@@ -506,9 +522,55 @@ export default function Home() {
           </View>
 
           {isSheetLoading ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando coleções…
-            </Text>
+            <View style={{ gap: spacing.sm }}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Carregando coleções…
+              </Text>
+              <View style={styles.sheetList}>
+                {Array.from({ length: 6 }).map((_, idx) => {
+                  const borderColor =
+                    variant === "light"
+                      ? colors.surfaceCardBorderLight
+                      : colors.surfaceCardBorder;
+                  const rowBg =
+                    variant === "light" ? colors.inputBgLight : colors.inputBgDark;
+                  const barBg =
+                    variant === "light"
+                      ? colors.surfaceCardBorderLight
+                      : colors.surfaceCardBorder;
+
+                  return (
+                    <View
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={`skeleton-${idx}`}
+                      style={[
+                        styles.skeletonRow,
+                        { borderColor, backgroundColor: rowBg },
+                      ]}
+                    >
+                      <View style={styles.skeletonTextWrap}>
+                        <View
+                          style={[
+                            styles.skeletonBar,
+                            { width: "70%", backgroundColor: barBg },
+                          ]}
+                        />
+                        <View
+                          style={[
+                            styles.skeletonBar,
+                            styles.skeletonBarSmall,
+                            { width: "42%", backgroundColor: barBg },
+                          ]}
+                        />
+                      </View>
+                      <View
+                        style={[styles.skeletonChevron, { backgroundColor: barBg }]}
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
           ) : sheetError ? (
             <View style={{ gap: spacing.sm }}>
               <Text style={[styles.bodyText, { color: colors.brass600 }]}>
@@ -1166,6 +1228,36 @@ const styles = StyleSheet.create({
   sheetList: {
     marginTop: spacing.md,
     gap: spacing.xs,
+  },
+  skeletonRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  skeletonTextWrap: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  skeletonBar: {
+    height: 10,
+    borderRadius: 999,
+    opacity: 0.55,
+  },
+  skeletonBarSmall: {
+    height: 8,
+    opacity: 0.45,
+  },
+  skeletonChevron: {
+    width: 16,
+    height: 16,
+    borderRadius: 4,
+    marginLeft: spacing.sm,
+    opacity: 0.45,
   },
   collectionRow: {
     flexDirection: "row",

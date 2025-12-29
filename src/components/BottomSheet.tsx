@@ -23,7 +23,43 @@ type Props = {
   variant: "dark" | "light";
   children: React.ReactNode;
   enableSwipeToClose?: boolean;
+  /**
+   * Optional fixed snap point for the sheet height.
+   * Use a single value like ["75%"] to keep the sheet height stable.
+   */
+  snapPoints?: readonly (string | number)[];
 };
+
+function resolveSnapHeight(
+  snap: string | number | undefined,
+  screenHeight: number,
+  maxHeight: number
+) {
+  if (typeof snap === "number" && Number.isFinite(snap)) {
+    return Math.max(0, Math.min(Math.round(snap), maxHeight));
+  }
+
+  if (typeof snap === "string") {
+    const trimmed = snap.trim();
+    if (trimmed.endsWith("%")) {
+      const raw = Number(trimmed.slice(0, -1));
+      if (Number.isFinite(raw)) {
+        const pct = Math.max(0, Math.min(raw, 100));
+        return Math.max(
+          0,
+          Math.min(Math.round(screenHeight * (pct / 100)), maxHeight)
+        );
+      }
+    }
+
+    const asNumber = Number(trimmed);
+    if (Number.isFinite(asNumber)) {
+      return Math.max(0, Math.min(Math.round(asNumber), maxHeight));
+    }
+  }
+
+  return undefined;
+}
 
 export function BottomSheet({
   visible,
@@ -31,6 +67,7 @@ export function BottomSheet({
   variant,
   children,
   enableSwipeToClose = true,
+  snapPoints,
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
   const translateY = useRef(new Animated.Value(0)).current;
@@ -98,6 +135,17 @@ export function BottomSheet({
   if (!visible) return null;
 
   const maxSheetHeight = Math.round(screenHeight * 0.85);
+  const fixedHeight = resolveSnapHeight(
+    snapPoints?.[0],
+    screenHeight,
+    maxSheetHeight
+  );
+
+  useEffect(() => {
+    if (!visible) return;
+    if (typeof fixedHeight !== "number") return;
+    setSheetHeight(fixedHeight);
+  }, [fixedHeight, visible]);
 
   return (
     <View style={styles.portal} pointerEvents="box-none">
@@ -112,9 +160,18 @@ export function BottomSheet({
         style={[
           styles.sheet,
           variant === "light" ? styles.sheetLight : styles.sheetDark,
-          { maxHeight: maxSheetHeight, transform: [{ translateY }] },
+          fixedHeight
+            ? {
+                height: fixedHeight,
+                maxHeight: fixedHeight,
+                transform: [{ translateY }],
+              }
+            : { maxHeight: maxSheetHeight, transform: [{ translateY }] },
         ]}
-        onLayout={(e) => setSheetHeight(e.nativeEvent.layout.height)}
+        onLayout={(e) => {
+          if (fixedHeight) return;
+          setSheetHeight(e.nativeEvent.layout.height);
+        }}
         {...(panResponder ? panResponder.panHandlers : null)}
       >
         <View style={styles.handleWrap} pointerEvents="none">
