@@ -20,9 +20,10 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { upsertTerreiroMemberActive } from "@/src/hooks/terreiroMembership";
 import { colors, radii, spacing } from "@/src/theme";
 
-type InviteRole = "admin" | "editor";
+type InviteRole = "admin" | "editor" | "member";
 
 type TerreiroInvite = {
   id: string;
@@ -66,6 +67,8 @@ export function InviteGate() {
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const realtimeInviteIdRef = useRef<string | null>(null);
 
+  const pendingInvitesRef = useRef<TerreiroInvite[]>([]);
+
   const appStateRef = useRef(AppState.currentState);
   const lastFetchAtRef = useRef<number>(0);
   const inFlightRef = useRef<Promise<TerreiroInvite[]> | null>(null);
@@ -87,6 +90,10 @@ export function InviteGate() {
   const inputBorder =
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
+  useEffect(() => {
+    pendingInvitesRef.current = pendingInvites;
+  }, [pendingInvites]);
+
   const refreshPendingInvites = useCallback(
     async (options?: { skipCache?: boolean }) => {
       if (!userId) return [] as TerreiroInvite[];
@@ -102,7 +109,7 @@ export function InviteGate() {
 
       if (!options?.skipCache) {
         if (now - lastFetchAtRef.current < cacheWindowMs) {
-          return pendingInvites;
+          return pendingInvitesRef.current;
         }
       }
 
@@ -170,7 +177,7 @@ export function InviteGate() {
         inFlightRef.current = null;
       }
     },
-    [normalizedUserEmail, pendingInvites, showToast, userId]
+    [normalizedUserEmail, showToast, userId]
   );
 
   const ensureModalForQueue = useCallback((queue: TerreiroInvite[]) => {
@@ -284,7 +291,9 @@ export function InviteGate() {
             typeof row?.id === "string" &&
             typeof row?.terreiro_id === "string" &&
             typeof row?.created_at === "string" &&
-            (row?.role === "admin" || row?.role === "editor")
+            (row?.role === "admin" ||
+              row?.role === "editor" ||
+              row?.role === "member")
               ? {
                   id: row.id,
                   terreiro_id: row.terreiro_id,
@@ -339,18 +348,11 @@ export function InviteGate() {
     setActionError(null);
 
     try {
-      const upsert = await supabase.from("terreiro_members").upsert(
-        {
-          terreiro_id: currentInvite.terreiro_id,
-          user_id: userId,
-          role: currentInvite.role,
-        },
-        { onConflict: "terreiro_id,user_id" }
-      );
-
-      if (upsert.error) {
-        throw new Error(upsert.error.message);
-      }
+      await upsertTerreiroMemberActive({
+        terreiroId: currentInvite.terreiro_id,
+        userId,
+        role: currentInvite.role,
+      });
 
       const upd = await supabase
         .from("terreiro_invites")

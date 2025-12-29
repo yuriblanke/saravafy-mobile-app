@@ -10,6 +10,7 @@ export default function AppLayout() {
         name="terreiro-editor"
         options={{ presentation: "modal" }}
       />
+      <Stack.Screen name="access-manager" options={{ presentation: "modal" }} />
     </Stack>
   );
 }

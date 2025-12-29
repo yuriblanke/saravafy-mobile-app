@@ -65,10 +65,15 @@ function getErrorMessage(e: unknown): string {
   return String(e);
 }
 
-export function useCollectionPlayerData(params: PlayerDataParams) {
+export function useCollectionPlayerData(
+  params: PlayerDataParams,
+  options?: { enabled?: boolean }
+) {
   const isAllMode = "mode" in params && params.mode === "all";
   const collectionId = "collectionId" in params ? params.collectionId : "";
   const query = isAllMode && "query" in params ? params.query ?? "" : "";
+
+  const enabled = options?.enabled ?? true;
 
   const [items, setItems] = useState<CollectionPlayerItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -80,6 +85,13 @@ export function useCollectionPlayerData(params: PlayerDataParams) {
   );
 
   const load = useCallback(async () => {
+    if (!enabled) {
+      setItems([]);
+      setError(null);
+      setIsLoading(false);
+      return;
+    }
+
     if (!isAllMode && !collectionId) {
       setItems([]);
       setError("Collection inválida.");

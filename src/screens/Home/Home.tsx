@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -96,8 +97,17 @@ export default function Home() {
   const [collectionFilter, setCollectionFilter] = useState<
     "ALL" | "ME" | string
   >("ALL");
-  const [newCollectionTitle, setNewCollectionTitle] = useState("");
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
+
+  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+
+  const [isCreateCollectionModalOpen, setIsCreateCollectionModalOpen] =
+    useState(false);
+  const [createCollectionTitle, setCreateCollectionTitle] = useState("");
+  const [createCollectionError, setCreateCollectionError] = useState<
+    string | null
+  >(null);
+
   const variant = effectiveTheme;
   const textPrimary =
     variant === "light" ? colors.forest800 : colors.textPrimaryOnDark;
@@ -161,6 +171,36 @@ export default function Home() {
     void loadSheetData();
   }, [addModalVisible, loadSheetData]);
 
+  useEffect(() => {
+    if (!addModalVisible) return;
+    setCollectionFilter("ALL");
+    setIsFilterModalOpen(false);
+    setIsCreateCollectionModalOpen(false);
+    setCreateCollectionTitle("");
+    setCreateCollectionError(null);
+  }, [addModalVisible]);
+
+  const filterItems: SelectItem[] = useMemo(() => {
+    return [
+      { key: "ALL", label: "Todos", value: "ALL" },
+      { key: "ME", label: "Você", value: "ME" },
+      ...allowedTerreiros.map((t) => ({
+        key: t.terreiro_id,
+        label: t.terreiro_title,
+        value: t.terreiro_id,
+      })),
+    ];
+  }, [allowedTerreiros]);
+
+  const collectionFilterLabel = useMemo(() => {
+    if (collectionFilter === "ALL") return "Todos";
+    if (collectionFilter === "ME") return "Você";
+    const found = allowedTerreiros.find(
+      (t) => t.terreiro_id === collectionFilter
+    );
+    return found?.terreiro_title ?? "Terreiro";
+  }, [allowedTerreiros, collectionFilter]);
+
   const filteredCollections = useMemo(() => {
     if (!user?.id) return [] as AccessibleCollection[];
 
@@ -182,6 +222,47 @@ export default function Home() {
     }
     return "";
   };
+
+  const openCreateCollection = useCallback(() => {
+    setCreateCollectionError(null);
+    setIsCreateCollectionModalOpen(true);
+  }, []);
+
+  const onCreateCollection = useCallback(async () => {
+    if (!user?.id) return;
+
+    const title = createCollectionTitle.trim().slice(0, 40);
+    if (!title) {
+      setCreateCollectionError("Informe um nome (até 40 caracteres).");
+      return;
+    }
+
+    setIsCreatingCollection(true);
+    setCreateCollectionError(null);
+
+    const ownerTerreiroId =
+      collectionFilter !== "ALL" && collectionFilter !== "ME"
+        ? collectionFilter
+        : null;
+    const ownerUserId = ownerTerreiroId ? null : user.id;
+
+    const created = await createCollection({
+      title,
+      ownerUserId,
+      ownerTerreiroId,
+    });
+
+    setIsCreatingCollection(false);
+
+    if (created.error) {
+      setCreateCollectionError(created.error || "Erro ao criar coleção.");
+      return;
+    }
+
+    setIsCreateCollectionModalOpen(false);
+    setCreateCollectionTitle("");
+    await loadSheetData();
+  }, [collectionFilter, createCollectionTitle, loadSheetData, user?.id]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -456,257 +537,282 @@ export default function Home() {
             </View>
           ) : (
             <>
-              <View style={styles.sheetFilterRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setCollectionFilter("ALL")}
-                  style={({ pressed }) => [
-                    styles.filterChip,
-                    collectionFilter === "ALL" && styles.filterChipActive,
-                    pressed && styles.filterChipPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      {
-                        color:
-                          collectionFilter === "ALL"
-                            ? colors.brass600
-                            : textSecondary,
-                      },
-                    ]}
-                  >
-                    Todos
-                  </Text>
-                </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setIsFilterModalOpen(true)}
+                style={({ pressed }) => [
+                  styles.dropdown,
+                  {
+                    borderColor:
+                      variant === "light"
+                        ? colors.inputBorderLight
+                        : colors.inputBorderDark,
+                    backgroundColor:
+                      variant === "light"
+                        ? colors.inputBgLight
+                        : colors.inputBgDark,
+                  },
+                  pressed ? styles.dropdownPressed : null,
+                ]}
+              >
+                <Text style={[styles.dropdownText, { color: textPrimary }]}>
+                  {collectionFilterLabel}
+                </Text>
+                <Ionicons name="chevron-down" size={18} color={textSecondary} />
+              </Pressable>
 
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setCollectionFilter("ME")}
-                  style={({ pressed }) => [
-                    styles.filterChip,
-                    collectionFilter === "ME" && styles.filterChipActive,
-                    pressed && styles.filterChipPressed,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterChipText,
-                      {
-                        color:
-                          collectionFilter === "ME"
-                            ? colors.brass600
-                            : textSecondary,
-                      },
-                    ]}
-                  >
-                    Você
+              {filteredCollections.length === 0 ? (
+                <View style={styles.emptyBlock}>
+                  <Text style={[styles.emptyText, { color: textSecondary }]}>
+                    Nenhuma coleção criada ainda.
                   </Text>
-                </Pressable>
-
-                {allowedTerreiros.map((t) => (
                   <Pressable
-                    key={t.terreiro_id}
                     accessibilityRole="button"
-                    onPress={() => setCollectionFilter(t.terreiro_id)}
+                    onPress={openCreateCollection}
+                    disabled={isCreatingCollection}
                     style={({ pressed }) => [
-                      styles.filterChip,
-                      collectionFilter === t.terreiro_id &&
-                        styles.filterChipActive,
-                      pressed && styles.filterChipPressed,
+                      styles.newCollectionCta,
+                      pressed ? styles.newCollectionCtaPressed : null,
+                      isCreatingCollection ? styles.btnDisabled : null,
                     ]}
                   >
-                    <Text
-                      style={[
-                        styles.filterChipText,
-                        {
-                          color:
-                            collectionFilter === t.terreiro_id
-                              ? colors.brass600
-                              : textSecondary,
-                        },
-                      ]}
-                    >
-                      {t.terreiro_title}
+                    <Text style={styles.newCollectionCtaText}>
+                      + Nova coleção
                     </Text>
                   </Pressable>
-                ))}
-              </View>
-
-              <View style={styles.createRow}>
-                <TextInput
-                  value={newCollectionTitle}
-                  onChangeText={(v) => setNewCollectionTitle(v.slice(0, 40))}
-                  placeholder="Nova coleção (até 40)"
-                  placeholderTextColor={textSecondary}
-                  style={[
-                    styles.createInput,
-                    {
-                      color: textPrimary,
-                      borderColor:
-                        variant === "light"
-                          ? colors.inputBorderLight
-                          : colors.inputBorderDark,
-                      backgroundColor:
-                        variant === "light"
-                          ? colors.inputBgLight
-                          : colors.inputBgDark,
-                    },
-                  ]}
-                  autoCapitalize="sentences"
-                  autoCorrect={false}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={isCreatingCollection || isAdding}
-                  onPress={async () => {
-                    if (!user?.id || !selectedPonto) return;
-
-                    const title = newCollectionTitle.trim().slice(0, 40);
-                    if (!title) {
-                      setAddError("Informe um título (até 40 caracteres). ");
-                      return;
-                    }
-
-                    setIsCreatingCollection(true);
-                    setAddError(null);
-
-                    const ownerTerreiroId =
-                      collectionFilter !== "ALL" && collectionFilter !== "ME"
-                        ? collectionFilter
-                        : null;
-                    const ownerUserId = ownerTerreiroId ? null : user.id;
-
-                    const created = await createCollection({
-                      title,
-                      ownerUserId,
-                      ownerTerreiroId,
-                    });
-
-                    if (created.error || !created.data?.id) {
-                      setIsCreatingCollection(false);
-                      setAddError(created.error || "Erro ao criar coleção.");
-                      return;
-                    }
-
-                    const added = await addPontoToCollection({
-                      collectionId: created.data.id,
-                      pontoId: selectedPonto.id,
-                      addedBy: user.id,
-                    });
-
-                    setIsCreatingCollection(false);
-                    if (!added.ok) {
-                      setAddError("Erro ao adicionar ponto à coleção.");
-                      return;
-                    }
-
-                    setAddSuccess(true);
-                    setNewCollectionTitle("");
-                    await loadSheetData();
-
-                    Alert.alert("Ponto adicionado à coleção");
-                    setAddModalVisible(false);
-                  }}
-                  style={({ pressed }) => [
-                    styles.createBtn,
-                    pressed && styles.createBtnPressed,
-                  ]}
-                >
-                  <Text style={styles.createBtnText}>Criar</Text>
-                </Pressable>
-              </View>
-
-              {isAdding ? (
-                <Text style={[styles.bodyText, { color: textSecondary }]}>
-                  Adicionando…
-                </Text>
-              ) : addSuccess ? (
-                <Text style={[styles.bodyText, { color: colors.forest500 }]}>
-                  Ponto adicionado à coleção
-                </Text>
-              ) : addError ? (
-                <Text style={[styles.bodyText, { color: colors.brass600 }]}>
-                  {addError}
-                </Text>
+                </View>
               ) : (
-                <Text style={[styles.bodyText, { color: textSecondary }]}>
-                  Selecione uma coleção para adicionar o ponto.
-                </Text>
-              )}
+                <>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={openCreateCollection}
+                    disabled={isCreatingCollection}
+                    style={({ pressed }) => [
+                      styles.newCollectionCta,
+                      pressed ? styles.newCollectionCtaPressed : null,
+                      isCreatingCollection ? styles.btnDisabled : null,
+                    ]}
+                  >
+                    <Text style={styles.newCollectionCtaText}>
+                      + Nova coleção
+                    </Text>
+                  </Pressable>
 
-              <View style={styles.sheetList}>
-                {filteredCollections.map((c) => {
-                  const title = (c.title ?? "").trim() || "Coleção";
-                  const ownerLabel = getCollectionOwnerLabel(c);
-
-                  return (
-                    <Pressable
-                      key={c.id}
-                      accessibilityRole="button"
-                      disabled={isAdding || isCreatingCollection}
-                      onPress={async () => {
-                        if (!user?.id || !selectedPonto) return;
-
-                        setIsAdding(true);
-                        setAddError(null);
-                        setAddSuccess(false);
-
-                        const res = await addPontoToCollection({
-                          collectionId: c.id,
-                          pontoId: selectedPonto.id,
-                          addedBy: user.id,
-                        });
-
-                        setIsAdding(false);
-                        if (!res.ok) {
-                          setAddError("Erro ao adicionar ponto à coleção.");
-                          return;
-                        }
-
-                        setAddSuccess(true);
-                        Alert.alert("Ponto adicionado à coleção");
-                        setAddModalVisible(false);
-                      }}
-                      style={({ pressed }) => [
-                        styles.collectionRow,
-                        pressed && styles.collectionRowPressed,
-                      ]}
+                  {isAdding ? (
+                    <Text style={[styles.bodyText, { color: textSecondary }]}>
+                      Adicionando…
+                    </Text>
+                  ) : addSuccess ? (
+                    <Text
+                      style={[styles.bodyText, { color: colors.forest500 }]}
                     >
-                      <View style={{ flex: 1, minWidth: 0 }}>
-                        <Text
-                          style={[
-                            styles.collectionTitle,
-                            { color: textPrimary },
+                      Ponto adicionado à coleção
+                    </Text>
+                  ) : addError ? (
+                    <Text style={[styles.bodyText, { color: colors.brass600 }]}>
+                      {addError}
+                    </Text>
+                  ) : (
+                    <Text style={[styles.bodyText, { color: textSecondary }]}>
+                      Selecione uma coleção para adicionar o ponto.
+                    </Text>
+                  )}
+
+                  <View style={styles.sheetList}>
+                    {filteredCollections.map((c) => {
+                      const title = (c.title ?? "").trim() || "Coleção";
+                      const ownerLabel =
+                        collectionFilter === "ALL"
+                          ? getCollectionOwnerLabel(c)
+                          : "";
+
+                      return (
+                        <Pressable
+                          key={c.id}
+                          accessibilityRole="button"
+                          disabled={isAdding || isCreatingCollection}
+                          onPress={async () => {
+                            if (!user?.id || !selectedPonto) return;
+
+                            setIsAdding(true);
+                            setAddError(null);
+                            setAddSuccess(false);
+
+                            const res = await addPontoToCollection({
+                              collectionId: c.id,
+                              pontoId: selectedPonto.id,
+                              addedBy: user.id,
+                            });
+
+                            setIsAdding(false);
+                            if (!res.ok) {
+                              setAddError("Erro ao adicionar ponto à coleção.");
+                              return;
+                            }
+
+                            setAddSuccess(true);
+                            Alert.alert("Ponto adicionado à coleção");
+                            setAddModalVisible(false);
+                          }}
+                          style={({ pressed }) => [
+                            styles.collectionRow,
+                            pressed && styles.collectionRowPressed,
                           ]}
-                          numberOfLines={1}
                         >
-                          {title}
-                        </Text>
-                        {ownerLabel ? (
-                          <Text
-                            style={[
-                              styles.collectionOwner,
-                              { color: textSecondary },
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {ownerLabel}
-                          </Text>
-                        ) : null}
-                      </View>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={18}
-                        color={textSecondary}
-                      />
-                    </Pressable>
-                  );
-                })}
-              </View>
+                          <View style={{ flex: 1, minWidth: 0 }}>
+                            <Text
+                              style={[
+                                styles.collectionTitle,
+                                { color: textPrimary },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {title}
+                            </Text>
+                            {ownerLabel ? (
+                              <Text
+                                style={[
+                                  styles.collectionOwner,
+                                  { color: textSecondary },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                {ownerLabel}
+                              </Text>
+                            ) : null}
+                          </View>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
             </>
           )}
+        </View>
+      </BottomSheet>
+
+      <SelectModal
+        title="Contexto"
+        visible={isFilterModalOpen}
+        variant={variant}
+        items={filterItems}
+        onClose={() => setIsFilterModalOpen(false)}
+        onSelect={(value) => {
+          const v = String(value);
+          if (v === "ALL" || v === "ME") {
+            setCollectionFilter(v);
+            return;
+          }
+          // Terreiro
+          setCollectionFilter(v);
+        }}
+      />
+
+      <BottomSheet
+        visible={isCreateCollectionModalOpen}
+        onClose={() => {
+          setIsCreateCollectionModalOpen(false);
+          setCreateCollectionError(null);
+        }}
+        variant={variant}
+      >
+        <View style={{ paddingBottom: 16 }}>
+          <View style={styles.sheetHeaderRow}>
+            <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+              Nova coleção
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIsCreateCollectionModalOpen(false);
+                setCreateCollectionError(null);
+              }}
+              hitSlop={10}
+              style={styles.sheetCloseBtn}
+            >
+              <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
+                ×
+              </Text>
+            </Pressable>
+          </View>
+
+          <TextInput
+            value={createCollectionTitle}
+            onChangeText={(v) => {
+              setCreateCollectionTitle(v.slice(0, 40));
+              setCreateCollectionError(null);
+            }}
+            placeholder="Nome da coleção"
+            placeholderTextColor={textSecondary}
+            style={[
+              styles.createModalInput,
+              {
+                color: textPrimary,
+                borderColor:
+                  variant === "light"
+                    ? colors.inputBorderLight
+                    : colors.inputBorderDark,
+                backgroundColor:
+                  variant === "light"
+                    ? colors.inputBgLight
+                    : colors.inputBgDark,
+              },
+            ]}
+            autoCapitalize="sentences"
+            autoCorrect={false}
+          />
+
+          {createCollectionError ? (
+            <Text style={[styles.bodyText, { color: colors.brass600 }]}>
+              {createCollectionError}
+            </Text>
+          ) : null}
+
+          <View style={styles.createModalActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setIsCreateCollectionModalOpen(false);
+                setCreateCollectionError(null);
+              }}
+              disabled={isCreatingCollection}
+              style={({ pressed }) => [
+                styles.secondaryActionBtn,
+                {
+                  borderColor:
+                    variant === "light"
+                      ? colors.inputBorderLight
+                      : colors.inputBorderDark,
+                  backgroundColor:
+                    variant === "light"
+                      ? colors.inputBgLight
+                      : colors.inputBgDark,
+                },
+                pressed ? styles.dropdownPressed : null,
+                isCreatingCollection ? styles.btnDisabled : null,
+              ]}
+            >
+              <Text
+                style={[styles.secondaryActionText, { color: textPrimary }]}
+              >
+                Cancelar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={onCreateCollection}
+              disabled={isCreatingCollection}
+              style={({ pressed }) => [
+                styles.primaryActionBtn,
+                pressed ? styles.dropdownPressed : null,
+                isCreatingCollection ? styles.btnDisabled : null,
+              ]}
+            >
+              <Text style={styles.primaryActionText}>Criar</Text>
+            </Pressable>
+          </View>
         </View>
       </BottomSheet>
 
@@ -954,6 +1060,88 @@ const styles = StyleSheet.create({
     color: colors.brass600,
     fontSize: 13,
     fontWeight: "900",
+  },
+  dropdown: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: spacing.sm,
+  },
+  dropdownText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  dropdownPressed: {
+    opacity: 0.9,
+  },
+  newCollectionCta: {
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+    marginBottom: spacing.sm,
+  },
+  newCollectionCtaPressed: {
+    opacity: 0.85,
+  },
+  newCollectionCtaText: {
+    color: colors.brass600,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  emptyBlock: {
+    paddingTop: spacing.sm,
+    gap: spacing.xs,
+  },
+  emptyText: {
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  btnDisabled: {
+    opacity: 0.6,
+  },
+  createModalInput: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: "800",
+    marginBottom: spacing.sm,
+  },
+  createModalActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
+  },
+  secondaryActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  secondaryActionText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  primaryActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  primaryActionText: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: colors.paper50,
   },
   sheetList: {
     marginTop: spacing.md,

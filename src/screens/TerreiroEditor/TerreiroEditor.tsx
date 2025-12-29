@@ -8,10 +8,8 @@ import React, {
 import {
   Alert,
   BackHandler,
-  FlatList,
   Image,
   Linking,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -29,6 +27,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { APP_INSTALL_URL } from "@/src/config/links";
 import { colors, radii, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -159,110 +158,6 @@ async function fetchIbgeMunicipiosByUf(uf: string) {
 function labelForUf(uf: string) {
   const match = UF_OPTIONS.find((o) => o.uf === uf);
   return match?.label ?? uf;
-}
-
-type SelectItem = { key: string; label: string; value: string };
-
-function SelectModal({
-  title,
-  visible,
-  variant,
-  items,
-  emptyLabel,
-  onClose,
-  onSelect,
-}: {
-  title: string;
-  visible: boolean;
-  variant: "light" | "dark";
-  items: SelectItem[];
-  emptyLabel?: string;
-  onClose: () => void;
-  onSelect: (value: string) => void;
-}) {
-  const textPrimary =
-    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
-  const textMuted =
-    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
-  const divider =
-    variant === "light"
-      ? colors.surfaceCardBorderLight
-      : colors.surfaceCardBorder;
-  const sheetBg =
-    variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <Pressable style={styles.selectBackdrop} onPress={onClose} />
-      <View style={styles.selectSheetWrap} pointerEvents="box-none">
-        <View
-          style={[
-            styles.selectSheet,
-            { backgroundColor: sheetBg, borderColor: divider },
-          ]}
-        >
-          <View style={styles.selectHeaderRow}>
-            <Text style={[styles.selectTitle, { color: textPrimary }]}>
-              {title}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Fechar"
-              hitSlop={10}
-              onPress={onClose}
-              style={({ pressed }) => [
-                styles.selectCloseBtn,
-                pressed ? styles.selectCloseBtnPressed : null,
-              ]}
-            >
-              <Text style={[styles.selectCloseText, { color: textMuted }]}>
-                ×
-              </Text>
-            </Pressable>
-          </View>
-
-          <View style={[styles.selectDivider, { backgroundColor: divider }]} />
-
-          {items.length === 0 ? (
-            <View style={styles.selectEmptyWrap}>
-              <Text style={[styles.selectEmptyText, { color: textMuted }]}>
-                {emptyLabel ?? "Nenhuma opção disponível."}
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={items}
-              keyExtractor={(i) => i.key}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    onSelect(item.value);
-                    onClose();
-                  }}
-                  style={({ pressed }) => [
-                    styles.selectRow,
-                    pressed ? styles.selectRowPressed : null,
-                  ]}
-                >
-                  <Text style={[styles.selectRowText, { color: textPrimary }]}>
-                    {item.label}
-                  </Text>
-                </Pressable>
-              )}
-            />
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
 }
 
 function onlyDigits(value: string) {
@@ -1691,284 +1586,49 @@ export default function TerreiroEditor() {
                 </Text>
               ) : null}
 
-              <View style={styles.adminListHeaderRow}>
-                <Text style={[styles.adminListTitle, { color: textPrimary }]}>
-                  Pessoas com acesso
-                </Text>
-                {adminLoading ? (
-                  <Text style={[styles.adminListMeta, { color: textMuted }]}>
-                    Carregando…
+              <View style={styles.adminActionsWrap}>
+                <View
+                  style={[
+                    styles.adminHighlightCard,
+                    { borderColor: inputBorder, marginTop: spacing.md },
+                  ]}
+                >
+                  <Text
+                    style={[styles.adminHighlightText, { color: textPrimary }]}
+                  >
+                    Gerencie pessoas, pedidos pendentes e convites em uma tela
+                    dedicada.
                   </Text>
-                ) : null}
-              </View>
-
-              {members.length === 0 && !adminLoading ? (
-                <Text style={[styles.adminEmptyText, { color: textMuted }]}>
-                  Nenhuma pessoa com acesso ainda.
-                </Text>
-              ) : (
-                <View style={styles.adminList}>
-                  {members.map((m, idx) => {
-                    const pid = m.user_id;
-                    const p = pid ? profilesById[pid] : undefined;
-                    const name =
-                      (p?.full_name && p.full_name.trim()) ||
-                      (p?.email && p.email.trim()) ||
-                      "Membro";
-                    const avatar = p?.avatar_url || "";
-
-                    return (
-                      <View
-                        key={`${m.terreiro_id}:${m.user_id ?? ""}:${idx}`}
-                        style={styles.personRow}
-                      >
-                        {avatar ? (
-                          <Image
-                            source={{ uri: avatar }}
-                            style={styles.personAvatar}
-                          />
-                        ) : (
-                          <View style={styles.personAvatarPlaceholder}>
-                            <Ionicons
-                              name="person"
-                              size={16}
-                              color={textMuted}
-                            />
-                          </View>
-                        )}
-
-                        <View style={styles.personMeta}>
-                          <Text
-                            style={[styles.personName, { color: textPrimary }]}
-                            numberOfLines={1}
-                          >
-                            {name}
-                          </Text>
-                        </View>
-
-                        <Text
-                          style={[styles.personRole, { color: textSecondary }]}
-                        >
-                          {roleLabel(m.role)}
-                        </Text>
-                      </View>
-                    );
-                  })}
                 </View>
-              )}
 
-              {isTerreiroAdminSectionEnabled && isAdmin ? (
-                <View style={styles.adminActionsWrap}>
-                  <Text style={[styles.adminListTitle, { color: textPrimary }]}>
-                    Convites pendentes
-                  </Text>
-
-                  {invitesPending.length === 0 && !adminLoading ? (
-                    <Text style={[styles.adminEmptyText, { color: textMuted }]}>
-                      Nenhum convite pendente.
-                    </Text>
-                  ) : (
-                    <View style={styles.adminList}>
-                      {invitesPending.map((i) => (
-                        <View key={i.id} style={styles.inviteRow}>
-                          <View style={styles.inviteMeta}>
-                            <Text
-                              style={[
-                                styles.inviteEmail,
-                                { color: textPrimary },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {i.email}
-                            </Text>
-                            <Text
-                              style={[
-                                styles.personRole,
-                                { color: textSecondary },
-                              ]}
-                            >
-                              {roleLabel(i.role)}
-                            </Text>
-                          </View>
-
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Compartilhar"
-                            onPress={() => openInviteShareSheet(i)}
-                            style={({ pressed }) => [
-                              styles.inviteShareBtn,
-                              {
-                                borderColor: inputBorder,
-                                backgroundColor: inputBg,
-                              },
-                              pressed ? styles.footerBtnPressed : null,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.inviteShareText,
-                                { color: textPrimary },
-                              ]}
-                            >
-                              Compartilhar
-                            </Text>
-                          </Pressable>
-                        </View>
-                      ))}
-                    </View>
-                  )}
-
+                {isTerreiroAdminSectionEnabled &&
+                (myTerreiroRole === "admin" ||
+                  myTerreiroRole === "editor" ||
+                  isAdmin) ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Convidar pessoas da curimba"
-                    disabled={saving || inviteSending}
-                    onPress={() => setInviteFormOpen(true)}
+                    accessibilityLabel="Gerenciar acesso"
+                    disabled={saving}
+                    onPress={() => {
+                      const terreiroId = form.id;
+                      router.push({
+                        pathname: "/access-manager" as any,
+                        params: {
+                          terreiroId,
+                          terreiroTitle: form.title,
+                        },
+                      });
+                    }}
                     style={({ pressed }) => [
                       styles.inviteCtaBtn,
                       pressed && !saving ? styles.footerBtnPressed : null,
-                      saving || inviteSending ? styles.footerBtnDisabled : null,
+                      saving ? styles.footerBtnDisabled : null,
                     ]}
                   >
-                    <Text style={styles.inviteCtaText}>
-                      Convidar pessoas da curimba
-                    </Text>
+                    <Text style={styles.inviteCtaText}>Gerenciar acesso</Text>
                   </Pressable>
-
-                  {inviteFormOpen ? (
-                    <View style={styles.inviteForm}>
-                      <Text style={[styles.label, { color: textSecondary }]}>
-                        E-mail
-                      </Text>
-                      <TextInput
-                        value={inviteEmail}
-                        onChangeText={(v) => {
-                          setInviteEmail(v);
-                          setInviteInlineError("");
-                        }}
-                        placeholder="local@dominio.tld"
-                        placeholderTextColor={textSecondary}
-                        autoCapitalize="none"
-                        keyboardType="email-address"
-                        editable={!inviteSending && !saving}
-                        style={[
-                          styles.input,
-                          {
-                            backgroundColor: inputBg,
-                            borderColor: inputBorder,
-                            color: textPrimary,
-                          },
-                        ]}
-                      />
-
-                      {normalizeEmail(inviteEmail) && !inviteEmailValid ? (
-                        <Text
-                          style={[
-                            styles.inlineErrorText,
-                            { color: colors.danger },
-                          ]}
-                        >
-                          Informe um e-mail válido.
-                        </Text>
-                      ) : null}
-
-                      {inviteInlineError ? (
-                        <Text
-                          style={[
-                            styles.inlineErrorText,
-                            { color: colors.danger },
-                          ]}
-                        >
-                          {inviteInlineError}
-                        </Text>
-                      ) : null}
-
-                      <Text style={[styles.label, { color: textSecondary }]}>
-                        Papel
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        disabled={inviteSending || saving}
-                        onPress={() => setIsInviteRoleModalOpen(true)}
-                        style={({ pressed }) => [
-                          styles.selectField,
-                          {
-                            backgroundColor: inputBg,
-                            borderColor: inputBorder,
-                          },
-                          inviteSending || saving
-                            ? styles.selectDisabled
-                            : null,
-                          pressed && !inviteSending && !saving
-                            ? styles.selectPressed
-                            : null,
-                        ]}
-                      >
-                        <Text
-                          style={[styles.selectValue, { color: textPrimary }]}
-                          numberOfLines={1}
-                        >
-                          {roleLabel(inviteRole)}
-                        </Text>
-                        <Ionicons
-                          name="chevron-down"
-                          size={16}
-                          color={textMuted}
-                        />
-                      </Pressable>
-
-                      <View style={styles.inviteFormButtons}>
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Cancelar convite"
-                          disabled={inviteSending || saving}
-                          onPress={() => {
-                            setInviteFormOpen(false);
-                            setInviteInlineError("");
-                          }}
-                          style={({ pressed }) => [
-                            styles.cancelBtn,
-                            {
-                              borderColor: inputBorder,
-                              backgroundColor: inputBg,
-                            },
-                            pressed ? styles.footerBtnPressed : null,
-                            inviteSending || saving
-                              ? styles.footerBtnDisabled
-                              : null,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.footerBtnText,
-                              { color: textPrimary },
-                            ]}
-                          >
-                            Cancelar
-                          </Text>
-                        </Pressable>
-
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Enviar convite"
-                          disabled={
-                            !inviteEmailValid || inviteSending || saving
-                          }
-                          onPress={sendInvite}
-                          style={({ pressed }) => [
-                            styles.saveBtn,
-                            pressed ? styles.footerBtnPressed : null,
-                            !inviteEmailValid || inviteSending || saving
-                              ? styles.footerBtnDisabled
-                              : null,
-                          ]}
-                        >
-                          <Text style={styles.saveBtnText}>Enviar convite</Text>
-                        </Pressable>
-                      </View>
-                    </View>
-                  ) : null}
-                </View>
-              ) : null}
+                ) : null}
+              </View>
             </View>
 
             <Text style={[styles.label, { color: textSecondary }]}>

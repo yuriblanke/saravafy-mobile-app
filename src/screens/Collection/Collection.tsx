@@ -1,9 +1,14 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import {
+  useCreateTerreiroMembershipRequest,
+  useTerreiroMembershipStatus,
+} from "@/src/hooks/terreiroMembership";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
@@ -22,6 +27,8 @@ import {
 type CollectionRow = {
   id: string;
   title?: string | null;
+  terreiro_id?: string | null;
+  visibility?: string | null;
 };
 
 function getErrorMessage(e: unknown): string {
@@ -54,6 +61,8 @@ export default function Collection() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const { user } = useAuth();
+
   const { showToast } = require("@/contexts/ToastContext").useToast();
 
   const { effectiveTheme } =
@@ -81,13 +90,31 @@ export default function Collection() {
   const [collectionError, setCollectionError] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
 
+  const terreiroId =
+    typeof collection?.terreiro_id === "string" ? collection.terreiro_id : "";
+  const visibility =
+    typeof collection?.visibility === "string" ? collection.visibility : "";
+  const isMembersOnly = !!collection && visibility === "members";
+
+  const membership = useTerreiroMembershipStatus(
+    isMembersOnly ? terreiroId : ""
+  );
+  const createRequest = useCreateTerreiroMembershipRequest(
+    isMembersOnly ? terreiroId : ""
+  );
+
+  const isLoggedIn = !!user?.id;
+  const isMember = membership.data.isActiveMember;
+  const hasPendingRequest = membership.data.hasPendingRequest;
+  const shouldLoadPontos = !!collection && (!isMembersOnly || isMember);
+
   const {
     items: orderedItems,
     isLoading: pontosLoading,
     error: pontosError,
     isEmpty: pontosEmpty,
     reload: reloadPontos,
-  } = useCollectionPlayerData({ collectionId });
+  } = useCollectionPlayerData({ collectionId }, { enabled: shouldLoadPontos });
 
   const loadCollection = useCallback(async () => {
     if (!collectionId) {
@@ -102,7 +129,7 @@ export default function Collection() {
     try {
       const res = await supabase
         .from("collections")
-        .select("id, title")
+        .select("id, title, terreiro_id, visibility")
         .eq("id", collectionId)
         .single();
 
@@ -141,6 +168,8 @@ export default function Collection() {
   const title =
     (typeof collection?.title === "string" && collection.title.trim()) ||
     titleFallback;
+
+  const isPendingView = isMembersOnly && isLoggedIn && hasPendingRequest;
 
   const shareMessage = buildShareMessageForColecao(title);
 
@@ -205,6 +234,7 @@ export default function Collection() {
               onPress={() => {
                 loadCollection();
                 reloadPontos();
+                membership.reload();
               }}
               style={({ pressed }) => [
                 styles.retryBtn,
@@ -272,6 +302,150 @@ export default function Collection() {
               </Text>
             </View>
           </SurfaceCard>
+        ) : isMembersOnly && !isMember ? (
+          <View style={styles.gateWrap}>
+            <SurfaceCard variant={variant} style={styles.gateCard}>
+              <Text style={[styles.gateTitle, { color: textPrimary }]}>
+                Coleção exclusiva para membros
+              </Text>
+
+              {!isLoggedIn ? (
+                <Text style={[styles.gateBody, { color: textSecondary }]}>
+                  Entre para ver esta coleção.
+                </Text>
+              ) : isPendingView ? (
+                <Text style={[styles.gateBody, { color: textSecondary }]}>
+                  Pedido enviado (pendente). Assim que for aprovado, você terá
+                  acesso.
+                </Text>
+              ) : (
+                <Text style={[styles.gateBody, { color: textSecondary }]}>
+                  Para acessar, peça para se tornar membro do terreiro.
+                </Text>
+              )}
+
+              <View style={styles.gateActions}>
+                {!isLoggedIn ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => router.push("/login")}
+                    style={({ pressed }) => [
+                      styles.gatePrimaryBtn,
+                      pressed ? styles.gateBtnPressed : null,
+                      variant === "light"
+                        ? styles.gatePrimaryBtnLight
+                        : styles.gatePrimaryBtnDark,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        variant === "light"
+                          ? styles.gatePrimaryTextLight
+                          : styles.gatePrimaryTextDark
+                      }
+                    >
+                      Entrar para ver esta coleção
+                    </Text>
+                  </Pressable>
+                ) : isPendingView ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() =>
+                      showToast("Cancelamento de pedido: TODO (backend).")
+                    }
+                    style={({ pressed }) => [
+                      styles.gateSecondaryBtn,
+                      pressed ? styles.gateBtnPressed : null,
+                      {
+                        borderColor:
+                          variant === "light"
+                            ? colors.surfaceCardBorderLight
+                            : colors.surfaceCardBorder,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[styles.gateSecondaryText, { color: textPrimary }]}
+                    >
+                      Cancelar pedido
+                    </Text>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={
+                      createRequest.isCreating ||
+                      membership.isLoading ||
+                      !terreiroId
+                    }
+                    onPress={async () => {
+                      if (!user?.id) {
+                        router.push("/login");
+                        return;
+                      }
+
+                      if (!terreiroId) {
+                        showToast("Não foi possível identificar o terreiro.");
+                        return;
+                      }
+
+                      if (membership.data.isActiveMember) {
+                        showToast("Você já é membro deste terreiro.");
+                        return;
+                      }
+
+                      const result = await createRequest.create();
+                      if (result.ok) {
+                        showToast(
+                          result.alreadyExisted
+                            ? "Pedido já enviado (pendente)."
+                            : "Pedido enviado (pendente)."
+                        );
+                        await membership.reload();
+                        return;
+                      }
+
+                      showToast(
+                        "Não foi possível enviar o pedido agora. Tente novamente."
+                      );
+                    }}
+                    style={({ pressed }) => [
+                      styles.gatePrimaryBtn,
+                      pressed ? styles.gateBtnPressed : null,
+                      createRequest.isCreating ? styles.gateBtnPressed : null,
+                      variant === "light"
+                        ? styles.gatePrimaryBtnLight
+                        : styles.gatePrimaryBtnDark,
+                    ]}
+                  >
+                    <Text
+                      style={
+                        variant === "light"
+                          ? styles.gatePrimaryTextLight
+                          : styles.gatePrimaryTextDark
+                      }
+                    >
+                      Se tornar membro
+                    </Text>
+                  </Pressable>
+                )}
+              </View>
+            </SurfaceCard>
+
+            <SurfaceCard variant={variant} style={styles.lockedCard}>
+              <View style={styles.lockedRow}>
+                <Ionicons
+                  name="lock-closed"
+                  size={18}
+                  color={textMuted}
+                  style={{ marginRight: 10 }}
+                />
+                <Text style={[styles.lockedText, { color: textSecondary }]}>
+                  Conteúdo disponível apenas para membros.
+                </Text>
+              </View>
+            </SurfaceCard>
+          </View>
         ) : (
           <FlatList
             data={orderedItems}
@@ -433,6 +607,88 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: spacing.md,
     textAlign: "center",
+  },
+  gateWrap: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  gateCard: {
+    paddingVertical: spacing.md,
+  },
+  gateTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  gateBody: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+    opacity: 0.92,
+  },
+  gateActions: {
+    marginTop: spacing.md,
+  },
+  gatePrimaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  gatePrimaryBtnDark: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: colors.brass600,
+  },
+  gatePrimaryBtnLight: {
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    borderColor: colors.brass500,
+  },
+  gatePrimaryTextDark: {
+    color: colors.brass600,
+    fontWeight: "900",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  gatePrimaryTextLight: {
+    color: colors.brass500,
+    fontWeight: "900",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  gateSecondaryBtn: {
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+    backgroundColor: "transparent",
+  },
+  gateSecondaryText: {
+    fontWeight: "900",
+    fontSize: 14,
+    textAlign: "center",
+  },
+  gateBtnPressed: {
+    opacity: 0.85,
+  },
+  lockedCard: {
+    paddingVertical: spacing.md,
+  },
+  lockedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  lockedText: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   listContent: {
     paddingHorizontal: spacing.lg,
