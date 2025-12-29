@@ -157,13 +157,6 @@ function TerreiroCard({
     typeof item.coverImageUrl === "string" &&
     item.coverImageUrl.trim().length > 0;
 
-  const placeholderBorder =
-    variant === "light"
-      ? colors.surfaceCardBorderLight
-      : colors.surfaceCardBorder;
-  const placeholderBg =
-    variant === "light" ? colors.paper200 : colors.inputBgDark;
-
   return (
     <Pressable accessibilityRole="button" onPress={onOpenCollections}>
       <SurfaceCard variant={variant}>
@@ -341,18 +334,11 @@ function TerreiroCard({
                 onError={() => setImageFailed(true)}
               />
             ) : (
-              <View
-                style={[
-                  styles.cardImage,
-                  styles.cardImagePlaceholder,
-                  {
-                    borderColor: placeholderBorder,
-                    backgroundColor: placeholderBg,
-                  },
-                ]}
-              >
-                <Ionicons name="image-outline" size={22} color={textMuted} />
-              </View>
+              <Image
+                source={require("@/assets/images/filler.png")}
+                resizeMode="cover"
+                style={styles.cardImage}
+              />
             )}
 
             {!expanded && (instagram || phone) ? (

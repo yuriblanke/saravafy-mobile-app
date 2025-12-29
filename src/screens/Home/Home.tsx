@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useRootPager } from "@/contexts/RootPagerContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -78,6 +79,7 @@ export default function Home() {
   const userId = user?.id ?? null;
   const router = useRouter();
   const queryClient = useQueryClient();
+  const rootPager = useRootPager();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
   // Estado para modal de adicionar à coleção
@@ -137,7 +139,8 @@ export default function Home() {
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
-  }, []);
+    rootPager.setIsBottomSheetOpen(false);
+  }, [rootPager]);
 
   const openAddToCollectionSheet = useCallback((ponto: Ponto) => {
     // IMPORTANT: o sheet abre sem "piscar" loading.
@@ -151,7 +154,8 @@ export default function Home() {
     setAddError(null);
 
     setAddModalVisible(true);
-  }, []);
+    rootPager.setIsBottomSheetOpen(true);
+  }, [rootPager]);
 
   const filteredCollections = useMemo(() => {
     if (!user?.id) return [] as AccountableCollection[];
@@ -159,7 +163,7 @@ export default function Home() {
     // REGRA DE PRODUTO: filtrar por perfil ativo (não por filtro manual do modal)
     // Se perfil = USER_PROFILE (pessoal): mostrar TODAS as collections visíveis
     // Se perfil = TERREIRO_PAGE: mostrar APENAS collections desse terreiro
-    
+
     if (activeContext.kind === "USER_PROFILE") {
       // Perfil pessoal: mostrar TODAS as collections (pessoais + terreiros)
       return allCollections;
@@ -535,12 +539,8 @@ export default function Home() {
                   <View style={styles.sheetList}>
                     {filteredCollections.map((c) => {
                       const title = (c.title ?? "").trim() || "Coleção";
-                      // Sempre mostrar owner quando USER_PROFILE (mostra todas)
-                      // Quando TERREIRO_PAGE, só mostra collections desse terreiro, então não precisa label
-                      const ownerLabel =
-                        activeContext.kind === "USER_PROFILE"
-                          ? getCollectionOwnerLabel(c)
-                          : "";
+                      // SEMPRE mostra o label do terreiro quando aplicável
+                      const ownerLabel = getCollectionOwnerLabel(c);
 
                       return (
                         <Pressable
@@ -999,7 +999,7 @@ const styles = StyleSheet.create({
   sheetActionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-end",
     minHeight: 44,
     marginBottom: spacing.sm,
   },

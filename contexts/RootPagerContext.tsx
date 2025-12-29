@@ -16,6 +16,8 @@ type RootPagerContextValue = {
   activeKey: RootPagerTabKey;
   setActiveKey: (key: RootPagerTabKey) => void;
   routes: readonly RootPagerRoute[];
+  isBottomSheetOpen: boolean;
+  setIsBottomSheetOpen: (open: boolean) => void;
 };
 
 const RootPagerContext = createContext<RootPagerContextValue | null>(null);
@@ -34,6 +36,7 @@ function clampIndex(nextIndex: number) {
 
 export function RootPagerProvider({ children }: { children: React.ReactNode }) {
   const [index, setIndexState] = useState(0);
+  const [isBottomSheetOpen, setIsBottomSheetOpen] = useState(false);
 
   const setIndex = useCallback((nextIndex: number) => {
     setIndexState(clampIndex(nextIndex));
@@ -55,8 +58,10 @@ export function RootPagerProvider({ children }: { children: React.ReactNode }) {
       activeKey,
       setActiveKey,
       routes: ROUTES,
+      isBottomSheetOpen,
+      setIsBottomSheetOpen,
     }),
-    [activeKey, index, setActiveKey, setIndex]
+    [activeKey, index, setActiveKey, setIndex, isBottomSheetOpen]
   );
 
   return (
