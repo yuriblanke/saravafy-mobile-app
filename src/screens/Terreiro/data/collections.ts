@@ -66,37 +66,6 @@ export async function fetchCollectionsDoTerreiro(terreiroId: string) {
       collection_id?: string | null;
     }[];
 
-    if (__DEV__) {
-      console.info("[Terreiro] pontos: rows", {
-        collections: ids.length,
-        sampleCollectionIds: ids.slice(0, 5),
-        rows: rows.length,
-        totalCount:
-          typeof pontosRes.count === "number" ? pontosRes.count : null,
-      });
-    }
-
-    if (__DEV__ && rows.length === 0) {
-      const probe = await supabase
-        .from("collections_pontos")
-        .select("collection_id")
-        .limit(5);
-
-      console.info("[Terreiro] pontos: probe", {
-        ok: !probe.error,
-        error:
-          probe.error && typeof probe.error.message === "string"
-            ? probe.error.message
-            : probe.error
-            ? String(probe.error)
-            : null,
-        rows: Array.isArray(probe.data) ? probe.data.length : 0,
-        sample: Array.isArray(probe.data)
-          ? probe.data.map((r) => (r as any)?.collection_id).slice(0, 5)
-          : [],
-      });
-    }
-
     const counts = new Map<string, number>();
     for (const row of rows) {
       const id =

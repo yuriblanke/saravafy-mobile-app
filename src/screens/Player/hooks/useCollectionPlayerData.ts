@@ -80,8 +80,8 @@ export function useCollectionPlayerData(
   const [error, setError] = useState<string | null>(null);
 
   const isEmpty = useMemo(
-    () => !isLoading && !error && items.length === 0,
-    [isLoading, error, items.length]
+    () => enabled && !isLoading && !error && items.length === 0,
+    [enabled, isLoading, error, items.length]
   );
 
   const load = useCallback(async () => {
@@ -223,7 +223,7 @@ export function useCollectionPlayerData(
     } finally {
       setIsLoading(false);
     }
-  }, [collectionId, isAllMode, query]);
+  }, [collectionId, enabled, isAllMode, query]);
 
   useEffect(() => {
     load();
