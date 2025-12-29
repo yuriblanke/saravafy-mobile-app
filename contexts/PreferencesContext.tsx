@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
+import * as NavigationBar from "expo-navigation-bar";
 import React, {
   createContext,
   useContext,
@@ -611,14 +612,19 @@ export function PreferencesProvider({
 
     const buttonStyle = effectiveTheme === "dark" ? "light" : "dark";
 
-    (async () => {
-      try {
-        const NavigationBar = await import("expo-navigation-bar");
-        await NavigationBar.setButtonStyleAsync(buttonStyle);
-      } catch {
+    // Guard: avoid setting navigation bar style too frequently (can trigger Metro rebuild loop)
+    let cancelled = false;
+    const timeoutId = setTimeout(() => {
+      if (cancelled) return;
+      NavigationBar.setButtonStyleAsync(buttonStyle).catch(() => {
         // Sem ação: em um dev client antigo, o módulo nativo pode não estar presente.
-      }
-    })();
+      });
+    }, 100);
+
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
   }, [effectiveTheme]);
 
   const setThemeMode = (mode: ThemeMode) => {
