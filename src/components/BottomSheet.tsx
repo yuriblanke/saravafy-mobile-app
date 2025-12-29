@@ -100,30 +100,41 @@ export function BottomSheet({
 
     return PanResponder.create({
       onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
+        // Bloqueia fechamento se usuário está rolando conteúdo (scrollY > 0)
+        // Apenas permite fechar se scroll está no topo (scrollY === 0) e movimento é para baixo
         if (scrollYRef.current > 0) return false;
+        
+        // Requer movimento vertical significativo para baixo e mínimo movimento horizontal
         return gesture.dy > 6 && Math.abs(gesture.dx) < 12;
       },
       onMoveShouldSetPanResponder: (_evt, gesture) => {
+        // Mesma lógica para onMoveShouldSetPanResponder
         if (scrollYRef.current > 0) return false;
         return gesture.dy > 6 && Math.abs(gesture.dx) < 12;
       },
       onPanResponderMove: (_evt, gesture) => {
+        // Apenas permite arrastar para baixo (dy > 0)
         if (gesture.dy <= 0) return;
         translateY.setValue(gesture.dy);
       },
       onPanResponderRelease: (_evt, gesture) => {
+        // Fecha se:
+        // - Arrastou mais de 90px para baixo, OU
+        // - Velocidade vertical para baixo > 0.75
         const shouldClose = gesture.dy > 90 || gesture.vy > 0.75;
         if (shouldClose) {
           closeBySwipe();
           return;
         }
 
+        // Caso contrário, retorna para posição original
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
         }).start();
       },
       onPanResponderTerminate: () => {
+        // Se gesto for interrompido, retorna para posição original
         Animated.spring(translateY, {
           toValue: 0,
           useNativeDriver: true,
@@ -189,9 +200,13 @@ export function BottomSheet({
           showsVerticalScrollIndicator={false}
           scrollEventThrottle={16}
           onScroll={(e) => {
+            // Rastreia posição do scroll para controlar fechamento do bottom sheet
+            // Se scrollY > 0, gesto de swipe para baixo rola o conteúdo ao invés de fechar
             const nextY = e.nativeEvent.contentOffset?.y ?? 0;
             scrollYRef.current = nextY > 0 ? nextY : 0;
           }}
+          // Permite scroll bouncing no topo para melhor UX
+          bounces={true}
         >
           <Pressable onPress={() => undefined}>{children}</Pressable>
         </ScrollView>

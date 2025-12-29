@@ -142,20 +142,23 @@ export default function Home() {
     rootPager.setIsBottomSheetOpen(false);
   }, [rootPager]);
 
-  const openAddToCollectionSheet = useCallback((ponto: Ponto) => {
-    // IMPORTANT: o sheet abre sem "piscar" loading.
-    // A lista é servida do cache (ou vazia) e refetch ocorre em background.
-    setIsCreateCollectionModalOpen(false);
-    setCreateCollectionTitle("");
-    setCreateCollectionError(null);
+  const openAddToCollectionSheet = useCallback(
+    (ponto: Ponto) => {
+      // IMPORTANT: o sheet abre sem "piscar" loading.
+      // A lista é servida do cache (ou vazia) e refetch ocorre em background.
+      setIsCreateCollectionModalOpen(false);
+      setCreateCollectionTitle("");
+      setCreateCollectionError(null);
 
-    setSelectedPonto(ponto);
-    setAddSuccess(false);
-    setAddError(null);
+      setSelectedPonto(ponto);
+      setAddSuccess(false);
+      setAddError(null);
 
-    setAddModalVisible(true);
-    rootPager.setIsBottomSheetOpen(true);
-  }, [rootPager]);
+      setAddModalVisible(true);
+      rootPager.setIsBottomSheetOpen(true);
+    },
+    [rootPager]
+  );
 
   const filteredCollections = useMemo(() => {
     if (!user?.id) return [] as AccountableCollection[];
