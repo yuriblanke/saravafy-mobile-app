@@ -1525,7 +1525,7 @@ export default function TerreiroEditor() {
                   style={[styles.adminHighlightText, { color: textPrimary }]}
                 >
                   {
-                    "Quanto mais pessoas colaborando, mais vivo fica o acervo do terreiro.\nConvide sua curimba para criar coleções, organizar pontos e compartilhar esse cuidado."
+                    "Quanto mais pessoas colaborando, mais vivo fica o acervo do terreiro."
                   }
                 </Text>
               </View>
