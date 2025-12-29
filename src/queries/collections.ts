@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./queryKeys";
 
 export type AccountableCollection = {
@@ -79,9 +79,13 @@ export async function fetchAccountableCollections(
               : null,
           terreiro_title: terreiroTitle,
           created_at:
-            typeof r.created_at === "string" ? r.created_at : new Date().toISOString(),
+            typeof r.created_at === "string"
+              ? r.created_at
+              : new Date().toISOString(),
           updated_at:
-            typeof r.updated_at === "string" ? r.updated_at : new Date().toISOString(),
+            typeof r.updated_at === "string"
+              ? r.updated_at
+              : new Date().toISOString(),
         };
       })
       .filter(Boolean) as AccountableCollection[];

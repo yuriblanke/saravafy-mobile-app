@@ -19,8 +19,12 @@ import {
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
-import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { prefetchAccountableCollections } from "@/src/queries/collections";
+import {
+  QueryClient,
+  QueryClientProvider,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 export {
   // Catch any errors thrown by the Layout component.

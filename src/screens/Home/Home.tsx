@@ -1,14 +1,13 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   FlatList,
@@ -18,15 +17,16 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  createCollection,
-} from "./data/collections";
+import { createCollection } from "./data/collections";
 import { addPontoToCollection } from "./data/collections_pontos";
 import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
 
+import {
+  useAccountableCollections,
+  type AccountableCollection,
+} from "@/src/queries/collections";
 import { queryKeys } from "@/src/queries/queryKeys";
-import { useAccountableCollections, type AccountableCollection } from "@/src/queries/collections";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -72,7 +72,7 @@ export function getLyricsPreview(lyrics: string, maxLines = 6) {
 
 export default function Home() {
   // Adapta o padrão de tema igual Terreiros
-  const { effectiveTheme } =
+  const { effectiveTheme, activeContext } =
     require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -87,12 +87,7 @@ export default function Home() {
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
 
-  const [collectionFilter, setCollectionFilter] = useState<
-    "ALL" | "ME" | string
-  >("ALL");
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
-
-  const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
 
   const [isCreateCollectionModalOpen, setIsCreateCollectionModalOpen] =
     useState(false);
@@ -137,79 +132,44 @@ export default function Home() {
     ? getErrorMessage(accountableCollectionsQuery.error)
     : null;
 
-  // Derivar lista de terreiros únicos das coleções (para filtro)
-  const allowedTerreiros = useMemo(() => {
-    const terreiroMap = new Map<string, string>();
-    allCollections.forEach((c) => {
-      if (c.owner_terreiro_id && c.terreiro_title) {
-        terreiroMap.set(c.owner_terreiro_id, c.terreiro_title);
-      }
-    });
-    return Array.from(terreiroMap.entries())
-      .map(([id, title]) => ({ terreiro_id: id, terreiro_title: title }))
-      .sort((a, b) => a.terreiro_title.localeCompare(b.terreiro_title));
-  }, [allCollections]);
-
   const closeAddToCollectionSheet = useCallback(() => {
     setAddModalVisible(false);
-    setIsFilterModalOpen(false);
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
   }, []);
 
-  const openAddToCollectionSheet = useCallback(
-    (ponto: Ponto) => {
-      // IMPORTANT: o sheet abre sem "piscar" loading.
-      // A lista é servida do cache (ou vazia) e refetch ocorre em background.
-      setCollectionFilter("ALL");
-      setIsFilterModalOpen(false);
-      setIsCreateCollectionModalOpen(false);
-      setCreateCollectionTitle("");
-      setCreateCollectionError(null);
+  const openAddToCollectionSheet = useCallback((ponto: Ponto) => {
+    // IMPORTANT: o sheet abre sem "piscar" loading.
+    // A lista é servida do cache (ou vazia) e refetch ocorre em background.
+    setIsCreateCollectionModalOpen(false);
+    setCreateCollectionTitle("");
+    setCreateCollectionError(null);
 
-      setSelectedPonto(ponto);
-      setAddSuccess(false);
-      setAddError(null);
+    setSelectedPonto(ponto);
+    setAddSuccess(false);
+    setAddError(null);
 
-      setAddModalVisible(true);
-    },
-    []
-  );
-
-  const filterItems: SelectItem[] = useMemo(() => {
-    return [
-      { key: "ALL", label: "Todos", value: "ALL" },
-      { key: "ME", label: "Você", value: "ME" },
-      ...allowedTerreiros.map((t) => ({
-        key: t.terreiro_id,
-        label: t.terreiro_title,
-        value: t.terreiro_id,
-      })),
-    ];
-  }, [allowedTerreiros]);
-
-  const collectionFilterLabel = useMemo(() => {
-    if (collectionFilter === "ALL") return "Todos";
-    if (collectionFilter === "ME") return "Você";
-    const found = allowedTerreiros.find(
-      (t) => t.terreiro_id === collectionFilter
-    );
-    return found?.terreiro_title ?? "Terreiro";
-  }, [allowedTerreiros, collectionFilter]);
+    setAddModalVisible(true);
+  }, []);
 
   const filteredCollections = useMemo(() => {
     if (!user?.id) return [] as AccountableCollection[];
 
-    if (collectionFilter === "ME") {
-      return allCollections.filter((c) => c.owner_user_id === user.id);
+    // REGRA DE PRODUTO: filtrar por perfil ativo (não por filtro manual do modal)
+    // Se perfil = USER_PROFILE (pessoal): mostrar TODAS as collections visíveis
+    // Se perfil = TERREIRO_PAGE: mostrar APENAS collections desse terreiro
+    
+    if (activeContext.kind === "USER_PROFILE") {
+      // Perfil pessoal: mostrar TODAS as collections (pessoais + terreiros)
+      return allCollections;
     }
 
-    if (collectionFilter === "ALL") return allCollections;
-
-    // Terreiro específico
-    return allCollections.filter((c) => c.owner_terreiro_id === collectionFilter);
-  }, [allCollections, collectionFilter, user?.id]);
+    // Perfil = TERREIRO_PAGE: filtrar por terreiro ativo
+    return allCollections.filter(
+      (c) => c.owner_terreiro_id === activeContext.terreiroId
+    );
+  }, [allCollections, activeContext, user?.id]);
 
   const getCollectionOwnerLabel = (c: AccountableCollection) => {
     if (!user?.id) return "";
@@ -237,10 +197,9 @@ export default function Home() {
     setIsCreatingCollection(true);
     setCreateCollectionError(null);
 
+    // Owner baseado no perfil ativo (não no filtro manual)
     const ownerTerreiroId =
-      collectionFilter !== "ALL" && collectionFilter !== "ME"
-        ? collectionFilter
-        : null;
+      activeContext.kind === "TERREIRO_PAGE" ? activeContext.terreiroId : null;
     const ownerUserId = ownerTerreiroId ? null : user.id;
 
     const created = await createCollection({
@@ -257,11 +216,13 @@ export default function Home() {
     }
 
     // Atualizar cache global de coleções
-    queryClient.invalidateQueries({ queryKey: queryKeys.collections.accountable() });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.collections.accountable(),
+    });
 
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
-  }, [queryClient, collectionFilter, createCollectionTitle, user?.id]);
+  }, [queryClient, activeContext, createCollectionTitle, user?.id]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -529,31 +490,6 @@ export default function Home() {
               <View style={styles.sheetActionsRow}>
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => setIsFilterModalOpen(true)}
-                  style={({ pressed }) => [
-                    styles.filterBtn,
-                    pressed ? styles.filterBtnPressed : null,
-                  ]}
-                >
-                  <Ionicons
-                    name="funnel-outline"
-                    size={16}
-                    color={textSecondary}
-                  />
-                  <Text
-                    style={[styles.filterBtnText, { color: textSecondary }]}
-                  >
-                    {collectionFilterLabel}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={textSecondary}
-                  />
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
                   onPress={openCreateCollection}
                   disabled={isCreatingCollection}
                   style={({ pressed }) => [
@@ -599,8 +535,10 @@ export default function Home() {
                   <View style={styles.sheetList}>
                     {filteredCollections.map((c) => {
                       const title = (c.title ?? "").trim() || "Coleção";
+                      // Sempre mostrar owner quando USER_PROFILE (mostra todas)
+                      // Quando TERREIRO_PAGE, só mostra collections desse terreiro, então não precisa label
                       const ownerLabel =
-                        collectionFilter === "ALL"
+                        activeContext.kind === "USER_PROFILE"
                           ? getCollectionOwnerLabel(c)
                           : "";
 
@@ -686,23 +624,6 @@ export default function Home() {
           )}
         </View>
       </BottomSheet>
-
-      <SelectModal
-        title="Contexto"
-        visible={isFilterModalOpen}
-        variant={variant}
-        items={filterItems}
-        onClose={() => setIsFilterModalOpen(false)}
-        onSelect={(value) => {
-          const v = String(value);
-          if (v === "ALL" || v === "ME") {
-            setCollectionFilter(v);
-            return;
-          }
-          // Terreiro
-          setCollectionFilter(v);
-        }}
-      />
 
       <BottomSheet
         visible={isCreateCollectionModalOpen}
