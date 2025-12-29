@@ -296,6 +296,30 @@ export default function Home() {
       <View style={styles.screen}>
         <AppHeaderWithPreferences />
         <View style={styles.container}>
+          <View style={styles.submitRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar ponto"
+              onPress={() => {
+                if (!user) {
+                  router.push("/login");
+                  return;
+                }
+                setSubmitModalVisible(true);
+              }}
+              style={({ pressed }) => [
+                styles.submitButton,
+                pressed ? styles.submitButtonPressed : null,
+              ]}
+              hitSlop={10}
+            >
+              <View style={styles.submitButtonInner}>
+                <Ionicons name="add" size={14} color={colors.brass600} />
+                <Text style={styles.submitButtonText}>Enviar ponto</Text>
+              </View>
+            </Pressable>
+          </View>
+
           <View style={styles.searchWrap}>
             <View
               style={[
@@ -328,26 +352,6 @@ export default function Home() {
                 </Pressable>
               ) : null}
             </View>
-          </View>
-
-          <View style={styles.submitRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enviar ponto"
-              onPress={() => {
-                if (!user) {
-                  router.push("/login");
-                  return;
-                }
-                setSubmitModalVisible(true);
-              }}
-              style={({ pressed }) => [
-                styles.submitButton,
-                pressed ? styles.submitButtonPressed : null,
-              ]}
-            >
-              <Text style={styles.submitButtonText}>+ Enviar ponto</Text>
-            </Pressable>
           </View>
 
           {isLoading ? (
@@ -551,10 +555,16 @@ export default function Home() {
                     size={16}
                     color={textSecondary}
                   />
-                  <Text style={[styles.filterBtnText, { color: textSecondary }]}>
+                  <Text
+                    style={[styles.filterBtnText, { color: textSecondary }]}
+                  >
                     {collectionFilterLabel}
                   </Text>
-                  <Ionicons name="chevron-down" size={16} color={textSecondary} />
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={textSecondary}
+                  />
                 </Pressable>
 
                 <Pressable
@@ -567,7 +577,9 @@ export default function Home() {
                     isCreatingCollection ? styles.btnDisabled : null,
                   ]}
                 >
-                  <Text style={styles.newCollectionCtaText}>+ Nova coleção</Text>
+                  <Text style={styles.newCollectionCtaText}>
+                    + Nova coleção
+                  </Text>
                 </Pressable>
               </View>
 
@@ -836,23 +848,26 @@ const styles = StyleSheet.create({
   submitRow: {
     paddingHorizontal: spacing.lg,
     paddingTop: 0,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.xs,
   },
   submitButton: {
     alignSelf: "flex-end",
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.brass600,
-    paddingVertical: 6,
-    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: "center",
+    paddingHorizontal: 4,
     backgroundColor: "transparent",
+  },
+  submitButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   submitButtonPressed: {
     opacity: 0.9,
   },
   submitButtonText: {
     color: colors.brass600,
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: "900",
   },
   bodyText: {
