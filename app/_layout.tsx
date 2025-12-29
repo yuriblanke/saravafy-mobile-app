@@ -5,7 +5,7 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { useRouter, Slot, useSegments } from "expo-router";
+import { useRouter, Slot, useSegments, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useMemo, useRef, useState } from "react";
 import "react-native-reanimated";
@@ -78,7 +78,7 @@ function RootLayoutNav() {
   const { themeMode, isReady, bootstrapStartPage, setActiveContext } =
     usePreferences();
   const { user, isLoading } = useAuth();
-  const segments = useSegments();
+  const pathname = usePathname();
   const router = useRouter();
 
   useEffect(() => {
@@ -99,206 +99,153 @@ function RootLayoutNav() {
     setActiveContextRef.current = setActiveContext;
   }, [setActiveContext]);
 
-  const [bootTarget, setBootTarget] = useState<
-    | { href: "/login"; params?: undefined }
-    | { href: "/"; params?: undefined }
-    | {
-        href: "/terreiro";
-        params: {
-          bootStart?: string;
-          bootOffline?: string;
-          terreiroId?: string;
-          terreiroTitle?: string;
-        };
-      }
-    | null
-  >(null);
+  // LATCHES: Boot e navegação devem acontecer apenas 1x por cold start
+  const didCompleteBootRef = useRef(false);
+  const didNavigateRef = useRef(false);
 
   const [bootComplete, setBootComplete] = useState(false);
 
-  const lastBootRunRef = useRef<number>(0);
-  const lastIsLoadingRef = useRef(isLoading);
-  const lastIsReadyRef = useRef(isReady);
-  const bootDebounceMs = 100; // Prevent boot effect from running more than once per 100ms
-
-  // `useSegments()` can get a narrowed union type depending on route typings.
-  // We intentionally treat segments as strings because we compare against
-  // literal route names (including "index"), and we don't want TS narrowing
-  // to create impossible-looking comparisons.
-  const firstSegment = segments[0] as string | undefined;
-  const inAuthGroup = firstSegment === "(auth)";
-  const inAppGroup = firstSegment === "(app)";
-  const routeSegment = segments[1] as string | undefined;
-
+  // Boot effect: decide tela inicial APENAS 1x quando auth e prefs estiverem prontos
   useEffect(() => {
-    let cancelled = false;
+    // Se boot já foi completado, nunca mais rodar
+    if (didCompleteBootRef.current) {
+      console.log("[Boot] SKIP: boot já completado anteriormente");
+      return;
+    }
+
+    // Aguardar auth e preferências estarem prontos
+    if (isLoading) {
+      console.log("[Boot] aguardando isLoading=false", { pathname });
+      return;
+    }
+    if (!isReady) {
+      console.log("[Boot] aguardando isReady=true", { pathname });
+      return;
+    }
+
+    console.log("[Boot] EXECUTANDO boot inicial", {
+      hasUser: !!user?.id,
+      pathname,
+    });
 
     const run = async () => {
       try {
-        const now = Date.now();
-        
-        // Reset debounce timer when critical states change (isLoading/isReady transitions)
-        const criticalStateChanged = 
-          lastIsLoadingRef.current !== isLoading || 
-          lastIsReadyRef.current !== isReady;
-        
-        if (criticalStateChanged) {
-          console.log("[Boot] critical state changed, reset debounce", {
-            isLoading: { prev: lastIsLoadingRef.current, now: isLoading },
-            isReady: { prev: lastIsReadyRef.current, now: isReady },
-          });
-          lastBootRunRef.current = 0; // Reset debounce
-          lastIsLoadingRef.current = isLoading;
-          lastIsReadyRef.current = isReady;
-        }
-        
-        if (now - lastBootRunRef.current < bootDebounceMs) {
-          console.log("[Boot] SKIP: debounce ativo", {
-            elapsed: now - lastBootRunRef.current,
-          });
-          return;
-        }
-        lastBootRunRef.current = now;
-
-        console.log("[Boot] RODANDO", {
-          isLoading,
-          isReady,
-          hasUser: !!user?.id,
-          segments: segments.join("/"),
-        });
-
-        if (isLoading) {
-          console.log("[Boot] aguardando isLoading=false");
-          return;
-        }
-        if (!isReady) {
-          console.log("[Boot] aguardando isReady=true");
-          return;
-        }
-
-        // Reavaliou as condições de boot (ex.: login/logout/preferências carregadas):
-        // volta para o modo de boot até chegar no destino inicial.
-        if (!cancelled) {
-          console.log("[Boot] setBootComplete(false)");
-          setBootComplete(false);
-        }
+        let preferredHref: "/(app)" | "/login" | "/terreiro" = "/(app)";
+        let terreiroParams:
+          | {
+              bootStart?: string;
+              bootOffline?: string;
+              terreiroId?: string;
+              terreiroTitle?: string;
+            }
+          | undefined;
 
         if (!user?.id) {
           // Sem sessão: sempre login.
-          console.log("[Boot] sem user, indo para /login");
+          console.log("[Boot] sem user, preferredHref=/login");
+          preferredHref = "/login";
           setActiveContextRef.current({ kind: "USER_PROFILE" });
-          if (!cancelled) setBootTarget({ href: "/login" });
-          return;
-        }
-
-        console.log("[Boot] chamando bootstrapStartPage", { userId: user.id });
-
-        const decision = await bootstrapStartPageRef.current(user.id);
-        if (cancelled) return;
-
-        console.log("[Boot] decisão:", {
-          preferredHref: decision.preferredHref,
-          hasContext: !!decision.terreiroContext,
-        });
-
-        if (
-          decision.preferredHref === "/terreiro" &&
-          decision.terreiroContext
-        ) {
-          console.log("[Boot] setBootTarget -> /terreiro", {
-            terreiroId: decision.terreiroContext.terreiroId,
-          });
-          setActiveContextRef.current({
-            kind: "TERREIRO_PAGE",
-            terreiroId: decision.terreiroContext.terreiroId,
-            terreiroName: decision.terreiroContext.terreiroName,
-            terreiroAvatarUrl: decision.terreiroContext.terreiroAvatarUrl,
-            role: decision.terreiroContext.role,
+        } else {
+          console.log("[Boot] chamando bootstrapStartPage", {
+            userId: user.id,
           });
 
-          setBootTarget({
-            href: "/terreiro",
-            params: {
+          const decision = await bootstrapStartPageRef.current(user.id);
+
+          console.log("[Boot] decisão:", {
+            preferredHref: decision.preferredHref,
+            hasContext: !!decision.terreiroContext,
+          });
+
+          if (
+            decision.preferredHref === "/terreiro" &&
+            decision.terreiroContext
+          ) {
+            preferredHref = "/terreiro";
+            terreiroParams = {
               bootStart: "1",
               bootOffline: decision.terreiroContext.usedOfflineSnapshot
                 ? "1"
                 : "0",
               terreiroId: decision.terreiroContext.terreiroId,
               terreiroTitle: decision.terreiroContext.terreiroName,
-            },
+            };
+            setActiveContextRef.current({
+              kind: "TERREIRO_PAGE",
+              terreiroId: decision.terreiroContext.terreiroId,
+              terreiroName: decision.terreiroContext.terreiroName,
+              terreiroAvatarUrl: decision.terreiroContext.terreiroAvatarUrl,
+              role: decision.terreiroContext.role,
+            });
+          } else {
+            preferredHref = "/(app)";
+            setActiveContextRef.current({ kind: "USER_PROFILE" });
+          }
+        }
+
+        // Marcar boot como completo ANTES de navegar
+        didCompleteBootRef.current = true;
+        console.log("[Boot] didCompleteBootRef travado em true");
+
+        // Checar se já estamos no target usando pathname
+        const isAlreadyAtTarget =
+          (preferredHref === "/login" && pathname === "/login") ||
+          (preferredHref === "/(app)" && pathname === "/(app)") ||
+          (preferredHref === "/terreiro" && pathname === "/terreiro");
+
+        if (isAlreadyAtTarget) {
+          console.log("[Boot] já em pathname correto, sem navegação", {
+            pathname,
+            preferredHref,
           });
+          didNavigateRef.current = true;
+          setBootComplete(true);
+          SplashScreen.hideAsync().catch(() => undefined);
           return;
         }
 
-        console.log("[Boot] setBootTarget -> /");
-        setActiveContextRef.current({ kind: "USER_PROFILE" });
-        setBootTarget({ href: "/" });
+        // Guard: se já navegamos, não navegar de novo
+        if (didNavigateRef.current) {
+          console.log("[Boot] navegação já realizada, skip", { pathname });
+          setBootComplete(true);
+          SplashScreen.hideAsync().catch(() => undefined);
+          return;
+        }
+
+        // Navegar para target
+        console.log("[Boot] navegando para preferredHref:", preferredHref);
+        didNavigateRef.current = true;
+
+        if (preferredHref === "/terreiro" && terreiroParams) {
+          router.replace({ pathname: "/terreiro", params: terreiroParams });
+        } else {
+          router.replace(preferredHref);
+        }
+
+        // Após navegar, marcar como completo
+        setBootComplete(true);
+        SplashScreen.hideAsync().catch(() => undefined);
       } catch (error) {
-        // IMPORTANT: unhandled promise rejections here can trigger reload loops in Dev Client.
         console.error("[Boot] erro ao decidir tela inicial", error);
+        // Em caso de erro, marcar como completo mesmo assim para não ficar em loop
+        didCompleteBootRef.current = true;
+        setBootComplete(true);
+        SplashScreen.hideAsync().catch(() => undefined);
       }
     };
 
     void run();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [isLoading, isReady, user?.id]);
+  }, [isLoading, isReady, user?.id, pathname, router]);
 
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;
-
-  const isAtTarget = useMemo(() => {
-    if (!bootTarget) return false;
-
-    if (bootTarget.href === "/login") {
-      return inAuthGroup && routeSegment === "login";
-    }
-
-    if (bootTarget.href === "/") {
-      return (
-        inAppGroup && (routeSegment === undefined || routeSegment === "index")
-      );
-    }
-
-    return inAppGroup && routeSegment === "terreiro";
-  }, [bootTarget, inAppGroup, inAuthGroup, routeSegment]);
-
-  useEffect(() => {
-    console.log("[Boot] isAtTarget mudou:", {
-      bootTarget: bootTarget?.href,
-      isAtTarget,
-      segments: segments.join("/"),
-    });
-
-    if (!bootTarget) return;
-    if (isAtTarget) {
-      // Assim que chegamos no destino inicial, liberamos navegação normal.
-      console.log("[Boot] chegou no target! setBootComplete(true)");
-      setBootComplete(true);
-      SplashScreen.hideAsync().catch(() => undefined);
-      return;
-    }
-
-    // Não estamos no target: navegar programaticamente em vez de usar <Redirect>
-    // para evitar unmount/remount da árvore inteira.
-    console.log("[Boot] navegando para target:", bootTarget.href);
-    if (bootTarget.href === "/terreiro" && bootTarget.params) {
-      router.replace({ pathname: "/terreiro", params: bootTarget.params });
-    } else {
-      router.replace(bootTarget.href as any);
-    }
-    // NOTE: NÃO incluir segments/router nas dependências - causaria loop infinito
-    // pois router.replace() muda segments, re-executando este effect antes de isAtTarget atualizar.
-  }, [bootTarget, isAtTarget]);
 
   return (
     <ThemeProvider
       value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
     >
       <InviteGate />
-      {bootTarget && (bootComplete || isAtTarget) ? <Slot /> : null}
+      {bootComplete ? <Slot /> : null}
     </ThemeProvider>
   );
 }

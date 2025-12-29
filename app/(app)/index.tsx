@@ -1,13 +1,20 @@
 import { useRootPager } from "@/contexts/RootPagerContext";
 import Home from "@/src/screens/Home/Home";
 import Terreiros from "@/src/screens/Terreiros/Terreiros";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { useWindowDimensions, View } from "react-native";
 import { TabView } from "react-native-tab-view";
 
 export default function RootPager() {
   const ctx = useRootPager();
   const { width } = useWindowDimensions();
+
+  useEffect(() => {
+    console.log("[Route] /(app) -> RootPager (Home + Terreiros TabView)");
+    return () => {
+      console.log("[RootPager] DESMONTADO");
+    };
+  }, []);
 
   const routes = useMemo(() => {
     return (

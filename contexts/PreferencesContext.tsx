@@ -457,7 +457,7 @@ type PreferencesContextValue = {
   startPagePreference: StartPagePreference;
   hasStartPagePreference: boolean;
   bootstrapStartPage: (userId: string) => Promise<{
-    preferredHref: "/" | "/terreiro";
+    preferredHref: "/(app)" | "/terreiro";
     terreiroContext?: {
       terreiroId: string;
       terreiroName?: string;
@@ -932,7 +932,7 @@ export function PreferencesProvider({
         };
       }
 
-      return { preferredHref: "/" as const };
+      return { preferredHref: "/(app)" as const };
     }
 
     // Online: atualizar estado local da preferência (backend) e snapshot válido.
@@ -940,7 +940,7 @@ export function PreferencesProvider({
 
     if (!pref || pref.type !== "TERREIRO") {
       persistStartPageSnapshot(null).catch(() => undefined);
-      return { preferredHref: "/" as const };
+      return { preferredHref: "/(app)" as const };
     }
 
     const terreiroInfo = await validateTerreiroAccess(pref.terreiroId);
@@ -949,7 +949,7 @@ export function PreferencesProvider({
       setStartPagePreference(null);
       persistStartPageSnapshot(null).catch(() => undefined);
       persistStartPageToBackend(userId, null).catch(() => undefined);
-      return { preferredHref: "/" as const };
+      return { preferredHref: "/(app)" as const };
     }
 
     const role = await fetchTerreiroRole(userId, pref.terreiroId);
