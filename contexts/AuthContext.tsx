@@ -203,22 +203,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
-        console.log(
-          "[Auth] Sessão inicial:",
-          session ? "existe" : "não existe"
-        );
-        console.log("[Auth] setSession + setUser", {
-          hasSession: !!session,
-          userId: session?.user?.id,
-        });
         setSession(session);
         setUser(session?.user ?? null);
-        console.log("[Auth] setIsLoading(false) [getSession]");
         setIsLoading(false);
       })
       .catch((error) => {
         console.error("[Auth] Erro ao obter sessão inicial:", error);
-        console.log("[Auth] setIsLoading(false) [getSession error]");
         setIsLoading(false);
       });
 
@@ -250,18 +240,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log(
-        "[Auth] state change:",
-        event,
-        session ? "sessão existe" : "sem sessão"
-      );
-      console.log("[Auth] setSession + setUser", {
-        hasSession: !!session,
-        userId: session?.user?.id,
-      });
       setSession(session);
       setUser(session?.user ?? null);
-      console.log("[Auth] setIsLoading(false) [onAuthStateChange]");
       setIsLoading(false);
     });
 

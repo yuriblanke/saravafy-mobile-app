@@ -10,6 +10,20 @@ import { Stack, useSegments } from "expo-router";
 import React, { useMemo } from "react";
 import { View } from "react-native";
 
+/**
+ * AppLayout - Layout principal do grupo (app)
+ * 
+ * RESPONSABILIDADES:
+ * - Envolve todas as telas com SaravafyScreen (gradiente/textura de fundo)
+ * - Renderiza AppHeaderWithPreferences globalmente (exceto em modais full-screen)
+ * - Provê RootPagerContext para controle do swipe Pontos ↔ Terreiros
+ * - Define Stack para navegação profunda (/player, /terreiro, /collection, etc.)
+ * 
+ * DECISÕES DE DESIGN:
+ * - animation: "none" no Stack para evitar "vazamento" visual do gradiente durante transições
+ * - Header global aparece em todas as rotas exceto terreiro-editor e access-manager (modais)
+ * - backgroundColor: "transparent" no Stack para deixar o SaravafyScreen aparecer
+ */
 export default function AppLayout() {
   const { effectiveTheme, activeContext } = usePreferences();
   const { user } = useAuth();

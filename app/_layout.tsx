@@ -50,13 +50,6 @@ export default function RootLayout() {
     if (error) throw error;
   }, [error]);
 
-  useEffect(() => {
-    console.log("[RootLayout] MONTADO");
-    return () => {
-      console.log("[RootLayout] DESMONTADO");
-    };
-  }, []);
-
   if (!loaded) {
     return null;
   }
@@ -83,13 +76,6 @@ function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
-
-  useEffect(() => {
-    console.log("[RootLayoutNav] MONTADO");
-    return () => {
-      console.log("[RootLayoutNav] DESMONTADO");
-    };
-  }, []);
 
   const bootstrapStartPageRef = useRef(bootstrapStartPage);
   const setActiveContextRef = useRef(setActiveContext);
@@ -118,11 +104,15 @@ function RootLayoutNav() {
 
     // Aguardar auth e preferências estarem prontos
     if (isLoading) {
-      console.log("[Boot] aguardando isLoading=false", { segments: segments.join("/") });
+      console.log("[Boot] aguardando isLoading=false", {
+        segments: segments.join("/"),
+      });
       return;
     }
     if (!isReady) {
-      console.log("[Boot] aguardando isReady=true", { segments: segments.join("/") });
+      console.log("[Boot] aguardando isReady=true", {
+        segments: segments.join("/"),
+      });
       return;
     }
 
@@ -145,20 +135,10 @@ function RootLayoutNav() {
 
         if (!user?.id) {
           // Sem sessão: sempre login.
-          console.log("[Boot] sem user, preferredHref=/login");
           preferredHref = "/login";
           setActiveContextRef.current({ kind: "USER_PROFILE" });
         } else {
-          console.log("[Boot] chamando bootstrapStartPage", {
-            userId: user.id,
-          });
-
           const decision = await bootstrapStartPageRef.current(user.id);
-
-          console.log("[Boot] decisão:", {
-            preferredHref: decision.preferredHref,
-            hasContext: !!decision.terreiroContext,
-          });
 
           if (
             decision.preferredHref === "/terreiro" &&
@@ -210,7 +190,9 @@ function RootLayoutNav() {
 
         // Guard: se já navegamos, não navegar de novo
         if (didNavigateRef.current) {
-          console.log("[Boot] navegação já realizada, skip", { segments: segments.join("/") });
+          console.log("[Boot] navegação já realizada, skip", {
+            segments: segments.join("/"),
+          });
           setBootComplete(true);
           SplashScreen.hideAsync().catch(() => undefined);
           return;
