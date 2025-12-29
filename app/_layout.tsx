@@ -101,10 +101,14 @@ function RootLayoutNav() {
 
   const [bootComplete, setBootComplete] = useState(false);
 
-  const firstSegment = segments[0];
+  // `useSegments()` can get a narrowed union type depending on route typings.
+  // We intentionally treat segments as strings because we compare against
+  // literal route names (including "index"), and we don't want TS narrowing
+  // to create impossible-looking comparisons.
+  const firstSegment = segments[0] as string | undefined;
   const inAuthGroup = firstSegment === "(auth)";
   const inAppGroup = firstSegment === "(app)";
-  const routeSegment = segments[1];
+  const routeSegment = segments[1] as string | undefined;
 
   useEffect(() => {
     let cancelled = false;
