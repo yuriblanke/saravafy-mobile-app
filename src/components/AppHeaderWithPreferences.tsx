@@ -15,6 +15,8 @@ import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { useRootPager } from "@/contexts/RootPagerContext";
+
 import { BottomSheet } from "@/src/components/BottomSheet";
 
 function getInitials(value: string | undefined) {
@@ -45,6 +47,7 @@ function getDisplayName(value: string | undefined) {
 export function AppHeaderWithPreferences() {
   const router = useRouter();
   const pathname = usePathname();
+  const rootPager = useRootPager();
   const { user, signOut } = useAuth();
   const { showToast } = useToast();
   const {
@@ -65,15 +68,22 @@ export function AppHeaderWithPreferences() {
 
   const variant = effectiveTheme;
 
+  const isOnRootPager = typeof pathname === "string" && pathname === "/";
+
   const isTerreirosActive =
-    typeof pathname === "string" &&
-    (pathname.startsWith("/terreiros") ||
-      pathname.startsWith("/terreiro") ||
-      // Mantém o underline em "Terreiros" ao navegar dentro das playlists
-      // de terreiros (collection/player), independente do contexto ativo.
-      pathname.startsWith("/collection") ||
-      pathname.startsWith("/player"));
-  const isPontosActive = !isTerreirosActive;
+    isOnRootPager && rootPager
+      ? rootPager.activeKey === "terreiros"
+      : typeof pathname === "string" &&
+        (pathname.startsWith("/terreiro") ||
+          // Mantém o underline em "Terreiros" ao navegar dentro das playlists
+          // de terreiros (collection/player), independente do contexto ativo.
+          pathname.startsWith("/collection") ||
+          pathname.startsWith("/player"));
+
+  const isPontosActive =
+    isOnRootPager && rootPager
+      ? rootPager.activeKey === "pontos"
+      : !isTerreirosActive;
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -184,7 +194,12 @@ export function AppHeaderWithPreferences() {
         <View style={styles.headerNav}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace("/home")}
+            onPress={() => {
+              rootPager?.setActiveKey("pontos");
+              if (!isOnRootPager) {
+                router.replace("/");
+              }
+            }}
             hitSlop={10}
             style={styles.navItem}
           >
@@ -214,7 +229,12 @@ export function AppHeaderWithPreferences() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.replace("/terreiros" as any)}
+            onPress={() => {
+              rootPager?.setActiveKey("terreiros");
+              if (!isOnRootPager) {
+                router.replace("/");
+              }
+            }}
             hitSlop={10}
             style={styles.navItem}
           >
@@ -311,7 +331,8 @@ export function AppHeaderWithPreferences() {
                   } catch {
                     // silêncio
                   }
-                  router.replace("/home");
+                  rootPager?.setActiveKey("pontos");
+                  router.replace("/");
                 }}
                 onPressEdit={() => {
                   setIsPreferencesOpen(false);

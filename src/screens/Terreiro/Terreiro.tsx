@@ -1,4 +1,5 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useRootPager } from "@/contexts/RootPagerContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -33,6 +34,7 @@ import {
 
 export default function Terreiro() {
   const router = useRouter();
+  const rootPager = useRootPager();
   const params = useLocalSearchParams<{
     bootStart?: string;
     bootOffline?: string;
@@ -143,8 +145,9 @@ export default function Terreiro() {
     if (activeContext.kind === "TERREIRO_PAGE") return;
     if (params.bootStart === "1") return;
 
-    router.replace("/home");
-  }, [activeContext.kind, params.bootStart, router]);
+    rootPager?.setActiveKey("pontos");
+    router.replace("/");
+  }, [activeContext.kind, params.bootStart, rootPager, router]);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,7 +166,8 @@ export default function Terreiro() {
 
         if (params.bootOffline === "1") {
           clearStartPageSnapshotOnly().catch(() => undefined);
-          router.replace("/home");
+          rootPager?.setActiveKey("pontos");
+          router.replace("/");
           return;
         }
 
@@ -186,6 +190,7 @@ export default function Terreiro() {
     clearStartPageSnapshotOnly,
     params.bootOffline,
     resolvedTerreiroId,
+    rootPager,
     router,
   ]);
 
@@ -388,309 +393,306 @@ export default function Terreiro() {
   return (
     <View style={styles.screen}>
       <View style={styles.container}>
-          <View style={styles.contextHeader}>
-            <View style={styles.titleRow}>
-              <View style={styles.titleLeft}>
-                <Text
-                  style={[styles.title, { color: textPrimary }]}
-                  numberOfLines={2}
-                >
-                  {terreiroName}
-                </Text>
-              </View>
-
-              <View style={styles.headerActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Abrir menu do terreiro"
-                  hitSlop={10}
-                  onPress={() => setIsTerreiroMenuOpen(true)}
-                  style={({ pressed }) => [
-                    styles.iconButton,
-                    pressed ? styles.iconButtonPressed : null,
-                  ]}
-                >
-                  <Ionicons
-                    name="ellipsis-vertical"
-                    size={20}
-                    color={textMuted}
-                  />
-                </Pressable>
-              </View>
+        <View style={styles.contextHeader}>
+          <View style={styles.titleRow}>
+            <View style={styles.titleLeft}>
+              <Text
+                style={[styles.title, { color: textPrimary }]}
+                numberOfLines={2}
+              >
+                {terreiroName}
+              </Text>
             </View>
-          </View>
 
-          <View style={styles.sectionGap} />
-
-          <View style={[styles.sectionTitleRow]}>
-            <Text style={[styles.sectionTitle, { color: textMuted }]}>
-              Coleções
-            </Text>
-            {canEdit && !creatingCollection && (
+            <View style={styles.headerActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Nova coleção"
+                accessibilityLabel="Abrir menu do terreiro"
                 hitSlop={10}
-                onPress={() => {
-                  // Cria um id temporário único
-                  const tempId = `new-${Date.now()}`;
-                  setCreatingCollection({ id: tempId, title: "", isNew: true });
-                  setEditingCollectionId(tempId);
-                  setDraftCollectionTitle("");
-                  setCollectionTitleSelection({ start: 0, end: 0 });
-                }}
+                onPress={() => setIsTerreiroMenuOpen(true)}
                 style={({ pressed }) => [
-                  styles.newCollectionButton,
+                  styles.iconButton,
                   pressed ? styles.iconButtonPressed : null,
                 ]}
               >
                 <Ionicons
-                  name="add"
-                  size={18}
-                  color={accentColor}
-                  style={{ marginRight: 4 }}
+                  name="ellipsis-vertical"
+                  size={20}
+                  color={textMuted}
                 />
-                <Text
-                  style={[
-                    styles.newCollectionButtonText,
-                    { color: accentColor },
-                  ]}
-                >
-                  Nova coleção
-                </Text>
               </Pressable>
-            )}
+            </View>
           </View>
+        </View>
 
-          <View style={styles.sectionGapSmall} />
+        <View style={styles.sectionGap} />
 
-          <ShareBottomSheet
-            visible={isShareOpen}
-            variant={variant}
-            message={shareMessage}
-            onClose={() => setIsShareOpen(false)}
-            showToast={showToast}
-          />
+        <View style={[styles.sectionTitleRow]}>
+          <Text style={[styles.sectionTitle, { color: textMuted }]}>
+            Coleções
+          </Text>
+          {canEdit && !creatingCollection && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Nova coleção"
+              hitSlop={10}
+              onPress={() => {
+                // Cria um id temporário único
+                const tempId = `new-${Date.now()}`;
+                setCreatingCollection({ id: tempId, title: "", isNew: true });
+                setEditingCollectionId(tempId);
+                setDraftCollectionTitle("");
+                setCollectionTitleSelection({ start: 0, end: 0 });
+              }}
+              style={({ pressed }) => [
+                styles.newCollectionButton,
+                pressed ? styles.iconButtonPressed : null,
+              ]}
+            >
+              <Ionicons
+                name="add"
+                size={18}
+                color={accentColor}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={[styles.newCollectionButtonText, { color: accentColor }]}
+              >
+                Nova coleção
+              </Text>
+            </Pressable>
+          )}
+        </View>
 
-          {isLoading ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          ) : error ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              {error}
-            </Text>
-          ) : collections.length === 0 && !creatingCollection ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Nenhuma coleção ainda.
-            </Text>
-          ) : (
-            <FlatList
-              data={
-                creatingCollection
-                  ? [creatingCollection, ...collections]
-                  : collections
-              }
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => {
-                const isEditingThisCollection = editingCollectionId === item.id;
-                const isNew = (item as any).isNew;
-                const name =
-                  ("title" in item &&
-                    typeof item.title === "string" &&
-                    item.title.trim()) ||
-                  "Coleção";
-                const pontosCount =
-                  "pontosCount" in item && typeof item.pontosCount === "number"
-                    ? item.pontosCount
-                    : 0;
+        <View style={styles.sectionGapSmall} />
 
-                // Navega para a tela de Collection
-                const handlePress = () => {
-                  if (!isEditingThisCollection && !isNew) {
-                    router.push({
-                      pathname: "/collection/[id]",
-                      params: {
-                        id: item.id,
-                        collectionId: item.id,
-                        collectionTitle: name,
-                      },
-                    });
-                  }
-                };
+        <ShareBottomSheet
+          visible={isShareOpen}
+          variant={variant}
+          message={shareMessage}
+          onClose={() => setIsShareOpen(false)}
+          showToast={showToast}
+        />
 
-                return (
-                  <View style={styles.cardGap}>
-                    <SurfaceCard variant={variant}>
-                      <Pressable
-                        onPress={handlePress}
-                        disabled={isEditingThisCollection || isNew}
-                        style={{ flex: 1 }}
-                      >
-                        <View style={styles.cardHeaderRow}>
-                          {isEditingThisCollection ? (
-                            <View
+        {isLoading ? (
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        ) : error ? (
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            {error}
+          </Text>
+        ) : collections.length === 0 && !creatingCollection ? (
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Nenhuma coleção ainda.
+          </Text>
+        ) : (
+          <FlatList
+            data={
+              creatingCollection
+                ? [creatingCollection, ...collections]
+                : collections
+            }
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => {
+              const isEditingThisCollection = editingCollectionId === item.id;
+              const isNew = (item as any).isNew;
+              const name =
+                ("title" in item &&
+                  typeof item.title === "string" &&
+                  item.title.trim()) ||
+                "Coleção";
+              const pontosCount =
+                "pontosCount" in item && typeof item.pontosCount === "number"
+                  ? item.pontosCount
+                  : 0;
+
+              // Navega para a tela de Collection
+              const handlePress = () => {
+                if (!isEditingThisCollection && !isNew) {
+                  router.push({
+                    pathname: "/collection/[id]",
+                    params: {
+                      id: item.id,
+                      collectionId: item.id,
+                      collectionTitle: name,
+                    },
+                  });
+                }
+              };
+
+              return (
+                <View style={styles.cardGap}>
+                  <SurfaceCard variant={variant}>
+                    <Pressable
+                      onPress={handlePress}
+                      disabled={isEditingThisCollection || isNew}
+                      style={{ flex: 1 }}
+                    >
+                      <View style={styles.cardHeaderRow}>
+                        {isEditingThisCollection ? (
+                          <View
+                            style={[
+                              styles.collectionEditWrap,
+                              {
+                                backgroundColor: titleInputBg,
+                                borderColor: titleInputBorder,
+                              },
+                            ]}
+                          >
+                            <TextInput
+                              ref={(node) => {
+                                collectionTitleInputRef.current = node;
+                              }}
+                              value={draftCollectionTitle}
+                              onChangeText={setDraftCollectionTitle}
                               style={[
-                                styles.collectionEditWrap,
-                                {
-                                  backgroundColor: titleInputBg,
-                                  borderColor: titleInputBorder,
-                                },
+                                styles.collectionTitleInput,
+                                { color: textPrimary },
                               ]}
-                            >
-                              <TextInput
-                                ref={(node) => {
-                                  collectionTitleInputRef.current = node;
-                                }}
-                                value={draftCollectionTitle}
-                                onChangeText={setDraftCollectionTitle}
-                                style={[
-                                  styles.collectionTitleInput,
-                                  { color: textPrimary },
-                                ]}
-                                placeholder="Nome da coleção"
-                                placeholderTextColor={textSecondary}
-                                selectionColor={accentColor}
-                                multiline={false}
-                                numberOfLines={1}
-                                autoCorrect={false}
-                                autoCapitalize="sentences"
-                                editable={!isSavingCollectionTitle}
-                                autoFocus
-                                selection={collectionTitleSelection}
-                                onSelectionChange={(e) => {
-                                  setCollectionTitleSelection(
-                                    e.nativeEvent.selection
-                                  );
-                                }}
-                                onSubmitEditing={() => {
-                                  if (isNew) {
-                                    saveNewCollection();
-                                  } else {
-                                    saveCollectionTitle(item.id);
-                                  }
-                                }}
-                              />
-                            </View>
-                          ) : (
-                            <Text
-                              style={[styles.cardTitle, { color: textPrimary }]}
-                              numberOfLines={2}
-                            >
-                              {name}
-                            </Text>
-                          )}
+                              placeholder="Nome da coleção"
+                              placeholderTextColor={textSecondary}
+                              selectionColor={accentColor}
+                              multiline={false}
+                              numberOfLines={1}
+                              autoCorrect={false}
+                              autoCapitalize="sentences"
+                              editable={!isSavingCollectionTitle}
+                              autoFocus
+                              selection={collectionTitleSelection}
+                              onSelectionChange={(e) => {
+                                setCollectionTitleSelection(
+                                  e.nativeEvent.selection
+                                );
+                              }}
+                              onSubmitEditing={() => {
+                                if (isNew) {
+                                  saveNewCollection();
+                                } else {
+                                  saveCollectionTitle(item.id);
+                                }
+                              }}
+                            />
+                          </View>
+                        ) : (
+                          <Text
+                            style={[styles.cardTitle, { color: textPrimary }]}
+                            numberOfLines={2}
+                          >
+                            {name}
+                          </Text>
+                        )}
 
-                          {canEdit && !isEditingThisCollection && !isNew ? (
+                        {canEdit && !isEditingThisCollection && !isNew ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Abrir menu da coleção"
+                            accessibilityHint="Opções: editar ou excluir"
+                            hitSlop={10}
+                            onPress={() => {
+                              openCollectionActions(item);
+                            }}
+                            style={({ pressed }) => [
+                              styles.menuButton,
+                              pressed ? styles.iconButtonPressed : null,
+                            ]}
+                          >
+                            <Ionicons
+                              name="ellipsis-vertical"
+                              size={18}
+                              color={accentColor}
+                            />
+                          </Pressable>
+                        ) : canEdit && isEditingThisCollection ? (
+                          <View style={styles.collectionEditActions}>
                             <Pressable
                               accessibilityRole="button"
-                              accessibilityLabel="Abrir menu da coleção"
-                              accessibilityHint="Opções: editar ou excluir"
+                              accessibilityLabel="Cancelar edição"
                               hitSlop={10}
                               onPress={() => {
-                                openCollectionActions(item);
+                                if (isNew) {
+                                  setCreatingCollection(null);
+                                  setEditingCollectionId(null);
+                                  setDraftCollectionTitle("");
+                                  setCollectionTitleSelection(undefined);
+                                } else {
+                                  cancelEditCollectionTitle();
+                                }
                               }}
+                              disabled={isSavingCollectionTitle}
                               style={({ pressed }) => [
-                                styles.menuButton,
+                                styles.collectionActionButton,
                                 pressed ? styles.iconButtonPressed : null,
+                                isSavingCollectionTitle
+                                  ? styles.iconButtonDisabled
+                                  : null,
                               ]}
                             >
                               <Ionicons
-                                name="ellipsis-vertical"
+                                name="close"
                                 size={18}
+                                color={textMuted}
+                              />
+                            </Pressable>
+
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Salvar título"
+                              hitSlop={10}
+                              onPress={() => {
+                                if (isNew) {
+                                  saveNewCollection();
+                                } else {
+                                  saveCollectionTitle(item.id);
+                                }
+                              }}
+                              disabled={isSavingCollectionTitle}
+                              style={({ pressed }) => [
+                                styles.collectionActionButton,
+                                pressed ? styles.iconButtonPressed : null,
+                                isSavingCollectionTitle
+                                  ? styles.iconButtonDisabled
+                                  : null,
+                              ]}
+                            >
+                              <Ionicons
+                                name="checkmark"
+                                size={20}
                                 color={accentColor}
                               />
                             </Pressable>
-                          ) : canEdit && isEditingThisCollection ? (
-                            <View style={styles.collectionEditActions}>
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel="Cancelar edição"
-                                hitSlop={10}
-                                onPress={() => {
-                                  if (isNew) {
-                                    setCreatingCollection(null);
-                                    setEditingCollectionId(null);
-                                    setDraftCollectionTitle("");
-                                    setCollectionTitleSelection(undefined);
-                                  } else {
-                                    cancelEditCollectionTitle();
-                                  }
+                            {isNew && newCollectionError ? (
+                              <Text
+                                style={{
+                                  color: dangerColor,
+                                  marginTop: 4,
+                                  fontSize: 13,
                                 }}
-                                disabled={isSavingCollectionTitle}
-                                style={({ pressed }) => [
-                                  styles.collectionActionButton,
-                                  pressed ? styles.iconButtonPressed : null,
-                                  isSavingCollectionTitle
-                                    ? styles.iconButtonDisabled
-                                    : null,
-                                ]}
                               >
-                                <Ionicons
-                                  name="close"
-                                  size={18}
-                                  color={textMuted}
-                                />
-                              </Pressable>
-
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel="Salvar título"
-                                hitSlop={10}
-                                onPress={() => {
-                                  if (isNew) {
-                                    saveNewCollection();
-                                  } else {
-                                    saveCollectionTitle(item.id);
-                                  }
-                                }}
-                                disabled={isSavingCollectionTitle}
-                                style={({ pressed }) => [
-                                  styles.collectionActionButton,
-                                  pressed ? styles.iconButtonPressed : null,
-                                  isSavingCollectionTitle
-                                    ? styles.iconButtonDisabled
-                                    : null,
-                                ]}
-                              >
-                                <Ionicons
-                                  name="checkmark"
-                                  size={20}
-                                  color={accentColor}
-                                />
-                              </Pressable>
-                              {isNew && newCollectionError ? (
-                                <Text
-                                  style={{
-                                    color: dangerColor,
-                                    marginTop: 4,
-                                    fontSize: 13,
-                                  }}
-                                >
-                                  {newCollectionError}
-                                </Text>
-                              ) : null}
-                            </View>
-                          ) : null}
-                        </View>
-                        <Text
-                          style={[
-                            styles.cardDescription,
-                            { color: textSecondary },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {pontosCount} pontos
-                        </Text>
-                      </Pressable>
-                    </SurfaceCard>
-                  </View>
-                );
-              }}
-            />
-          )}
-        </View>
+                                {newCollectionError}
+                              </Text>
+                            ) : null}
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={[
+                          styles.cardDescription,
+                          { color: textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {pontosCount} pontos
+                      </Text>
+                    </Pressable>
+                  </SurfaceCard>
+                </View>
+              );
+            }}
+          />
+        )}
+      </View>
 
       <BottomSheet
         visible={isCollectionActionsOpen}

@@ -73,7 +73,7 @@ function RootLayoutNav() {
 
   const [bootTarget, setBootTarget] = useState<
     | { href: "/login"; params?: undefined }
-    | { href: "/home"; params?: undefined }
+    | { href: "/"; params?: undefined }
     | {
         href: "/terreiro";
         params: {
@@ -138,7 +138,7 @@ function RootLayoutNav() {
       }
 
       setActiveContextRef.current({ kind: "USER_PROFILE" });
-      setBootTarget({ href: "/home" });
+      setBootTarget({ href: "/" });
     };
 
     run();
@@ -158,8 +158,10 @@ function RootLayoutNav() {
       return inAuthGroup && routeSegment === "login";
     }
 
-    if (bootTarget.href === "/home") {
-      return inAppGroup && routeSegment === "home";
+    if (bootTarget.href === "/") {
+      return (
+        inAppGroup && (routeSegment === undefined || routeSegment === "index")
+      );
     }
 
     return inAppGroup && routeSegment === "terreiro";

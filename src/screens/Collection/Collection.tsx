@@ -22,6 +22,8 @@ import {
   View,
 } from "react-native";
 
+import { useRootPager } from "@/contexts/RootPagerContext";
+
 type CollectionRow = {
   id: string;
   title?: string | null;
@@ -58,6 +60,7 @@ function getLyricsPreview(lyrics: string, maxLines = 4) {
 export default function Collection() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const rootPager = useRootPager();
 
   const { user } = useAuth();
 
@@ -262,7 +265,10 @@ export default function Collection() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.push("/home")}
+              onPress={() => {
+                rootPager?.setActiveKey("pontos");
+                router.replace("/");
+              }}
               style={({ pressed }) => [
                 styles.ctaButton,
                 pressed && styles.retryBtnPressed,

@@ -1,3 +1,16 @@
-import Terreiros from "../../src/screens/Terreiros/Terreiros";
+import { useRouter } from "expo-router";
+import { useEffect } from "react";
 
-export default Terreiros;
+import { useRootPager } from "@/contexts/RootPagerContext";
+
+export default function TerreirosRedirect() {
+  const router = useRouter();
+  const rootPager = useRootPager();
+
+  useEffect(() => {
+    rootPager.setActiveKey("terreiros");
+    router.replace("/");
+  }, [rootPager, router]);
+
+  return null;
+}
