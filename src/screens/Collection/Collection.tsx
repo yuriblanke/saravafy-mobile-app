@@ -1,7 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -179,327 +177,315 @@ export default function Collection() {
   const error = collectionError || pontosError;
 
   return (
-    <SaravafyScreen variant={variant}>
-      <View style={styles.screen}>
-        <AppHeaderWithPreferences />
+    <View style={styles.screen}>
+      <View style={styles.collectionHeader}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.headerIconBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={textPrimary} />
+        </Pressable>
 
-        <View style={styles.collectionHeader}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="chevron-back" size={22} color={textPrimary} />
-          </Pressable>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
 
-          <Text
-            style={[styles.headerTitle, { color: textPrimary }]}
-            numberOfLines={1}
-          >
-            {title}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Compartilhar"
+          onPress={() => setIsShareOpen(true)}
+          hitSlop={10}
+          style={styles.headerIconBtn}
+        >
+          <Ionicons name="share-outline" size={18} color={textPrimary} />
+        </Pressable>
+      </View>
+
+      <ShareBottomSheet
+        visible={isShareOpen}
+        variant={variant}
+        message={shareMessage}
+        onClose={() => setIsShareOpen(false)}
+        showToast={showToast}
+      />
+
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Carregando…
           </Text>
-
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            {error}
+          </Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Compartilhar"
-            onPress={() => setIsShareOpen(true)}
-            hitSlop={10}
-            style={styles.headerIconBtn}
+            onPress={() => {
+              loadCollection();
+              reloadPontos();
+              membership.reload();
+            }}
+            style={({ pressed }) => [
+              styles.retryBtn,
+              pressed && styles.retryBtnPressed,
+              variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
+            ]}
           >
-            <Ionicons name="share-outline" size={18} color={textPrimary} />
+            <Text style={[styles.retryText, { color: textPrimary }]}>
+              Tentar novamente
+            </Text>
           </Pressable>
         </View>
-
-        <ShareBottomSheet
-          visible={isShareOpen}
-          variant={variant}
-          message={shareMessage}
-          onClose={() => setIsShareOpen(false)}
-          showToast={showToast}
-        />
-
-        {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator />
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
+      ) : pontosEmpty ? (
+        <SurfaceCard variant={variant} style={styles.emptyCard}>
+          <View style={styles.emptyContent}>
+            <Ionicons
+              name="albums-outline"
+              size={48}
+              color={variant === "light" ? colors.forest500 : colors.forest400}
+              style={{ marginBottom: spacing.lg }}
+            />
+            <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+              Esta coleção ainda não tem pontos
             </Text>
-          </View>
-        ) : error ? (
-          <View style={styles.center}>
             <Text style={[styles.bodyText, { color: textSecondary }]}>
-              {error}
+              Para montar esta coleção, procure pontos e adicione os que fazem
+              sentido aqui.
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={() => {
-                loadCollection();
-                reloadPontos();
-                membership.reload();
-              }}
+              onPress={() => router.push("/home")}
               style={({ pressed }) => [
-                styles.retryBtn,
+                styles.ctaButton,
                 pressed && styles.retryBtnPressed,
                 variant === "light"
-                  ? styles.retryBtnLight
-                  : styles.retryBtnDark,
+                  ? styles.ctaButtonLight
+                  : styles.ctaButtonDark,
               ]}
             >
-              <Text style={[styles.retryText, { color: textPrimary }]}>
-                Tentar novamente
+              <Ionicons
+                name="search"
+                size={18}
+                color={variant === "light" ? colors.brass500 : colors.brass600}
+                style={{ marginRight: 8 }}
+              />
+              <Text
+                style={
+                  variant === "light" ? styles.ctaTextLight : styles.ctaTextDark
+                }
+              >
+                Buscar pontos
               </Text>
             </Pressable>
+            <Text style={[styles.emptyHint, { color: textMuted }]}>
+              Ao abrir um ponto, toque em “Adicionar à coleção” e selecione esta
+              coleção.
+            </Text>
           </View>
-        ) : pontosEmpty ? (
-          <SurfaceCard variant={variant} style={styles.emptyCard}>
-            <View style={styles.emptyContent}>
-              <Ionicons
-                name="albums-outline"
-                size={48}
-                color={
-                  variant === "light" ? colors.forest500 : colors.forest400
-                }
-                style={{ marginBottom: spacing.lg }}
-              />
-              <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                Esta coleção ainda não tem pontos
+        </SurfaceCard>
+      ) : isMembersOnly && !isMember ? (
+        <View style={styles.gateWrap}>
+          <SurfaceCard variant={variant} style={styles.gateCard}>
+            <Text style={[styles.gateTitle, { color: textPrimary }]}>
+              Coleção exclusiva para membros
+            </Text>
+
+            {!isLoggedIn ? (
+              <Text style={[styles.gateBody, { color: textSecondary }]}>
+                Entre para ver esta coleção.
               </Text>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Para montar esta coleção, procure pontos e adicione os que fazem
-                sentido aqui.
+            ) : isPendingView ? (
+              <Text style={[styles.gateBody, { color: textSecondary }]}>
+                Pedido enviado (pendente). Assim que for aprovado, você terá
+                acesso.
               </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => router.push("/home")}
-                style={({ pressed }) => [
-                  styles.ctaButton,
-                  pressed && styles.retryBtnPressed,
-                  variant === "light"
-                    ? styles.ctaButtonLight
-                    : styles.ctaButtonDark,
-                ]}
-              >
-                <Ionicons
-                  name="search"
-                  size={18}
-                  color={
-                    variant === "light" ? colors.brass500 : colors.brass600
-                  }
-                  style={{ marginRight: 8 }}
-                />
-                <Text
-                  style={
+            ) : (
+              <Text style={[styles.gateBody, { color: textSecondary }]}>
+                Para acessar, peça para se tornar membro do terreiro.
+              </Text>
+            )}
+
+            <View style={styles.gateActions}>
+              {!isLoggedIn ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => router.push("/login")}
+                  style={({ pressed }) => [
+                    styles.gatePrimaryBtn,
+                    pressed ? styles.gateBtnPressed : null,
                     variant === "light"
-                      ? styles.ctaTextLight
-                      : styles.ctaTextDark
-                  }
+                      ? styles.gatePrimaryBtnLight
+                      : styles.gatePrimaryBtnDark,
+                  ]}
                 >
-                  Buscar pontos
-                </Text>
-              </Pressable>
-              <Text style={[styles.emptyHint, { color: textMuted }]}>
-                Ao abrir um ponto, toque em “Adicionar à coleção” e selecione
-                esta coleção.
+                  <Text
+                    style={
+                      variant === "light"
+                        ? styles.gatePrimaryTextLight
+                        : styles.gatePrimaryTextDark
+                    }
+                  >
+                    Entrar para ver esta coleção
+                  </Text>
+                </Pressable>
+              ) : isPendingView ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    showToast("Cancelamento de pedido: TODO (backend).")
+                  }
+                  style={({ pressed }) => [
+                    styles.gateSecondaryBtn,
+                    pressed ? styles.gateBtnPressed : null,
+                    {
+                      borderColor:
+                        variant === "light"
+                          ? colors.surfaceCardBorderLight
+                          : colors.surfaceCardBorder,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[styles.gateSecondaryText, { color: textPrimary }]}
+                  >
+                    Cancelar pedido
+                  </Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={
+                    createRequest.isCreating ||
+                    membership.isLoading ||
+                    !terreiroId
+                  }
+                  onPress={async () => {
+                    if (!user?.id) {
+                      router.push("/login");
+                      return;
+                    }
+
+                    if (!terreiroId) {
+                      showToast("Não foi possível identificar o terreiro.");
+                      return;
+                    }
+
+                    if (membership.data.isActiveMember) {
+                      showToast("Você já é membro deste terreiro.");
+                      return;
+                    }
+
+                    const result = await createRequest.create();
+                    if (result.ok) {
+                      showToast(
+                        result.alreadyExisted
+                          ? "Pedido já enviado (pendente)."
+                          : "Pedido enviado (pendente)."
+                      );
+                      await membership.reload();
+                      return;
+                    }
+
+                    showToast(
+                      "Não foi possível enviar o pedido agora. Tente novamente."
+                    );
+                  }}
+                  style={({ pressed }) => [
+                    styles.gatePrimaryBtn,
+                    pressed ? styles.gateBtnPressed : null,
+                    createRequest.isCreating ? styles.gateBtnPressed : null,
+                    variant === "light"
+                      ? styles.gatePrimaryBtnLight
+                      : styles.gatePrimaryBtnDark,
+                  ]}
+                >
+                  <Text
+                    style={
+                      variant === "light"
+                        ? styles.gatePrimaryTextLight
+                        : styles.gatePrimaryTextDark
+                    }
+                  >
+                    Se tornar membro
+                  </Text>
+                </Pressable>
+              )}
+            </View>
+          </SurfaceCard>
+
+          <SurfaceCard variant={variant} style={styles.lockedCard}>
+            <View style={styles.lockedRow}>
+              <Ionicons
+                name="lock-closed"
+                size={18}
+                color={textMuted}
+                style={{ marginRight: 10 }}
+              />
+              <Text style={[styles.lockedText, { color: textSecondary }]}>
+                Conteúdo disponível apenas para membros.
               </Text>
             </View>
           </SurfaceCard>
-        ) : isMembersOnly && !isMember ? (
-          <View style={styles.gateWrap}>
-            <SurfaceCard variant={variant} style={styles.gateCard}>
-              <Text style={[styles.gateTitle, { color: textPrimary }]}>
-                Coleção exclusiva para membros
-              </Text>
-
-              {!isLoggedIn ? (
-                <Text style={[styles.gateBody, { color: textSecondary }]}>
-                  Entre para ver esta coleção.
-                </Text>
-              ) : isPendingView ? (
-                <Text style={[styles.gateBody, { color: textSecondary }]}>
-                  Pedido enviado (pendente). Assim que for aprovado, você terá
-                  acesso.
-                </Text>
-              ) : (
-                <Text style={[styles.gateBody, { color: textSecondary }]}>
-                  Para acessar, peça para se tornar membro do terreiro.
-                </Text>
-              )}
-
-              <View style={styles.gateActions}>
-                {!isLoggedIn ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => router.push("/login")}
-                    style={({ pressed }) => [
-                      styles.gatePrimaryBtn,
-                      pressed ? styles.gateBtnPressed : null,
-                      variant === "light"
-                        ? styles.gatePrimaryBtnLight
-                        : styles.gatePrimaryBtnDark,
-                    ]}
-                  >
-                    <Text
-                      style={
-                        variant === "light"
-                          ? styles.gatePrimaryTextLight
-                          : styles.gatePrimaryTextDark
-                      }
-                    >
-                      Entrar para ver esta coleção
-                    </Text>
-                  </Pressable>
-                ) : isPendingView ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      showToast("Cancelamento de pedido: TODO (backend).")
-                    }
-                    style={({ pressed }) => [
-                      styles.gateSecondaryBtn,
-                      pressed ? styles.gateBtnPressed : null,
-                      {
-                        borderColor:
-                          variant === "light"
-                            ? colors.surfaceCardBorderLight
-                            : colors.surfaceCardBorder,
+        </View>
+      ) : (
+        <FlatList
+          data={orderedItems}
+          keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
+          contentContainerStyle={styles.listContent}
+          renderItem={({ item }) => {
+            const preview = getLyricsPreview(item.ponto.lyrics);
+            return (
+              <View style={styles.cardGap}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    router.push({
+                      pathname: "/player",
+                      params: {
+                        collectionId,
+                        initialPontoId: item.ponto.id,
                       },
-                    ]}
-                  >
+                    });
+                  }}
+                >
+                  <SurfaceCard variant={variant}>
                     <Text
-                      style={[styles.gateSecondaryText, { color: textPrimary }]}
+                      style={[styles.itemTitle, { color: textPrimary }]}
+                      numberOfLines={2}
                     >
-                      Cancelar pedido
+                      {item.ponto.title}
                     </Text>
-                  </Pressable>
-                ) : (
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={
-                      createRequest.isCreating ||
-                      membership.isLoading ||
-                      !terreiroId
-                    }
-                    onPress={async () => {
-                      if (!user?.id) {
-                        router.push("/login");
-                        return;
-                      }
 
-                      if (!terreiroId) {
-                        showToast("Não foi possível identificar o terreiro.");
-                        return;
-                      }
+                    {item.ponto.tags.length > 0 ? (
+                      <View style={styles.tagsWrap}>
+                        {item.ponto.tags.map((t) => (
+                          <TagChip key={t} label={t} variant={variant} />
+                        ))}
+                      </View>
+                    ) : null}
 
-                      if (membership.data.isActiveMember) {
-                        showToast("Você já é membro deste terreiro.");
-                        return;
-                      }
-
-                      const result = await createRequest.create();
-                      if (result.ok) {
-                        showToast(
-                          result.alreadyExisted
-                            ? "Pedido já enviado (pendente)."
-                            : "Pedido enviado (pendente)."
-                        );
-                        await membership.reload();
-                        return;
-                      }
-
-                      showToast(
-                        "Não foi possível enviar o pedido agora. Tente novamente."
-                      );
-                    }}
-                    style={({ pressed }) => [
-                      styles.gatePrimaryBtn,
-                      pressed ? styles.gateBtnPressed : null,
-                      createRequest.isCreating ? styles.gateBtnPressed : null,
-                      variant === "light"
-                        ? styles.gatePrimaryBtnLight
-                        : styles.gatePrimaryBtnDark,
-                    ]}
-                  >
                     <Text
-                      style={
-                        variant === "light"
-                          ? styles.gatePrimaryTextLight
-                          : styles.gatePrimaryTextDark
-                      }
+                      style={[styles.preview, { color: textSecondary }]}
+                      numberOfLines={6}
                     >
-                      Se tornar membro
+                      {preview}
                     </Text>
-                  </Pressable>
-                )}
+                  </SurfaceCard>
+                </Pressable>
               </View>
-            </SurfaceCard>
-
-            <SurfaceCard variant={variant} style={styles.lockedCard}>
-              <View style={styles.lockedRow}>
-                <Ionicons
-                  name="lock-closed"
-                  size={18}
-                  color={textMuted}
-                  style={{ marginRight: 10 }}
-                />
-                <Text style={[styles.lockedText, { color: textSecondary }]}>
-                  Conteúdo disponível apenas para membros.
-                </Text>
-              </View>
-            </SurfaceCard>
-          </View>
-        ) : (
-          <FlatList
-            data={orderedItems}
-            keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-            contentContainerStyle={styles.listContent}
-            renderItem={({ item }) => {
-              const preview = getLyricsPreview(item.ponto.lyrics);
-              return (
-                <View style={styles.cardGap}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      router.push({
-                        pathname: "/player",
-                        params: {
-                          collectionId,
-                          initialPontoId: item.ponto.id,
-                        },
-                      });
-                    }}
-                  >
-                    <SurfaceCard variant={variant}>
-                      <Text
-                        style={[styles.itemTitle, { color: textPrimary }]}
-                        numberOfLines={2}
-                      >
-                        {item.ponto.title}
-                      </Text>
-
-                      {item.ponto.tags.length > 0 ? (
-                        <View style={styles.tagsWrap}>
-                          {item.ponto.tags.map((t) => (
-                            <TagChip key={t} label={t} variant={variant} />
-                          ))}
-                        </View>
-                      ) : null}
-
-                      <Text
-                        style={[styles.preview, { color: textSecondary }]}
-                        numberOfLines={6}
-                      >
-                        {preview}
-                      </Text>
-                    </SurfaceCard>
-                  </Pressable>
-                </View>
-              );
-            }}
-          />
-        )}
-      </View>
-    </SaravafyScreen>
+            );
+          }}
+        />
+      )}
+    </View>
   );
 }
 

@@ -1,7 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -463,115 +461,111 @@ export default function Terreiros() {
   }, [terreiros, searchQuery]);
 
   return (
-    <SaravafyScreen variant={variant}>
-      <View style={styles.screen}>
-        <AppHeaderWithPreferences />
+    <View style={styles.screen}>
+      <View style={styles.container}>
+        {/* Título removido conforme solicitado */}
+        <View style={styles.searchWrap}>
+          <View
+            style={[
+              styles.searchInputWrap,
+              variant === "light"
+                ? styles.searchInputWrapLight
+                : styles.searchInputWrapDark,
+            ]}
+          >
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar terreiro pelo nome"
+              placeholderTextColor={textSecondary}
+              style={[styles.searchInput, { color: textPrimary }]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="never"
+            />
 
-        <View style={styles.container}>
-          {/* Título removido conforme solicitado */}
-          <View style={styles.searchWrap}>
-            <View
-              style={[
-                styles.searchInputWrap,
-                variant === "light"
-                  ? styles.searchInputWrapLight
-                  : styles.searchInputWrapDark,
-              ]}
-            >
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Buscar terreiro pelo nome"
-                placeholderTextColor={textSecondary}
-                style={[styles.searchInput, { color: textPrimary }]}
-                autoCapitalize="none"
-                autoCorrect={false}
-                clearButtonMode="never"
-              />
-
-              {searchQuery.length > 0 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setSearchQuery("")}
-                  style={styles.clearButton}
-                  hitSlop={10}
-                >
-                  <Text style={[styles.clearButtonText, { color: textMuted }]}>
-                    ×
-                  </Text>
-                </Pressable>
-              ) : null}
-            </View>
-          </View>
-
-          {isLoading ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          ) : error ? (
-            <View style={styles.errorBlock}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                {error}
-              </Text>
+            {searchQuery.length > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={load}
-                style={[
-                  styles.retryBtn,
-                  variant === "light"
-                    ? styles.retryBtnLight
-                    : styles.retryBtnDark,
-                ]}
+                onPress={() => setSearchQuery("")}
+                style={styles.clearButton}
+                hitSlop={10}
               >
-                <Text style={[styles.retryText, { color: textPrimary }]}>
-                  Tentar novamente
+                <Text style={[styles.clearButtonText, { color: textMuted }]}>
+                  ×
                 </Text>
               </Pressable>
-            </View>
-          ) : filteredTerreiros.length === 0 ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Nenhum terreiro encontrado.
-            </Text>
-          ) : (
-            <FlatList
-              data={filteredTerreiros}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              keyboardShouldPersistTaps="handled"
-              renderItem={({ item }) => {
-                const expanded = expandedTerreiroId === item.id;
-                return (
-                  <View style={styles.cardGap}>
-                    <TerreiroCard
-                      item={item}
-                      variant={variant}
-                      textPrimary={textPrimary}
-                      textSecondary={textSecondary}
-                      textMuted={textMuted}
-                      expanded={expanded}
-                      onToggleExpanded={() => toggleExpanded(item.id)}
-                      onOpenCollections={() => {
-                        const name =
-                          (typeof item.name === "string" && item.name.trim()) ||
-                          "Terreiro";
-                        setActiveContext({
-                          kind: "TERREIRO_PAGE",
-                          terreiroId: item.id,
-                          terreiroName: name,
-                          terreiroAvatarUrl: item.coverImageUrl,
-                          role: item.role ?? "follower",
-                        });
-                        router.push("/terreiro");
-                      }}
-                    />
-                  </View>
-                );
-              }}
-            />
-          )}
+            ) : null}
+          </View>
         </View>
+
+        {isLoading ? (
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        ) : error ? (
+          <View style={styles.errorBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              {error}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={load}
+              style={[
+                styles.retryBtn,
+                variant === "light"
+                  ? styles.retryBtnLight
+                  : styles.retryBtnDark,
+              ]}
+            >
+              <Text style={[styles.retryText, { color: textPrimary }]}>
+                Tentar novamente
+              </Text>
+            </Pressable>
+          </View>
+        ) : filteredTerreiros.length === 0 ? (
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Nenhum terreiro encontrado.
+          </Text>
+        ) : (
+          <FlatList
+            data={filteredTerreiros}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            renderItem={({ item }) => {
+              const expanded = expandedTerreiroId === item.id;
+              return (
+                <View style={styles.cardGap}>
+                  <TerreiroCard
+                    item={item}
+                    variant={variant}
+                    textPrimary={textPrimary}
+                    textSecondary={textSecondary}
+                    textMuted={textMuted}
+                    expanded={expanded}
+                    onToggleExpanded={() => toggleExpanded(item.id)}
+                    onOpenCollections={() => {
+                      const name =
+                        (typeof item.name === "string" && item.name.trim()) ||
+                        "Terreiro";
+                      setActiveContext({
+                        kind: "TERREIRO_PAGE",
+                        terreiroId: item.id,
+                        terreiroName: name,
+                        terreiroAvatarUrl: item.coverImageUrl,
+                        role: item.role ?? "follower",
+                      });
+                      router.push("/terreiro");
+                    }}
+                  />
+                </View>
+              );
+            }}
+          />
+        )}
       </View>
-    </SaravafyScreen>
+    </View>
   );
 }
 

@@ -1,4 +1,3 @@
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -137,95 +136,6 @@ export default function PlayerScreen() {
 
   if (isLoading) {
     return (
-      <SaravafyScreen variant={variant}>
-        <View style={styles.screen}>
-          <View style={styles.header}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Ionicons name="chevron-back" size={22} color={textPrimary} />
-            </Pressable>
-          </View>
-          <View style={styles.loadingCenter}>
-            <ActivityIndicator />
-            <Text style={[styles.loadingText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          </View>
-        </View>
-      </SaravafyScreen>
-    );
-  }
-
-  if (error) {
-    return (
-      <SaravafyScreen variant={variant}>
-        <View style={styles.screen}>
-          <View style={styles.header}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Ionicons name="chevron-back" size={22} color={textPrimary} />
-            </Pressable>
-          </View>
-
-          <View style={styles.loadingCenter}>
-            <Text style={[styles.errorText, { color: textSecondary }]}>
-              {error}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={reload}
-              style={({ pressed }) => [
-                styles.retryBtn,
-                pressed && styles.retryBtnPressed,
-                variant === "light"
-                  ? styles.retryBtnLight
-                  : styles.retryBtnDark,
-              ]}
-            >
-              <Text style={[styles.retryText, { color: textPrimary }]}>
-                Tentar novamente
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </SaravafyScreen>
-    );
-  }
-
-  if (isEmpty) {
-    return (
-      <SaravafyScreen variant={variant}>
-        <View style={styles.screen}>
-          <View style={styles.header}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => router.back()}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Ionicons name="chevron-back" size={22} color={textPrimary} />
-            </Pressable>
-          </View>
-          <View style={styles.loadingCenter}>
-            <Text style={[styles.errorText, { color: textSecondary }]}>
-              Collection vazia.
-            </Text>
-          </View>
-        </View>
-      </SaravafyScreen>
-    );
-  }
-
-  return (
-    <SaravafyScreen variant={variant}>
       <View style={styles.screen}>
         <View style={styles.header}>
           <Pressable
@@ -236,101 +146,174 @@ export default function PlayerScreen() {
           >
             <Ionicons name="chevron-back" size={22} color={textPrimary} />
           </Pressable>
+        </View>
+        <View style={styles.loadingCenter}>
+          <ActivityIndicator />
+          <Text style={[styles.loadingText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
-          <View style={styles.headerRight}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Compartilhar"
-              onPress={() => setIsShareOpen(true)}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Ionicons name="share-outline" size={18} color={textPrimary} />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Diminuir fonte"
-              onPress={onDecreaseFont}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Text style={[styles.fontBtnText, { color: textPrimary }]}>
-                A-
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Aumentar fonte"
-              onPress={onIncreaseFont}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Text style={[styles.fontBtnText, { color: textPrimary }]}>
-                A+
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Buscar ponto"
-              onPress={() => setIsSearchOpen(true)}
-              hitSlop={10}
-              style={styles.headerIconBtn}
-            >
-              <Ionicons name="search" size={18} color={textPrimary} />
-            </Pressable>
-          </View>
+  if (error) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="chevron-back" size={22} color={textPrimary} />
+          </Pressable>
         </View>
 
-        <View style={styles.body}>
-          <FlatList
-            ref={(node) => {
-              flatListRef.current = node;
-            }}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            data={items}
-            keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-            renderItem={({ item }) => (
-              <View style={{ width }}>
-                <PlayerContent
-                  ponto={item.ponto}
-                  variant={variant}
-                  lyricsFontSize={lyricsFontSize}
-                />
-              </View>
-            )}
-            onMomentumScrollEnd={(e) => {
-              const nextIndex = Math.round(
-                e.nativeEvent.contentOffset.x / width
-              );
-              if (Number.isFinite(nextIndex)) setActiveIndex(nextIndex);
-            }}
-            getItemLayout={getItemLayout}
-            initialScrollIndex={initialIndex}
-          />
+        <View style={styles.loadingCenter}>
+          <Text style={[styles.errorText, { color: textSecondary }]}>
+            {error}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={reload}
+            style={({ pressed }) => [
+              styles.retryBtn,
+              pressed && styles.retryBtnPressed,
+              variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
+            ]}
+          >
+            <Text style={[styles.retryText, { color: textPrimary }]}>
+              Tentar novamente
+            </Text>
+          </Pressable>
         </View>
+      </View>
+    );
+  }
 
-        <AudioPlayerFooter ponto={activePonto} variant={variant} />
+  if (isEmpty) {
+    return (
+      <View style={styles.screen}>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="chevron-back" size={22} color={textPrimary} />
+          </Pressable>
+        </View>
+        <View style={styles.loadingCenter}>
+          <Text style={[styles.errorText, { color: textSecondary }]}>
+            Collection vazia.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
-        <PlayerSearchModal
-          visible={isSearchOpen}
-          variant={variant}
-          onClose={() => setIsSearchOpen(false)}
-        />
+  return (
+    <View style={styles.screen}>
+      <View style={styles.header}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.headerIconBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={textPrimary} />
+        </Pressable>
 
-        <ShareBottomSheet
-          visible={isShareOpen}
-          variant={variant}
-          message={shareMessage}
-          onClose={() => setIsShareOpen(false)}
-          showToast={showToast}
+        <View style={styles.headerRight}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar"
+            onPress={() => setIsShareOpen(true)}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="share-outline" size={18} color={textPrimary} />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Diminuir fonte"
+            onPress={onDecreaseFont}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Text style={[styles.fontBtnText, { color: textPrimary }]}>A-</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Aumentar fonte"
+            onPress={onIncreaseFont}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Text style={[styles.fontBtnText, { color: textPrimary }]}>A+</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Buscar ponto"
+            onPress={() => setIsSearchOpen(true)}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="search" size={18} color={textPrimary} />
+          </Pressable>
+        </View>
+      </View>
+
+      <View style={styles.body}>
+        <FlatList
+          ref={(node) => {
+            flatListRef.current = node;
+          }}
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          data={items}
+          keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
+          renderItem={({ item }) => (
+            <View style={{ width }}>
+              <PlayerContent
+                ponto={item.ponto}
+                variant={variant}
+                lyricsFontSize={lyricsFontSize}
+              />
+            </View>
+          )}
+          onMomentumScrollEnd={(e) => {
+            const nextIndex = Math.round(e.nativeEvent.contentOffset.x / width);
+            if (Number.isFinite(nextIndex)) setActiveIndex(nextIndex);
+          }}
+          getItemLayout={getItemLayout}
+          initialScrollIndex={initialIndex}
         />
       </View>
-    </SaravafyScreen>
+
+      <AudioPlayerFooter ponto={activePonto} variant={variant} />
+
+      <PlayerSearchModal
+        visible={isSearchOpen}
+        variant={variant}
+        onClose={() => setIsSearchOpen(false)}
+      />
+
+      <ShareBottomSheet
+        visible={isShareOpen}
+        variant={variant}
+        message={shareMessage}
+        onClose={() => setIsShareOpen(false)}
+        showToast={showToast}
+      />
+    </View>
   );
 }
 

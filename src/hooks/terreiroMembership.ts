@@ -372,11 +372,16 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
         })
         .filter(Boolean) as PendingRequestRow[];
 
-      const ids = mapped.map((m) => m.user_id);
-      const profiles = await fetchProfilesByIds(ids);
-
       setItems(mapped);
-      setProfilesById(profiles);
+
+      try {
+        const ids = mapped.map((m) => m.user_id);
+        const profiles = await fetchProfilesByIds(ids);
+        setProfilesById(profiles);
+      } catch (e) {
+        setProfilesById({});
+      }
+
       return mapped;
     } catch (e) {
       setItems([]);
@@ -592,11 +597,16 @@ export function useTerreiroMembers(terreiroId: string) {
         })
         .filter(Boolean) as TerreiroMemberRow[];
 
-      const ids = mapped.map((m) => m.user_id);
-      const profiles = await fetchProfilesByIds(ids);
-
       setItems(mapped);
-      setProfilesById(profiles);
+
+      try {
+        const ids = mapped.map((m) => m.user_id);
+        const profiles = await fetchProfilesByIds(ids);
+        setProfilesById(profiles);
+      } catch (e) {
+        setProfilesById({});
+      }
+
       return mapped;
     } catch (e) {
       setItems([]);

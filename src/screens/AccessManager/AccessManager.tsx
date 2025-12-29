@@ -1,9 +1,7 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import {
@@ -366,49 +364,47 @@ export default function AccessManager() {
   );
 
   return (
-    <SaravafyScreen variant={variant}>
-      <View style={styles.screen}>
-        <AppHeaderWithPreferences />
+    <View style={styles.screen}>
+      <View style={styles.headerRow}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.headerIconBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={textPrimary} />
+        </Pressable>
 
-        <View style={styles.headerRow}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="chevron-back" size={22} color={textPrimary} />
-          </Pressable>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
+          Gerenciar acesso
+        </Text>
 
-          <Text
-            style={[styles.headerTitle, { color: textPrimary }]}
-            numberOfLines={1}
-          >
-            Gerenciar acesso
+        <View style={styles.headerIconBtn} />
+      </View>
+
+      <View style={styles.content}>
+        <View style={styles.contextHeader}>
+          <Text style={[styles.title, { color: textPrimary }]}>
+            {terreiroTitle}
           </Text>
-
-          <View style={styles.headerIconBtn} />
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            Pessoas, pedidos e convites em um lugar só
+          </Text>
         </View>
 
-        <View style={styles.content}>
-          <SurfaceCard variant={variant} style={styles.titleCard}>
-            <Text style={[styles.title, { color: textPrimary }]}>
-              {terreiroTitle}
-            </Text>
-            <Text style={[styles.subtitle, { color: textSecondary }]}>
-              Pessoas, pedidos e convites em um lugar só.
+        {!canSeeManager ? (
+          <SurfaceCard variant={variant} style={styles.noticeCard}>
+            <Text style={[styles.noticeText, { color: textSecondary }]}>
+              Esta tela é para Admins e Editors. (Layout pronto; regras finais
+              de permissão serão conectadas depois.)
             </Text>
           </SurfaceCard>
+        ) : null}
 
-          {!canSeeManager ? (
-            <SurfaceCard variant={variant} style={styles.noticeCard}>
-              <Text style={[styles.noticeText, { color: textSecondary }]}>
-                Esta tela é para Admins e Editors. (Layout pronto; regras finais
-                de permissão serão conectadas depois.)
-              </Text>
-            </SurfaceCard>
-          ) : null}
-
+        <SurfaceCard variant={variant} style={styles.managerCard}>
           <PreferencesRadioGroup
             variant={variant}
             value={tab}
@@ -422,75 +418,94 @@ export default function AccessManager() {
                 <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                   Pessoas
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setIsInviteSheetOpen(true)}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    pressed ? styles.btnPressed : null,
-                    variant === "light"
-                      ? styles.primaryBtnLight
-                      : styles.primaryBtnDark,
-                  ]}
-                >
-                  <Text
-                    style={
+                {canSeeManager ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setIsInviteSheetOpen(true)}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      pressed ? styles.btnPressed : null,
                       variant === "light"
-                        ? styles.primaryBtnTextLight
-                        : styles.primaryBtnTextDark
-                    }
+                        ? styles.primaryBtnLight
+                        : styles.primaryBtnDark,
+                    ]}
                   >
-                    Convidar pessoa
-                  </Text>
-                </Pressable>
+                    <Text
+                      style={
+                        variant === "light"
+                          ? styles.primaryBtnTextLight
+                          : styles.primaryBtnTextDark
+                      }
+                    >
+                      Convidar pessoa
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
 
-              {peopleItems.map((p) => (
-                <SurfaceCard
-                  key={p.id}
-                  variant={variant}
-                  style={styles.itemCard}
-                >
-                  <View style={styles.itemRow}>
-                    <View style={styles.itemMeta}>
-                      <Text style={[styles.itemTitle, { color: textPrimary }]}>
-                        {p.name}
-                      </Text>
-                      {p.email ? (
-                        <Text style={[styles.itemSub, { color: textMuted }]}>
-                          {p.email}
-                        </Text>
-                      ) : null}
-                    </View>
-
-                    <View
-                      style={[
-                        styles.rolePill,
-                        {
-                          borderColor:
-                            variant === "light"
-                              ? colors.surfaceCardBorderLight
-                              : colors.surfaceCardBorder,
-                        },
-                      ]}
-                    >
-                      <Text
-                        style={[styles.rolePillText, { color: textSecondary }]}
-                      >
-                        {roleLabel(p.role)}
-                      </Text>
-                    </View>
-                  </View>
+              {isLoadingMembers ? (
+                <SurfaceCard variant={variant} style={styles.noticeCard}>
+                  <Text style={[styles.noticeText, { color: textSecondary }]}>
+                    Carregando pessoas...
+                  </Text>
                 </SurfaceCard>
-              ))}
+              ) : membersError ? (
+                <SurfaceCard variant={variant} style={styles.noticeCard}>
+                  <Text style={[styles.noticeText, { color: textSecondary }]}>
+                    Não foi possível carregar pessoas.
+                  </Text>
+                </SurfaceCard>
+              ) : peopleItems.length === 0 ? (
+                <SurfaceCard variant={variant} style={styles.noticeCard}>
+                  <Text style={[styles.noticeText, { color: textSecondary }]}>
+                    Ainda não tem ninguém aqui.
+                  </Text>
+                </SurfaceCard>
+              ) : (
+                peopleItems.map((p) => (
+                  <SurfaceCard
+                    key={p.id}
+                    variant={variant}
+                    style={styles.itemCard}
+                  >
+                    <View style={styles.itemRow}>
+                      <View style={styles.itemMeta}>
+                        <Text
+                          style={[styles.itemTitle, { color: textPrimary }]}
+                        >
+                          {p.name}
+                        </Text>
+                        {p.email ? (
+                          <Text style={[styles.itemSub, { color: textMuted }]}>
+                            {p.email}
+                          </Text>
+                        ) : null}
+                      </View>
 
-              <Text style={[styles.hint, { color: textMuted }]}>
-                {isLoadingMembers
-                  ? "Carregando pessoas..."
-                  : membersError
-                  ? "Não foi possível carregar pessoas."
-                  : "Ações de promover/remover papéis perigosos ficam para depois."}
-              </Text>
+                      <View
+                        style={[
+                          styles.rolePill,
+                          {
+                            borderColor:
+                              variant === "light"
+                                ? colors.surfaceCardBorderLight
+                                : colors.surfaceCardBorder,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.rolePillText,
+                            { color: textSecondary },
+                          ]}
+                        >
+                          {roleLabel(p.role)}
+                        </Text>
+                      </View>
+                    </View>
+                  </SurfaceCard>
+                ))
+              )}
             </View>
           ) : null}
 
@@ -603,202 +618,214 @@ export default function AccessManager() {
                 <Text style={[styles.sectionTitle, { color: textPrimary }]}>
                   Convites
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setIsInviteSheetOpen(true)}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    pressed ? styles.btnPressed : null,
-                    variant === "light"
-                      ? styles.primaryBtnLight
-                      : styles.primaryBtnDark,
-                  ]}
-                >
-                  <Text
-                    style={
+                {canSeeManager ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setIsInviteSheetOpen(true)}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      pressed ? styles.btnPressed : null,
                       variant === "light"
-                        ? styles.primaryBtnTextLight
-                        : styles.primaryBtnTextDark
-                    }
+                        ? styles.primaryBtnLight
+                        : styles.primaryBtnDark,
+                    ]}
                   >
-                    Convidar pessoa
-                  </Text>
-                </Pressable>
+                    <Text
+                      style={
+                        variant === "light"
+                          ? styles.primaryBtnTextLight
+                          : styles.primaryBtnTextDark
+                      }
+                    >
+                      Convidar pessoa
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
 
-              {inviteItems.map((i) => (
-                <SurfaceCard
-                  key={i.id}
-                  variant={variant}
-                  style={styles.itemCard}
-                >
-                  <View style={styles.itemRow}>
-                    <View style={styles.itemMeta}>
-                      <Text style={[styles.itemTitle, { color: textPrimary }]}>
-                        {i.email}
-                      </Text>
-                      <Text style={[styles.itemSub, { color: textMuted }]}>
-                        {roleLabel(i.role)} · {i.statusLabel}
-                      </Text>
-                    </View>
-                  </View>
+              {isLoadingInvites ? (
+                <SurfaceCard variant={variant} style={styles.noticeCard}>
+                  <Text style={[styles.noticeText, { color: textSecondary }]}>
+                    Carregando convites...
+                  </Text>
                 </SurfaceCard>
-              ))}
-
-              <Text style={[styles.hint, { color: textMuted }]}>
-                {isLoadingInvites
-                  ? "Carregando convites..."
-                  : invitesError
-                  ? "Não foi possível carregar convites."
-                  : "Histórico completo pode entrar depois; por ora, layout pronto."}
-              </Text>
+              ) : invitesError ? (
+                <SurfaceCard variant={variant} style={styles.noticeCard}>
+                  <Text style={[styles.noticeText, { color: textSecondary }]}>
+                    Não foi possível carregar convites.
+                  </Text>
+                </SurfaceCard>
+              ) : inviteItems.length === 0 ? (
+                <SurfaceCard variant={variant} style={styles.noticeCard}>
+                  <Text style={[styles.noticeText, { color: textSecondary }]}>
+                    Nenhum convite encontrado.
+                  </Text>
+                </SurfaceCard>
+              ) : (
+                inviteItems.map((i) => (
+                  <SurfaceCard
+                    key={i.id}
+                    variant={variant}
+                    style={styles.itemCard}
+                  >
+                    <View style={styles.itemRow}>
+                      <View style={styles.itemMeta}>
+                        <Text
+                          style={[styles.itemTitle, { color: textPrimary }]}
+                        >
+                          {i.email}
+                        </Text>
+                        <Text style={[styles.itemSub, { color: textMuted }]}>
+                          {roleLabel(i.role)} · {i.statusLabel}
+                        </Text>
+                      </View>
+                    </View>
+                  </SurfaceCard>
+                ))
+              )}
             </View>
+          ) : null}
+        </SurfaceCard>
+      </View>
+
+      <BottomSheet
+        visible={isInviteSheetOpen}
+        variant={variant}
+        onClose={() => {
+          setIsInviteSheetOpen(false);
+          setInviteError("");
+        }}
+      >
+        <View style={styles.sheetHeader}>
+          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+            Convidar pessoa
+          </Text>
+          {terreiroId ? (
+            <Text style={[styles.sheetSub, { color: textMuted }]}>
+              Terreiro: {terreiroTitle}
+            </Text>
           ) : null}
         </View>
 
-        <BottomSheet
-          visible={isInviteSheetOpen}
-          variant={variant}
-          onClose={() => {
-            setIsInviteSheetOpen(false);
+        <Text style={[styles.label, { color: textSecondary }]}>E-mail</Text>
+        <TextInput
+          value={inviteEmail}
+          onChangeText={(v) => {
+            setInviteEmail(v);
             setInviteError("");
           }}
+          placeholder="local@dominio.tld"
+          placeholderTextColor={textMuted}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          style={[
+            styles.input,
+            {
+              backgroundColor:
+                variant === "light" ? colors.inputBgLight : colors.inputBgDark,
+              borderColor:
+                variant === "light"
+                  ? colors.surfaceCardBorderLight
+                  : colors.surfaceCardBorder,
+              color: textPrimary,
+            },
+          ]}
+        />
+
+        {inviteError ? (
+          <Text style={[styles.inlineError, { color: colors.danger }]}>
+            {inviteError}
+          </Text>
+        ) : null}
+
+        <Text style={[styles.label, { color: textSecondary }]}>Papel</Text>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => setIsInviteRoleModalOpen(true)}
+          style={({ pressed }) => [
+            styles.selectField,
+            {
+              backgroundColor:
+                variant === "light" ? colors.inputBgLight : colors.inputBgDark,
+              borderColor:
+                variant === "light"
+                  ? colors.surfaceCardBorderLight
+                  : colors.surfaceCardBorder,
+            },
+            pressed ? styles.btnPressed : null,
+          ]}
         >
-          <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-              Convidar pessoa
-            </Text>
-            {terreiroId ? (
-              <Text style={[styles.sheetSub, { color: textMuted }]}>
-                Terreiro: {terreiroTitle}
-              </Text>
-            ) : null}
-          </View>
+          <Text style={[styles.selectValue, { color: textPrimary }]}>
+            {roleLabel(inviteRole)}
+          </Text>
+          <Ionicons name="chevron-down" size={16} color={textMuted} />
+        </Pressable>
 
-          <Text style={[styles.label, { color: textSecondary }]}>E-mail</Text>
-          <TextInput
-            value={inviteEmail}
-            onChangeText={(v) => {
-              setInviteEmail(v);
-              setInviteError("");
-            }}
-            placeholder="local@dominio.tld"
-            placeholderTextColor={textMuted}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            style={[
-              styles.input,
-              {
-                backgroundColor:
-                  variant === "light"
-                    ? colors.inputBgLight
-                    : colors.inputBgDark,
-                borderColor:
-                  variant === "light"
-                    ? colors.surfaceCardBorderLight
-                    : colors.surfaceCardBorder,
-                color: textPrimary,
-              },
-            ]}
-          />
-
-          {inviteError ? (
-            <Text style={[styles.inlineError, { color: colors.danger }]}>
-              {inviteError}
-            </Text>
-          ) : null}
-
-          <Text style={[styles.label, { color: textSecondary }]}>Papel</Text>
+        <View style={styles.sheetActions}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => setIsInviteRoleModalOpen(true)}
+            onPress={() => {
+              setIsInviteSheetOpen(false);
+              setInviteError("");
+            }}
             style={({ pressed }) => [
-              styles.selectField,
+              styles.secondaryBtn,
+              pressed ? styles.btnPressed : null,
               {
-                backgroundColor:
-                  variant === "light"
-                    ? colors.inputBgLight
-                    : colors.inputBgDark,
                 borderColor:
                   variant === "light"
                     ? colors.surfaceCardBorderLight
                     : colors.surfaceCardBorder,
               },
-              pressed ? styles.btnPressed : null,
             ]}
           >
-            <Text style={[styles.selectValue, { color: textPrimary }]}>
-              {roleLabel(inviteRole)}
+            <Text style={[styles.secondaryBtnText, { color: textPrimary }]}>
+              Cancelar
             </Text>
-            <Ionicons name="chevron-down" size={16} color={textMuted} />
           </Pressable>
 
-          <View style={styles.sheetActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setIsInviteSheetOpen(false);
-                setInviteError("");
-              }}
-              style={({ pressed }) => [
-                styles.secondaryBtn,
-                pressed ? styles.btnPressed : null,
-                {
-                  borderColor:
-                    variant === "light"
-                      ? colors.surfaceCardBorderLight
-                      : colors.surfaceCardBorder,
-                },
-              ]}
-            >
-              <Text style={[styles.secondaryBtnText, { color: textPrimary }]}>
-                Cancelar
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={onSendInvite}
-              disabled={isCreatingInvite || !terreiroId}
-              style={({ pressed }) => [
-                styles.primaryBtn,
-                pressed ? styles.btnPressed : null,
-                isCreatingInvite || !terreiroId ? { opacity: 0.6 } : null,
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSendInvite}
+            disabled={isCreatingInvite || !terreiroId}
+            style={({ pressed }) => [
+              styles.primaryBtn,
+              pressed ? styles.btnPressed : null,
+              isCreatingInvite || !terreiroId ? { opacity: 0.6 } : null,
+              variant === "light"
+                ? styles.primaryBtnLight
+                : styles.primaryBtnDark,
+            ]}
+          >
+            <Text
+              style={
                 variant === "light"
-                  ? styles.primaryBtnLight
-                  : styles.primaryBtnDark,
-              ]}
+                  ? styles.primaryBtnTextLight
+                  : styles.primaryBtnTextDark
+              }
             >
-              <Text
-                style={
-                  variant === "light"
-                    ? styles.primaryBtnTextLight
-                    : styles.primaryBtnTextDark
-                }
-              >
-                Enviar convite
-              </Text>
-            </Pressable>
-          </View>
-        </BottomSheet>
+              Enviar convite
+            </Text>
+          </Pressable>
+        </View>
+      </BottomSheet>
 
-        <SelectModal
-          title="Papel"
-          visible={isInviteRoleModalOpen}
-          variant={variant}
-          items={inviteRoleItems}
-          onClose={() => setIsInviteRoleModalOpen(false)}
-          onSelect={(value) => {
-            const v = String(value) as AccessRole;
-            if (v === "admin" || v === "editor" || v === "member") {
-              setInviteRole(v);
-              return;
-            }
-            setInviteRole("member");
-          }}
-        />
-      </View>
-    </SaravafyScreen>
+      <SelectModal
+        title="Papel"
+        visible={isInviteRoleModalOpen}
+        variant={variant}
+        items={inviteRoleItems}
+        onClose={() => setIsInviteRoleModalOpen(false)}
+        onSelect={(value) => {
+          const v = String(value) as AccessRole;
+          if (v === "admin" || v === "editor" || v === "member") {
+            setInviteRole(v);
+            return;
+          }
+          setInviteRole("member");
+        }}
+      />
+    </View>
   );
 }
 
@@ -832,8 +859,11 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.xl,
     gap: spacing.md,
   },
-  titleCard: {
+  contextHeader: {
     marginTop: spacing.sm,
+  },
+  managerCard: {
+    marginTop: 0,
   },
   title: {
     fontSize: 16,

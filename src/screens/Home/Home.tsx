@@ -1,7 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -271,227 +269,219 @@ export default function Home() {
 
   if (isLoading) {
     return (
-      <SaravafyScreen>
-        <AppHeaderWithPreferences />
-        <View style={styles.loadingWrap}>
-          <Text>Carregando pontos…</Text>
-        </View>
-      </SaravafyScreen>
+      <View style={styles.loadingWrap}>
+        <Text>Carregando pontos…</Text>
+      </View>
     );
   }
 
   if (loadError) {
     return (
-      <SaravafyScreen>
-        <AppHeaderWithPreferences />
-        <View style={styles.loadingWrap}>
-          <Text style={{ color: colors.brass600 }}>{loadError}</Text>
-        </View>
-      </SaravafyScreen>
+      <View style={styles.loadingWrap}>
+        <Text style={{ color: colors.brass600 }}>{loadError}</Text>
+      </View>
     );
   }
 
   return (
-    <SaravafyScreen variant={variant}>
-      <View style={styles.screen}>
-        <AppHeaderWithPreferences />
-        <View style={styles.container}>
-          <View style={styles.submitRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enviar ponto"
-              onPress={() => {
-                if (!user) {
-                  router.push("/login");
-                  return;
-                }
-                setSubmitModalVisible(true);
-              }}
-              style={({ pressed }) => [
-                styles.submitButton,
-                pressed ? styles.submitButtonPressed : null,
-              ]}
-              hitSlop={10}
-            >
-              <View style={styles.submitButtonInner}>
-                <Ionicons name="add" size={14} color={colors.brass600} />
-                <Text style={styles.submitButtonText}>Enviar ponto</Text>
-              </View>
-            </Pressable>
-          </View>
-
-          <View style={styles.searchWrap}>
-            <View
-              style={[
-                styles.searchInputWrap,
-                variant === "light"
-                  ? styles.searchInputWrapLight
-                  : styles.searchInputWrapDark,
-              ]}
-            >
-              <TextInput
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Buscar por título, letra ou tag"
-                placeholderTextColor={textSecondary}
-                style={[styles.searchInput, { color: textPrimary }]}
-                autoCapitalize="none"
-                autoCorrect={false}
-                clearButtonMode="never"
-              />
-              {searchQuery.length > 0 ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => setSearchQuery("")}
-                  style={styles.clearButton}
-                  hitSlop={10}
-                >
-                  <Text style={[styles.clearButtonText, { color: textMuted }]}>
-                    ×
-                  </Text>
-                </Pressable>
-              ) : null}
+    <View style={styles.screen}>
+      <View style={styles.container}>
+        <View style={styles.submitRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Enviar ponto"
+            onPress={() => {
+              if (!user) {
+                router.push("/login");
+                return;
+              }
+              setSubmitModalVisible(true);
+            }}
+            style={({ pressed }) => [
+              styles.submitButton,
+              pressed ? styles.submitButtonPressed : null,
+            ]}
+            hitSlop={10}
+          >
+            <View style={styles.submitButtonInner}>
+              <Ionicons name="add" size={14} color={colors.brass600} />
+              <Text style={styles.submitButtonText}>Enviar ponto</Text>
             </View>
-          </View>
+          </Pressable>
+        </View>
 
-          {isLoading ? (
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          ) : loadError ? (
-            <View style={styles.errorBlock}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                {loadError}
-              </Text>
+        <View style={styles.searchWrap}>
+          <View
+            style={[
+              styles.searchInputWrap,
+              variant === "light"
+                ? styles.searchInputWrapLight
+                : styles.searchInputWrapDark,
+            ]}
+          >
+            <TextInput
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              placeholder="Buscar por título, letra ou tag"
+              placeholderTextColor={textSecondary}
+              style={[styles.searchInput, { color: textPrimary }]}
+              autoCapitalize="none"
+              autoCorrect={false}
+              clearButtonMode="never"
+            />
+            {searchQuery.length > 0 ? (
               <Pressable
                 accessibilityRole="button"
-                onPress={() => {
-                  setLoadError(null);
-                  setIsLoading(true);
-                  fetchAllPontos()
-                    .then(setPontos)
-                    .catch((e) => {
-                      if (__DEV__) {
-                        console.info("[Pontos] erro ao carregar", {
-                          error: e instanceof Error ? e.message : String(e),
-                        });
-                      }
-                      setLoadError(
-                        __DEV__ && e instanceof Error && e.message
-                          ? e.message
-                          : "Erro ao carregar pontos."
-                      );
-                    })
-                    .finally(() => setIsLoading(false));
-                }}
-                style={[
-                  styles.retryBtn,
-                  variant === "light"
-                    ? styles.retryBtnLight
-                    : styles.retryBtnDark,
-                ]}
+                onPress={() => setSearchQuery("")}
+                style={styles.clearButton}
+                hitSlop={10}
               >
-                <Text style={[styles.retryText, { color: textPrimary }]}>
-                  Tentar novamente
+                <Text style={[styles.clearButtonText, { color: textMuted }]}>
+                  ×
                 </Text>
               </Pressable>
-            </View>
-          ) : filteredPontos.length === 0 ? (
-            <View style={{ paddingHorizontal: spacing.lg }}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Nenhum ponto encontrado.
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              key={variant}
-              data={filteredPontos}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={styles.listContent}
-              keyboardShouldPersistTaps="handled"
-              extraData={variant}
-              renderItem={({ item }) => (
-                <View style={styles.cardGap}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      router.push({
-                        pathname: "/player",
-                        params: {
-                          source: "all",
-                          q: searchQuery,
-                          initialPontoId: item.id,
-                        },
-                      });
-                    }}
-                  >
-                    <SurfaceCard variant={variant} style={styles.cardContainer}>
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          justifyContent: "space-between",
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.cardTitle,
-                            { color: textPrimary, flex: 1 },
-                          ]}
-                          numberOfLines={2}
-                          ellipsizeMode="tail"
-                        >
-                          {item.title}
-                        </Text>
-                        {user ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Adicionar à coleção"
-                            style={styles.addToCollectionBtn}
-                            hitSlop={10}
-                            onPress={(e) => {
-                              // Evita abrir o player quando a intenção é adicionar
-                              // à coleção.
-                              e.stopPropagation();
+            ) : null}
+          </View>
+        </View>
 
-                              setSelectedPonto(item);
-                              setAddModalVisible(true);
-                              setAddSuccess(false);
-                              setAddError(null);
-                            }}
-                          >
-                            <Ionicons
-                              name="add"
-                              size={18}
-                              color={
-                                variant === "light"
-                                  ? colors.brass500
-                                  : colors.brass600
-                              }
-                            />
-                          </Pressable>
-                        ) : null}
-                      </View>
-                      <View style={styles.tagsRow}>
-                        {item.tags.map((tag) => (
-                          <TagChip key={tag} label={tag} variant={variant} />
-                        ))}
-                      </View>
+        {isLoading ? (
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        ) : loadError ? (
+          <View style={styles.errorBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              {loadError}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                setLoadError(null);
+                setIsLoading(true);
+                fetchAllPontos()
+                  .then(setPontos)
+                  .catch((e) => {
+                    if (__DEV__) {
+                      console.info("[Pontos] erro ao carregar", {
+                        error: e instanceof Error ? e.message : String(e),
+                      });
+                    }
+                    setLoadError(
+                      __DEV__ && e instanceof Error && e.message
+                        ? e.message
+                        : "Erro ao carregar pontos."
+                    );
+                  })
+                  .finally(() => setIsLoading(false));
+              }}
+              style={[
+                styles.retryBtn,
+                variant === "light"
+                  ? styles.retryBtnLight
+                  : styles.retryBtnDark,
+              ]}
+            >
+              <Text style={[styles.retryText, { color: textPrimary }]}>
+                Tentar novamente
+              </Text>
+            </Pressable>
+          </View>
+        ) : filteredPontos.length === 0 ? (
+          <View style={{ paddingHorizontal: spacing.lg }}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Nenhum ponto encontrado.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            key={variant}
+            data={filteredPontos}
+            keyExtractor={(item) => item.id}
+            contentContainerStyle={styles.listContent}
+            keyboardShouldPersistTaps="handled"
+            extraData={variant}
+            renderItem={({ item }) => (
+              <View style={styles.cardGap}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    router.push({
+                      pathname: "/player",
+                      params: {
+                        source: "all",
+                        q: searchQuery,
+                        initialPontoId: item.id,
+                      },
+                    });
+                  }}
+                >
+                  <SurfaceCard variant={variant} style={styles.cardContainer}>
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "space-between",
+                      }}
+                    >
                       <Text
-                        style={[styles.cardPreview, { color: textSecondary }]}
-                        numberOfLines={6}
+                        style={[
+                          styles.cardTitle,
+                          { color: textPrimary, flex: 1 },
+                        ]}
+                        numberOfLines={2}
                         ellipsizeMode="tail"
                       >
-                        {getLyricsPreview(item.lyrics, 6)}
+                        {item.title}
                       </Text>
-                    </SurfaceCard>
-                  </Pressable>
-                </View>
-              )}
-            />
-          )}
-        </View>
+                      {user ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Adicionar à coleção"
+                          style={styles.addToCollectionBtn}
+                          hitSlop={10}
+                          onPress={(e) => {
+                            // Evita abrir o player quando a intenção é adicionar
+                            // à coleção.
+                            e.stopPropagation();
+
+                            setSelectedPonto(item);
+                            setAddModalVisible(true);
+                            setAddSuccess(false);
+                            setAddError(null);
+                          }}
+                        >
+                          <Ionicons
+                            name="add"
+                            size={18}
+                            color={
+                              variant === "light"
+                                ? colors.brass500
+                                : colors.brass600
+                            }
+                          />
+                        </Pressable>
+                      ) : null}
+                    </View>
+                    <View style={styles.tagsRow}>
+                      {item.tags.map((tag) => (
+                        <TagChip key={tag} label={tag} variant={variant} />
+                      ))}
+                    </View>
+                    <Text
+                      style={[styles.cardPreview, { color: textSecondary }]}
+                      numberOfLines={6}
+                      ellipsizeMode="tail"
+                    >
+                      {getLyricsPreview(item.lyrics, 6)}
+                    </Text>
+                  </SurfaceCard>
+                </Pressable>
+              </View>
+            )}
+          />
+        )}
       </View>
+
       {/* Modal de adicionar à coleção */}
       <BottomSheet
         visible={addModalVisible}
@@ -832,14 +822,14 @@ export default function Home() {
           );
         }}
       />
-    </SaravafyScreen>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
-    // Não definir backgroundColor aqui para deixar o SaravafyScreen controlar o fundo
+    // Não definir backgroundColor aqui para deixar o layout controlar o fundo
   },
   container: {
     flex: 1,

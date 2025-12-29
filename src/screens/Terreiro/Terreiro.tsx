@@ -2,7 +2,6 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -387,9 +386,8 @@ export default function Terreiro() {
   };
 
   return (
-    <SaravafyScreen variant={variant}>
-      <View style={styles.screen}>
-        <View style={styles.container}>
+    <View style={styles.screen}>
+      <View style={styles.container}>
           <View style={styles.contextHeader}>
             <View style={styles.titleRow}>
               <View style={styles.titleLeft}>
@@ -693,7 +691,6 @@ export default function Terreiro() {
             />
           )}
         </View>
-      </View>
 
       <BottomSheet
         visible={isCollectionActionsOpen}
@@ -701,9 +698,7 @@ export default function Terreiro() {
         onClose={closeCollectionActions}
       >
         <View>
-          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-            Coleção
-          </Text>
+          <Text style={[styles.sheetTitle, { color: textPrimary }]}>Ações</Text>
           {collectionActionsTarget?.title ? (
             <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
               {collectionActionsTarget.title}
@@ -889,7 +884,7 @@ export default function Terreiro() {
           </View>
         </View>
       </BottomSheet>
-    </SaravafyScreen>
+    </View>
   );
 }
 

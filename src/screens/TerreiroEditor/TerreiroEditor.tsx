@@ -25,7 +25,6 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { APP_INSTALL_URL } from "@/src/config/links";
 import { colors, radii, spacing } from "@/src/theme";
@@ -1241,613 +1240,579 @@ export default function TerreiroEditor() {
   }));
 
   return (
-    <SaravafyScreen variant={variant}>
-      <View style={styles.root}>
-        <View style={styles.topBar}>
+    <View style={styles.root}>
+      <View style={styles.topBar}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Fechar"
+          hitSlop={12}
+          onPress={onCancel}
+          style={({ pressed }) => [
+            styles.topBarBtn,
+            pressed ? styles.topBarBtnPressed : null,
+          ]}
+        >
+          <Ionicons name="close" size={22} color={textMuted} />
+        </Pressable>
+
+        <Text style={[styles.topBarTitle, { color: textPrimary }]}>
+          {isEdit ? "Editar terreiro" : "Criar terreiro"}
+        </Text>
+
+        <View style={styles.topBarSpacer} />
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Nome do terreiro <Text style={styles.requiredStar}>*</Text>
+          </Text>
+          <TextInput
+            value={form.title}
+            onChangeText={(v) => setForm((p) => ({ ...p, title: v }))}
+            placeholder="Nome do terreiro"
+            placeholderTextColor={textSecondary}
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>Imagem</Text>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Fechar"
-            hitSlop={12}
-            onPress={onCancel}
+            accessibilityLabel={
+              coverPreviewUri ? "Editar imagem" : "Adicionar imagem"
+            }
+            disabled={saving}
+            onPress={pickCover}
             style={({ pressed }) => [
-              styles.topBarBtn,
-              pressed ? styles.topBarBtnPressed : null,
+              styles.coverRow,
+              { borderColor: inputBorder, backgroundColor: inputBg },
+              saving ? styles.rowDisabled : null,
+              pressed && !saving ? styles.rowPressed : null,
             ]}
           >
-            <Ionicons name="close" size={22} color={textMuted} />
+            {coverPreviewUri ? (
+              <Image
+                source={{ uri: coverPreviewUri }}
+                style={styles.coverThumb}
+              />
+            ) : (
+              <View style={styles.coverIconWrap}>
+                <Ionicons name="image-outline" size={18} color={textMuted} />
+              </View>
+            )}
+
+            <Text style={[styles.coverRowText, { color: textPrimary }]}>
+              {coverPreviewUri ? "Editar imagem" : "Adicionar imagem"}
+            </Text>
           </Pressable>
 
-          <Text style={[styles.topBarTitle, { color: textPrimary }]}>
-            {isEdit ? "Editar terreiro" : "Criar terreiro"}
-          </Text>
+          {coverPreviewUri ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Remover imagem"
+              disabled={saving}
+              onPress={removeCover}
+              style={({ pressed }) => [
+                styles.coverRemoveBtn,
+                pressed && !saving ? styles.rowPressed : null,
+                saving ? styles.rowDisabled : null,
+              ]}
+            >
+              <Text style={[styles.coverRemoveText, { color: colors.danger }]}>
+                Remover imagem
+              </Text>
+            </Pressable>
+          ) : null}
 
-          <View style={styles.topBarSpacer} />
+          <Text style={[styles.label, { color: textSecondary }]}>Sobre</Text>
+          <TextInput
+            value={form.about}
+            onChangeText={(v) => setForm((p) => ({ ...p, about: v }))}
+            placeholder="Conte um pouco sobre o terreiro, sua história e propósito"
+            placeholderTextColor={textSecondary}
+            multiline
+            style={[
+              styles.textArea,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Linhas de trabalho
+          </Text>
+          <TextInput
+            value={form.linesOfWork}
+            onChangeText={(v) => setForm((p) => ({ ...p, linesOfWork: v }))}
+            placeholder="Linhas espirituais e frentes de trabalho do terreiro"
+            placeholderTextColor={textSecondary}
+            multiline
+            style={[
+              styles.textArea,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
         </View>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Nome do terreiro <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <TextInput
-              value={form.title}
-              onChangeText={(v) => setForm((p) => ({ ...p, title: v }))}
-              placeholder="Nome do terreiro"
-              placeholderTextColor={textSecondary}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-            />
+        <View
+          style={[styles.sectionDivider, { backgroundColor: inputBorder }]}
+        />
 
-            <Text style={[styles.label, { color: textSecondary }]}>Imagem</Text>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                coverPreviewUri ? "Editar imagem" : "Adicionar imagem"
-              }
-              disabled={saving}
-              onPress={pickCover}
-              style={({ pressed }) => [
-                styles.coverRow,
-                { borderColor: inputBorder, backgroundColor: inputBg },
-                saving ? styles.rowDisabled : null,
-                pressed && !saving ? styles.rowPressed : null,
+        <View style={styles.section}>
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Estado (UF) <Text style={styles.requiredStar}>*</Text>
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={saving}
+            onPress={() => setIsUfModalOpen(true)}
+            style={({ pressed }) => [
+              styles.selectField,
+              { backgroundColor: inputBg, borderColor: inputBorder },
+              saving ? styles.selectDisabled : null,
+              pressed && !saving ? styles.selectPressed : null,
+            ]}
+          >
+            <Text
+              style={[
+                styles.selectValue,
+                { color: form.stateUF ? textPrimary : textSecondary },
               ]}
+              numberOfLines={1}
             >
-              {coverPreviewUri ? (
-                <Image
-                  source={{ uri: coverPreviewUri }}
-                  style={styles.coverThumb}
-                />
-              ) : (
-                <View style={styles.coverIconWrap}>
-                  <Ionicons name="image-outline" size={18} color={textMuted} />
-                </View>
-              )}
-
-              <Text style={[styles.coverRowText, { color: textPrimary }]}>
-                {coverPreviewUri ? "Editar imagem" : "Adicionar imagem"}
-              </Text>
-            </Pressable>
-
-            {coverPreviewUri ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Remover imagem"
-                disabled={saving}
-                onPress={removeCover}
-                style={({ pressed }) => [
-                  styles.coverRemoveBtn,
-                  pressed && !saving ? styles.rowPressed : null,
-                  saving ? styles.rowDisabled : null,
-                ]}
-              >
-                <Text
-                  style={[styles.coverRemoveText, { color: colors.danger }]}
-                >
-                  Remover imagem
-                </Text>
-              </Pressable>
-            ) : null}
-
-            <Text style={[styles.label, { color: textSecondary }]}>Sobre</Text>
-            <TextInput
-              value={form.about}
-              onChangeText={(v) => setForm((p) => ({ ...p, about: v }))}
-              placeholder="Conte um pouco sobre o terreiro, sua história e propósito"
-              placeholderTextColor={textSecondary}
-              multiline
-              style={[
-                styles.textArea,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-            />
-
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Linhas de trabalho
+              {form.stateUF
+                ? `${labelForUf(form.stateUF)} (${form.stateUF})`
+                : "Selecionar"}
             </Text>
-            <TextInput
-              value={form.linesOfWork}
-              onChangeText={(v) => setForm((p) => ({ ...p, linesOfWork: v }))}
-              placeholder="Linhas espirituais e frentes de trabalho do terreiro"
-              placeholderTextColor={textSecondary}
-              multiline
+            <Ionicons name="chevron-down" size={16} color={textMuted} />
+          </Pressable>
+
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Cidade <Text style={styles.requiredStar}>*</Text>
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            disabled={!form.stateUF || saving}
+            onPress={() => {
+              if (!form.stateUF || saving) return;
+              setIsCityModalOpen(true);
+              void ensureCitiesForUf(form.stateUF);
+            }}
+            style={({ pressed }) => [
+              styles.selectField,
+              { backgroundColor: inputBg, borderColor: inputBorder },
+              !form.stateUF || saving ? styles.selectDisabled : null,
+              pressed && form.stateUF && !saving ? styles.selectPressed : null,
+            ]}
+          >
+            <Text
               style={[
-                styles.textArea,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
+                styles.selectValue,
+                { color: form.city ? textPrimary : textSecondary },
               ]}
-            />
-          </View>
+              numberOfLines={1}
+            >
+              {form.city
+                ? form.city
+                : isCityLoading
+                ? "Carregando…"
+                : "Selecionar"}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={textMuted} />
+          </Pressable>
+
+          <Text style={[styles.label, { color: textSecondary }]}>Bairro</Text>
+          <TextInput
+            value={form.neighborhood}
+            onChangeText={(v) => setForm((p) => ({ ...p, neighborhood: v }))}
+            placeholder="Bairro (opcional)"
+            placeholderTextColor={textSecondary}
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Endereço <Text style={styles.requiredStar}>*</Text>
+          </Text>
+          <TextInput
+            value={form.address}
+            onChangeText={(v) => setForm((p) => ({ ...p, address: v }))}
+            placeholder="Endereço"
+            placeholderTextColor={textSecondary}
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
 
           <View
-            style={[styles.sectionDivider, { backgroundColor: inputBorder }]}
-          />
-
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Estado (UF) <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              disabled={saving}
-              onPress={() => setIsUfModalOpen(true)}
-              style={({ pressed }) => [
-                styles.selectField,
-                { backgroundColor: inputBg, borderColor: inputBorder },
-                saving ? styles.selectDisabled : null,
-                pressed && !saving ? styles.selectPressed : null,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.selectValue,
-                  { color: form.stateUF ? textPrimary : textSecondary },
-                ]}
-                numberOfLines={1}
-              >
-                {form.stateUF
-                  ? `${labelForUf(form.stateUF)} (${form.stateUF})`
-                  : "Selecionar"}
+            style={[
+              styles.adminSectionWrap,
+              { borderColor: inputBorder, backgroundColor: inputBg },
+              !isTerreiroAdminSectionEnabled
+                ? styles.adminSectionDisabled
+                : null,
+            ]}
+          >
+            <View style={styles.adminHeaderRow}>
+              <Text style={[styles.adminTitle, { color: textPrimary }]}>
+                Administração do terreiro
               </Text>
-              <Ionicons name="chevron-down" size={16} color={textMuted} />
-            </Pressable>
 
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Cidade <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              disabled={!form.stateUF || saving}
-              onPress={() => {
-                if (!form.stateUF || saving) return;
-                setIsCityModalOpen(true);
-                void ensureCitiesForUf(form.stateUF);
-              }}
-              style={({ pressed }) => [
-                styles.selectField,
-                { backgroundColor: inputBg, borderColor: inputBorder },
-                !form.stateUF || saving ? styles.selectDisabled : null,
-                pressed && form.stateUF && !saving
-                  ? styles.selectPressed
-                  : null,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.selectValue,
-                  { color: form.city ? textPrimary : textSecondary },
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Papéis no terreiro"
+                hitSlop={10}
+                onPress={() => setIsRolesSheetOpen(true)}
+                style={({ pressed }) => [
+                  styles.adminInfoBtn,
+                  { borderColor: inputBorder },
+                  pressed ? styles.rowPressed : null,
                 ]}
-                numberOfLines={1}
               >
-                {form.city
-                  ? form.city
-                  : isCityLoading
-                  ? "Carregando…"
-                  : "Selecionar"}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={textMuted} />
-            </Pressable>
-
-            <Text style={[styles.label, { color: textSecondary }]}>Bairro</Text>
-            <TextInput
-              value={form.neighborhood}
-              onChangeText={(v) => setForm((p) => ({ ...p, neighborhood: v }))}
-              placeholder="Bairro (opcional)"
-              placeholderTextColor={textSecondary}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-            />
-
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Endereço <Text style={styles.requiredStar}>*</Text>
-            </Text>
-            <TextInput
-              value={form.address}
-              onChangeText={(v) => setForm((p) => ({ ...p, address: v }))}
-              placeholder="Endereço"
-              placeholderTextColor={textSecondary}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.adminSectionWrap,
-                { borderColor: inputBorder, backgroundColor: inputBg },
-                !isTerreiroAdminSectionEnabled
-                  ? styles.adminSectionDisabled
-                  : null,
-              ]}
-            >
-              <View style={styles.adminHeaderRow}>
-                <Text style={[styles.adminTitle, { color: textPrimary }]}>
-                  Administração do terreiro
+                <Text style={[styles.adminInfoBtnText, { color: textMuted }]}>
+                  i
                 </Text>
+              </Pressable>
+            </View>
 
+            <Text style={[styles.adminSubtitle, { color: textSecondary }]}>
+              Convide pessoas da sua curimba para colaborar e administrar o
+              acesso ao terreiro.
+            </Text>
+
+            <Text style={[styles.adminSecondaryText, { color: textSecondary }]}>
+              Defina quem pode organizar coleções, editar pontos ou apenas
+              visualizar as informações do terreiro.
+            </Text>
+
+            {!isTerreiroAdminSectionEnabled ? (
+              <Text style={[styles.adminLockedText, { color: textMuted }]}>
+                Salve o terreiro para poder convidar pessoas.
+              </Text>
+            ) : null}
+
+            <View style={styles.adminActionsWrap}>
+              {isTerreiroAdminSectionEnabled &&
+              (myTerreiroRole === "admin" ||
+                myTerreiroRole === "editor" ||
+                isAdmin) ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Papéis no terreiro"
-                  hitSlop={10}
-                  onPress={() => setIsRolesSheetOpen(true)}
+                  accessibilityLabel="Gerenciar acesso"
+                  disabled={saving}
+                  onPress={() => {
+                    const terreiroId = form.id;
+                    router.push({
+                      pathname: "/access-manager" as any,
+                      params: {
+                        terreiroId,
+                        terreiroTitle: form.title,
+                      },
+                    });
+                  }}
                   style={({ pressed }) => [
-                    styles.adminInfoBtn,
-                    { borderColor: inputBorder },
-                    pressed ? styles.rowPressed : null,
+                    styles.inviteCtaBtn,
+                    pressed && !saving ? styles.footerBtnPressed : null,
+                    saving ? styles.footerBtnDisabled : null,
                   ]}
                 >
-                  <Text style={[styles.adminInfoBtnText, { color: textMuted }]}>
-                    i
-                  </Text>
+                  <Text style={styles.inviteCtaText}>Gerenciar acesso</Text>
                 </Pressable>
-              </View>
-
-              <Text style={[styles.adminSubtitle, { color: textSecondary }]}>
-                Convide pessoas da sua curimba para ajudar a organizar, criar
-                coleções e cuidar dos pontos do terreiro.
-              </Text>
-
-              <View
-                style={[
-                  styles.adminHighlightCard,
-                  { borderColor: inputBorder },
-                ]}
-              >
-                <Text
-                  style={[styles.adminHighlightText, { color: textPrimary }]}
-                >
-                  {
-                    "Quanto mais pessoas colaborando, mais vivo fica o acervo do terreiro."
-                  }
-                </Text>
-              </View>
-
-              {!isTerreiroAdminSectionEnabled ? (
-                <Text style={[styles.adminLockedText, { color: textMuted }]}>
-                  Salve o terreiro para poder convidar pessoas.
-                </Text>
               ) : null}
-
-              <View style={styles.adminActionsWrap}>
-                <View
-                  style={[
-                    styles.adminHighlightCard,
-                    { borderColor: inputBorder, marginTop: spacing.md },
-                  ]}
-                >
-                  <Text
-                    style={[styles.adminHighlightText, { color: textPrimary }]}
-                  >
-                    Gerencie pessoas, pedidos pendentes e convites em uma tela
-                    dedicada.
-                  </Text>
-                </View>
-
-                {isTerreiroAdminSectionEnabled &&
-                (myTerreiroRole === "admin" ||
-                  myTerreiroRole === "editor" ||
-                  isAdmin) ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Gerenciar acesso"
-                    disabled={saving}
-                    onPress={() => {
-                      const terreiroId = form.id;
-                      router.push({
-                        pathname: "/access-manager" as any,
-                        params: {
-                          terreiroId,
-                          terreiroTitle: form.title,
-                        },
-                      });
-                    }}
-                    style={({ pressed }) => [
-                      styles.inviteCtaBtn,
-                      pressed && !saving ? styles.footerBtnPressed : null,
-                      saving ? styles.footerBtnDisabled : null,
-                    ]}
-                  >
-                    <Text style={styles.inviteCtaText}>Gerenciar acesso</Text>
-                  </Pressable>
-                ) : null}
-              </View>
             </View>
-
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Telefone
-            </Text>
-            <TextInput
-              value={formatPhone(form.phoneDigits)}
-              onChangeText={(v) => {
-                const digits = normalizePhoneDigits(v);
-                setForm((p) => ({ ...p, phoneDigits: digits }));
-              }}
-              placeholder="(11) 9 9999-9999"
-              placeholderTextColor={textSecondary}
-              keyboardType="number-pad"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-            />
-
-            <View
-              accessible
-              accessibilityRole="switch"
-              accessibilityLabel="Este telefone é WhatsApp?"
-              style={styles.switchRow}
-            >
-              <Text style={[styles.switchLabel, { color: textSecondary }]}>
-                Este telefone é WhatsApp?
-              </Text>
-              <Switch
-                value={!!form.isWhatsappUi}
-                onValueChange={(v) =>
-                  setForm((p) => ({ ...p, isWhatsappUi: v }))
-                }
-                disabled={saving}
-                trackColor={{
-                  false: inputBorder,
-                  true: colors.brass600,
-                }}
-                thumbColor={colors.paper50}
-              />
-            </View>
-
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Instagram
-            </Text>
-            <TextInput
-              value={form.instagram}
-              onChangeText={(v) =>
-                setForm((p) => ({ ...p, instagram: normalizeInstagram(v) }))
-              }
-              placeholder="@nomedoseuterreiro"
-              placeholderTextColor={textSecondary}
-              autoCapitalize="none"
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-            />
           </View>
 
-          <View style={styles.footerBar}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onCancel}
-              disabled={saving}
-              style={({ pressed }) => [
-                styles.cancelBtn,
-                { borderColor: inputBorder, backgroundColor: inputBg },
-                pressed ? styles.footerBtnPressed : null,
-                saving ? styles.footerBtnDisabled : null,
-              ]}
-            >
-              <Text style={[styles.footerBtnText, { color: textPrimary }]}>
-                Cancelar
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={onSave}
-              disabled={!canSubmit}
-              style={({ pressed }) => [
-                styles.saveBtn,
-                pressed ? styles.footerBtnPressed : null,
-                !canSubmit ? styles.footerBtnDisabled : null,
-              ]}
-            >
-              <Text style={styles.saveBtnText}>Salvar</Text>
-            </Pressable>
-          </View>
-
-          <Image
-            source={require("@/assets/images/filler.png")}
-            style={styles.filler}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
+          <Text style={[styles.label, { color: textSecondary }]}>Telefone</Text>
+          <TextInput
+            value={formatPhone(form.phoneDigits)}
+            onChangeText={(v) => {
+              const digits = normalizePhoneDigits(v);
+              setForm((p) => ({ ...p, phoneDigits: digits }));
+            }}
+            placeholder="(11) 9 9999-9999"
+            placeholderTextColor={textSecondary}
+            keyboardType="number-pad"
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
           />
 
-          <View style={styles.bottomPad} />
-        </ScrollView>
-
-        {loading ? (
-          <View style={styles.loadingOverlay} pointerEvents="none">
-            <Text style={[styles.loadingText, { color: textSecondary }]}>
-              Carregando…
+          <View
+            accessible
+            accessibilityRole="switch"
+            accessibilityLabel="Este telefone é WhatsApp?"
+            style={styles.switchRow}
+          >
+            <Text style={[styles.switchLabel, { color: textSecondary }]}>
+              Este telefone é WhatsApp?
             </Text>
-          </View>
-        ) : null}
-
-        <SelectModal
-          title="Estado (UF)"
-          visible={isUfModalOpen}
-          variant={variant}
-          items={ufItems}
-          onClose={() => setIsUfModalOpen(false)}
-          onSelect={onChangeUf}
-        />
-
-        <SelectModal
-          title="Cidade"
-          visible={isCityModalOpen}
-          variant={variant}
-          items={cityItems}
-          emptyLabel={
-            !form.stateUF
-              ? "Selecione um estado (UF)."
-              : isCityLoading
-              ? "Carregando…"
-              : "Nenhuma cidade encontrada."
-          }
-          onClose={() => setIsCityModalOpen(false)}
-          onSelect={onChangeCity}
-        />
-
-        <SelectModal
-          title="Papel"
-          visible={isInviteRoleModalOpen}
-          variant={variant}
-          items={[
-            { key: "admin", label: "Admin", value: "admin" },
-            { key: "editor", label: "Editor", value: "editor" },
-          ]}
-          onClose={() => setIsInviteRoleModalOpen(false)}
-          onSelect={(value) => {
-            setInviteRole(value === "admin" ? "admin" : "editor");
-          }}
-        />
-
-        <BottomSheet
-          visible={isRolesSheetOpen}
-          variant={variant}
-          onClose={() => setIsRolesSheetOpen(false)}
-        >
-          <View>
-            <Text style={[styles.rolesSheetTitle, { color: textPrimary }]}>
-              Papéis no terreiro
-            </Text>
-
-            <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
-              Admin
-            </Text>
-            <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
-              Pode:
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Alterar todos os dados do terreiro
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Convidar e remover pessoas
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Definir quem pode colaborar
-            </Text>
-
-            <View style={styles.rolesSheetSpacer} />
-
-            <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
-              Editor
-            </Text>
-            <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
-              Pode:
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Criar e editar coleções
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Organizar e adicionar pontos
-            </Text>
-            <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
-              Não pode:
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Alterar dados do terreiro
-            </Text>
-            <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
-              - Gerenciar pessoas ou permissões
-            </Text>
-
-            <View style={styles.rolesSheetSpacer} />
-
-            <Text style={[styles.rolesSheetFooter, { color: textSecondary }]}>
-              Esses papéis ajudam a organizar o cuidado coletivo com os pontos
-              do terreiro.
-            </Text>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Entendi"
-              onPress={() => setIsRolesSheetOpen(false)}
-              style={({ pressed }) => [
-                styles.rolesSheetCloseBtn,
-                pressed ? styles.footerBtnPressed : null,
-              ]}
-            >
-              <Text style={styles.rolesSheetCloseText}>Entendi</Text>
-            </Pressable>
-          </View>
-        </BottomSheet>
-
-        <BottomSheet
-          visible={isInviteShareSheetOpen}
-          variant={variant}
-          onClose={closeInviteShareSheet}
-        >
-          <View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Copiar mensagem"
-              onPress={copyInviteMessageOnly}
-              style={({ pressed }) => [
-                styles.shareOptionBtn,
-                pressed ? styles.footerBtnPressed : null,
-              ]}
-            >
-              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-                Copiar mensagem
-              </Text>
-            </Pressable>
-
-            <View
-              style={[styles.shareDivider, { backgroundColor: inputBorder }]}
+            <Switch
+              value={!!form.isWhatsappUi}
+              onValueChange={(v) => setForm((p) => ({ ...p, isWhatsappUi: v }))}
+              disabled={saving}
+              trackColor={{
+                false: inputBorder,
+                true: colors.brass600,
+              }}
+              thumbColor={colors.paper50}
             />
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Mais opções"
-              onPress={shareInviteMoreOptions}
-              style={({ pressed }) => [
-                styles.shareOptionBtn,
-                pressed ? styles.footerBtnPressed : null,
-              ]}
-            >
-              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-                Mais opções…
-              </Text>
-            </Pressable>
           </View>
-        </BottomSheet>
-      </View>
-    </SaravafyScreen>
+
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Instagram
+          </Text>
+          <TextInput
+            value={form.instagram}
+            onChangeText={(v) =>
+              setForm((p) => ({ ...p, instagram: normalizeInstagram(v) }))
+            }
+            placeholder="@nomedoseuterreiro"
+            placeholderTextColor={textSecondary}
+            autoCapitalize="none"
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+        </View>
+
+        <View style={styles.footerBar}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onCancel}
+            disabled={saving}
+            style={({ pressed }) => [
+              styles.cancelBtn,
+              { borderColor: inputBorder, backgroundColor: inputBg },
+              pressed ? styles.footerBtnPressed : null,
+              saving ? styles.footerBtnDisabled : null,
+            ]}
+          >
+            <Text style={[styles.footerBtnText, { color: textPrimary }]}>
+              Cancelar
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            onPress={onSave}
+            disabled={!canSubmit}
+            style={({ pressed }) => [
+              styles.saveBtn,
+              pressed ? styles.footerBtnPressed : null,
+              !canSubmit ? styles.footerBtnDisabled : null,
+            ]}
+          >
+            <Text style={styles.saveBtnText}>Salvar</Text>
+          </Pressable>
+        </View>
+
+        <Image
+          source={require("@/assets/images/filler.png")}
+          style={styles.filler}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+
+        <View style={styles.bottomPad} />
+      </ScrollView>
+
+      {loading ? (
+        <View style={styles.loadingOverlay} pointerEvents="none">
+          <Text style={[styles.loadingText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        </View>
+      ) : null}
+
+      <SelectModal
+        title="Estado (UF)"
+        visible={isUfModalOpen}
+        variant={variant}
+        items={ufItems}
+        onClose={() => setIsUfModalOpen(false)}
+        onSelect={onChangeUf}
+      />
+
+      <SelectModal
+        title="Cidade"
+        visible={isCityModalOpen}
+        variant={variant}
+        items={cityItems}
+        emptyLabel={
+          !form.stateUF
+            ? "Selecione um estado (UF)."
+            : isCityLoading
+            ? "Carregando…"
+            : "Nenhuma cidade encontrada."
+        }
+        onClose={() => setIsCityModalOpen(false)}
+        onSelect={onChangeCity}
+      />
+
+      <SelectModal
+        title="Papel"
+        visible={isInviteRoleModalOpen}
+        variant={variant}
+        items={[
+          { key: "admin", label: "Admin", value: "admin" },
+          { key: "editor", label: "Editor", value: "editor" },
+        ]}
+        onClose={() => setIsInviteRoleModalOpen(false)}
+        onSelect={(value) => {
+          setInviteRole(value === "admin" ? "admin" : "editor");
+        }}
+      />
+
+      <BottomSheet
+        visible={isRolesSheetOpen}
+        variant={variant}
+        onClose={() => setIsRolesSheetOpen(false)}
+      >
+        <View>
+          <Text style={[styles.rolesSheetTitle, { color: textPrimary }]}>
+            Papéis no terreiro
+          </Text>
+
+          <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
+            Admin
+          </Text>
+          <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
+            Pode:
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Alterar todos os dados do terreiro
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Convidar e remover pessoas
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Definir quem pode colaborar
+          </Text>
+
+          <View style={styles.rolesSheetSpacer} />
+
+          <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
+            Editor
+          </Text>
+          <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
+            Pode:
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Criar e editar coleções
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Organizar e adicionar pontos
+          </Text>
+          <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
+            Não pode:
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Alterar dados do terreiro
+          </Text>
+          <Text style={[styles.rolesSheetBullet, { color: textSecondary }]}>
+            - Gerenciar pessoas ou permissões
+          </Text>
+
+          <View style={styles.rolesSheetSpacer} />
+
+          <Text style={[styles.rolesSheetFooter, { color: textSecondary }]}>
+            Esses papéis ajudam a organizar o cuidado coletivo com os pontos do
+            terreiro.
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Entendi"
+            onPress={() => setIsRolesSheetOpen(false)}
+            style={({ pressed }) => [
+              styles.rolesSheetCloseBtn,
+              pressed ? styles.footerBtnPressed : null,
+            ]}
+          >
+            <Text style={styles.rolesSheetCloseText}>Entendi</Text>
+          </Pressable>
+        </View>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={isInviteShareSheetOpen}
+        variant={variant}
+        onClose={closeInviteShareSheet}
+      >
+        <View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Copiar mensagem"
+            onPress={copyInviteMessageOnly}
+            style={({ pressed }) => [
+              styles.shareOptionBtn,
+              pressed ? styles.footerBtnPressed : null,
+            ]}
+          >
+            <Text style={[styles.shareOptionText, { color: textPrimary }]}>
+              Copiar mensagem
+            </Text>
+          </Pressable>
+
+          <View
+            style={[styles.shareDivider, { backgroundColor: inputBorder }]}
+          />
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Mais opções"
+            onPress={shareInviteMoreOptions}
+            style={({ pressed }) => [
+              styles.shareOptionBtn,
+              pressed ? styles.footerBtnPressed : null,
+            ]}
+          >
+            <Text style={[styles.shareOptionText, { color: textPrimary }]}>
+              Mais opções…
+            </Text>
+          </Pressable>
+        </View>
+      </BottomSheet>
+    </View>
   );
 }
 
@@ -2123,6 +2088,13 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.92,
+  },
+  adminSecondaryText: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    fontWeight: "700",
+    opacity: 0.92,
+    lineHeight: 16,
   },
   adminHighlightCard: {
     marginTop: spacing.md,
