@@ -103,14 +103,15 @@ export function BottomSheet({
         // Bloqueia fechamento se usuário está rolando conteúdo (scrollY > 0)
         // Apenas permite fechar se scroll está no topo (scrollY === 0) e movimento é para baixo
         if (scrollYRef.current > 0) return false;
-        
-        // Requer movimento vertical significativo para baixo e mínimo movimento horizontal
-        return gesture.dy > 6 && Math.abs(gesture.dx) < 12;
+
+        // Threshold baixo (2px) para responder a gestos rápidos
+        // Permite movimento horizontal mínimo (8px) para não conflitar com swipes laterais
+        return gesture.dy > 2 && Math.abs(gesture.dx) < 8;
       },
       onMoveShouldSetPanResponder: (_evt, gesture) => {
         // Mesma lógica para onMoveShouldSetPanResponder
         if (scrollYRef.current > 0) return false;
-        return gesture.dy > 6 && Math.abs(gesture.dx) < 12;
+        return gesture.dy > 2 && Math.abs(gesture.dx) < 8;
       },
       onPanResponderMove: (_evt, gesture) => {
         // Apenas permite arrastar para baixo (dy > 0)
@@ -119,9 +120,9 @@ export function BottomSheet({
       },
       onPanResponderRelease: (_evt, gesture) => {
         // Fecha se:
-        // - Arrastou mais de 90px para baixo, OU
-        // - Velocidade vertical para baixo > 0.75
-        const shouldClose = gesture.dy > 90 || gesture.vy > 0.75;
+        // - Arrastou mais de 70px para baixo (reduzido de 90px), OU
+        // - Velocidade vertical para baixo > 0.5 (reduzido de 0.75 para gestos rápidos)
+        const shouldClose = gesture.dy > 70 || gesture.vy > 0.5;
         if (shouldClose) {
           closeBySwipe();
           return;
@@ -208,7 +209,7 @@ export function BottomSheet({
           // Permite scroll bouncing no topo para melhor UX
           bounces={true}
         >
-          <Pressable onPress={() => undefined}>{children}</Pressable>
+          {children}
         </ScrollView>
       </Animated.View>
     </View>
