@@ -331,8 +331,8 @@ export function AppHeaderWithPreferences() {
                   } catch {
                     // silêncio
                   }
+                  // Trocar para a página de Pontos no RootPager, mas não navegar
                   rootPager?.setActiveKey("pontos");
-                  router.replace("/(app)");
                 }}
                 onPressEdit={() => {
                   setIsPreferencesOpen(false);
@@ -388,7 +388,7 @@ export function AppHeaderWithPreferences() {
                       } catch {
                         // silêncio
                       }
-                      router.replace("/terreiro" as any);
+                      // Não navegar - apenas trocar contexto e manter modal aberto
                     }}
                     onPressEdit={() => {
                       router.push({
