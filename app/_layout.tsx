@@ -114,8 +114,9 @@ function RootLayoutNav() {
     let cancelled = false;
 
     const run = async () => {
-      if (isLoading) return;
-      if (!isReady) return;
+      try {
+        if (isLoading) return;
+        if (!isReady) return;
 
       // Reavaliou as condições de boot (ex.: login/logout/preferências carregadas):
       // volta para o modo de boot até chegar no destino inicial.
@@ -128,37 +129,44 @@ function RootLayoutNav() {
         return;
       }
 
-      const decision = await bootstrapStartPageRef.current(user.id);
-      if (cancelled) return;
+        const decision = await bootstrapStartPageRef.current(user.id);
+        if (cancelled) return;
 
-      if (decision.preferredHref === "/terreiro" && decision.terreiroContext) {
-        setActiveContextRef.current({
-          kind: "TERREIRO_PAGE",
-          terreiroId: decision.terreiroContext.terreiroId,
-          terreiroName: decision.terreiroContext.terreiroName,
-          terreiroAvatarUrl: decision.terreiroContext.terreiroAvatarUrl,
-          role: decision.terreiroContext.role,
-        });
-
-        setBootTarget({
-          href: "/terreiro",
-          params: {
-            bootStart: "1",
-            bootOffline: decision.terreiroContext.usedOfflineSnapshot
-              ? "1"
-              : "0",
+        if (
+          decision.preferredHref === "/terreiro" &&
+          decision.terreiroContext
+        ) {
+          setActiveContextRef.current({
+            kind: "TERREIRO_PAGE",
             terreiroId: decision.terreiroContext.terreiroId,
-            terreiroTitle: decision.terreiroContext.terreiroName,
-          },
-        });
-        return;
-      }
+            terreiroName: decision.terreiroContext.terreiroName,
+            terreiroAvatarUrl: decision.terreiroContext.terreiroAvatarUrl,
+            role: decision.terreiroContext.role,
+          });
 
-      setActiveContextRef.current({ kind: "USER_PROFILE" });
-      setBootTarget({ href: "/" });
+          setBootTarget({
+            href: "/terreiro",
+            params: {
+              bootStart: "1",
+              bootOffline: decision.terreiroContext.usedOfflineSnapshot
+                ? "1"
+                : "0",
+              terreiroId: decision.terreiroContext.terreiroId,
+              terreiroTitle: decision.terreiroContext.terreiroName,
+            },
+          });
+          return;
+        }
+
+        setActiveContextRef.current({ kind: "USER_PROFILE" });
+        setBootTarget({ href: "/" });
+      } catch (error) {
+        // IMPORTANT: unhandled promise rejections here can trigger reload loops in Dev Client.
+        console.error("[Boot] erro ao decidir tela inicial", error);
+      }
     };
 
-    run();
+    void run();
 
     return () => {
       cancelled = true;
