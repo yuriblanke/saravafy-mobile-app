@@ -176,13 +176,14 @@ function TerreiroCard({
       <SurfaceCard variant={variant}>
         <View style={styles.cardRow}>
           <View style={styles.cardLeft}>
+            /*
             <Text
               style={[styles.cardTitle, { color: textPrimary }]}
               numberOfLines={2}
             >
               {name}
             </Text>
-
+            /*
             {location ? (
               <Text
                 style={[styles.cardMeta, { color: textSecondary }]}
@@ -191,7 +192,6 @@ function TerreiroCard({
                 {location}
               </Text>
             ) : null}
-
             {!expanded && primaryResponsavel ? (
               <Text
                 style={[
@@ -204,7 +204,6 @@ function TerreiroCard({
                 {primaryResponsavel}
               </Text>
             ) : null}
-
             {!expanded && about ? (
               <Text
                 style={[styles.cardBody, { color: textSecondary }]}
@@ -213,7 +212,6 @@ function TerreiroCard({
                 {about}
               </Text>
             ) : null}
-
             {!expanded ? (
               <View style={styles.collapsedActionsRow}>
                 <Pressable
@@ -247,7 +245,6 @@ function TerreiroCard({
                 <Ionicons name="chevron-up" size={18} color={textMuted} />
               </Pressable>
             )}
-
             {expanded ? (
               <>
                 {responsaveis.length > 0 ? (
