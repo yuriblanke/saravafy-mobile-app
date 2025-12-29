@@ -96,30 +96,20 @@ function RootLayoutNav() {
 
   // Boot effect: decide tela inicial APENAS 1x quando auth e prefs estiverem prontos
   useEffect(() => {
-    // Se boot já foi completado, nunca mais rodar
-    if (didCompleteBootRef.current) {
-      console.log("[Boot] SKIP: boot já completado anteriormente");
+    // Guard: Boot só roda no root neutro (segments vazio)
+    // Se já estamos em um grupo, não executar boot
+    if (segments.length > 0) {
+      // Já estamos em (app) ou (auth), não é necessário boot
+      setBootComplete(true);
       return;
     }
+
+    // Se boot já foi completado, nunca mais rodar
+    if (didCompleteBootRef.current) return;
 
     // Aguardar auth e preferências estarem prontos
-    if (isLoading) {
-      console.log("[Boot] aguardando isLoading=false", {
-        segments: segments.join("/"),
-      });
-      return;
-    }
-    if (!isReady) {
-      console.log("[Boot] aguardando isReady=true", {
-        segments: segments.join("/"),
-      });
-      return;
-    }
-
-    console.log("[Boot] EXECUTANDO boot inicial", {
-      hasUser: !!user?.id,
-      segments: segments.join("/"),
-    });
+    if (isLoading) return;
+    if (!isReady) return;
 
     const run = async () => {
       try {
@@ -168,40 +158,9 @@ function RootLayoutNav() {
 
         // Marcar boot como completo ANTES de navegar
         didCompleteBootRef.current = true;
-        console.log("[Boot] didCompleteBootRef travado em true");
-
-        // Checar se já estamos no target usando SEGMENTS (não pathname)
-        const firstSegment = segments[0] as string | undefined;
-        const isAlreadyAtTarget =
-          (preferredHref === "/login" && firstSegment === "(auth)") ||
-          (preferredHref === "/(app)" && firstSegment === "(app)") ||
-          (preferredHref === "/terreiro" && firstSegment === "(app)");
-
-        if (isAlreadyAtTarget) {
-          console.log("[Boot] já no grupo correto, sem navegação", {
-            segments: segments.join("/"),
-            preferredHref,
-          });
-          didNavigateRef.current = true;
-          setBootComplete(true);
-          SplashScreen.hideAsync().catch(() => undefined);
-          return;
-        }
-
-        // Guard: se já navegamos, não navegar de novo
-        if (didNavigateRef.current) {
-          console.log("[Boot] navegação já realizada, skip", {
-            segments: segments.join("/"),
-          });
-          setBootComplete(true);
-          SplashScreen.hideAsync().catch(() => undefined);
-          return;
-        }
-
-        // Navegar para target
-        console.log("[Boot] navegando para preferredHref:", preferredHref);
         didNavigateRef.current = true;
 
+        // Navegar para target
         if (preferredHref === "/terreiro" && terreiroParams) {
           router.replace({ pathname: "/terreiro", params: terreiroParams });
         } else {

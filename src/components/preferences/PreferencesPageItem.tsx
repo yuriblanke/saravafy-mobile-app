@@ -23,6 +23,17 @@ export function PreferencesPageItem({
   onPressSwitch,
   onPressEdit,
 }: Props) {
+  const [isEditPressed, setIsEditPressed] = React.useState(false);
+  const editPressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (editPressTimeoutRef.current) {
+        clearTimeout(editPressTimeoutRef.current);
+      }
+    };
+  }, []);
+
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
@@ -43,7 +54,7 @@ export function PreferencesPageItem({
 
   const content = (
     <>
-      <View style={styles.left} pointerEvents="none">
+      <View style={styles.left} pointerEvents="box-none">
         <View style={styles.avatarWrap}>
           {avatarUrl ? (
             <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
@@ -84,8 +95,19 @@ export function PreferencesPageItem({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={`Editar ${title}`}
-        onPress={(e) => {
-          e.stopPropagation?.();
+        onPressIn={() => {
+          if (editPressTimeoutRef.current) {
+            clearTimeout(editPressTimeoutRef.current);
+          }
+          setIsEditPressed(true);
+        }}
+        onPressOut={() => {
+          // Delay para garantir que isEditPressed persiste até o onPress do pai ser avaliado
+          editPressTimeoutRef.current = setTimeout(() => {
+            setIsEditPressed(false);
+          }, 100);
+        }}
+        onPress={() => {
           onPressEdit();
         }}
         hitSlop={12}
@@ -106,11 +128,16 @@ export function PreferencesPageItem({
   return (
     <Pressable
       accessibilityRole="button"
-      onPress={onPressSwitch}
+      disabled={isEditPressed}
+      onPress={(e) => {
+        // Só dispara se não estamos pressionando o botão Editar
+        if (isEditPressed) return;
+        onPressSwitch?.();
+      }}
       style={({ pressed }) => [
         styles.row,
         { borderColor, backgroundColor: interactiveBg },
-        pressed ? [styles.rowPressed, { backgroundColor: pressedBg }] : null,
+        pressed && !isEditPressed ? [styles.rowPressed, { backgroundColor: pressedBg }] : null,
       ]}
     >
       {content}
