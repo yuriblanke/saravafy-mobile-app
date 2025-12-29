@@ -44,9 +44,17 @@ export default function AppLayout() {
 
   const showGlobalHeader = useMemo(() => {
     // segments: ["(app)", "index" | "terreiro" | "player" | "collection" | ...]
-    // Mostrar header em TODAS as rotas exceto modais full-screen
+    // Mostrar header APENAS em rotas principais (index, terreiro, collection)
+    // OCULTAR em:
+    // - player (modo imersivo)
+    // - terreiro-editor (modal full-screen)
+    // - access-manager (modal full-screen)
     const leaf = segments[1];
-    return leaf !== "terreiro-editor" && leaf !== "access-manager";
+    return (
+      leaf !== "player" &&
+      leaf !== "terreiro-editor" &&
+      leaf !== "access-manager"
+    );
   }, [segments]);
 
   return (
