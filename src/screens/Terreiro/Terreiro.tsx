@@ -146,7 +146,7 @@ export default function Terreiro() {
     if (params.bootStart === "1") return;
 
     rootPager?.setActiveKey("pontos");
-    router.replace("/");
+    router.replace("/(app)");
   }, [activeContext.kind, params.bootStart, rootPager, router]);
 
   useEffect(() => {
@@ -167,7 +167,7 @@ export default function Terreiro() {
         if (params.bootOffline === "1") {
           clearStartPageSnapshotOnly().catch(() => undefined);
           rootPager?.setActiveKey("pontos");
-          router.replace("/");
+          router.replace("/(app)");
           return;
         }
 

@@ -267,7 +267,7 @@ export default function Collection() {
               accessibilityRole="button"
               onPress={() => {
                 rootPager?.setActiveKey("pontos");
-                router.replace("/");
+                router.replace("/(app)");
               }}
               style={({ pressed }) => [
                 styles.ctaButton,

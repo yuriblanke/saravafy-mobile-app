@@ -197,7 +197,7 @@ export function AppHeaderWithPreferences() {
             onPress={() => {
               rootPager?.setActiveKey("pontos");
               if (!isOnRootPager) {
-                router.replace("/");
+                router.replace("/(app)");
               }
             }}
             hitSlop={10}
@@ -232,7 +232,7 @@ export function AppHeaderWithPreferences() {
             onPress={() => {
               rootPager?.setActiveKey("terreiros");
               if (!isOnRootPager) {
-                router.replace("/");
+                router.replace("/(app)");
               }
             }}
             hitSlop={10}
@@ -332,7 +332,7 @@ export function AppHeaderWithPreferences() {
                     // silêncio
                   }
                   rootPager?.setActiveKey("pontos");
-                  router.replace("/");
+                  router.replace("/(app)");
                 }}
                 onPressEdit={() => {
                   setIsPreferencesOpen(false);

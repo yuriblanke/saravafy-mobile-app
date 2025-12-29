@@ -203,7 +203,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
-        console.log("[Auth] Sessão inicial:", session ? "existe" : "não existe");
+        console.log(
+          "[Auth] Sessão inicial:",
+          session ? "existe" : "não existe"
+        );
         console.log("[Auth] setSession + setUser", {
           hasSession: !!session,
           userId: session?.user?.id,

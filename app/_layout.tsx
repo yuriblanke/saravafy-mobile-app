@@ -5,9 +5,9 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { useRouter, Slot, useSegments, usePathname } from "expo-router";
+import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
@@ -16,6 +16,7 @@ import {
   PreferencesProvider,
   usePreferences,
 } from "@/contexts/PreferencesContext";
+import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -64,9 +65,11 @@ export default function RootLayout() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <PreferencesProvider>
-          <ToastProvider>
-            <RootLayoutNav />
-          </ToastProvider>
+          <RootPagerProvider>
+            <ToastProvider>
+              <RootLayoutNav />
+            </ToastProvider>
+          </RootPagerProvider>
         </PreferencesProvider>
       </AuthProvider>
     </QueryClientProvider>
@@ -78,7 +81,7 @@ function RootLayoutNav() {
   const { themeMode, isReady, bootstrapStartPage, setActiveContext } =
     usePreferences();
   const { user, isLoading } = useAuth();
-  const pathname = usePathname();
+  const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
@@ -115,17 +118,17 @@ function RootLayoutNav() {
 
     // Aguardar auth e preferências estarem prontos
     if (isLoading) {
-      console.log("[Boot] aguardando isLoading=false", { pathname });
+      console.log("[Boot] aguardando isLoading=false", { segments: segments.join("/") });
       return;
     }
     if (!isReady) {
-      console.log("[Boot] aguardando isReady=true", { pathname });
+      console.log("[Boot] aguardando isReady=true", { segments: segments.join("/") });
       return;
     }
 
     console.log("[Boot] EXECUTANDO boot inicial", {
       hasUser: !!user?.id,
-      pathname,
+      segments: segments.join("/"),
     });
 
     const run = async () => {
@@ -187,15 +190,16 @@ function RootLayoutNav() {
         didCompleteBootRef.current = true;
         console.log("[Boot] didCompleteBootRef travado em true");
 
-        // Checar se já estamos no target usando pathname
+        // Checar se já estamos no target usando SEGMENTS (não pathname)
+        const firstSegment = segments[0] as string | undefined;
         const isAlreadyAtTarget =
-          (preferredHref === "/login" && pathname === "/login") ||
-          (preferredHref === "/(app)" && pathname === "/(app)") ||
-          (preferredHref === "/terreiro" && pathname === "/terreiro");
+          (preferredHref === "/login" && firstSegment === "(auth)") ||
+          (preferredHref === "/(app)" && firstSegment === "(app)") ||
+          (preferredHref === "/terreiro" && firstSegment === "(app)");
 
         if (isAlreadyAtTarget) {
-          console.log("[Boot] já em pathname correto, sem navegação", {
-            pathname,
+          console.log("[Boot] já no grupo correto, sem navegação", {
+            segments: segments.join("/"),
             preferredHref,
           });
           didNavigateRef.current = true;
@@ -206,7 +210,7 @@ function RootLayoutNav() {
 
         // Guard: se já navegamos, não navegar de novo
         if (didNavigateRef.current) {
-          console.log("[Boot] navegação já realizada, skip", { pathname });
+          console.log("[Boot] navegação já realizada, skip", { segments: segments.join("/") });
           setBootComplete(true);
           SplashScreen.hideAsync().catch(() => undefined);
           return;
@@ -235,7 +239,7 @@ function RootLayoutNav() {
     };
 
     void run();
-  }, [isLoading, isReady, user?.id, pathname, router]);
+  }, [isLoading, isReady, user?.id, segments, router]);
 
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;
