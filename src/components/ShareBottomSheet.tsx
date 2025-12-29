@@ -2,13 +2,8 @@ import React, { useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { colors, radii, spacing } from "@/src/theme";
-import {
-  copyMessage,
-  shareMoreOptions,
-  shareViaInstagram,
-  shareViaWhatsApp,
-} from "@/src/utils/shareContent";
+import { colors, radii } from "@/src/theme";
+import { copyMessage, shareMoreOptions } from "@/src/utils/shareContent";
 
 type Props = {
   visible: boolean;
@@ -25,29 +20,8 @@ export function ShareBottomSheet({
   onClose,
   showToast,
 }: Props) {
-  const inputBorder =
-    variant === "light"
-      ? colors.surfaceCardBorderLight
-      : colors.surfaceCardBorder;
-
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
-
-  const onWhatsApp = useCallback(async () => {
-    try {
-      await shareViaWhatsApp(message, showToast);
-    } finally {
-      onClose();
-    }
-  }, [message, onClose, showToast]);
-
-  const onInstagram = useCallback(async () => {
-    try {
-      await shareViaInstagram(message, showToast);
-    } finally {
-      onClose();
-    }
-  }, [message, onClose, showToast]);
 
   const onCopy = useCallback(async () => {
     try {
@@ -70,34 +44,6 @@ export function ShareBottomSheet({
       <View>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Enviar pelo WhatsApp"
-          onPress={onWhatsApp}
-          style={({ pressed }) => [
-            styles.shareOptionBtn,
-            pressed ? styles.pressed : null,
-          ]}
-        >
-          <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-            Enviar pelo WhatsApp
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Enviar pelo Instagram"
-          onPress={onInstagram}
-          style={({ pressed }) => [
-            styles.shareOptionBtn,
-            pressed ? styles.pressed : null,
-          ]}
-        >
-          <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-            Enviar pelo Instagram
-          </Text>
-        </Pressable>
-
-        <Pressable
-          accessibilityRole="button"
           accessibilityLabel="Copiar mensagem"
           onPress={onCopy}
           style={({ pressed }) => [
@@ -109,8 +55,6 @@ export function ShareBottomSheet({
             Copiar mensagem
           </Text>
         </Pressable>
-
-        <View style={[styles.shareDivider, { backgroundColor: inputBorder }]} />
 
         <Pressable
           accessibilityRole="button"
@@ -141,11 +85,6 @@ const styles = StyleSheet.create({
   shareOptionText: {
     fontSize: 14,
     fontWeight: "900",
-  },
-  shareDivider: {
-    height: StyleSheet.hairlineWidth,
-    opacity: 0.9,
-    marginVertical: spacing.sm,
   },
   pressed: {
     opacity: 0.8,

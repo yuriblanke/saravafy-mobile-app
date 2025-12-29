@@ -142,11 +142,6 @@ function TerreiroCard({
     return list;
   }, [item.responsaveis]);
 
-  const primaryResponsavel = useMemo(() => {
-    const primary = responsaveis.find((r) => r.isPrimary);
-    return primary?.name ? primary.name.trim() : "";
-  }, [responsaveis]);
-
   const phone = normalizePhoneDigits(item.phoneDigits);
   const instagram = normalizeInstagramHandle(item.instagramHandle);
 
@@ -176,14 +171,13 @@ function TerreiroCard({
       <SurfaceCard variant={variant}>
         <View style={styles.cardRow}>
           <View style={styles.cardLeft}>
-            /*
             <Text
               style={[styles.cardTitle, { color: textPrimary }]}
               numberOfLines={2}
             >
               {name}
             </Text>
-            /*
+
             {location ? (
               <Text
                 style={[styles.cardMeta, { color: textSecondary }]}
@@ -192,18 +186,7 @@ function TerreiroCard({
                 {location}
               </Text>
             ) : null}
-            {!expanded && primaryResponsavel ? (
-              <Text
-                style={[
-                  styles.cardMeta,
-                  styles.cardPrimaryBold,
-                  { color: textSecondary },
-                ]}
-                numberOfLines={1}
-              >
-                {primaryResponsavel}
-              </Text>
-            ) : null}
+
             {!expanded && about ? (
               <Text
                 style={[styles.cardBody, { color: textSecondary }]}

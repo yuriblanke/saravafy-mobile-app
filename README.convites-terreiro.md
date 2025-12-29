@@ -165,11 +165,8 @@ Antes de criar o convite, a tela valida:
 
 Abre um `BottomSheet` com as ações (nesta ordem):
 
-1. “Enviar pelo WhatsApp”
-2. “Enviar pelo Instagram”
-3. “Copiar mensagem”
-4. Divider
-5. “Mais opções…”
+1. “Copiar mensagem”
+2. “Mais opções…”
 
 ### Mensagem de convite (conteúdo do produto)
 
@@ -183,32 +180,13 @@ A mensagem é gerada por `buildInviteShareMessage(invite)` e inclui:
 
 ### Comportamento por opção
 
-**1) WhatsApp**
-
-- Se `Linking.canOpenURL("whatsapp://send")` falhar:
-
-  - copia a mensagem
-  - fecha o sheet
-
-- Se disponível:
-  - tenta `whatsapp://send?text=<mensagem>`
-  - fallback: copia a mensagem
-  - fecha o sheet
-
-**2) Instagram**
-
-- Copia a mensagem para o clipboard.
-- Tenta abrir `instagram://app` (se disponível).
-- Toast: “Mensagem copiada. Cole no Instagram.”
-- Fecha o sheet.
-
-**3) Copiar mensagem**
+**1) Copiar mensagem**
 
 - Copia para o clipboard.
 - Toast “Mensagem copiada.” (ou equivalente)
 - Fecha o sheet.
 
-**4) Mais opções…**
+**2) Mais opções…**
 
 - Abre o share nativo (`Share.share({ message })`)
 - Fecha o sheet.

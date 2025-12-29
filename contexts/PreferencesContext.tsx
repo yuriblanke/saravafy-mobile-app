@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { activateKeepAwake, deactivateKeepAwake } from "expo-keep-awake";
+import { activateKeepAwakeAsync, deactivateKeepAwake } from "expo-keep-awake";
 import React, {
   createContext,
   useContext,
@@ -593,7 +593,7 @@ export function PreferencesProvider({
   useEffect(() => {
     // Modo Curimba: manter tela ligada.
     if (curimbaEnabled) {
-      activateKeepAwake("saravafy-curimba");
+      void activateKeepAwakeAsync("saravafy-curimba");
       return () => {
         deactivateKeepAwake("saravafy-curimba");
       };

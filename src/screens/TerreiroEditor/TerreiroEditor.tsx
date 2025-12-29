@@ -9,7 +9,6 @@ import {
   Alert,
   BackHandler,
   Image,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -520,55 +519,6 @@ export default function TerreiroEditor() {
     },
     [showToast]
   );
-
-  const shareInviteViaWhatsApp = useCallback(async () => {
-    if (!inviteToShare) return;
-
-    const message = buildInviteShareMessage(inviteToShare);
-    const can = await Linking.canOpenURL("whatsapp://send");
-
-    if (!can) {
-      await copyInviteMessage(message);
-      closeInviteShareSheet();
-      return;
-    }
-
-    try {
-      const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-      await Linking.openURL(url);
-    } catch {
-      await copyInviteMessage(message);
-    } finally {
-      closeInviteShareSheet();
-    }
-  }, [
-    buildInviteShareMessage,
-    closeInviteShareSheet,
-    copyInviteMessage,
-    inviteToShare,
-  ]);
-
-  const shareInviteViaInstagram = useCallback(async () => {
-    if (!inviteToShare) return;
-
-    const message = buildInviteShareMessage(inviteToShare);
-    await Clipboard.setStringAsync(message);
-
-    try {
-      const can = await Linking.canOpenURL("instagram://app");
-      if (can) {
-        await Linking.openURL("instagram://app");
-      }
-    } finally {
-      showToast("Mensagem copiada. Cole no Instagram.");
-      closeInviteShareSheet();
-    }
-  }, [
-    buildInviteShareMessage,
-    closeInviteShareSheet,
-    inviteToShare,
-    showToast,
-  ]);
 
   const copyInviteMessageOnly = useCallback(async () => {
     if (!inviteToShare) return;
@@ -1863,34 +1813,6 @@ export default function TerreiroEditor() {
           onClose={closeInviteShareSheet}
         >
           <View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enviar pelo WhatsApp"
-              onPress={shareInviteViaWhatsApp}
-              style={({ pressed }) => [
-                styles.shareOptionBtn,
-                pressed ? styles.footerBtnPressed : null,
-              ]}
-            >
-              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-                Enviar pelo WhatsApp
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Enviar pelo Instagram"
-              onPress={shareInviteViaInstagram}
-              style={({ pressed }) => [
-                styles.shareOptionBtn,
-                pressed ? styles.footerBtnPressed : null,
-              ]}
-            >
-              <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-                Enviar pelo Instagram
-              </Text>
-            </Pressable>
-
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Copiar mensagem"

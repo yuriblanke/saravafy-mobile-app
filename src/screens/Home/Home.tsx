@@ -843,7 +843,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingTop: spacing.md,
+    padding: 0,
   },
   submitRow: {
     paddingHorizontal: spacing.lg,
@@ -852,7 +852,6 @@ const styles = StyleSheet.create({
   },
   submitButton: {
     alignSelf: "flex-end",
-    minHeight: 44,
     justifyContent: "center",
     paddingHorizontal: 4,
     backgroundColor: "transparent",

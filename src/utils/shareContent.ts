@@ -1,6 +1,6 @@
 import { APP_INSTALL_URL } from "@/src/config/links";
 import * as Clipboard from "expo-clipboard";
-import { Linking, Share } from "react-native";
+import { Share } from "react-native";
 
 function sanitizeTitle(value: string, fallback: string) {
   const trimmed = (value ?? "").trim();
@@ -34,7 +34,7 @@ export function buildShareMessageForColecao(collectionTitle: string) {
     `Olha essa coleção “${safeTitle}” no Saravafy.\n\n` +
     buildPreWebInstallBlock() +
     `3) Abra o Saravafy e procure pela coleção “${safeTitle}”\n\n` +
-    `Se fizer sentido, você pode favoritar e tocar no player.`
+    `Aí você consegue ver os pontos e salvar pra depois.`
   );
 }
 
@@ -56,41 +56,6 @@ export async function copyMessage(
 ) {
   await Clipboard.setStringAsync(message);
   showToast?.(toastMessage ?? "Mensagem copiada.");
-}
-
-export async function shareViaWhatsApp(
-  message: string,
-  showToast?: (msg: string) => void
-) {
-  const can = await Linking.canOpenURL("whatsapp://send");
-
-  if (!can) {
-    await copyMessage(message, showToast);
-    return;
-  }
-
-  try {
-    const url = `whatsapp://send?text=${encodeURIComponent(message)}`;
-    await Linking.openURL(url);
-  } catch {
-    await copyMessage(message, showToast);
-  }
-}
-
-export async function shareViaInstagram(
-  message: string,
-  showToast?: (msg: string) => void
-) {
-  await Clipboard.setStringAsync(message);
-
-  try {
-    const can = await Linking.canOpenURL("instagram://app");
-    if (can) {
-      await Linking.openURL("instagram://app");
-    }
-  } finally {
-    showToast?.("Mensagem copiada. Cole no Instagram.");
-  }
 }
 
 export async function shareMoreOptions(message: string) {
