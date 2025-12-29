@@ -132,8 +132,6 @@ export function BottomSheet({
     });
   }, [closeBySwipe, enableSwipeToClose, translateY]);
 
-  if (!visible) return null;
-
   const maxSheetHeight = Math.round(screenHeight * 0.85);
   const fixedHeight = resolveSnapHeight(
     snapPoints?.[0],
@@ -146,6 +144,8 @@ export function BottomSheet({
     if (typeof fixedHeight !== "number") return;
     setSheetHeight(fixedHeight);
   }, [fixedHeight, visible]);
+
+  if (!visible) return null;
 
   return (
     <View style={styles.portal} pointerEvents="box-none">

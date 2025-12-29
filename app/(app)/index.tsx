@@ -1,12 +1,12 @@
 import { useRootPager } from "@/contexts/RootPagerContext";
 import Home from "@/src/screens/Home/Home";
 import Terreiros from "@/src/screens/Terreiros/Terreiros";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useMemo } from "react";
 import { useWindowDimensions, View } from "react-native";
 import { TabView } from "react-native-tab-view";
 /**
  * RootPager - Navegação raiz do app (swipe horizontal Pontos ↔ Terreiros)
- * 
+ *
  * ARQUITETURA:
  * - Este é o componente raiz dentro de `/(app)` que implementa swipe horizontal
  *   entre duas páginas: Pontos (Home) e Terreiros
@@ -14,12 +14,12 @@ import { TabView } from "react-native-tab-view";
  * - O controle do pager é feito via RootPagerContext (index/activeKey)
  * - AppHeaderWithPreferences controla qual página está ativa (NÃO troca rotas via router)
  * - Rotas profundas (/player, /terreiro, /collection/[id]) são Stack normal sem swipe
- * 
+ *
  * IMPORTANTE:
  * - NÃO adicionar navegação via router.replace/push entre Pontos ↔ Terreiros
  * - NÃO criar tab bar visível (já existe controle no header)
  * - NÃO modificar a estrutura sem considerar o impacto em AppHeaderWithPreferences
- */export default function RootPager() {
+ */ export default function RootPager() {
   const ctx = useRootPager();
   const { width } = useWindowDimensions();
 
