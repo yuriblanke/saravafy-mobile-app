@@ -1,13 +1,13 @@
-import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
+import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
+import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -40,14 +40,9 @@ export default function Terreiro() {
     terreiroId?: string;
     terreiroTitle?: string;
   }>();
-  const { user } = useAuth();
   const { showToast } = useToast();
-  const {
-    effectiveTheme,
-    activeContext,
-    setStartPageTerreiro,
-    clearStartPageSnapshotOnly,
-  } = usePreferences();
+  const { effectiveTheme, activeContext, clearStartPageSnapshotOnly } =
+    usePreferences();
 
   const variant = effectiveTheme;
 
@@ -76,26 +71,31 @@ export default function Terreiro() {
 
   const terreiroName = resolvedTerreiroName ?? "Terreiro";
 
+  const [isShareOpen, setIsShareOpen] = useState(false);
+
+  const shareMessage = useMemo(() => {
+    return buildShareMessageForTerreiro(terreiroName);
+  }, [terreiroName]);
+
   const terreiroId = resolvedTerreiroId;
 
   const activeTerreiroRole =
     activeContext.kind === "TERREIRO_PAGE" ? activeContext.role : null;
   const isAdminOrEditor =
     activeTerreiroRole === "admin" || activeTerreiroRole === "editor";
+  const isAdmin = activeTerreiroRole === "admin";
 
   const [isTerreiroMenuOpen, setIsTerreiroMenuOpen] = useState(false);
-  const [isViewingAsVisitor, setIsViewingAsVisitor] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       return () => {
-        setIsViewingAsVisitor(false);
         setIsTerreiroMenuOpen(false);
       };
     }, [])
   );
 
-  const canEdit = isAdminOrEditor && !isViewingAsVisitor;
+  const canEdit = isAdminOrEditor;
 
   const [editingCollectionId, setEditingCollectionId] = useState<string | null>(
     null
@@ -189,10 +189,6 @@ export default function Terreiro() {
     resolvedTerreiroId,
     router,
   ]);
-
-  const headerSubtitle = useMemo(() => {
-    return "Página do terreiro";
-  }, []);
 
   const accentColor = colors.brass600;
   const dangerColor = colors.danger;
@@ -393,8 +389,6 @@ export default function Terreiro() {
   return (
     <SaravafyScreen variant={variant}>
       <View style={styles.screen}>
-        <AppHeaderWithPreferences />
-
         <View style={styles.container}>
           <View style={styles.contextHeader}>
             <View style={styles.titleRow}>
@@ -408,71 +402,24 @@ export default function Terreiro() {
               </View>
 
               <View style={styles.headerActions}>
-                {isViewingAsVisitor ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Sair da visualização como visitante"
-                    hitSlop={10}
-                    onPress={() => setIsViewingAsVisitor(false)}
-                    style={({ pressed }) => [
-                      styles.iconButton,
-                      pressed ? styles.iconButtonPressed : null,
-                    ]}
-                  >
-                    <Ionicons name="eye" size={20} color={accentColor} />
-                  </Pressable>
-                ) : (
-                  <>
-                    {canEdit ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Editar terreiro"
-                        hitSlop={10}
-                        onPress={() => {
-                          if (!resolvedTerreiroId) return;
-                          router.push({
-                            pathname: "/terreiro-editor" as any,
-                            params: {
-                              mode: "edit",
-                              terreiroId: resolvedTerreiroId,
-                            },
-                          });
-                        }}
-                        style={({ pressed }) => [
-                          styles.iconButton,
-                          pressed ? styles.iconButtonPressed : null,
-                        ]}
-                      >
-                        <Ionicons name="pencil" size={20} color={textMuted} />
-                      </Pressable>
-                    ) : null}
-
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Abrir menu do terreiro"
-                      hitSlop={10}
-                      onPress={() => setIsTerreiroMenuOpen(true)}
-                      style={({ pressed }) => [
-                        styles.iconButton,
-                        pressed ? styles.iconButtonPressed : null,
-                      ]}
-                    >
-                      <Ionicons
-                        name="ellipsis-vertical"
-                        size={20}
-                        color={textMuted}
-                      />
-                    </Pressable>
-                  </>
-                )}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Abrir menu do terreiro"
+                  hitSlop={10}
+                  onPress={() => setIsTerreiroMenuOpen(true)}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    pressed ? styles.iconButtonPressed : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="ellipsis-vertical"
+                    size={20}
+                    color={textMuted}
+                  />
+                </Pressable>
               </View>
             </View>
-            <Text
-              style={[styles.subtitle, { color: textSecondary }]}
-              numberOfLines={1}
-            >
-              {headerSubtitle}
-            </Text>
           </View>
 
           <View style={styles.sectionGap} />
@@ -518,6 +465,14 @@ export default function Terreiro() {
           </View>
 
           <View style={styles.sectionGapSmall} />
+
+          <ShareBottomSheet
+            visible={isShareOpen}
+            variant={variant}
+            message={shareMessage}
+            onClose={() => setIsShareOpen(false)}
+            showToast={showToast}
+          />
 
           {isLoading ? (
             <Text style={[styles.bodyText, { color: textSecondary }]}>
@@ -878,71 +833,55 @@ export default function Terreiro() {
         onClose={() => setIsTerreiroMenuOpen(false)}
       >
         <View>
-          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-            Opções
-          </Text>
-
           <View style={styles.sheetActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Tornar essa página minha página inicial"
+              accessibilityLabel="Compartilhar terreiro"
               hitSlop={10}
-              onPress={async () => {
+              onPress={() => {
                 setIsTerreiroMenuOpen(false);
-
-                if (!user?.id || !resolvedTerreiroId) {
-                  return;
-                }
-
-                try {
-                  await setStartPageTerreiro(
-                    user.id,
-                    resolvedTerreiroId,
-                    resolvedTerreiroName ?? terreiroName
-                  );
-                  showToast("Sua página inicial foi atualizada.");
-                } catch (e) {
-                  Alert.alert(
-                    "Erro",
-                    e instanceof Error
-                      ? e.message
-                      : "Não foi possível atualizar sua página inicial."
-                  );
-                }
+                setIsShareOpen(true);
               }}
               style={({ pressed }) => [
                 styles.sheetActionRow,
                 pressed ? styles.sheetActionPressed : null,
               ]}
             >
-              <Ionicons name="home" size={18} color={accentColor} />
+              <Ionicons name="share-outline" size={18} color={accentColor} />
               <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Tornar essa página minha página inicial
+                Compartilhar terreiro
               </Text>
             </Pressable>
 
-            {isAdminOrEditor ? (
+            {isAdmin ? (
               <>
                 <Separator variant={variant} />
 
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Visualizar como visitante"
+                  accessibilityLabel="Editar terreiro"
                   hitSlop={10}
                   onPress={() => {
                     setIsTerreiroMenuOpen(false);
-                    setIsViewingAsVisitor(true);
+                    if (!resolvedTerreiroId) return;
+                    router.push({
+                      pathname: "/terreiro-editor" as any,
+                      params: {
+                        mode: "edit",
+                        terreiroId: resolvedTerreiroId,
+                      },
+                    });
                   }}
                   style={({ pressed }) => [
                     styles.sheetActionRow,
                     pressed ? styles.sheetActionPressed : null,
                   ]}
                 >
-                  <Ionicons name="eye" size={18} color={accentColor} />
+                  <Ionicons name="pencil" size={18} color={accentColor} />
                   <Text
                     style={[styles.sheetActionText, { color: textPrimary }]}
                   >
-                    Visualizar como visitante
+                    Editar terreiro
                   </Text>
                 </Pressable>
               </>

@@ -42,7 +42,7 @@ export type StartPagePreference = {
   updatedAt: string;
 } | null;
 
-function isMissingRelationshipError(error: unknown) {
+function isTerreiroMembersPolicyRecursionError(error: unknown) {
   const message =
     error &&
     typeof error === "object" &&
@@ -51,10 +51,10 @@ function isMissingRelationshipError(error: unknown) {
       ? (error as { message: string }).message
       : "";
 
+  const m = (message ?? "").toLowerCase();
   return (
-    message.includes("Could not find a relationship") ||
-    message.includes("relationship") ||
-    message.includes("foreign key")
+    m.includes("infinite recursion detected in policy") &&
+    m.includes('relation "terreiro_members"')
   );
 }
 
@@ -70,12 +70,6 @@ type TerreiroRow = {
   image_url?: string | null;
 };
 
-type TerreiroMemberWithJoinRow = {
-  terreiro_id: string;
-  role: TerreiroRole;
-  terreiros?: TerreiroRow | TerreiroRow[] | null;
-};
-
 type TerreiroMemberRow = {
   terreiro_id: string;
   role: TerreiroRole;
@@ -86,43 +80,6 @@ export async function fetchTerreirosQueAdministro(userId: string) {
 
   const allowedRoles = ["admin", "editor"] as const;
 
-  const applyMemberUserFilter = async (query: any) => {
-    // Some environments use `terreiro_members.user_id`, others use `profile_id`.
-    // Try both, and fall back gracefully if a column does not exist.
-    const orFilter = `user_id.eq.${userId},profile_id.eq.${userId}`;
-
-    let res: any = await query.or(orFilter);
-
-    if (res?.error && typeof res.error.message === "string") {
-      const msg = res.error.message;
-      const missingProfileId =
-        msg.includes("profile_id") && msg.includes("does not exist");
-      const missingUserId =
-        msg.includes("user_id") && msg.includes("does not exist");
-
-      if (missingProfileId) {
-        res = await query.eq("user_id", userId);
-      } else if (missingUserId) {
-        res = await query.eq("profile_id", userId);
-      }
-    }
-
-    return res;
-  };
-
-  const selectWithAllTerreiroFields =
-    "terreiro_id, role, terreiros(id, title, cover_image_url, avatar_url, image_url)";
-  const selectWithAllTerreiroFieldsWithoutCover =
-    "terreiro_id, role, terreiros(id, title, avatar_url, image_url)";
-  const selectWithImageOnly =
-    "terreiro_id, role, terreiros(id, title, cover_image_url, image_url)";
-  const selectWithImageOnlyWithoutCover =
-    "terreiro_id, role, terreiros(id, title, image_url)";
-  const selectWithoutImages =
-    "terreiro_id, role, terreiros(id, title, cover_image_url)";
-  const selectWithoutImagesWithoutCover =
-    "terreiro_id, role, terreiros(id, title)";
-
   const selectTerreirosAll =
     "id, title, cover_image_url, avatar_url, image_url";
   const selectTerreirosAllWithoutCover = "id, title, avatar_url, image_url";
@@ -131,132 +88,28 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   const selectTerreirosWithoutImages = "id, title, cover_image_url";
   const selectTerreirosWithoutImagesWithoutCover = "id, title";
 
-  let joined: any = await applyMemberUserFilter(
-    supabase
-      .from("terreiro_members")
-      .select(selectWithAllTerreiroFields)
-      .in("role", [...allowedRoles])
-  );
+  const startedAt = Date.now();
+  let usedStatusFilter = true;
+  let members: any = await supabase
+    .from("terreiro_members")
+    .select("terreiro_id, role")
+    .eq("user_id", userId)
+    .in("role", [...allowedRoles])
+    .eq("status", "active");
 
   if (
-    joined.error &&
-    typeof joined.error.message === "string" &&
-    joined.error.message.includes("cover_image_url") &&
-    joined.error.message.includes("does not exist")
+    members.error &&
+    typeof members.error.message === "string" &&
+    members.error.message.includes("status") &&
+    members.error.message.includes("does not exist")
   ) {
-    joined = await applyMemberUserFilter(
-      supabase
-        .from("terreiro_members")
-        .select(selectWithAllTerreiroFieldsWithoutCover)
-        .in("role", [...allowedRoles])
-    );
-  }
-
-  if (
-    joined.error &&
-    typeof joined.error.message === "string" &&
-    joined.error.message.includes("avatar_url") &&
-    joined.error.message.includes("does not exist")
-  ) {
-    joined = await applyMemberUserFilter(
-      supabase
-        .from("terreiro_members")
-        .select(
-          typeof joined.error.message === "string" &&
-            joined.error.message.includes("cover_image_url")
-            ? selectWithImageOnlyWithoutCover
-            : selectWithImageOnly
-        )
-        .in("role", [...allowedRoles])
-    );
-  }
-
-  if (
-    joined.error &&
-    typeof joined.error.message === "string" &&
-    joined.error.message.includes("image_url") &&
-    joined.error.message.includes("does not exist")
-  ) {
-    joined = await applyMemberUserFilter(
-      supabase
-        .from("terreiro_members")
-        .select(
-          typeof joined.error.message === "string" &&
-            joined.error.message.includes("cover_image_url")
-            ? selectWithoutImagesWithoutCover
-            : selectWithoutImages
-        )
-        .in("role", [...allowedRoles])
-    );
-  }
-
-  if (__DEV__) {
-    const err = joined.error
-      ? typeof joined.error.message === "string"
-        ? joined.error.message
-        : String(joined.error)
-      : null;
-    console.info("[TerreirosAdmin] joined query", {
-      userId,
-      ok: !joined.error,
-      rows: Array.isArray(joined.data) ? joined.data.length : 0,
-      error: err,
-    });
-  }
-
-  if (!joined.error) {
-    const rows = (joined.data ?? []) as unknown as TerreiroMemberWithJoinRow[];
-    const byId = new Map<string, ManagedTerreiro>();
-
-    for (const row of rows) {
-      const role = row.role;
-      if (role !== "admin" && role !== "editor") continue;
-
-      const rawTerreiro = row.terreiros;
-      const terreiro = Array.isArray(rawTerreiro)
-        ? rawTerreiro[0]
-        : rawTerreiro;
-      if (!terreiro?.id || !terreiro?.title) continue;
-
-      const avatarUrl =
-        (typeof terreiro.cover_image_url === "string" &&
-          terreiro.cover_image_url) ||
-        (typeof terreiro.avatar_url === "string" && terreiro.avatar_url) ||
-        (typeof terreiro.image_url === "string" && terreiro.image_url) ||
-        undefined;
-
-      const existing = byId.get(terreiro.id);
-      if (!existing) {
-        byId.set(terreiro.id, {
-          id: terreiro.id,
-          name: terreiro.title,
-          avatarUrl,
-          role,
-        });
-      } else if (existing.role !== "admin" && role === "admin") {
-        byId.set(terreiro.id, { ...existing, role });
-      }
-    }
-
-    return Array.from(byId.values()).sort((a, b) =>
-      safeLocaleCompare(a.name, b.name)
-    );
-  }
-
-  if (!isMissingRelationshipError(joined.error)) {
-    throw new Error(
-      typeof joined.error.message === "string"
-        ? joined.error.message
-        : "Erro ao buscar terreiros"
-    );
-  }
-
-  const members = await applyMemberUserFilter(
-    supabase
+    usedStatusFilter = false;
+    members = await supabase
       .from("terreiro_members")
       .select("terreiro_id, role")
-      .in("role", [...allowedRoles])
-  );
+      .eq("user_id", userId)
+      .in("role", [...allowedRoles]);
+  }
 
   if (__DEV__) {
     const err = members.error
@@ -264,12 +117,103 @@ export async function fetchTerreirosQueAdministro(userId: string) {
         ? members.error.message
         : String(members.error)
       : null;
-    console.info("[TerreirosAdmin] members fallback", {
+    console.info("[TerreirosAdmin] members query", {
       userId,
       ok: !members.error,
+      ms: Date.now() - startedAt,
+      usedStatusFilter,
       rows: Array.isArray(members.data) ? members.data.length : 0,
       error: err,
     });
+
+    // Compat: we no longer use the join-based strategy because it can trigger
+    // recursive RLS policies on `terreiro_members`.
+    console.info("[TerreirosAdmin] joined query", {
+      userId,
+      ok: true,
+      skipped: true,
+      strategy: "two_step",
+    });
+  }
+
+  // If membership RLS is broken (recursive policy), fall back to terreiros created
+  // by the user. This doesn't cover "editor" access, but keeps the app usable.
+  if (members.error && isTerreiroMembersPolicyRecursionError(members.error)) {
+    let created: any = await supabase
+      .from("terreiros")
+      .select(selectTerreirosAll)
+      .eq("created_by", userId);
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("cover_image_url") &&
+      created.error.message.includes("does not exist")
+    ) {
+      created = await supabase
+        .from("terreiros")
+        .select(selectTerreirosAllWithoutCover)
+        .eq("created_by", userId);
+    }
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("avatar_url") &&
+      created.error.message.includes("does not exist")
+    ) {
+      created = await supabase
+        .from("terreiros")
+        .select(
+          typeof created.error.message === "string" &&
+            created.error.message.includes("cover_image_url")
+            ? selectTerreirosImageOnlyWithoutCover
+            : selectTerreirosImageOnly
+        )
+        .eq("created_by", userId);
+    }
+
+    if (
+      created.error &&
+      typeof created.error.message === "string" &&
+      created.error.message.includes("image_url") &&
+      created.error.message.includes("does not exist")
+    ) {
+      created = await supabase
+        .from("terreiros")
+        .select(
+          typeof created.error.message === "string" &&
+            created.error.message.includes("cover_image_url")
+            ? selectTerreirosWithoutImagesWithoutCover
+            : selectTerreirosWithoutImages
+        )
+        .eq("created_by", userId);
+    }
+
+    if (created.error) {
+      throw new Error(
+        "Administração indisponível: policy RLS em 'terreiro_members' está em recursão. Ajuste as policies no Supabase."
+      );
+    }
+
+    const rows = (created.data ?? []) as unknown as TerreiroRow[];
+    return rows
+      .filter((t) => !!t?.id && !!t?.title)
+      .map((t) => {
+        const avatarUrl =
+          (typeof t.cover_image_url === "string" && t.cover_image_url) ||
+          (typeof t.avatar_url === "string" && t.avatar_url) ||
+          (typeof t.image_url === "string" && t.image_url) ||
+          undefined;
+
+        return {
+          id: t.id,
+          name: t.title,
+          avatarUrl,
+          role: "admin" as const,
+        } satisfies ManagedTerreiro;
+      })
+      .sort((a, b) => safeLocaleCompare(a.name, b.name));
   }
 
   if (members.error) {
@@ -377,6 +321,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     return result.sort((a, b) => safeLocaleCompare(a.name, b.name));
   }
 
+  const tTerreiros = Date.now();
   let terreiros: any = await supabase
     .from("terreiros")
     .select(selectTerreirosAll)
@@ -437,6 +382,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     console.info("[TerreirosAdmin] terreiros fallback", {
       idsCount: ids.length,
       ok: !terreiros.error,
+      ms: Date.now() - tTerreiros,
       rows: Array.isArray(terreiros.data) ? terreiros.data.length : 0,
       error: err,
     });

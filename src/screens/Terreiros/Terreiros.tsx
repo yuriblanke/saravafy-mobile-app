@@ -36,19 +36,71 @@ function formatCityState(city?: string, state?: string) {
   const c = typeof city === "string" && city.trim() ? city.trim() : "";
   const s = typeof state === "string" && state.trim() ? state.trim() : "";
   if (!c && !s) return "";
-  if (c && s) return `${c} · ${s}`;
+  if (c && s) return `${c}/${s}`;
   return c || s;
+}
+
+function formatLocation(neighborhood?: string, city?: string, state?: string) {
+  const loc = formatCityState(city, state);
+  const n =
+    typeof neighborhood === "string" && neighborhood.trim()
+      ? neighborhood.trim()
+      : "";
+  if (!loc) return "";
+  if (n) return `${n} · ${loc}`;
+  return loc;
+}
+
+function formatPhoneBr(digits: string) {
+  const d = normalizePhoneDigits(digits);
+  if (!d) return "";
+  if (d.length === 11) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  }
+  if (d.length === 10) {
+    return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  }
+  return d;
 }
 
 function normalizeInstagramHandle(handle?: string) {
   if (typeof handle !== "string") return "";
-  const h = handle.trim().replace(/^@+/, "");
-  return h;
+  let h = handle.trim();
+
+  // Accept @handle
+  h = h.replace(/^@+/, "");
+
+  // Accept full URLs like https://instagram.com/handle
+  h = h.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "");
+  h = h.replace(/^instagram\.com\//i, "");
+
+  // Strip query/hash and trailing slashes
+  h = h.split(/[?#]/)[0] ?? "";
+  h = h.replace(/\/+$/, "");
+
+  // Keep only first path segment
+  h = h.split("/")[0] ?? "";
+  return h.trim();
 }
 
 function normalizePhoneDigits(phoneDigits?: string) {
   if (typeof phoneDigits !== "string") return "";
   return phoneDigits.replace(/\D/g, "");
+}
+
+async function openInstagram(handle: string) {
+  const h = normalizeInstagramHandle(handle);
+  if (!h) return;
+  const web = `https://instagram.com/${encodeURIComponent(h)}`;
+  Linking.openURL(web).catch(() => undefined);
+}
+
+async function openWhatsApp(phoneDigits: string) {
+  const digits = normalizePhoneDigits(phoneDigits);
+  if (!digits) return;
+  const full = digits.startsWith("55") ? digits : `55${digits}`;
+  const web = `https://wa.me/${encodeURIComponent(full)}`;
+  Linking.openURL(web).catch(() => undefined);
 }
 
 function TerreiroCard({
@@ -57,37 +109,70 @@ function TerreiroCard({
   textPrimary,
   textSecondary,
   textMuted,
-  onPress,
+  expanded,
+  onToggleExpanded,
+  onOpenCollections,
 }: {
   item: TerreiroListItem;
   variant: "light" | "dark";
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
-  onPress: () => void;
+  expanded: boolean;
+  onToggleExpanded: () => void;
+  onOpenCollections: () => void;
 }) {
   const [imageFailed, setImageFailed] = useState(false);
 
   const name =
     (typeof item.name === "string" && item.name.trim()) || "Terreiro";
 
-  const cityState = formatCityState(item.city, item.state);
+  const location = formatLocation(item.neighborhood, item.city, item.state);
+
+  const responsaveis = useMemo(() => {
+    const list = Array.isArray(item.responsaveis) ? [...item.responsaveis] : [];
+    list.sort((a, b) => {
+      const ap = a.isPrimary ? 1 : 0;
+      const bp = b.isPrimary ? 1 : 0;
+      if (ap !== bp) return bp - ap;
+      const ad = a.createdAt ?? "9999-12-31T23:59:59.999Z";
+      const bd = b.createdAt ?? "9999-12-31T23:59:59.999Z";
+      return ad.localeCompare(bd);
+    });
+    return list;
+  }, [item.responsaveis]);
+
+  const primaryResponsavel = useMemo(() => {
+    const primary = responsaveis.find((r) => r.isPrimary);
+    return primary?.name ? primary.name.trim() : "";
+  }, [responsaveis]);
+
   const phone = normalizePhoneDigits(item.phoneDigits);
   const instagram = normalizeInstagramHandle(item.instagramHandle);
 
-  const hasActions = !!phone || !!instagram;
+  const linesOfWork =
+    typeof item.linesOfWork === "string" && item.linesOfWork.trim()
+      ? item.linesOfWork.trim()
+      : "";
+  const about =
+    typeof item.about === "string" && item.about.trim()
+      ? item.about.trim()
+      : "";
 
   const hasImage =
     !imageFailed &&
     typeof item.coverImageUrl === "string" &&
     item.coverImageUrl.trim().length > 0;
 
-  const accentColor = variant === "light" ? colors.brass600 : colors.brass500;
-  const pressedBg =
-    variant === "light" ? colors.paper200 : "rgba(243,239,233,0.08)";
+  const placeholderBorder =
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
+  const placeholderBg =
+    variant === "light" ? colors.paper200 : colors.inputBgDark;
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress}>
+    <Pressable accessibilityRole="button" onPress={onOpenCollections}>
       <SurfaceCard variant={variant}>
         <View style={styles.cardRow}>
           <View style={styles.cardLeft}>
@@ -98,88 +183,242 @@ function TerreiroCard({
               {name}
             </Text>
 
-            {cityState ? (
+            {location ? (
               <Text
                 style={[styles.cardMeta, { color: textSecondary }]}
                 numberOfLines={1}
               >
-                {cityState}
+                {location}
               </Text>
             ) : null}
 
-            {hasActions ? (
-              <View style={styles.cardActionsRow}>
-                {phone ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Abrir WhatsApp"
-                    hitSlop={10}
-                    onPressIn={(e) => {
-                      (e as any)?.stopPropagation?.();
-                    }}
-                    onPress={(e) => {
-                      (e as any)?.stopPropagation?.();
-                      Linking.openURL(`https://wa.me/55${phone}`).catch(
-                        () => undefined
-                      );
-                    }}
-                    style={({ pressed }) => [
-                      styles.actionIconBtn,
-                      pressed ? { backgroundColor: pressedBg } : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="logo-whatsapp"
-                      size={18}
-                      color={accentColor}
-                    />
-                  </Pressable>
-                ) : null}
+            {!expanded && primaryResponsavel ? (
+              <Text
+                style={[
+                  styles.cardMeta,
+                  styles.cardPrimaryBold,
+                  { color: textSecondary },
+                ]}
+                numberOfLines={1}
+              >
+                {primaryResponsavel}
+              </Text>
+            ) : null}
 
-                {instagram ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Abrir Instagram"
-                    hitSlop={10}
-                    onPressIn={(e) => {
-                      (e as any)?.stopPropagation?.();
-                    }}
-                    onPress={(e) => {
-                      (e as any)?.stopPropagation?.();
-                      Linking.openURL(
-                        `https://instagram.com/${instagram}`
-                      ).catch(() => undefined);
-                    }}
-                    style={({ pressed }) => [
-                      styles.actionIconBtn,
-                      pressed ? { backgroundColor: pressedBg } : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="logo-instagram"
-                      size={18}
-                      color={accentColor}
-                    />
-                  </Pressable>
-                ) : null}
+            {!expanded && about ? (
+              <Text
+                style={[styles.cardBody, { color: textSecondary }]}
+                numberOfLines={2}
+              >
+                {about}
+              </Text>
+            ) : null}
 
-                {!phone && !instagram ? (
-                  <Text style={[styles.cardMeta, { color: textMuted }]} />
-                ) : null}
+            {!expanded ? (
+              <View style={styles.collapsedActionsRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Ver mais"
+                  hitSlop={10}
+                  onPress={() => {
+                    onToggleExpanded();
+                  }}
+                  style={styles.chevronRow}
+                >
+                  <Text style={[styles.chevronText, { color: textMuted }]}>
+                    Ver mais
+                  </Text>
+                  <Ionicons name="chevron-down" size={18} color={textMuted} />
+                </Pressable>
               </View>
+            ) : (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Ver menos"
+                hitSlop={10}
+                onPress={() => {
+                  onToggleExpanded();
+                }}
+                style={styles.chevronRow}
+              >
+                <Text style={[styles.chevronText, { color: textMuted }]}>
+                  Ver menos
+                </Text>
+                <Ionicons name="chevron-up" size={18} color={textMuted} />
+              </Pressable>
+            )}
+
+            {expanded ? (
+              <>
+                {responsaveis.length > 0 ? (
+                  <View style={styles.cardBlock}>
+                    <Text style={[styles.cardLabel, { color: textMuted }]}>
+                      Responsáveis espirituais
+                    </Text>
+                    <View style={styles.listBlock}>
+                      {responsaveis.map((r, idx) => (
+                        <Text
+                          key={`${r.name}:${idx}`}
+                          style={[
+                            styles.cardBody,
+                            { color: textSecondary },
+                            r.isPrimary ? styles.cardPrimaryBold : null,
+                          ]}
+                          numberOfLines={1}
+                        >
+                          {r.name}
+                        </Text>
+                      ))}
+                    </View>
+                  </View>
+                ) : null}
+
+                {linesOfWork ? (
+                  <View style={styles.cardBlock}>
+                    <Text style={[styles.cardLabel, { color: textMuted }]}>
+                      Linhas de trabalho
+                    </Text>
+                    <Text style={[styles.cardBody, { color: textSecondary }]}>
+                      {linesOfWork}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {about ? (
+                  <View style={styles.cardBlock}>
+                    <Text style={[styles.cardLabel, { color: textMuted }]}>
+                      Sobre
+                    </Text>
+                    <Text style={[styles.cardBody, { color: textSecondary }]}>
+                      {about}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {instagram || phone ? (
+                  <View style={styles.cardBlock}>
+                    <Text style={[styles.cardLabel, { color: textMuted }]}>
+                      Contatos
+                    </Text>
+                    {instagram ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Abrir Instagram"
+                        onPress={(e) => {
+                          (e as any)?.stopPropagation?.();
+                          void openInstagram(instagram);
+                        }}
+                      >
+                        <View style={styles.contactLinkRow}>
+                          <Ionicons
+                            name="logo-instagram"
+                            size={16}
+                            color={textSecondary}
+                          />
+                          <Text
+                            style={[styles.linkText, { color: textSecondary }]}
+                            numberOfLines={1}
+                          >
+                            Instagram: @{instagram}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ) : null}
+                    {phone ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Abrir WhatsApp"
+                        onPress={(e) => {
+                          (e as any)?.stopPropagation?.();
+                          void openWhatsApp(phone);
+                        }}
+                      >
+                        <View style={styles.contactLinkRow}>
+                          <Ionicons
+                            name="logo-whatsapp"
+                            size={16}
+                            color={textSecondary}
+                          />
+                          <Text
+                            style={[styles.linkText, { color: textSecondary }]}
+                            numberOfLines={1}
+                          >
+                            WhatsApp: {formatPhoneBr(phone)}
+                          </Text>
+                        </View>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                ) : null}
+              </>
             ) : null}
           </View>
 
-          {hasImage ? (
-            <View style={styles.cardRight}>
+          <View style={styles.cardRight}>
+            {hasImage ? (
               <Image
                 source={{ uri: item.coverImageUrl as string }}
                 resizeMode="cover"
                 style={styles.cardImage}
                 onError={() => setImageFailed(true)}
               />
-            </View>
-          ) : null}
+            ) : (
+              <View
+                style={[
+                  styles.cardImage,
+                  styles.cardImagePlaceholder,
+                  {
+                    borderColor: placeholderBorder,
+                    backgroundColor: placeholderBg,
+                  },
+                ]}
+              >
+                <Ionicons name="image-outline" size={22} color={textMuted} />
+              </View>
+            )}
+
+            {!expanded && (instagram || phone) ? (
+              <View style={styles.iconRow}>
+                {instagram ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Abrir Instagram"
+                    hitSlop={10}
+                    onPress={(e) => {
+                      (e as any)?.stopPropagation?.();
+                      void openInstagram(instagram);
+                    }}
+                    style={styles.actionIconBtn}
+                  >
+                    <Ionicons
+                      name="logo-instagram"
+                      size={18}
+                      color={textMuted}
+                    />
+                  </Pressable>
+                ) : null}
+
+                {phone ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Abrir WhatsApp"
+                    hitSlop={10}
+                    onPress={(e) => {
+                      (e as any)?.stopPropagation?.();
+                      void openWhatsApp(phone);
+                    }}
+                    style={styles.actionIconBtn}
+                  >
+                    <Ionicons
+                      name="logo-whatsapp"
+                      size={18}
+                      color={textMuted}
+                    />
+                  </Pressable>
+                ) : null}
+              </View>
+            ) : null}
+          </View>
         </View>
       </SurfaceCard>
     </Pressable>
@@ -206,6 +445,13 @@ export default function Terreiros() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [expandedTerreiroId, setExpandedTerreiroId] = useState<string | null>(
+    null
+  );
+
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedTerreiroId((prev) => (prev === id ? null : id));
+  }, []);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -313,6 +559,7 @@ export default function Terreiros() {
               contentContainerStyle={styles.listContent}
               keyboardShouldPersistTaps="handled"
               renderItem={({ item }) => {
+                const expanded = expandedTerreiroId === item.id;
                 return (
                   <View style={styles.cardGap}>
                     <TerreiroCard
@@ -321,7 +568,9 @@ export default function Terreiros() {
                       textPrimary={textPrimary}
                       textSecondary={textSecondary}
                       textMuted={textMuted}
-                      onPress={() => {
+                      expanded={expanded}
+                      onToggleExpanded={() => toggleExpanded(item.id)}
+                      onOpenCollections={() => {
                         const name =
                           (typeof item.name === "string" && item.name.trim()) ||
                           "Terreiro";
@@ -453,6 +702,8 @@ const styles = StyleSheet.create({
   },
   cardRight: {
     justifyContent: "flex-start",
+    alignItems: "center",
+    gap: spacing.xs,
   },
   cardImage: {
     width: 92,
@@ -464,16 +715,69 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     fontWeight: "600",
   },
-  cardActionsRow: {
+  cardBlock: {
+    gap: 2,
+  },
+  listBlock: {
+    gap: 4,
+    paddingTop: 2,
+  },
+  cardLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  cardBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  cardPrimaryBold: {
+    fontWeight: "800",
+  },
+  collapsedActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: spacing.sm,
+    paddingTop: 2,
+  },
+  contactLinkRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  iconRow: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.xs,
-    paddingTop: 2,
+  },
+  chevronRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    alignSelf: "flex-start",
+    paddingVertical: 6,
+  },
+  chevronText: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
   actionIconBtn: {
     width: 34,
     height: 34,
     borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  linkText: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "700",
+  },
+  cardImagePlaceholder: {
+    borderWidth: StyleSheet.hairlineWidth,
     alignItems: "center",
     justifyContent: "center",
   },

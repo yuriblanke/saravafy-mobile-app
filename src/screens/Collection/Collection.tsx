@@ -1,10 +1,12 @@
 import { supabase } from "@/lib/supabase";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
+import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
@@ -52,6 +54,8 @@ export default function Collection() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const { showToast } = require("@/contexts/ToastContext").useToast();
+
   const { effectiveTheme } =
     require("@/contexts/PreferencesContext").usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
@@ -75,6 +79,7 @@ export default function Collection() {
   const [collection, setCollection] = useState<CollectionRow | null>(null);
   const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionError, setCollectionError] = useState<string | null>(null);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   const {
     items: orderedItems,
@@ -137,6 +142,8 @@ export default function Collection() {
     (typeof collection?.title === "string" && collection.title.trim()) ||
     titleFallback;
 
+  const shareMessage = buildShareMessageForColecao(title);
+
   const isLoading = collectionLoading || pontosLoading;
   const error = collectionError || pontosError;
 
@@ -162,8 +169,24 @@ export default function Collection() {
             {title}
           </Text>
 
-          <View style={styles.headerIconBtn} />
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar"
+            onPress={() => setIsShareOpen(true)}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="share-outline" size={18} color={textPrimary} />
+          </Pressable>
         </View>
+
+        <ShareBottomSheet
+          visible={isShareOpen}
+          variant={variant}
+          message={shareMessage}
+          onClose={() => setIsShareOpen(false)}
+          showToast={showToast}
+        />
 
         {isLoading ? (
           <View style={styles.center}>

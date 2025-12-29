@@ -32,6 +32,14 @@ type TerreiroInvite = {
   created_at: string;
 };
 
+function isRlsRecursionError(message: string) {
+  const m = String(message ?? "");
+  return (
+    m.includes("infinite recursion detected in policy") &&
+    m.includes('relation "terreiro_members"')
+  );
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -62,6 +70,9 @@ export function InviteGate() {
   const lastFetchAtRef = useRef<number>(0);
   const inFlightRef = useRef<Promise<TerreiroInvite[]> | null>(null);
 
+  const rlsRecursionDetectedRef = useRef(false);
+  const rlsRecursionNotifiedRef = useRef(false);
+
   const priorityInviteIdRef = useRef<string | null>(null);
 
   const textPrimary =
@@ -80,6 +91,11 @@ export function InviteGate() {
     async (options?: { skipCache?: boolean }) => {
       if (!userId) return [] as TerreiroInvite[];
       if (!normalizedUserEmail) return [] as TerreiroInvite[];
+
+      if (rlsRecursionDetectedRef.current) {
+        // If DB policies are broken, don't keep hammering Supabase.
+        return [] as TerreiroInvite[];
+      }
 
       const now = Date.now();
       const cacheWindowMs = 12_000;
@@ -101,6 +117,26 @@ export function InviteGate() {
           .order("created_at", { ascending: true });
 
         if (res.error) {
+          if (isRlsRecursionError(res.error.message)) {
+            rlsRecursionDetectedRef.current = true;
+
+            // Keep app usable: don't block user, just disable invite gate until policies are fixed.
+            setPendingInvites([]);
+            setCurrentInvite(null);
+            setIsModalVisible(false);
+            setIsBannerVisible(false);
+            lastFetchAtRef.current = Date.now();
+
+            if (__DEV__ && !rlsRecursionNotifiedRef.current) {
+              rlsRecursionNotifiedRef.current = true;
+              showToast(
+                "Convites indisponíveis (RLS em 'terreiro_members' com recursão). Ajuste as policies no Supabase."
+              );
+            }
+
+            return [] as TerreiroInvite[];
+          }
+
           if (__DEV__) {
             console.info("[InviteGate] refresh error", {
               message: res.error.message,
@@ -134,7 +170,7 @@ export function InviteGate() {
         inFlightRef.current = null;
       }
     },
-    [normalizedUserEmail, pendingInvites, userId]
+    [normalizedUserEmail, pendingInvites, showToast, userId]
   );
 
   const ensureModalForQueue = useCallback((queue: TerreiroInvite[]) => {
@@ -329,7 +365,13 @@ export function InviteGate() {
 
       const list = await refreshPendingInvites({ skipCache: true });
       ensureModalForQueue(list);
-    } catch {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (__DEV__ && isRlsRecursionError(message)) {
+        showToast(
+          "Não foi possível aceitar o convite: policy RLS em 'terreiro_members' está em recursão."
+        );
+      }
       setActionError(
         "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
       );
@@ -364,7 +406,13 @@ export function InviteGate() {
 
       const list = await refreshPendingInvites({ skipCache: true });
       ensureModalForQueue(list);
-    } catch {
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (__DEV__ && isRlsRecursionError(message)) {
+        showToast(
+          "Não foi possível recusar o convite: policy RLS em 'terreiro_members' está em recursão."
+        );
+      }
       setActionError(
         "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
       );

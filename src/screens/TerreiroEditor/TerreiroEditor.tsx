@@ -81,10 +81,8 @@ type TerreiroContatoDbRow = {
 type TerreiroRole = "admin" | "editor";
 
 type TerreiroMemberRow = {
-  id: string;
   terreiro_id: string;
   role: TerreiroRole;
-  profile_id: string | null;
   user_id: string | null;
   created_at: string | null;
 };
@@ -799,7 +797,7 @@ export default function TerreiroEditor() {
     try {
       const membersRes = await supabase
         .from("terreiro_members")
-        .select("id, terreiro_id, role, profile_id, user_id, created_at")
+        .select("terreiro_id, role, user_id, created_at")
         .eq("terreiro_id", id)
         .order("created_at", { ascending: true });
 
@@ -816,16 +814,14 @@ export default function TerreiroEditor() {
 
       const nextMyRole = (() => {
         const u = user.id;
-        const match = nextMembers.find(
-          (m) => m.profile_id === u || m.user_id === u
-        );
+        const match = nextMembers.find((m) => m.user_id === u);
         const role = match?.role;
         return role === "admin" || role === "editor" ? role : null;
       })();
       setMyTerreiroRole(nextMyRole);
 
       const profileIds = nextMembers
-        .map((m) => m.profile_id)
+        .map((m) => m.user_id)
         .filter((pid): pid is string => typeof pid === "string" && !!pid);
 
       if (profileIds.length > 0) {
@@ -931,7 +927,7 @@ export default function TerreiroEditor() {
     }
 
     const memberEmailMatch = members.some((m) => {
-      const pid = m.profile_id;
+      const pid = m.user_id;
       if (!pid) return false;
       const p = profilesById[pid];
       const memberEmail = p?.email ? normalizeEmail(p.email) : "";
@@ -1712,8 +1708,8 @@ export default function TerreiroEditor() {
                 </Text>
               ) : (
                 <View style={styles.adminList}>
-                  {members.map((m) => {
-                    const pid = m.profile_id;
+                  {members.map((m, idx) => {
+                    const pid = m.user_id;
                     const p = pid ? profilesById[pid] : undefined;
                     const name =
                       (p?.full_name && p.full_name.trim()) ||
@@ -1722,7 +1718,10 @@ export default function TerreiroEditor() {
                     const avatar = p?.avatar_url || "";
 
                     return (
-                      <View key={m.id} style={styles.personRow}>
+                      <View
+                        key={`${m.terreiro_id}:${m.user_id ?? ""}:${idx}`}
+                        style={styles.personRow}
+                      >
                         {avatar ? (
                           <Image
                             source={{ uri: avatar }}

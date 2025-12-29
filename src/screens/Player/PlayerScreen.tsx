@@ -1,5 +1,7 @@
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { colors, spacing } from "@/src/theme";
+import { buildShareMessageForPonto } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -41,6 +43,8 @@ export default function PlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const { showToast } = require("@/contexts/ToastContext").useToast();
+
   const source = typeof params.source === "string" ? params.source : null;
   const searchQuery = typeof params.q === "string" ? params.q : "";
 
@@ -76,6 +80,7 @@ export default function PlayerScreen() {
   const [lyricsFontSize, setLyricsFontSize] = useState(20);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isShareOpen, setIsShareOpen] = useState(false);
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
@@ -110,6 +115,10 @@ export default function PlayerScreen() {
   }, [items.length, initialIndex]);
 
   const activePonto = items[activeIndex]?.ponto ?? null;
+
+  const shareMessage = useMemo(() => {
+    return buildShareMessageForPonto(activePonto?.title ?? "");
+  }, [activePonto?.title]);
 
   const onDecreaseFont = useCallback(() => {
     setLyricsFontSize((prev) => Math.max(LYRICS_FONT_MIN, prev - 2));
@@ -231,6 +240,16 @@ export default function PlayerScreen() {
           <View style={styles.headerRight}>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Compartilhar"
+              onPress={() => setIsShareOpen(true)}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="share-outline" size={18} color={textPrimary} />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel="Diminuir fonte"
               onPress={onDecreaseFont}
               hitSlop={10}
@@ -301,6 +320,14 @@ export default function PlayerScreen() {
           visible={isSearchOpen}
           variant={variant}
           onClose={() => setIsSearchOpen(false)}
+        />
+
+        <ShareBottomSheet
+          visible={isShareOpen}
+          variant={variant}
+          message={shareMessage}
+          onClose={() => setIsShareOpen(false)}
+          showToast={showToast}
         />
       </View>
     </SaravafyScreen>

@@ -6,10 +6,18 @@ type TerreiroContatoRow = {
   terreiro_id?: string;
   city?: string | null;
   state?: string | null;
+  neighborhood?: string | null;
   phone_whatsapp?: string | null;
   phone_is_whatsapp?: boolean | null;
   instagram_handle?: string | null;
   is_primary?: boolean | null;
+};
+
+type TerreiroResponsavelRow = {
+  terreiro_id?: string;
+  name?: string | null;
+  is_primary?: boolean | null;
+  created_at?: string | null;
 };
 
 type TerreiroMemberRow = {
@@ -17,22 +25,38 @@ type TerreiroMemberRow = {
   role?: TerreiroRole | null;
 };
 
+function isTerreiroMembersPolicyRecursionError(error: unknown) {
+  const message =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message ?? ""
+      : "";
+
+  const m = message.toLowerCase();
+  return (
+    m.includes("infinite recursion detected in policy") &&
+    m.includes('relation "terreiro_members"')
+  );
+}
+
 export async function fetchTerreirosWithRole(
   userId: string
 ): Promise<TerreiroListItem[]> {
-  const selectWithEverything =
-    "id, title, cover_image_url, terreiro_members(role, user_id), terreiros_contatos(terreiro_id, city, state, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary)";
+  const selectWithCover =
+    "id, title, about, lines_of_work, cover_image_url, terreiro_members(role, user_id)";
   const selectWithoutCover =
-    "id, title, terreiro_members(role, user_id), terreiros_contatos(terreiro_id, city, state, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary)";
-  const selectWithoutContato =
-    "id, title, cover_image_url, terreiro_members(role, user_id)";
-  const selectWithoutContatoOrCover =
-    "id, title, terreiro_members(role, user_id)";
+    "id, title, about, lines_of_work, terreiro_members(role, user_id)";
+
+  const selectWithCoverNoMembers =
+    "id, title, about, lines_of_work, cover_image_url";
+  const selectWithoutCoverNoMembers = "id, title, about, lines_of_work";
 
   // Busca todos os terreiros (o RLS pode limitar o retorno conforme o usuário)
   let res: any = await supabase
     .from("terreiros")
-    .select(selectWithEverything)
+    .select(selectWithCover)
     .order("title", { ascending: true });
 
   if (
@@ -47,23 +71,26 @@ export async function fetchTerreirosWithRole(
       .order("title", { ascending: true });
   }
 
-  // Se não existe relacionamento com terreiros_contatos, buscamos em query separada.
-  const missingContatoRelationship =
-    res.error &&
-    typeof res.error.message === "string" &&
-    res.error.message.includes("relationship") &&
-    res.error.message.includes("terreiros_contatos");
-
-  if (missingContatoRelationship) {
-    res = await supabase
+  // If the `terreiro_members` RLS policy is in recursion, drop the join.
+  if (res.error && isTerreiroMembersPolicyRecursionError(res.error)) {
+    let noMembers: any = await supabase
       .from("terreiros")
-      .select(
-        typeof res.error.message === "string" &&
-          res.error.message.includes("cover_image_url")
-          ? selectWithoutContatoOrCover
-          : selectWithoutContato
-      )
+      .select(selectWithCoverNoMembers)
       .order("title", { ascending: true });
+
+    if (
+      noMembers.error &&
+      typeof noMembers.error.message === "string" &&
+      noMembers.error.message.includes("cover_image_url") &&
+      noMembers.error.message.includes("does not exist")
+    ) {
+      noMembers = await supabase
+        .from("terreiros")
+        .select(selectWithoutCoverNoMembers)
+        .order("title", { ascending: true });
+    }
+
+    res = noMembers;
   }
 
   if (res.error) {
@@ -76,19 +103,41 @@ export async function fetchTerreirosWithRole(
     .filter(Boolean);
 
   let contatoByTerreiroId: Record<string, TerreiroContatoRow> = {};
-  if (missingContatoRelationship && ids.length > 0) {
-    const contatoRes = await supabase
-      .from("terreiros_contatos")
-      .select(
-        "terreiro_id, city, state, neighborhood, address, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary"
-      )
-      .in("terreiro_id", ids);
+  let responsaveisByTerreiroId: Record<string, TerreiroResponsavelRow[]> = {};
+
+  if (ids.length > 0) {
+    const [contatoRes, responsaveisRes] = await Promise.all([
+      supabase
+        .from("terreiros_contatos")
+        .select(
+          "terreiro_id, city, state, neighborhood, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary"
+        )
+        .in("terreiro_id", ids)
+        .eq("is_primary", true),
+      supabase
+        .from("terreiros_responsaveis")
+        .select("terreiro_id, name, is_primary, created_at")
+        .in("terreiro_id", ids)
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: true }),
+    ]);
 
     if (!contatoRes.error) {
       for (const c of (contatoRes.data ?? []) as TerreiroContatoRow[]) {
         if (typeof c?.terreiro_id === "string" && c.terreiro_id) {
           contatoByTerreiroId[c.terreiro_id] = c;
         }
+      }
+    }
+
+    if (!responsaveisRes.error) {
+      for (const r of (responsaveisRes.data ??
+        []) as TerreiroResponsavelRow[]) {
+        if (typeof r?.terreiro_id !== "string" || !r.terreiro_id) continue;
+        if (!responsaveisByTerreiroId[r.terreiro_id]) {
+          responsaveisByTerreiroId[r.terreiro_id] = [];
+        }
+        responsaveisByTerreiroId[r.terreiro_id].push(r);
       }
     }
   }
@@ -104,21 +153,23 @@ export async function fetchTerreirosWithRole(
     const r = match?.role;
     if (r === "admin" || r === "editor" || r === "follower") role = r;
 
-    let primaryContato: TerreiroContatoRow | undefined;
-    if (Array.isArray(t?.terreiros_contatos)) {
-      const contatos = t.terreiros_contatos as TerreiroContatoRow[];
-      primaryContato =
-        contatos.find((c) => c?.is_primary === true) ?? contatos[0];
-    }
-
-    const fallbackContato =
+    const contato =
       typeof t?.id === "string" ? contatoByTerreiroId[t.id] : undefined;
-    const contato = primaryContato ?? fallbackContato;
+    const responsaveis =
+      typeof t?.id === "string" ? responsaveisByTerreiroId[t.id] ?? [] : [];
 
     return {
       id: t.id,
       name: t.title,
       role,
+      about:
+        typeof t?.about === "string" && t.about.trim()
+          ? t.about.trim()
+          : undefined,
+      linesOfWork:
+        typeof t?.lines_of_work === "string" && t.lines_of_work.trim()
+          ? t.lines_of_work.trim()
+          : undefined,
       city:
         contato && typeof contato.city === "string" && contato.city.trim()
           ? contato.city.trim()
@@ -126,6 +177,12 @@ export async function fetchTerreirosWithRole(
       state:
         contato && typeof contato.state === "string" && contato.state.trim()
           ? contato.state.trim()
+          : undefined,
+      neighborhood:
+        contato &&
+        typeof contato.neighborhood === "string" &&
+        contato.neighborhood.trim()
+          ? contato.neighborhood.trim()
           : undefined,
       phoneDigits:
         contato &&
@@ -139,6 +196,19 @@ export async function fetchTerreirosWithRole(
         contato.instagram_handle.trim()
           ? contato.instagram_handle.trim().replace(/^@+/, "")
           : undefined,
+      responsaveis: responsaveis
+        .map((rr) => ({
+          name:
+            typeof rr?.name === "string" && rr.name.trim()
+              ? rr.name.trim()
+              : "",
+          isPrimary: rr?.is_primary === true,
+          createdAt:
+            typeof rr?.created_at === "string" && rr.created_at.trim()
+              ? rr.created_at
+              : null,
+        }))
+        .filter((rr) => rr.name.length > 0),
       coverImageUrl:
         typeof t?.cover_image_url === "string" && t.cover_image_url.trim()
           ? t.cover_image_url.trim()
@@ -147,24 +217,21 @@ export async function fetchTerreirosWithRole(
   });
 }
 
-type TerreiroRow = {
-  id: string;
-  title: string;
-  avatar_url?: string | null;
-  image_url?: string | null;
-};
-
 export type TerreiroListItem = {
   id: string;
   name: string;
   role?: import("@/contexts/PreferencesContext").TerreiroRole;
+  about?: string;
+  linesOfWork?: string;
   city?: string;
   state?: string;
+  neighborhood?: string;
   phoneDigits?: string;
   instagramHandle?: string;
+  responsaveis?: {
+    name: string;
+    isPrimary: boolean;
+    createdAt: string | null;
+  }[];
   coverImageUrl?: string;
 };
-
-function safeLocaleCompare(a: string, b: string) {
-  return a.localeCompare(b, "pt-BR", { sensitivity: "base" });
-}
