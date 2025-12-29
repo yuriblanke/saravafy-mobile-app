@@ -25,9 +25,6 @@ export function SaravafyScreen({
 }: Props) {
   const LinearGradient = useMemo(() => {
     try {
-      const { UIManager } = require("react-native");
-      const cfg = UIManager?.getViewManagerConfig?.("ExpoLinearGradient");
-      if (!cfg) return null;
       return require("expo-linear-gradient")
         .LinearGradient as React.ComponentType<any>;
     } catch {

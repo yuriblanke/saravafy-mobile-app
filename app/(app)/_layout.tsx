@@ -1,6 +1,7 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { colors } from "@/src/theme";
 import { Stack, useSegments } from "expo-router";
 import React, { useMemo } from "react";
 import { View } from "react-native";
@@ -20,17 +21,42 @@ export default function AppLayout() {
       {showGlobalHeader ? <AppHeaderWithPreferences /> : null}
 
       <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: "transparent" },
+            // As telas ficam propositalmente sem background sólido para
+            // deixar o SaravafyScreen aparecer (gradiente/textura).
+            // Com animação de Stack, isso causa um frame onde a tela anterior
+            // "vaza" por baixo durante transições. Desabilitamos a animação
+            // globalmente para eliminar qualquer sobreposição visual.
+            animation: "none",
+          }}
+        >
           <Stack.Screen name="home" />
           <Stack.Screen name="terreiro" />
           <Stack.Screen name="terreiros" />
           <Stack.Screen
             name="terreiro-editor"
-            options={{ presentation: "modal" }}
+            options={{
+              presentation: "modal",
+              animation: "slide_from_bottom",
+              contentStyle: {
+                backgroundColor:
+                  effectiveTheme === "light" ? colors.paper50 : colors.forest900,
+              },
+            }}
           />
           <Stack.Screen
             name="access-manager"
-            options={{ presentation: "modal" }}
+            options={{
+              presentation: "modal",
+              animation: "slide_from_bottom",
+              contentStyle: {
+                backgroundColor:
+                  effectiveTheme === "light" ? colors.paper50 : colors.forest900,
+              },
+            }}
           />
         </Stack>
       </View>
