@@ -537,67 +537,48 @@ export default function Home() {
             </View>
           ) : (
             <>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => setIsFilterModalOpen(true)}
-                style={({ pressed }) => [
-                  styles.dropdown,
-                  {
-                    borderColor:
-                      variant === "light"
-                        ? colors.inputBorderLight
-                        : colors.inputBorderDark,
-                    backgroundColor:
-                      variant === "light"
-                        ? colors.inputBgLight
-                        : colors.inputBgDark,
-                  },
-                  pressed ? styles.dropdownPressed : null,
-                ]}
-              >
-                <Text style={[styles.dropdownText, { color: textPrimary }]}>
-                  {collectionFilterLabel}
-                </Text>
-                <Ionicons name="chevron-down" size={18} color={textSecondary} />
-              </Pressable>
+              <View style={styles.sheetActionsRow}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setIsFilterModalOpen(true)}
+                  style={({ pressed }) => [
+                    styles.filterBtn,
+                    pressed ? styles.filterBtnPressed : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="funnel-outline"
+                    size={16}
+                    color={textSecondary}
+                  />
+                  <Text style={[styles.filterBtnText, { color: textSecondary }]}>
+                    {collectionFilterLabel}
+                  </Text>
+                  <Ionicons name="chevron-down" size={16} color={textSecondary} />
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={openCreateCollection}
+                  disabled={isCreatingCollection}
+                  style={({ pressed }) => [
+                    styles.newCollectionCta,
+                    pressed ? styles.newCollectionCtaPressed : null,
+                    isCreatingCollection ? styles.btnDisabled : null,
+                  ]}
+                >
+                  <Text style={styles.newCollectionCtaText}>+ Nova coleção</Text>
+                </Pressable>
+              </View>
 
               {filteredCollections.length === 0 ? (
                 <View style={styles.emptyBlock}>
                   <Text style={[styles.emptyText, { color: textSecondary }]}>
                     Nenhuma coleção criada ainda.
                   </Text>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={openCreateCollection}
-                    disabled={isCreatingCollection}
-                    style={({ pressed }) => [
-                      styles.newCollectionCta,
-                      pressed ? styles.newCollectionCtaPressed : null,
-                      isCreatingCollection ? styles.btnDisabled : null,
-                    ]}
-                  >
-                    <Text style={styles.newCollectionCtaText}>
-                      + Nova coleção
-                    </Text>
-                  </Pressable>
                 </View>
               ) : (
                 <>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={openCreateCollection}
-                    disabled={isCreatingCollection}
-                    style={({ pressed }) => [
-                      styles.newCollectionCta,
-                      pressed ? styles.newCollectionCtaPressed : null,
-                      isCreatingCollection ? styles.btnDisabled : null,
-                    ]}
-                  >
-                    <Text style={styles.newCollectionCtaText}>
-                      + Nova coleção
-                    </Text>
-                  </Pressable>
-
                   {isAdding ? (
                     <Text style={[styles.bodyText, { color: textSecondary }]}>
                       Adicionando…
@@ -656,6 +637,12 @@ export default function Home() {
                           }}
                           style={({ pressed }) => [
                             styles.collectionRow,
+                            {
+                              borderColor:
+                                variant === "light"
+                                  ? colors.surfaceCardBorderLight
+                                  : colors.surfaceCardBorder,
+                            },
                             pressed && styles.collectionRowPressed,
                           ]}
                         >
@@ -681,6 +668,12 @@ export default function Home() {
                               </Text>
                             ) : null}
                           </View>
+
+                          <Ionicons
+                            name="chevron-forward"
+                            size={18}
+                            color={textSecondary}
+                          />
                         </Pressable>
                       );
                     })}
@@ -1078,8 +1071,31 @@ const styles = StyleSheet.create({
   dropdownPressed: {
     opacity: 0.9,
   },
+  sheetActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    minHeight: 44,
+    marginBottom: spacing.sm,
+  },
+  filterBtn: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    paddingVertical: 6,
+    paddingRight: spacing.sm,
+    flexShrink: 1,
+  },
+  filterBtnPressed: {
+    opacity: 0.85,
+  },
+  filterBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
   newCollectionCta: {
-    alignSelf: "flex-start",
+    alignSelf: "flex-end",
     paddingVertical: 6,
     marginBottom: spacing.sm,
   },
@@ -1155,7 +1171,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.surfaceCardBorder,
     backgroundColor: "transparent",
   },
   collectionRowPressed: {
