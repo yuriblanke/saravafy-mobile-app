@@ -24,73 +24,35 @@ export async function fetchCollectionsDoTerreiro(terreiroId: string) {
 
   const baseSelect = ["id", "title", "description"].join(", ");
 
-  const tryQuery = async (fkColumn: string) => {
-    return supabase
-      .from("collections")
-      .select(baseSelect)
-      .eq(fkColumn, terreiroId)
-      .order("created_at", { ascending: false });
-  };
+  const res: any = await supabase
+    .from("collections")
+    .select(baseSelect)
+    .eq("owner_terreiro_id", terreiroId)
+    .order("created_at", { ascending: false });
 
-  const tryQueryWithoutDescription = async (fkColumn: string) => {
-    return supabase
-      .from("collections")
-      .select(["id", "title"].join(", "))
-      .eq(fkColumn, terreiroId)
-      .order("created_at", { ascending: false });
-  };
+  // Se a coluna description não existir, refaz a query sem ela.
+  const finalRes: any =
+    res.error && isMissingColumnError(res.error, "description")
+      ? await supabase
+          .from("collections")
+          .select(["id", "title"].join(", "))
+          .eq("owner_terreiro_id", terreiroId)
+          .order("created_at", { ascending: false })
+      : res;
 
-  // Em alguns ambientes o FK pode estar com nomes diferentes.
-  // Importante: quando RLS/coluna errada retorna 0 linhas sem erro, ainda tentamos outros nomes.
-  const fkCandidates = [
-    "owner_terreiro_id",
-    "ownerTerreiroId",
-    "terreiro_id",
-    "terreiroId",
-  ];
-
-  let res: any = null;
-  for (const fk of fkCandidates) {
-    const attempt: any = await tryQuery(fk);
-
-    // Se não existe essa coluna, tenta a próxima.
-    if (attempt.error && isMissingColumnError(attempt.error, fk)) {
-      continue;
-    }
-
-    // Se a coluna description não existir, refaz a query sem ela (mantendo o mesmo FK).
-    if (attempt.error && isMissingColumnError(attempt.error, "description")) {
-      const retry: any = await tryQueryWithoutDescription(fk);
-      if (retry.error && isMissingColumnError(retry.error, fk)) {
-        continue;
-      }
-      res = retry;
-    } else {
-      res = attempt;
-    }
-
-    const rows = Array.isArray(res?.data) ? res.data.length : 0;
-    if (rows > 0) break;
-    // Se não há registros, tentamos outro FK para evitar falso vazio.
-  }
-
-  if (!res) {
-    return [] as TerreiroCollection[];
-  }
-
-  if (res.error) {
+  if (finalRes.error) {
     if (__DEV__) {
       console.info("[Terreiro] erro ao buscar coleções", {
         error:
-          res.error && typeof res.error.message === "string"
-            ? res.error.message
-            : String(res.error),
+          finalRes.error && typeof finalRes.error.message === "string"
+            ? finalRes.error.message
+            : String(finalRes.error),
       });
     }
     throw new Error("Erro ao buscar coleções");
   }
 
-  const collections = (res.data ?? []) as TerreiroCollection[];
+  const collections = (finalRes.data ?? []) as TerreiroCollection[];
   const ids = collections.map((c) => c.id).filter(Boolean);
   if (ids.length === 0) return collections;
 

@@ -27,7 +27,7 @@ import {
 type CollectionRow = {
   id: string;
   title?: string | null;
-  terreiro_id?: string | null;
+  owner_terreiro_id?: string | null;
   visibility?: string | null;
 };
 
@@ -91,7 +91,9 @@ export default function Collection() {
   const [isShareOpen, setIsShareOpen] = useState(false);
 
   const terreiroId =
-    typeof collection?.terreiro_id === "string" ? collection.terreiro_id : "";
+    typeof collection?.owner_terreiro_id === "string"
+      ? collection.owner_terreiro_id
+      : "";
   const visibility =
     typeof collection?.visibility === "string" ? collection.visibility : "";
   const isMembersOnly = !!collection && visibility === "members";
@@ -129,7 +131,7 @@ export default function Collection() {
     try {
       const res = await supabase
         .from("collections")
-        .select("id, title, terreiro_id, visibility")
+        .select("id, title, owner_terreiro_id, visibility")
         .eq("id", collectionId)
         .single();
 
