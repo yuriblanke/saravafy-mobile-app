@@ -24,7 +24,9 @@ export function PreferencesPageItem({
   onPressEdit,
 }: Props) {
   const [isEditPressed, setIsEditPressed] = React.useState(false);
-  const editPressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const editPressTimeoutRef = React.useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   React.useEffect(() => {
     return () => {
@@ -137,7 +139,9 @@ export function PreferencesPageItem({
       style={({ pressed }) => [
         styles.row,
         { borderColor, backgroundColor: interactiveBg },
-        pressed && !isEditPressed ? [styles.rowPressed, { backgroundColor: pressedBg }] : null,
+        pressed && !isEditPressed
+          ? [styles.rowPressed, { backgroundColor: pressedBg }]
+          : null,
       ]}
     >
       {content}

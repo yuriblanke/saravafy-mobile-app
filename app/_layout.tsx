@@ -19,7 +19,8 @@ import {
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+import { prefetchAccountableCollections } from "@/src/queries/collections";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -76,9 +77,11 @@ function RootLayoutNav() {
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const bootstrapStartPageRef = useRef(bootstrapStartPage);
   const setActiveContextRef = useRef(setActiveContext);
+  const didPrefetchCollectionsRef = useRef(false);
 
   useEffect(() => {
     bootstrapStartPageRef.current = bootstrapStartPage;
@@ -87,6 +90,18 @@ function RootLayoutNav() {
   useEffect(() => {
     setActiveContextRef.current = setActiveContext;
   }, [setActiveContext]);
+
+  // Prefetch de coleções assim que houver sessão válida
+  useEffect(() => {
+    if (didPrefetchCollectionsRef.current) return;
+    if (!user?.id) return;
+    if (isLoading) return;
+
+    didPrefetchCollectionsRef.current = true;
+    prefetchAccountableCollections(queryClient, user.id).catch((e) => {
+      console.error("[Boot] erro ao prefetch collections:", e);
+    });
+  }, [user?.id, isLoading, queryClient]);
 
   // LATCHES: Boot e navegação devem acontecer apenas 1x por cold start
   const didCompleteBootRef = useRef(false);

@@ -9,6 +9,9 @@ export const queryKeys = {
       ["pontos", { scope: "terreiro", terreiroId }] as const,
   },
   collections: {
+    // QueryKey global fixa para todas as coleções visíveis pela usuária
+    accountable: () => ["collections", "accountable"] as const,
+    // Deprecated: manter por compatibilidade temporária
     available: (params: { userId: string; terreiroId?: string | null }) =>
       [
         "collections",

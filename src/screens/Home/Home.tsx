@@ -8,7 +8,7 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   FlatList,
@@ -20,16 +20,13 @@ import {
 } from "react-native";
 import {
   createCollection,
-  fetchAccessibleCollections,
-  fetchAllowedTerreiros,
-  type AccessibleCollection,
-  type AllowedTerreiro,
 } from "./data/collections";
 import { addPontoToCollection } from "./data/collections_pontos";
 import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
 
 import { queryKeys } from "@/src/queries/queryKeys";
+import { useAccountableCollections, type AccountableCollection } from "@/src/queries/collections";
 
 const ITEMS_PER_PAGE = 10;
 
@@ -80,6 +77,7 @@ export default function Home() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
   // Estado para modal de adicionar à coleção
@@ -132,51 +130,25 @@ export default function Home() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  const availableCollectionsQuery = useQuery({
-    queryKey: queryKeys.collections.available({ userId: userId ?? "", terreiroId: null }),
-    enabled: addModalVisible && !!userId,
-    staleTime: 60_000,
-    // Important: avoid any "loading flash". We always render the normal UI.
-    initialData: {
-      allowedTerreiros: [] as AllowedTerreiro[],
-      collections: [] as AccessibleCollection[],
-    },
-    queryFn: async () => {
-      if (!userId) {
-        return {
-          allowedTerreiros: [] as AllowedTerreiro[],
-          collections: [] as AccessibleCollection[],
-        };
-      }
-
-      const terreirosRes = await fetchAllowedTerreiros(userId);
-      if (terreirosRes.error) throw new Error(terreirosRes.error);
-
-      const allowedIds = terreirosRes.data.map((t) => t.terreiro_id);
-      const collectionsRes = await fetchAccessibleCollections({
-        userId,
-        allowedTerreiroIds: allowedIds,
-      });
-      if (collectionsRes.error) throw new Error(collectionsRes.error);
-
-      return {
-        allowedTerreiros: terreirosRes.data,
-        collections: collectionsRes.data,
-      };
-    },
-    placeholderData: (prev) =>
-      prev ?? {
-        allowedTerreiros: [] as AllowedTerreiro[],
-        collections: [] as AccessibleCollection[],
-      },
-  });
-
-  const allowedTerreiros = availableCollectionsQuery.data.allowedTerreiros;
-  const collections = availableCollectionsQuery.data.collections;
-
-  const sheetError = availableCollectionsQuery.isError
-    ? getErrorMessage(availableCollectionsQuery.error)
+  // Hook global de coleções - sempre ativo, não depende do modal
+  const accountableCollectionsQuery = useAccountableCollections(userId);
+  const allCollections = accountableCollectionsQuery.data ?? [];
+  const collectionsError = accountableCollectionsQuery.isError
+    ? getErrorMessage(accountableCollectionsQuery.error)
     : null;
+
+  // Derivar lista de terreiros únicos das coleções (para filtro)
+  const allowedTerreiros = useMemo(() => {
+    const terreiroMap = new Map<string, string>();
+    allCollections.forEach((c) => {
+      if (c.owner_terreiro_id && c.terreiro_title) {
+        terreiroMap.set(c.owner_terreiro_id, c.terreiro_title);
+      }
+    });
+    return Array.from(terreiroMap.entries())
+      .map(([id, title]) => ({ terreiro_id: id, terreiro_title: title }))
+      .sort((a, b) => a.terreiro_title.localeCompare(b.terreiro_title));
+  }, [allCollections]);
 
   const closeAddToCollectionSheet = useCallback(() => {
     setAddModalVisible(false);
@@ -227,19 +199,19 @@ export default function Home() {
   }, [allowedTerreiros, collectionFilter]);
 
   const filteredCollections = useMemo(() => {
-    if (!user?.id) return [] as AccessibleCollection[];
+    if (!user?.id) return [] as AccountableCollection[];
 
     if (collectionFilter === "ME") {
-      return collections.filter((c) => c.owner_user_id === user.id);
+      return allCollections.filter((c) => c.owner_user_id === user.id);
     }
 
-    if (collectionFilter === "ALL") return collections;
+    if (collectionFilter === "ALL") return allCollections;
 
     // Terreiro específico
-    return collections.filter((c) => c.owner_terreiro_id === collectionFilter);
-  }, [collections, collectionFilter, user?.id]);
+    return allCollections.filter((c) => c.owner_terreiro_id === collectionFilter);
+  }, [allCollections, collectionFilter, user?.id]);
 
-  const getCollectionOwnerLabel = (c: AccessibleCollection) => {
+  const getCollectionOwnerLabel = (c: AccountableCollection) => {
     if (!user?.id) return "";
     if (c.owner_user_id === user.id) return "Você";
     if (c.owner_terreiro_id) {
@@ -284,10 +256,12 @@ export default function Home() {
       return;
     }
 
+    // Atualizar cache global de coleções
+    queryClient.invalidateQueries({ queryKey: queryKeys.collections.accountable() });
+
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
-    await availableCollectionsQuery.refetch();
-  }, [availableCollectionsQuery.refetch, collectionFilter, createCollectionTitle, user?.id]);
+  }, [queryClient, collectionFilter, createCollectionTitle, user?.id]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -530,14 +504,14 @@ export default function Home() {
             </Pressable>
           </View>
 
-          {sheetError ? (
+          {collectionsError ? (
             <View style={{ gap: spacing.sm }}>
               <Text style={[styles.bodyText, { color: colors.brass600 }]}>
-                {sheetError}
+                {collectionsError}
               </Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => void availableCollectionsQuery.refetch()}
+                onPress={() => void accountableCollectionsQuery.refetch()}
                 style={[
                   styles.retryBtn,
                   variant === "light"
@@ -653,6 +627,11 @@ export default function Home() {
                               setAddError("Erro ao adicionar ponto à coleção.");
                               return;
                             }
+
+                            // Atualizar cache para refletir mudança no updated_at da coleção
+                            queryClient.invalidateQueries({
+                              queryKey: queryKeys.collections.accountable(),
+                            });
 
                             setAddSuccess(true);
                             Alert.alert("Ponto adicionado à coleção");
