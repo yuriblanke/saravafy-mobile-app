@@ -791,7 +791,7 @@ export default function TerreiroEditor() {
       if (!pid) return false;
       const p = profilesById[pid];
       const memberEmail = p?.email ? normalizeEmail(p.email) : "";
-        return memberEmail && memberEmail === emailNorm;
+      return memberEmail && memberEmail === emailNorm;
     });
     if (memberEmailMatch) {
       setInviteInlineError("Esta pessoa já tem acesso ao terreiro.");
@@ -818,7 +818,10 @@ export default function TerreiroEditor() {
         const code = typeof err?.code === "string" ? err.code : "";
         const message = typeof err?.message === "string" ? err.message : "";
 
-        if (code === "23505" || message.includes("ux_terreiro_invites_pending")) {
+        if (
+          code === "23505" ||
+          message.includes("ux_terreiro_invites_pending")
+        ) {
           setInviteInlineError(
             "Este e-mail já possui um convite pendente para este terreiro."
           );

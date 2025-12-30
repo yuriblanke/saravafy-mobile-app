@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { useTerreirosWithRoleQuery } from "@/src/queries/terreirosWithRole";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -16,10 +17,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  type TerreiroListItem,
-} from "./data/terreiros";
-import { useTerreirosWithRoleQuery } from "@/src/queries/terreirosWithRole";
+import { type TerreiroListItem } from "./data/terreiros";
 
 function toActiveContextRole(role: TerreiroListItem["role"]) {
   return role === "admin" || role === "editor" || role === "follower"
@@ -429,7 +427,9 @@ export default function Terreiros() {
     [terreirosQuery.data]
   );
   const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
-  const error = terreirosQuery.isError ? "Erro ao carregar os terreiros." : null;
+  const error = terreirosQuery.isError
+    ? "Erro ao carregar os terreiros."
+    : null;
 
   const filteredTerreiros = useMemo(() => {
     const q = normalize(searchQuery);

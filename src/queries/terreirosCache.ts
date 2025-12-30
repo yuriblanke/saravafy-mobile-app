@@ -6,7 +6,10 @@ function safeLocaleCompare(a: string, b: string) {
   return a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 }
 
-export function invalidateTerreiro(queryClient: QueryClient, terreiroId: string) {
+export function invalidateTerreiro(
+  queryClient: QueryClient,
+  terreiroId: string
+) {
   if (!terreiroId) return;
 
   queryClient.invalidateQueries({
@@ -26,12 +29,18 @@ export function invalidateTerreiroListsForRoles(
   if (!userId) return;
 
   // "Terreiros" screen: list with role admin/editor/member.
-  queryClient.invalidateQueries({ queryKey: queryKeys.terreiros.withRole(userId) });
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.terreiros.withRole(userId),
+  });
 
   // Membership-derived lists/filters.
-  queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiroAccessIds(userId) });
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.me.terreiroAccessIds(userId),
+  });
   queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
-  queryClient.invalidateQueries({ queryKey: queryKeys.me.editableTerreiros(userId) });
+  queryClient.invalidateQueries({
+    queryKey: queryKeys.me.editableTerreiros(userId),
+  });
   queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
 }
 
@@ -79,11 +88,15 @@ export function patchTerreiroInLists(
         name: terreiro.name,
         role: terreiro.role ?? "admin",
         coverImageUrl:
-          typeof terreiro.coverImageUrl === "string" ? terreiro.coverImageUrl : undefined,
+          typeof terreiro.coverImageUrl === "string"
+            ? terreiro.coverImageUrl
+            : undefined,
       });
     }
 
-    next.sort((a: any, b: any) => safeLocaleCompare(String(a?.name ?? ""), String(b?.name ?? "")));
+    next.sort((a: any, b: any) =>
+      safeLocaleCompare(String(a?.name ?? ""), String(b?.name ?? ""))
+    );
     queryClient.setQueryData(key, next);
   }
 
@@ -117,7 +130,9 @@ export function patchTerreiroInLists(
       });
     }
 
-    next.sort((a: any, b: any) => safeLocaleCompare(String(a?.title ?? ""), String(b?.title ?? "")));
+    next.sort((a: any, b: any) =>
+      safeLocaleCompare(String(a?.title ?? ""), String(b?.title ?? ""))
+    );
     queryClient.setQueryData(editableKey, next);
   }
 }

@@ -28,8 +28,8 @@ import {
   prefetchMyEditableTerreiros,
   prefetchMyTerreiroAccessIds,
 } from "@/src/queries/me";
-import { prefetchCollectionsByTerreiro } from "@/src/queries/terreirosCollections";
 import { prefetchHomeFeedPontos } from "@/src/queries/pontosFeed";
+import { prefetchCollectionsByTerreiro } from "@/src/queries/terreirosCollections";
 import { prefetchExploreTerreiros } from "@/src/queries/terreirosExplore";
 import {
   QueryClient,
@@ -289,9 +289,15 @@ function RootLayoutNav() {
       // 3b) Terreiros com acesso do usuário (admin/editor/member active)
       let accessTerreiroIds: string[] = [];
       try {
-        accessTerreiroIds = await prefetchMyTerreiroAccessIds(queryClient, userId);
+        accessTerreiroIds = await prefetchMyTerreiroAccessIds(
+          queryClient,
+          userId
+        );
       } catch (e) {
-        console.error("[BootPrefetch] erro ao prefetch terreiro access ids:", e);
+        console.error(
+          "[BootPrefetch] erro ao prefetch terreiro access ids:",
+          e
+        );
         accessTerreiroIds = [];
       }
 

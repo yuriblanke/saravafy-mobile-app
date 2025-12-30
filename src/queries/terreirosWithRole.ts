@@ -79,13 +79,16 @@ function isColumnMissingError(error: unknown, columnName: string) {
   );
 }
 
-export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroListItem[]> {
+export async function fetchTerreirosWithRole(
+  userId: string
+): Promise<TerreiroListItem[]> {
   const selectWithCover =
     "id, title, about, lines_of_work, cover_image_url, terreiro_members(role, user_id)";
   const selectWithoutCover =
     "id, title, about, lines_of_work, terreiro_members(role, user_id)";
 
-  const selectWithCoverNoMembers = "id, title, about, lines_of_work, cover_image_url";
+  const selectWithCoverNoMembers =
+    "id, title, about, lines_of_work, cover_image_url";
   const selectWithoutCoverNoMembers = "id, title, about, lines_of_work";
 
   let res: any = await supabase
@@ -106,7 +109,10 @@ export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroLi
       .select(selectWithCoverNoMembers)
       .order("title", { ascending: true });
 
-    if (noMembers.error && isColumnMissingError(noMembers.error, "cover_image_url")) {
+    if (
+      noMembers.error &&
+      isColumnMissingError(noMembers.error, "cover_image_url")
+    ) {
       noMembers = await supabase
         .from("terreiros")
         .select(selectWithoutCoverNoMembers)
@@ -154,7 +160,8 @@ export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroLi
     }
 
     if (!responsaveisRes.error) {
-      for (const r of (responsaveisRes.data ?? []) as TerreiroResponsavelRow[]) {
+      for (const r of (responsaveisRes.data ??
+        []) as TerreiroResponsavelRow[]) {
         if (typeof r?.terreiro_id !== "string" || !r.terreiro_id) continue;
         if (!responsaveisByTerreiroId[r.terreiro_id]) {
           responsaveisByTerreiroId[r.terreiro_id] = [];
@@ -165,77 +172,83 @@ export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroLi
   }
 
   const mapped = rows.map((t: any): TerreiroListItem | null => {
-      const id = typeof t?.id === "string" ? t.id : "";
-      if (!id) return null;
+    const id = typeof t?.id === "string" ? t.id : "";
+    if (!id) return null;
 
-      const members = (t?.terreiro_members ?? []) as TerreiroMemberRow[];
-      const match =
-        typeof userId === "string" && userId
-          ? members.find((m) => m?.user_id === userId)
-          : members[0];
+    const members = (t?.terreiro_members ?? []) as TerreiroMemberRow[];
+    const match =
+      typeof userId === "string" && userId
+        ? members.find((m) => m?.user_id === userId)
+        : members[0];
 
-      let role: TerreiroTabRole = "follower";
-      const r = match?.role;
-      if (r === "admin" || r === "editor" || r === "member" || r === "follower") {
-        role = r;
-      }
+    let role: TerreiroTabRole = "follower";
+    const r = match?.role;
+    if (r === "admin" || r === "editor" || r === "member" || r === "follower") {
+      role = r;
+    }
 
-      const contato = contatoByTerreiroId[id];
-      const responsaveis = responsaveisByTerreiroId[id] ?? [];
+    const contato = contatoByTerreiroId[id];
+    const responsaveis = responsaveisByTerreiroId[id] ?? [];
 
-      const item: TerreiroListItem = {
-        id,
-        name: typeof t?.title === "string" ? t.title : "Terreiro",
-        role,
-        about:
-          typeof t?.about === "string" && t.about.trim() ? t.about.trim() : undefined,
-        linesOfWork:
-          typeof t?.lines_of_work === "string" && t.lines_of_work.trim()
-            ? t.lines_of_work.trim()
-            : undefined,
-        city:
-          contato && typeof contato.city === "string" && contato.city.trim()
-            ? contato.city.trim()
-            : undefined,
-        state:
-          contato && typeof contato.state === "string" && contato.state.trim()
-            ? contato.state.trim()
-            : undefined,
-        neighborhood:
-          contato &&
-          typeof contato.neighborhood === "string" &&
-          contato.neighborhood.trim()
-            ? contato.neighborhood.trim()
-            : undefined,
-        phoneDigits:
-          contato &&
-          typeof contato.phone_whatsapp === "string" &&
-          contato.phone_whatsapp.trim()
-            ? contato.phone_whatsapp.replace(/\D/g, "")
-            : undefined,
-        instagramHandle:
-          contato &&
-          typeof contato.instagram_handle === "string" &&
-          contato.instagram_handle.trim()
-            ? contato.instagram_handle.trim().replace(/^@+/, "")
-            : undefined,
-        responsaveis: responsaveis
-          .map((rr) => ({
-            name:
-              typeof rr?.name === "string" && rr.name.trim() ? rr.name.trim() : "",
-            isPrimary: rr?.is_primary === true,
-            createdAt:
-              typeof rr?.created_at === "string" && rr.created_at.trim() ? rr.created_at : null,
-          }))
-          .filter((rr) => rr.name.length > 0),
-        coverImageUrl:
-          typeof t?.cover_image_url === "string" && t.cover_image_url.trim()
-            ? t.cover_image_url.trim()
-            : undefined,
-      };
+    const item: TerreiroListItem = {
+      id,
+      name: typeof t?.title === "string" ? t.title : "Terreiro",
+      role,
+      about:
+        typeof t?.about === "string" && t.about.trim()
+          ? t.about.trim()
+          : undefined,
+      linesOfWork:
+        typeof t?.lines_of_work === "string" && t.lines_of_work.trim()
+          ? t.lines_of_work.trim()
+          : undefined,
+      city:
+        contato && typeof contato.city === "string" && contato.city.trim()
+          ? contato.city.trim()
+          : undefined,
+      state:
+        contato && typeof contato.state === "string" && contato.state.trim()
+          ? contato.state.trim()
+          : undefined,
+      neighborhood:
+        contato &&
+        typeof contato.neighborhood === "string" &&
+        contato.neighborhood.trim()
+          ? contato.neighborhood.trim()
+          : undefined,
+      phoneDigits:
+        contato &&
+        typeof contato.phone_whatsapp === "string" &&
+        contato.phone_whatsapp.trim()
+          ? contato.phone_whatsapp.replace(/\D/g, "")
+          : undefined,
+      instagramHandle:
+        contato &&
+        typeof contato.instagram_handle === "string" &&
+        contato.instagram_handle.trim()
+          ? contato.instagram_handle.trim().replace(/^@+/, "")
+          : undefined,
+      responsaveis: responsaveis
+        .map((rr) => ({
+          name:
+            typeof rr?.name === "string" && rr.name.trim()
+              ? rr.name.trim()
+              : "",
+          isPrimary: rr?.is_primary === true,
+          createdAt:
+            typeof rr?.created_at === "string" && rr.created_at.trim()
+              ? rr.created_at
+              : null,
+        }))
+        .filter((rr) => rr.name.length > 0),
+      coverImageUrl:
+        typeof t?.cover_image_url === "string" && t.cover_image_url.trim()
+          ? t.cover_image_url.trim()
+          : undefined,
+    };
 
-      return item;
-    });
+    return item;
+  });
 
   return mapped.filter((x): x is TerreiroListItem => x !== null);
 }

@@ -16,8 +16,7 @@ export const queryKeys = {
   terreiros: {
     exploreInitial: () => ["terreiros", "explore", "initial"] as const,
     withRole: (userId: string) => ["terreiros", "withRole", userId] as const,
-    byId: (terreiroId: string) =>
-      ["terreiros", "byId", terreiroId] as const,
+    byId: (terreiroId: string) => ["terreiros", "byId", terreiroId] as const,
     editableByUser: (userId: string) =>
       ["terreiros", "editableByUser", userId] as const,
     collectionsByTerreiro: (terreiroId: string) =>

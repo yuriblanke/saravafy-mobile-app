@@ -32,8 +32,18 @@ type TerreiroInvite = {
   terreiro_id: string;
   email: string;
   role: InviteRole;
+  status: string;
   created_at: string;
+  terreiro_title?: string | null;
 };
+
+function isColumnMissingError(message: string, columnName: string) {
+  const m = String(message ?? "");
+  return (
+    m.includes(columnName) &&
+    (m.includes("does not exist") || m.includes("column"))
+  );
+}
 
 type InviteGateDebug = {
   step: "refresh" | "accept:rpc" | "reject:rpc" | "reject:update_invite";
@@ -226,12 +236,26 @@ export function InviteGate() {
       if (inFlightRef.current) return inFlightRef.current;
 
       const run = (async () => {
-        const res = await supabase
+        const selectWithTitle =
+          "id, terreiro_id, email, role, status, created_at, terreiro:terreiros(title)";
+        const selectWithName =
+          "id, terreiro_id, email, role, status, created_at, terreiro:terreiros(name)";
+
+        let res: any = await supabase
           .from("terreiro_invites")
-          .select("id, terreiro_id, email, role, created_at")
+          .select(selectWithTitle)
           .eq("status", "pending")
           .eq("email", normalizedUserEmail)
           .order("created_at", { ascending: true });
+
+        if (res.error && isColumnMissingError(res.error.message, "title")) {
+          res = await supabase
+            .from("terreiro_invites")
+            .select(selectWithName)
+            .eq("status", "pending")
+            .eq("email", normalizedUserEmail)
+            .order("created_at", { ascending: true });
+        }
 
         if (res.error) {
           if (isRlsRecursionError(res.error.message)) {
@@ -256,7 +280,25 @@ export function InviteGate() {
           throw new Error(res.error.message);
         }
 
-        const list = (res.data ?? []) as TerreiroInvite[];
+        const list = ((res.data ?? []) as any[]).map((row) => {
+          const terreiroObj = row?.terreiro as any;
+          const terreiroTitle =
+            typeof terreiroObj?.title === "string" && terreiroObj.title.trim()
+              ? terreiroObj.title.trim()
+              : typeof terreiroObj?.name === "string" && terreiroObj.name.trim()
+              ? terreiroObj.name.trim()
+              : null;
+
+          return {
+            id: String(row?.id ?? ""),
+            terreiro_id: String(row?.terreiro_id ?? ""),
+            email: String(row?.email ?? ""),
+            role: row?.role as InviteRole,
+            status: String(row?.status ?? ""),
+            created_at: String(row?.created_at ?? ""),
+            terreiro_title: terreiroTitle,
+          } satisfies TerreiroInvite;
+        });
 
         const priorityId = priorityInviteIdRef.current;
         const next = !priorityId
@@ -485,6 +527,8 @@ export function InviteGate() {
                   created_at: row.created_at,
                   role: row.role,
                   email: email,
+                  status: status || "pending",
+                  terreiro_title: null,
                 }
               : null;
 
@@ -723,13 +767,27 @@ export function InviteGate() {
   ]);
 
   const bannerText = useMemo(
-    () => "Você recebeu um convite para colaborar em um terreiro",
-    []
+    () => {
+      const title =
+        typeof currentInvite?.terreiro_title === "string" &&
+        currentInvite.terreiro_title.trim()
+          ? currentInvite.terreiro_title.trim()
+          : "Terreiro";
+      return `Convite para: ${title}`;
+    },
+    [currentInvite?.terreiro_title]
   );
 
   const modalTitle = useMemo(
-    () => "Você foi convidada para colaborar em um terreiro",
-    []
+    () => {
+      const title =
+        typeof currentInvite?.terreiro_title === "string" &&
+        currentInvite.terreiro_title.trim()
+          ? currentInvite.terreiro_title.trim()
+          : "Terreiro";
+      return title;
+    },
+    [currentInvite?.terreiro_title]
   );
 
   const modalBody = useMemo(
