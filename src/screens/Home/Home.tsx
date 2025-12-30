@@ -137,32 +137,42 @@ export default function Home() {
     : null;
 
   const closeAddToCollectionSheet = useCallback(() => {
-    if (__DEV__) {
-      console.info("[AddToCollectionDebug] close sheet", {
-        userId,
-        editableCount: editableCollections.length,
-        isFetching: editableCollectionsQuery.isFetching,
-      });
-    }
     setAddModalVisible(false);
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
     rootPager.setIsBottomSheetOpen(false);
-  }, [editableCollections.length, editableCollectionsQuery.isFetching, rootPager, userId]);
+  }, [
+    editableCollections.length,
+    editableCollectionsQuery.isFetching,
+    rootPager,
+    userId,
+  ]);
+
+  useEffect(() => {
+    if (!addModalVisible) return;
+    if (__DEV__) {
+      console.info("[AddToCollectionDebug] sheet visible", {
+        userId,
+        dataCount: editableCollections.length,
+        isFetching: editableCollectionsQuery.isFetching,
+      });
+    }
+  }, [
+    addModalVisible,
+    editableCollections.length,
+    editableCollectionsQuery.isFetching,
+    userId,
+  ]);
 
   const openAddToCollectionSheet = useCallback(
     (ponto: Ponto) => {
+      if (!userId) return;
       if (__DEV__) {
         console.info("[AddToCollectionDebug] open sheet", {
           userId,
-          pontoId: ponto?.id ?? null,
-          query: {
-            isFetching: editableCollectionsQuery.isFetching,
-            dataCount: editableCollections.length,
-            error: collectionsError,
-          },
-          activeContextKind: activeContext.kind,
+          dataCount: editableCollections.length,
+          isFetching: editableCollectionsQuery.isFetching,
         });
       }
       // IMPORTANT: o sheet abre sem "piscar" loading.
@@ -179,9 +189,7 @@ export default function Home() {
       rootPager.setIsBottomSheetOpen(true);
     },
     [
-      activeContext,
       editableCollections.length,
-      collectionsError,
       editableCollectionsQuery.isFetching,
       rootPager,
       userId,
@@ -537,7 +545,11 @@ export default function Home() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={openCreateCollection}
-                  disabled={isCreatingCollection}
+                  disabled={
+                    isCreatingCollection ||
+                    (editableCollectionsQuery.isFetching &&
+                      editableCollections.length === 0)
+                  }
                   style={({ pressed }) => [
                     styles.newCollectionCta,
                     pressed ? styles.newCollectionCtaPressed : null,
@@ -626,9 +638,10 @@ export default function Home() {
                               ),
                             });
                             queryClient.invalidateQueries({
-                              queryKey: queryKeys.collections.editableByUserPrefix(
-                                user.id
-                              ),
+                              queryKey:
+                                queryKeys.collections.editableByUserPrefix(
+                                  user.id
+                                ),
                             });
 
                             setAddSuccess(true);
