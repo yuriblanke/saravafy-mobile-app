@@ -1,6 +1,9 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
+
+import { queryKeys } from "@/src/queries/queryKeys";
 
 export type TerreiroAccessRole = "admin" | "editor" | "member";
 
@@ -66,143 +69,145 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const [data, setData] = useState<TerreiroMembershipStatus>({
-    role: null,
-    isActiveMember: false,
-    pendingRequestId: null,
-    hasPendingRequest: false,
+  const membershipQuery = useQuery({
+    queryKey: userId ? queryKeys.me.membership(userId) : [],
+    enabled: !!userId && !!terreiroId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!userId || !terreiroId) {
+        return [] as {
+          terreiro_id: string;
+          role: TerreiroAccessRole | null;
+        }[];
+      }
+
+      // NOTE: Prefer a lista completa do usuário (shared cache), para que
+      // invalidations via Realtime funcionem de forma consistente.
+      const allowedRoles = ["admin", "editor", "member"] as const;
+
+      let res: any = await supabase
+        .from("terreiro_members")
+        .select("terreiro_id, role, status")
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles])
+        .eq("status", "active");
+
+      if (res.error && isColumnMissingError(res.error, "status")) {
+        res = await supabase
+          .from("terreiro_members")
+          .select("terreiro_id, role")
+          .eq("user_id", userId)
+          .in("role", [...allowedRoles]);
+      }
+
+      if (res.error) {
+        const message =
+          typeof res.error.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Erro ao carregar membership.";
+        throw new Error(message);
+      }
+
+      const rows = (res.data ?? []) as {
+        terreiro_id?: unknown;
+        role?: unknown;
+      }[];
+
+      return rows
+        .map((r) => {
+          const tid = typeof r?.terreiro_id === "string" ? r.terreiro_id : "";
+          if (!tid) return null;
+
+          const roleRaw = r?.role;
+          const role: TerreiroAccessRole | null =
+            roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
+              ? roleRaw
+              : null;
+
+          return {
+            terreiro_id: tid,
+            role,
+          };
+        })
+        .filter(Boolean) as {
+        terreiro_id: string;
+        role: TerreiroAccessRole | null;
+      }[];
+    },
+    placeholderData: (prev) => prev,
   });
 
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const memberRow = useMemo(() => {
+    if (!terreiroId) return null;
+    const rows = membershipQuery.data ?? [];
+    return rows.find((r) => r.terreiro_id === terreiroId) ?? null;
+  }, [membershipQuery.data, terreiroId]);
 
-  const inFlightRef = useRef<Promise<TerreiroMembershipStatus> | null>(null);
+  const role = memberRow?.role ?? null;
+  const isActiveMember = role !== null;
 
-  const load = useCallback(async () => {
-    if (!terreiroId || !userId) {
-      const empty: TerreiroMembershipStatus = {
-        role: null,
-        isActiveMember: false,
-        pendingRequestId: null,
-        hasPendingRequest: false,
-      };
-      setData(empty);
-      setError(null);
-      setIsLoading(false);
-      return empty;
-    }
+  const pendingQuery = useQuery({
+    queryKey:
+      userId && terreiroId
+        ? (["terreiroMembershipRequest", userId, terreiroId] as const)
+        : [],
+    enabled: !!userId && !!terreiroId && !isActiveMember,
+    staleTime: 30_000,
+    queryFn: async () => {
+      if (!userId || !terreiroId) return null as string | null;
 
-    if (inFlightRef.current) return inFlightRef.current;
+      const reqRes = await supabase
+        .from("terreiro_membership_requests")
+        .select("id")
+        .eq("terreiro_id", terreiroId)
+        .eq("user_id", userId)
+        .eq("status", "pending")
+        .maybeSingle();
 
-    const run = (async () => {
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        // Membership (active)
-        let memberRes: any = await supabase
-          .from("terreiro_members")
-          .select("role, status")
-          .eq("terreiro_id", terreiroId)
-          .eq("user_id", userId)
-          .maybeSingle();
-
-        if (
-          memberRes.error &&
-          isColumnMissingError(memberRes.error, "status")
-        ) {
-          memberRes = await supabase
-            .from("terreiro_members")
-            .select("role")
-            .eq("terreiro_id", terreiroId)
-            .eq("user_id", userId)
-            .maybeSingle();
-        }
-
-        if (memberRes.error) {
-          throw new Error(
-            typeof memberRes.error.message === "string"
-              ? memberRes.error.message
-              : "Erro ao carregar membership."
-          );
-        }
-
-        const roleRaw = memberRes?.data?.role;
-        const role: TerreiroAccessRole | null =
-          roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
-            ? roleRaw
-            : null;
-
-        const statusRaw = memberRes?.data?.status;
-        const isActive =
-          role !== null &&
-          (typeof statusRaw !== "string" || statusRaw === "active");
-
-        // Pending request
-        const reqRes = await supabase
-          .from("terreiro_membership_requests")
-          .select("id, status")
-          .eq("terreiro_id", terreiroId)
-          .eq("user_id", userId)
-          .eq("status", "pending")
-          .maybeSingle();
-
-        if (reqRes.error) {
-          throw new Error(
-            typeof reqRes.error.message === "string"
-              ? reqRes.error.message
-              : "Erro ao carregar pedidos pendentes."
-          );
-        }
-
-        const pendingId =
-          typeof reqRes.data?.id === "string" ? reqRes.data.id : null;
-
-        const next: TerreiroMembershipStatus = {
-          role,
-          isActiveMember: isActive,
-          pendingRequestId: pendingId,
-          hasPendingRequest: !!pendingId,
-        };
-
-        setData(next);
-        return next;
-      } catch (e) {
-        setData({
-          role: null,
-          isActiveMember: false,
-          pendingRequestId: null,
-          hasPendingRequest: false,
-        });
-        setError(getErrorMessage(e));
-        return {
-          role: null,
-          isActiveMember: false,
-          pendingRequestId: null,
-          hasPendingRequest: false,
-        };
-      } finally {
-        setIsLoading(false);
+      if (reqRes.error) {
+        throw new Error(
+          typeof reqRes.error.message === "string"
+            ? reqRes.error.message
+            : "Erro ao carregar pedidos pendentes."
+        );
       }
-    })();
 
-    inFlightRef.current = run;
-    try {
-      return await run;
-    } finally {
-      inFlightRef.current = null;
-    }
-  }, [terreiroId, userId]);
+      return typeof reqRes.data?.id === "string" ? reqRes.data.id : null;
+    },
+    placeholderData: (prev) => prev,
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const pendingRequestId = pendingQuery.data ?? null;
+
+  const data = useMemo((): TerreiroMembershipStatus => {
+    return {
+      role,
+      isActiveMember,
+      pendingRequestId,
+      hasPendingRequest: !!pendingRequestId,
+    };
+  }, [isActiveMember, pendingRequestId, role]);
+
+  const error =
+    membershipQuery.error != null
+      ? getErrorMessage(membershipQuery.error)
+      : pendingQuery.error != null
+      ? getErrorMessage(pendingQuery.error)
+      : null;
+
+  const reload = useCallback(async () => {
+    await Promise.allSettled([
+      membershipQuery.refetch(),
+      pendingQuery.refetch(),
+    ]);
+    return data;
+  }, [data, membershipQuery, pendingQuery]);
 
   return {
     data,
-    isLoading,
+    isLoading: membershipQuery.isLoading,
     error,
-    reload: load,
+    reload,
   };
 }
 
@@ -378,7 +383,7 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
         const ids = mapped.map((m) => m.user_id);
         const profiles = await fetchProfilesByIds(ids);
         setProfilesById(profiles);
-      } catch (e) {
+      } catch {
         setProfilesById({});
       }
 
@@ -603,7 +608,7 @@ export function useTerreiroMembers(terreiroId: string) {
         const ids = mapped.map((m) => m.user_id);
         const profiles = await fetchProfilesByIds(ids);
         setProfilesById(profiles);
-      } catch (e) {
+      } catch {
         setProfilesById({});
       }
 

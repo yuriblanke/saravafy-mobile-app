@@ -13,7 +13,7 @@ import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -113,6 +113,35 @@ export default function Collection() {
   const isMember = membership.data.isActiveMember;
   const hasPendingRequest = membership.data.hasPendingRequest;
   const shouldLoadPontos = !!collection && (!isMembersOnly || isMember);
+
+  const wasMemberRef = useRef(false);
+  useEffect(() => {
+    if (!isMembersOnly) {
+      wasMemberRef.current = false;
+      return;
+    }
+    if (!isLoggedIn) return;
+    if (membership.isLoading) return;
+
+    const wasMember = wasMemberRef.current;
+    const isMemberNow = membership.data.isActiveMember;
+
+    if (wasMember && !isMemberNow) {
+      showToast("Seu acesso a este terreiro foi removido.");
+      rootPager?.setActiveKey("pontos");
+      router.replace("/(app)");
+    }
+
+    wasMemberRef.current = isMemberNow;
+  }, [
+    isLoggedIn,
+    isMembersOnly,
+    membership.data.isActiveMember,
+    membership.isLoading,
+    rootPager,
+    router,
+    showToast,
+  ]);
 
   const {
     items: orderedItems,

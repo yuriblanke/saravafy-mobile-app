@@ -1290,6 +1290,7 @@ export default function TerreiroEditor() {
   };
 
   const coverPreviewUri = form.coverImageUrl;
+  const canEditImage = !isEdit || isAdmin;
 
   const canSubmit =
     !saving &&
@@ -1365,7 +1366,13 @@ export default function TerreiroEditor() {
               coverPreviewUri ? "Editar imagem" : "Adicionar imagem"
             }
             disabled={saving}
-            onPress={pickCover}
+            onPress={() => {
+              if (!canEditImage) {
+                showToast("Somente admins podem editar a imagem do terreiro.");
+                return;
+              }
+              pickCover();
+            }}
             style={({ pressed }) => [
               styles.coverRow,
               { borderColor: inputBorder, backgroundColor: inputBg },
@@ -1389,12 +1396,20 @@ export default function TerreiroEditor() {
             </Text>
           </Pressable>
 
-          {coverPreviewUri ? (
+          {coverPreviewUri && canEditImage ? (
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Remover imagem"
               disabled={saving}
-              onPress={removeCover}
+              onPress={() => {
+                if (!canEditImage) {
+                  showToast(
+                    "Somente admins podem remover a imagem do terreiro."
+                  );
+                  return;
+                }
+                removeCover();
+              }}
               style={({ pressed }) => [
                 styles.coverRemoveBtn,
                 pressed && !saving ? styles.rowPressed : null,

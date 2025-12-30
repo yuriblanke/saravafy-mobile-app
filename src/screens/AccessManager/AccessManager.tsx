@@ -1044,12 +1044,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { BottomSheet } from "@/src/components/BottomSheet";
 import {
   useTerreiroInvites,
+  useTerreiroMembers,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -1073,10 +1077,26 @@ type TerreiroInviteLite = {
   created_at: string | null;
 };
 
+type TerreiroMemberLite = {
+  user_id: string;
+  role: string | null;
+  status: string | null;
+};
+
+type RemoveTarget =
+  | { kind: "invite"; id: string; label: string; status: InviteStatus }
+  | { kind: "member"; userId: string; label: string; role: AccessRole };
+
 function normalizeEmail(v: string) {
   return String(v ?? "")
     .trim()
     .toLowerCase();
+}
+
+function isCannotRemoveLastAdminError(error: unknown) {
+  const anyErr = error as any;
+  const msg = typeof anyErr?.message === "string" ? anyErr.message : "";
+  return msg.includes("cannot_remove_last_admin");
 }
 
 function isDuplicatePendingInviteError(error: unknown) {
@@ -1127,6 +1147,7 @@ export default function AccessManager() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const { effectiveTheme } = usePreferences();
+  const queryClient = useQueryClient();
 
   const variant: "light" | "dark" = effectiveTheme;
 
@@ -1148,6 +1169,14 @@ export default function AccessManager() {
     (membership.role === "admin" || membership.role === "editor");
 
   const {
+    items: memberRows,
+    profilesById: memberProfilesById,
+    isLoading: isLoadingMembers,
+    error: membersError,
+    reload: reloadMembers,
+  } = useTerreiroMembers(terreiroId);
+
+  const {
     items: inviteItems,
     isLoading: isLoadingInvites,
     error: invitesError,
@@ -1160,9 +1189,20 @@ export default function AccessManager() {
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
 
+  const [confirmRemoveTarget, setConfirmRemoveTarget] =
+    useState<RemoveTarget | null>(null);
+  const [busyRemoveKey, setBusyRemoveKey] = useState<string | null>(null);
+
+  const [removedInviteIds, setRemovedInviteIds] = useState<
+    Record<string, true>
+  >({});
+  const [removedMemberIds, setRemovedMemberIds] = useState<
+    Record<string, true>
+  >({});
+
   const sortedInvites = useMemo(() => {
     const items = (inviteItems ?? []) as unknown as TerreiroInviteLite[];
-    const next = [...items];
+    const next = items.filter((i) => !removedInviteIds[String(i?.id ?? "")]);
     next.sort((a, b) => {
       const wa = statusWeight(String(a?.status ?? ""));
       const wb = statusWeight(String(b?.status ?? ""));
@@ -1172,7 +1212,7 @@ export default function AccessManager() {
       );
     });
     return next;
-  }, [inviteItems]);
+  }, [inviteItems, removedInviteIds]);
 
   const gestaoInvites = useMemo(() => {
     return sortedInvites.filter(
@@ -1195,6 +1235,11 @@ export default function AccessManager() {
     if (inviteSubmitting) return;
     setInviteModalVisible(false);
   }, [inviteSubmitting]);
+
+  const closeConfirmRemove = useCallback(() => {
+    if (busyRemoveKey) return;
+    setConfirmRemoveTarget(null);
+  }, [busyRemoveKey]);
 
   const createInvite = useCallback(
     async (payload: { email: string; role: AccessRole }) => {
@@ -1367,6 +1412,173 @@ export default function AccessManager() {
     [busyInviteId, canSeeManager, reloadInvites, showToast, user?.id]
   );
 
+  const openRemoveForInvite = useCallback(
+    (invite: TerreiroInviteLite) => {
+      const id = String(invite?.id ?? "");
+      if (!id) return;
+      setConfirmRemoveTarget({
+        kind: "invite",
+        id,
+        label: normalizeEmail(String(invite?.email ?? "")),
+        status: String(invite?.status ?? "") as InviteStatus,
+      });
+    },
+    []
+  );
+
+  const openRemoveForMember = useCallback(
+    (member: TerreiroMemberLite) => {
+      const uid = String(member?.user_id ?? "");
+      if (!uid) return;
+
+      const profile = memberProfilesById[uid];
+      const email = profile?.email ? normalizeEmail(profile.email) : uid;
+      const roleRaw = String(member?.role ?? "");
+      const role: AccessRole =
+        roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
+          ? roleRaw
+          : "member";
+
+      setConfirmRemoveTarget({
+        kind: "member",
+        userId: uid,
+        label: email,
+        role,
+      });
+    },
+    [memberProfilesById]
+  );
+
+  const confirmRemove = useCallback(async () => {
+    if (!confirmRemoveTarget) return;
+    if (!terreiroId) {
+      showToast("Terreiro inválido.");
+      return;
+    }
+
+    const myUserId = user?.id ?? null;
+
+    if (confirmRemoveTarget.kind === "invite") {
+      const key = `invite:${confirmRemoveTarget.id}`;
+      if (busyRemoveKey) return;
+
+      setBusyRemoveKey(key);
+      try {
+        const res = await supabase
+          .from("terreiro_invites")
+          .delete()
+          .eq("id", confirmRemoveTarget.id);
+
+        if (res.error) {
+          showToast(
+            "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+          );
+          return;
+        }
+
+        setRemovedInviteIds((prev) => ({
+          ...prev,
+          [confirmRemoveTarget.id]: true,
+        }));
+
+        showToast("Convite removido.");
+        setConfirmRemoveTarget(null);
+
+        await reloadInvites();
+
+        if (myUserId) {
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.terreiros.withRole(myUserId),
+          });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.me.terreiros(myUserId),
+          });
+        }
+      } finally {
+        setBusyRemoveKey(null);
+      }
+      return;
+    }
+
+    // member
+    const memberKey = `member:${confirmRemoveTarget.userId}`;
+    if (busyRemoveKey) return;
+    setBusyRemoveKey(memberKey);
+    try {
+      const rpc = await supabase.rpc("fn_remove_terreiro_member", {
+        p_terreiro_id: terreiroId,
+        p_user_id: confirmRemoveTarget.userId,
+      });
+
+      if (rpc.error) {
+        if (isCannotRemoveLastAdminError(rpc.error)) {
+          showToast("Não é possível remover a última pessoa admin deste terreiro.");
+          return;
+        }
+
+        showToast(
+          "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+        );
+        return;
+      }
+
+      setRemovedMemberIds((prev) => ({
+        ...prev,
+        [confirmRemoveTarget.userId]: true,
+      }));
+
+      showToast("Acesso removido.");
+      setConfirmRemoveTarget(null);
+
+      await Promise.all([reloadMembers(), reloadInvites()]);
+
+      if (myUserId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.me.membership(myUserId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.me.permissions(myUserId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.me.terreiros(myUserId),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiros.withRole(myUserId),
+        });
+      }
+    } finally {
+      setBusyRemoveKey(null);
+    }
+  }, [
+    busyRemoveKey,
+    confirmRemoveTarget,
+    queryClient,
+    reloadInvites,
+    reloadMembers,
+    showToast,
+    terreiroId,
+    user?.id,
+  ]);
+
+  const visibleMembers = useMemo(() => {
+    const rows = (memberRows ?? []) as unknown as TerreiroMemberLite[];
+    return rows.filter((m) => {
+      const uid = String(m?.user_id ?? "");
+      if (!uid) return false;
+      if (removedMemberIds[uid]) return false;
+
+      const status = String(m?.status ?? "");
+      // If `status` column isn't present, treat as active.
+      return !status || status === "active";
+    });
+  }, [memberRows, removedMemberIds]);
+
+  const adminCount = useMemo(() => {
+    return visibleMembers.reduce((acc, m) => {
+      return String(m?.role ?? "") === "admin" ? acc + 1 : acc;
+    }, 0);
+  }, [visibleMembers]);
+
   return (
     <View style={styles.root}>
       <View style={styles.headerRow}>
@@ -1409,6 +1621,58 @@ export default function AccessManager() {
           </Text>
         ) : null}
 
+        <AccessSection variant={variant} title="Membros atuais">
+          {isLoadingMembers ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
+          ) : membersError ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Não foi possível carregar membros.
+            </Text>
+          ) : visibleMembers.length === 0 ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Nenhum membro.
+            </Text>
+          ) : (
+            visibleMembers.map((m) => {
+              const uid = String(m.user_id ?? "");
+              const profile = memberProfilesById[uid];
+              const email = profile?.email ? normalizeEmail(profile.email) : uid;
+
+              const roleRaw = String(m.role ?? "");
+              const role: AccessRole =
+                roleRaw === "admin" ||
+                roleRaw === "editor" ||
+                roleRaw === "member"
+                  ? roleRaw
+                  : "member";
+
+              const isLastAdmin = role === "admin" && adminCount <= 1;
+              const removeKey = `member:${uid}`;
+              const rowBusy =
+                busyInviteId === uid || busyRemoveKey === removeKey;
+
+              return (
+                <InviteRow
+                  key={uid}
+                  variant={variant}
+                  email={email}
+                  role={role}
+                  status="active"
+                  showActions={false}
+                  isBusy={rowBusy}
+                  onAccept={() => undefined}
+                  onDecline={() => undefined}
+                  onRemove={() => openRemoveForMember(m)}
+                  removeDisabled={!canSeeManager || rowBusy || isLastAdmin}
+                  removeAccessibilityLabel="Remover acesso"
+                />
+              );
+            })
+          )}
+        </AccessSection>
+
         <AccessSection
           variant={variant}
           title="Gestão"
@@ -1437,7 +1701,8 @@ export default function AccessManager() {
             gestaoInvites.map((inv) => {
               const status = String(inv.status ?? "") as InviteStatus;
               const showActions = canSeeManager && status === "pending";
-              const isBusy = busyInviteId === inv.id;
+              const removeKey = `invite:${inv.id}`;
+              const isBusy = busyInviteId === inv.id || busyRemoveKey === removeKey;
               return (
                 <InviteRow
                   key={inv.id}
@@ -1449,6 +1714,9 @@ export default function AccessManager() {
                   isBusy={isBusy}
                   onAccept={() => acceptInvite(inv.id)}
                   onDecline={() => declineInvite(inv.id)}
+                  onRemove={() => openRemoveForInvite(inv)}
+                  removeDisabled={!canSeeManager || isBusy}
+                  removeAccessibilityLabel="Remover convite"
                 />
               );
             })
@@ -1485,7 +1753,8 @@ export default function AccessManager() {
             membrosInvites.map((inv) => {
               const status = String(inv.status ?? "") as InviteStatus;
               const showActions = canSeeManager && status === "pending";
-              const isBusy = busyInviteId === inv.id;
+              const removeKey = `invite:${inv.id}`;
+              const isBusy = busyInviteId === inv.id || busyRemoveKey === removeKey;
               return (
                 <InviteRow
                   key={inv.id}
@@ -1497,6 +1766,9 @@ export default function AccessManager() {
                   isBusy={isBusy}
                   onAccept={() => acceptInvite(inv.id)}
                   onDecline={() => declineInvite(inv.id)}
+                  onRemove={() => openRemoveForInvite(inv)}
+                  removeDisabled={!canSeeManager || isBusy}
+                  removeAccessibilityLabel="Remover convite"
                 />
               );
             })
@@ -1521,6 +1793,69 @@ export default function AccessManager() {
         onClose={closeInviteModal}
         onSubmit={createInvite}
       />
+
+      <BottomSheet
+        visible={!!confirmRemoveTarget}
+        variant={variant}
+        onClose={closeConfirmRemove}
+        snapPoints={[320]}
+      >
+        <View style={styles.confirmSheet}>
+          <Text style={[styles.confirmTitle, { color: textPrimary }]}>
+            {confirmRemoveTarget?.kind === "invite"
+              ? "Remover convite?"
+              : "Remover acesso?"}
+          </Text>
+
+          <Text style={[styles.confirmBody, { color: textSecondary }]}>
+            {confirmRemoveTarget?.kind === "invite"
+              ? "A pessoa não poderá mais aceitar este convite."
+              : "A pessoa perde acesso ao terreiro e às coleções restritas."}
+          </Text>
+
+          <Text style={[styles.confirmHint, { color: textSecondary }]}>
+            {confirmRemoveTarget?.label || ""}
+          </Text>
+
+          <View style={styles.confirmActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={closeConfirmRemove}
+              disabled={!!busyRemoveKey}
+              style={({ pressed }) => [
+                styles.confirmBtn,
+                styles.confirmBtnSecondary,
+                {
+                  borderColor:
+                    variant === "light"
+                      ? colors.surfaceCardBorderLight
+                      : colors.surfaceCardBorder,
+                },
+                pressed ? styles.confirmPressed : null,
+                busyRemoveKey ? styles.confirmDisabled : null,
+              ]}
+            >
+              <Text style={[styles.confirmBtnText, { color: textPrimary }]}>
+                Cancelar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={confirmRemove}
+              disabled={!!busyRemoveKey}
+              style={({ pressed }) => [
+                styles.confirmBtn,
+                styles.confirmBtnDanger,
+                pressed ? styles.confirmPressed : null,
+                busyRemoveKey ? styles.confirmDisabled : null,
+              ]}
+            >
+              <Text style={styles.confirmBtnTextDanger}>Confirmar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheet>
     </View>
   );
 }
@@ -1587,5 +1922,62 @@ const styles = StyleSheet.create({
   },
   bottomPad: {
     height: spacing.xl,
+  },
+  confirmSheet: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: 8,
+  },
+  confirmTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  confirmBody: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.95,
+  },
+  confirmHint: {
+    fontSize: 12,
+    fontWeight: "800",
+    opacity: 0.9,
+    marginTop: 4,
+  },
+  confirmActions: {
+    flexDirection: "row",
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  confirmBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
+  confirmBtnSecondary: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surfaceCardBorder,
+    backgroundColor: "transparent",
+  },
+  confirmBtnDanger: {
+    backgroundColor: colors.danger,
+  },
+  confirmPressed: {
+    opacity: 0.85,
+  },
+  confirmDisabled: {
+    opacity: 0.6,
+  },
+  confirmBtnText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  confirmBtnTextDanger: {
+    fontSize: 13,
+    fontWeight: "900",
+    color: colors.paper50,
   },
 });

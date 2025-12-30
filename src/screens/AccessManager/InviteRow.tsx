@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
+import { Ionicons } from "@expo/vector-icons";
 
 export type AccessRole = "admin" | "editor" | "member";
 export type InviteStatus = "pending" | "accepted" | "rejected" | string;
@@ -17,6 +18,7 @@ function statusLabel(status: InviteStatus) {
   if (status === "pending") return "Pendente";
   if (status === "accepted") return "Aceito";
   if (status === "rejected") return "Recusado";
+  if (status === "active") return "Ativo";
   return status || "";
 }
 
@@ -29,6 +31,9 @@ type Props = {
   isBusy: boolean;
   onAccept: () => void;
   onDecline: () => void;
+  onRemove: () => void;
+  removeDisabled: boolean;
+  removeAccessibilityLabel?: string;
 };
 
 export function InviteRow({
@@ -40,6 +45,9 @@ export function InviteRow({
   isBusy,
   onAccept,
   onDecline,
+  onRemove,
+  removeDisabled,
+  removeAccessibilityLabel,
 }: Props) {
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -69,49 +77,66 @@ export function InviteRow({
         </View>
       </View>
 
-      {showActions ? (
-        <View style={styles.actions}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={onAccept}
-            disabled={isBusy}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              pressed ? styles.actionPressed : null,
-              isBusy ? styles.actionDisabled : null,
-            ]}
-          >
-            <Text
-              style={[styles.actionText, { color: colors.success }]}
-              numberOfLines={1}
+      <View style={styles.right}>
+        {showActions ? (
+          <View style={styles.actions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={onAccept}
+              disabled={isBusy}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                pressed ? styles.actionPressed : null,
+                isBusy ? styles.actionDisabled : null,
+              ]}
             >
-              Aceitar
-            </Text>
-          </Pressable>
+              <Text
+                style={[styles.actionText, { color: colors.success }]}
+                numberOfLines={1}
+              >
+                Aceitar
+              </Text>
+            </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            onPress={onDecline}
-            disabled={isBusy}
-            hitSlop={10}
-            style={({ pressed }) => [
-              styles.actionBtn,
-              pressed ? styles.actionPressed : null,
-              isBusy ? styles.actionDisabled : null,
-            ]}
-          >
-            <Text
-              style={[styles.actionText, { color: colors.danger }]}
-              numberOfLines={1}
+            <Pressable
+              accessibilityRole="button"
+              onPress={onDecline}
+              disabled={isBusy}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.actionBtn,
+                pressed ? styles.actionPressed : null,
+                isBusy ? styles.actionDisabled : null,
+              ]}
             >
-              Recusar
-            </Text>
-          </Pressable>
-        </View>
-      ) : (
-        <Text style={[styles.noActions, { color: textMuted }]} />
-      )}
+              <Text
+                style={[styles.actionText, { color: colors.danger }]}
+                numberOfLines={1}
+              >
+                Recusar
+              </Text>
+            </Pressable>
+          </View>
+        ) : (
+          <Text style={[styles.noActions, { color: textMuted }]} />
+        )}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={removeAccessibilityLabel || "Remover"}
+          onPress={onRemove}
+          disabled={removeDisabled}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.trashBtn,
+            pressed ? styles.actionPressed : null,
+            removeDisabled ? styles.actionDisabled : null,
+          ]}
+        >
+          <Ionicons name="trash-outline" size={18} color={colors.danger} />
+        </Pressable>
+      </View>
     </View>
   );
 }
@@ -141,6 +166,12 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
   },
+  right: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
   actions: {
     flexDirection: "row",
     alignItems: "center",
@@ -159,6 +190,10 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 12,
     fontWeight: "900",
+  },
+  trashBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 6,
   },
   noActions: {
     width: 1,

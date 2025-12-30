@@ -1,3 +1,4 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
@@ -40,6 +41,8 @@ export default function Terreiro() {
   }>();
   const { showToast } = useToast();
   const { effectiveTheme, clearStartPageSnapshotOnly } = usePreferences();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
 
   const variant = effectiveTheme;
 
@@ -83,11 +86,39 @@ export default function Terreiro() {
   }, [terreiroName]);
 
   const terreiroId = resolvedTerreiroId;
-  const { data: membership } = useTerreiroMembershipStatus(terreiroId);
+  const membershipQuery = useTerreiroMembershipStatus(terreiroId);
+  const membership = membershipQuery.data;
   const myRole = membership.role;
   const isAdminOrEditor =
     membership.isActiveMember && (myRole === "admin" || myRole === "editor");
   const isAdmin = membership.isActiveMember && myRole === "admin";
+
+  const wasActiveMemberRef = useRef(false);
+
+  useEffect(() => {
+    if (!terreiroId) return;
+    if (!userId) return;
+    if (membershipQuery.isLoading) return;
+
+    const wasActive = wasActiveMemberRef.current;
+    const isActive = membership.isActiveMember;
+
+    if (wasActive && !isActive) {
+      showToast("Seu acesso a este terreiro foi removido.");
+      rootPager?.setActiveKey("pontos");
+      router.replace("/(app)");
+    }
+
+    wasActiveMemberRef.current = isActive;
+  }, [
+    membership.isActiveMember,
+    membershipQuery.isLoading,
+    rootPager,
+    router,
+    terreiroId,
+    userId,
+    showToast,
+  ]);
 
   const [isTerreiroMenuOpen, setIsTerreiroMenuOpen] = useState(false);
 
