@@ -21,7 +21,7 @@ function isColumnMissingError(error: unknown, columnName: string) {
 
 export function useMyActiveTerreiroIdsQuery(userId: string | null) {
   return useQuery({
-    queryKey: queryKeys.me.terreiros(),
+    queryKey: userId ? queryKeys.me.terreiros(userId) : [],
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {

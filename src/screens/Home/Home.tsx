@@ -25,8 +25,8 @@ import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
 
 import {
-  useAccountableCollections,
-  type AccountableCollection,
+  useEditableCollections,
+  type EditableCollection,
 } from "@/src/queries/collections";
 import { queryKeys } from "@/src/queries/queryKeys";
 
@@ -74,15 +74,8 @@ export function getLyricsPreview(lyrics: string, maxLines = 6) {
 
 export default function Home() {
   // Adapta o padrão de tema igual Terreiros
-  const {
-    effectiveTheme,
-    activeContext,
-    terreirosAdmin,
-    loadingTerreirosAdmin,
-    erroTerreirosAdmin,
-    hasLoadedTerreirosAdmin,
-    hasAttemptedTerreirosAdmin,
-  } = require("@/contexts/PreferencesContext").usePreferences();
+  const { effectiveTheme, activeContext } =
+    require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const router = useRouter();
@@ -136,18 +129,19 @@ export default function Home() {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // Hook global de coleções - sempre ativo, não depende do modal
-  const accountableCollectionsQuery = useAccountableCollections(userId);
-  const allCollections = accountableCollectionsQuery.data ?? [];
-  const collectionsError = accountableCollectionsQuery.isError
-    ? getErrorMessage(accountableCollectionsQuery.error)
+  // Fonte ÚNICA do BottomSheet: coleções editáveis (escrita) por regra de produto.
+  const editableCollectionsQuery = useEditableCollections(userId);
+  const editableCollections = editableCollectionsQuery.data ?? [];
+  const collectionsError = editableCollectionsQuery.isError
+    ? getErrorMessage(editableCollectionsQuery.error)
     : null;
 
   const closeAddToCollectionSheet = useCallback(() => {
     if (__DEV__) {
       console.info("[AddToCollectionDebug] close sheet", {
         userId,
-        allCount: allCollections.length,
+        editableCount: editableCollections.length,
+        isFetching: editableCollectionsQuery.isFetching,
       });
     }
     setAddModalVisible(false);
@@ -155,7 +149,7 @@ export default function Home() {
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
     rootPager.setIsBottomSheetOpen(false);
-  }, [allCollections.length, rootPager, userId]);
+  }, [editableCollections.length, editableCollectionsQuery.isFetching, rootPager, userId]);
 
   const openAddToCollectionSheet = useCallback(
     (ponto: Ponto) => {
@@ -164,27 +158,11 @@ export default function Home() {
           userId,
           pontoId: ponto?.id ?? null,
           query: {
-            status: accountableCollectionsQuery.status,
-            fetchStatus: accountableCollectionsQuery.fetchStatus,
-            isFetching: accountableCollectionsQuery.isFetching,
-            dataUpdatedAt: accountableCollectionsQuery.dataUpdatedAt,
-            dataCount: allCollections.length,
+            isFetching: editableCollectionsQuery.isFetching,
+            dataCount: editableCollections.length,
             error: collectionsError,
           },
           activeContextKind: activeContext.kind,
-          activeTerreiroId:
-            activeContext.kind === "TERREIRO_PAGE"
-              ? activeContext.terreiroId
-              : null,
-          activeRole:
-            activeContext.kind === "TERREIRO_PAGE"
-              ? activeContext.role ?? null
-              : null,
-          terreirosAdminCount: (terreirosAdmin ?? []).length,
-          loadingTerreirosAdmin,
-          hasLoadedTerreirosAdmin,
-          hasAttemptedTerreirosAdmin,
-          erroTerreirosAdmin,
         });
       }
       // IMPORTANT: o sheet abre sem "piscar" loading.
@@ -202,168 +180,15 @@ export default function Home() {
     },
     [
       activeContext,
-      accountableCollectionsQuery.dataUpdatedAt,
-      accountableCollectionsQuery.fetchStatus,
-      accountableCollectionsQuery.isFetching,
-      accountableCollectionsQuery.status,
-      allCollections.length,
+      editableCollections.length,
       collectionsError,
-      erroTerreirosAdmin,
-      hasAttemptedTerreirosAdmin,
-      hasLoadedTerreirosAdmin,
-      loadingTerreirosAdmin,
+      editableCollectionsQuery.isFetching,
       rootPager,
-      terreirosAdmin,
       userId,
     ]
   );
 
-  const filteredCollections = useMemo(() => {
-    if (!user?.id) return [] as AccountableCollection[];
-
-    // REGRA DE PRODUTO: filtrar por perfil ativo (não por filtro manual do modal)
-    // Se perfil = USER_PROFILE (pessoal): mostrar TODAS as collections visíveis
-    // Se perfil = TERREIRO_PAGE: mostrar APENAS collections desse terreiro
-
-    if (activeContext.kind === "USER_PROFILE") {
-      // Perfil pessoal: mostrar TODAS as collections (pessoais + terreiros)
-      return allCollections;
-    }
-
-    // Perfil = TERREIRO_PAGE: filtrar por terreiro ativo
-    return allCollections.filter(
-      (c) => c.owner_terreiro_id === activeContext.terreiroId
-    );
-  }, [allCollections, activeContext, user?.id]);
-
-  const terreiroRoleById = useMemo(() => {
-    const map = new Map<string, "admin" | "editor">();
-    for (const t of terreirosAdmin ?? []) {
-      if (!t?.id) continue;
-      if (t.role === "admin" || t.role === "editor") {
-        map.set(t.id, t.role);
-      }
-    }
-    return map;
-  }, [terreirosAdmin]);
-
-  const canWriteToCollection = useCallback(
-    (c: AccountableCollection): boolean => {
-      if (!user?.id) return false;
-
-      // Coleção pessoal: sempre editável pela dona.
-      if (c.owner_user_id === user.id) return true;
-
-      // Coleção de terreiro: só se a usuária for admin/editor do terreiro.
-      const terreiroId = c.owner_terreiro_id;
-      if (!terreiroId) return false;
-
-      // Preferir o role do contexto ativo quando ele bate com o terreiro.
-      const roleFromActiveContext =
-        activeContext.kind === "TERREIRO_PAGE" &&
-        activeContext.terreiroId === terreiroId
-          ? activeContext.role
-          : undefined;
-
-      const role = roleFromActiveContext ?? terreiroRoleById.get(terreiroId);
-      return role === "admin" || role === "editor";
-    },
-    [
-      activeContext.kind,
-      activeContext.role,
-      activeContext.terreiroId,
-      terreiroRoleById,
-      user?.id,
-    ]
-  );
-
-  // IMPORTANT (UX): este filtro  APENAS para o fluxo de “Adicionar ponto  escolher coleo”.
-  // No afeta a aba Terreiros (leitura/descoberta).
-  const writableCollections = useMemo(() => {
-    return filteredCollections.filter(canWriteToCollection);
-  }, [canWriteToCollection, filteredCollections]);
-
-  useEffect(() => {
-    if (!__DEV__) return;
-    console.info("[AddToCollectionDebug] collections query state", {
-      userId,
-      enabled: !!userId,
-      status: accountableCollectionsQuery.status,
-      fetchStatus: accountableCollectionsQuery.fetchStatus,
-      isFetching: accountableCollectionsQuery.isFetching,
-      isPending: accountableCollectionsQuery.isPending,
-      isSuccess: accountableCollectionsQuery.isSuccess,
-      isError: accountableCollectionsQuery.isError,
-      dataUpdatedAt: accountableCollectionsQuery.dataUpdatedAt,
-      dataCount: allCollections.length,
-      error: collectionsError,
-    });
-  }, [
-    userId,
-    accountableCollectionsQuery.status,
-    accountableCollectionsQuery.fetchStatus,
-    accountableCollectionsQuery.isFetching,
-    accountableCollectionsQuery.isPending,
-    accountableCollectionsQuery.isSuccess,
-    accountableCollectionsQuery.isError,
-    accountableCollectionsQuery.dataUpdatedAt,
-    allCollections.length,
-    collectionsError,
-  ]);
-
-  useEffect(() => {
-    if (!__DEV__) return;
-    console.info("[AddToCollectionDebug] derived collections", {
-      userId,
-      activeContextKind: activeContext.kind,
-      activeTerreiroId:
-        activeContext.kind === "TERREIRO_PAGE"
-          ? activeContext.terreiroId
-          : null,
-      activeRole:
-        activeContext.kind === "TERREIRO_PAGE"
-          ? activeContext.role ?? null
-          : null,
-      terreirosAdminCount: (terreirosAdmin ?? []).length,
-      loadingTerreirosAdmin,
-      hasLoadedTerreirosAdmin,
-      hasAttemptedTerreirosAdmin,
-      erroTerreirosAdmin,
-      allCount: allCollections.length,
-      filteredCount: filteredCollections.length,
-      writableCount: writableCollections.length,
-    });
-  }, [
-    userId,
-    activeContext,
-    terreirosAdmin,
-    loadingTerreirosAdmin,
-    hasLoadedTerreirosAdmin,
-    hasAttemptedTerreirosAdmin,
-    erroTerreirosAdmin,
-    allCollections.length,
-    filteredCollections.length,
-    writableCollections.length,
-  ]);
-
-  useEffect(() => {
-    if (!__DEV__) return;
-    if (!addModalVisible) return;
-    console.info("[AddToCollectionDebug] sheet visible", {
-      userId,
-      allCount: allCollections.length,
-      filteredCount: filteredCollections.length,
-      writableCount: writableCollections.length,
-    });
-  }, [
-    addModalVisible,
-    userId,
-    allCollections.length,
-    filteredCollections.length,
-    writableCollections.length,
-  ]);
-
-  const getCollectionOwnerLabel = (c: AccountableCollection) => {
+  const getCollectionOwnerLabel = (c: EditableCollection) => {
     if (!user?.id) return "";
     if (c.owner_user_id === user.id) return "Você";
     if (c.owner_terreiro_id) {
@@ -407,9 +232,12 @@ export default function Home() {
       return;
     }
 
-    // Atualizar cache global de coleções
+    // Atualizar caches user-scoped de coleções
     queryClient.invalidateQueries({
-      queryKey: queryKeys.collections.accountable(),
+      queryKey: queryKeys.collections.accountable(user.id),
+    });
+    queryClient.invalidateQueries({
+      queryKey: queryKeys.collections.editableByUserPrefix(user.id),
     });
 
     setIsCreateCollectionModalOpen(false);
@@ -687,7 +515,10 @@ export default function Home() {
               </Text>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => void accountableCollectionsQuery.refetch()}
+                onPress={() => {
+                  void editableCollectionsQuery.queries.editableTerreiroIds.refetch();
+                  void editableCollectionsQuery.queries.collections.refetch();
+                }}
                 style={[
                   styles.retryBtn,
                   variant === "light"
@@ -719,10 +550,17 @@ export default function Home() {
                 </Pressable>
               </View>
 
-              {writableCollections.length === 0 ? (
+              {editableCollectionsQuery.isFetching &&
+              editableCollections.length === 0 ? (
                 <View style={styles.emptyBlock}>
                   <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                    Nenhuma coleção disponível
+                    Carregando coleções…
+                  </Text>
+                </View>
+              ) : editableCollections.length === 0 ? (
+                <View style={styles.emptyBlock}>
+                  <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+                    Você ainda não tem permissão…
                   </Text>
                   <Text style={[styles.emptyText, { color: textSecondary }]}>
                     Você ainda não tem permissão para adicionar pontos em
@@ -752,7 +590,7 @@ export default function Home() {
                   )}
 
                   <View style={styles.sheetList}>
-                    {writableCollections.map((c) => {
+                    {editableCollections.map((c) => {
                       const title = (c.title ?? "").trim() || "Coleção";
                       // SEMPRE mostra o label do terreiro quando aplicável
                       const ownerLabel = getCollectionOwnerLabel(c);
@@ -783,7 +621,14 @@ export default function Home() {
 
                             // Atualizar cache para refletir mudança no updated_at da coleção
                             queryClient.invalidateQueries({
-                              queryKey: queryKeys.collections.accountable(),
+                              queryKey: queryKeys.collections.accountable(
+                                user.id
+                              ),
+                            });
+                            queryClient.invalidateQueries({
+                              queryKey: queryKeys.collections.editableByUserPrefix(
+                                user.id
+                              ),
                             });
 
                             setAddSuccess(true);

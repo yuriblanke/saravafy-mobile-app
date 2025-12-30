@@ -19,7 +19,12 @@ import {
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
-import { prefetchAccountableCollections } from "@/src/queries/collections";
+import {
+  prefetchEditableCollections,
+  prefetchEditableTerreiroIds,
+} from "@/src/queries/collections";
+import { prefetchHomeFeedPontos } from "@/src/queries/pontosFeed";
+import { prefetchExploreTerreiros } from "@/src/queries/terreirosExplore";
 import {
   QueryClient,
   QueryClientProvider,
@@ -76,8 +81,13 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const systemColorScheme = useColorScheme();
-  const { themeMode, isReady, bootstrapStartPage, setActiveContext } =
-    usePreferences();
+  const {
+    themeMode,
+    isReady,
+    bootstrapStartPage,
+    setActiveContext,
+    clearStartPageSnapshotOnly,
+  } = usePreferences();
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
@@ -85,7 +95,8 @@ function RootLayoutNav() {
 
   const bootstrapStartPageRef = useRef(bootstrapStartPage);
   const setActiveContextRef = useRef(setActiveContext);
-  const didPrefetchCollectionsRef = useRef(false);
+  const didRunPrefetchPlanRef = useRef<Set<string>>(new Set());
+  const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     bootstrapStartPageRef.current = bootstrapStartPage;
@@ -95,48 +106,44 @@ function RootLayoutNav() {
     setActiveContextRef.current = setActiveContext;
   }, [setActiveContext]);
 
-  // Prefetch de coleções assim que houver sessão válida
-  useEffect(() => {
-    if (didPrefetchCollectionsRef.current) return;
-    if (!user?.id) return;
-    if (isLoading) return;
-
-    didPrefetchCollectionsRef.current = true;
-
-    if (__DEV__) {
-      console.info("[Boot] prefetch accountable collections start", {
-        userId: user.id,
-      });
-    }
-    prefetchAccountableCollections(queryClient, user.id)
-      .catch((e) => {
-        console.error("[Boot] erro ao prefetch collections:", e);
-      })
-      .finally(() => {
-        if (!__DEV__) return;
-        try {
-          const data = queryClient.getQueryData([
-            "collections",
-            "accountable",
-          ] as const);
-          console.info("[Boot] prefetch accountable collections done", {
-            userId: user.id,
-            cachedCount: Array.isArray(data) ? data.length : null,
-          });
-        } catch {
-          console.info("[Boot] prefetch accountable collections done", {
-            userId: user.id,
-            cachedCount: null,
-          });
-        }
-      });
-  }, [user?.id, isLoading, queryClient]);
-
   // LATCHES: Boot e navegação devem acontecer apenas 1x por cold start
   const didCompleteBootRef = useRef(false);
   const didNavigateRef = useRef(false);
 
   const [bootComplete, setBootComplete] = useState(false);
+
+  // Logout cleanup: remove caches user-scoped + reset prefs memory
+  useEffect(() => {
+    const prevUserId = prevUserIdRef.current;
+    const nextUserId = user?.id ?? null;
+    prevUserIdRef.current = nextUserId;
+
+    // logout: had user, now no user
+    if (prevUserId && !nextUserId) {
+      if (__DEV__) {
+        console.info("[Auth] logout detected -> clearing user cache", {
+          prevUserId,
+        });
+      }
+
+      // Cancel any in-flight requests first
+      queryClient.cancelQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
+      });
+
+      // Remove only user-scoped queries (keys that include previous userId)
+      queryClient.removeQueries({
+        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
+      });
+
+      // Reset memory-only preferences that can leak between users
+      setActiveContextRef.current({ kind: "USER_PROFILE" });
+      clearStartPageSnapshotOnly().catch(() => undefined);
+
+      // Allow prefetch plan to run for a future login
+      didRunPrefetchPlanRef.current.delete(prevUserId);
+    }
+  }, [clearStartPageSnapshotOnly, queryClient, user?.id]);
 
   // Boot effect: decide tela inicial APENAS 1x quando auth e prefs estiverem prontos
   useEffect(() => {
@@ -225,6 +232,77 @@ function RootLayoutNav() {
 
     void run();
   }, [isLoading, isReady, user?.id, segments, router]);
+
+  // Boot prefetch plan: run after bootComplete + user available
+  useEffect(() => {
+    const userId = user?.id ?? null;
+    if (!bootComplete) return;
+    if (!userId) return;
+    if (isLoading) return;
+    if (!isReady) return;
+    if (didRunPrefetchPlanRef.current.has(userId)) return;
+
+    didRunPrefetchPlanRef.current.add(userId);
+
+    const run = async () => {
+      const startedAt = Date.now();
+      if (__DEV__) {
+        console.info("[BootPrefetch] start", { userId });
+      }
+
+      // 1) Pontos (feed inicial) - 10
+      // 2) Terreiros (explore inicial) - 10
+      const independent = await Promise.allSettled([
+        prefetchHomeFeedPontos(queryClient, { userId, limit: 10 }),
+        prefetchExploreTerreiros(queryClient, { limit: 10 }),
+      ]);
+
+      if (__DEV__) {
+        console.info("[BootPrefetch] step independent done", {
+          userId,
+          ok: independent.filter((r) => r.status === "fulfilled").length,
+          fail: independent.filter((r) => r.status === "rejected").length,
+        });
+      }
+
+      // 3) Terreiros editáveis do usuário (admin/editor active)
+      let editableTerreiroIds: string[] = [];
+      try {
+        editableTerreiroIds = await prefetchEditableTerreiroIds(
+          queryClient,
+          userId
+        );
+      } catch (e) {
+        console.error("[BootPrefetch] erro ao prefetch memberships:", e);
+      }
+
+      // 4) Coleções editáveis do usuário (depende do passo 3)
+      try {
+        await prefetchEditableCollections(queryClient, {
+          userId,
+          editableTerreiroIds,
+        });
+      } catch (e) {
+        console.error("[BootPrefetch] erro ao prefetch colecoes editaveis:", e);
+      }
+
+      if (__DEV__) {
+        const editableCollections = queryClient.getQueryCache().findAll({
+          queryKey: ["collections", "editableByUser", userId],
+        });
+        console.info("[BootPrefetch] done", {
+          userId,
+          ms: Date.now() - startedAt,
+          editableTerreiroCount: editableTerreiroIds.length,
+          editableCollectionsCached: editableCollections.length,
+        });
+      }
+    };
+
+    run().catch((e) => {
+      console.error("[BootPrefetch] erro inesperado:", e);
+    });
+  }, [bootComplete, isLoading, isReady, queryClient, user?.id]);
 
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;

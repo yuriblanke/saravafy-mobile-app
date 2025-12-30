@@ -1,25 +1,37 @@
 export const queryKeys = {
   me: {
-    membership: () => ["me", "membership"] as const,
-    terreiros: () => ["me", "terreiros"] as const,
-    permissions: () => ["me", "permissions"] as const,
+    membership: (userId: string) => ["me", "membership", userId] as const,
+    terreiros: (userId: string) => ["me", "terreiros", userId] as const,
+    permissions: (userId: string) => ["me", "permissions", userId] as const,
   },
   pontos: {
     terreiro: (terreiroId: string) =>
       ["pontos", { scope: "terreiro", terreiroId }] as const,
+    feed: (userId: string) => ["pontos", "feed", userId] as const,
+  },
+  terreiros: {
+    exploreInitial: () => ["terreiros", "explore", "initial"] as const,
+    editableByUser: (userId: string) =>
+      ["terreiros", "editableByUser", userId] as const,
   },
   collections: {
-    // QueryKey global fixa para todas as coleções visíveis pela usuária
-    accountable: () => ["collections", "accountable"] as const,
+    // QueryKey por usuário para todas as coleções visíveis pela usuária
+    accountable: (userId: string) =>
+      ["collections", "accountable", userId] as const,
+
+    // Coleções editáveis (escrita) do usuário: depende de memberships admin/editor
+    editableByUser: (params: { userId: string; terreiroIdsHash: string }) =>
+      ["collections", "editableByUser", params.userId, params.terreiroIdsHash] as const,
+    editableByUserPrefix: (userId: string) =>
+      ["collections", "editableByUser", userId] as const,
+
     // Deprecated: manter por compatibilidade temporária
     available: (params: { userId: string; terreiroId?: string | null }) =>
       [
         "collections",
-        {
-          scope: "available",
-          userId: params.userId,
-          terreiroId: params.terreiroId ?? null,
-        },
+        "available",
+        params.userId,
+        params.terreiroId ?? null,
       ] as const,
     terreiro: (terreiroId: string) =>
       ["collections", { scope: "terreiro", terreiroId }] as const,

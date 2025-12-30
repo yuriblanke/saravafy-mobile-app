@@ -174,12 +174,16 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
           // Reage apenas ao escopo dos terreiros do usuário.
           if (!myTerreiroSet.has(terreiroId)) return;
 
+          if (!myUserId) return;
+
           queryClient.invalidateQueries({
-            queryKey: queryKeys.me.membership(),
+            queryKey: queryKeys.me.membership(myUserId),
           });
-          queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros() });
           queryClient.invalidateQueries({
-            queryKey: queryKeys.me.permissions(),
+            queryKey: queryKeys.me.terreiros(myUserId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.me.permissions(myUserId),
           });
         }
       );
