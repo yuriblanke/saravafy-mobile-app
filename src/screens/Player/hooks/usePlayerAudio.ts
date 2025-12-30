@@ -1,8 +1,12 @@
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-export function usePlayerAudio(params: { audioUrl?: string | null }) {
+export function usePlayerAudio(params: {
+  audioUrl?: string | null;
+  blocked?: boolean;
+}) {
   const { audioUrl } = params;
+  const blocked = params.blocked === true;
 
   const soundRef = useRef<Audio.Sound | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -58,6 +62,13 @@ export function usePlayerAudio(params: { audioUrl?: string | null }) {
     await cleanup();
     setError(null);
 
+    if (blocked) {
+      if (__DEV__) {
+        console.info("[Curimba] áudio bloqueado");
+      }
+      return;
+    }
+
     if (!hasAudio) return;
 
     try {
@@ -80,7 +91,13 @@ export function usePlayerAudio(params: { audioUrl?: string | null }) {
       setError(e instanceof Error ? e.message : "Erro ao carregar áudio.");
       await cleanup();
     }
-  }, [audioUrl, cleanup, hasAudio, onStatus]);
+  }, [audioUrl, blocked, cleanup, hasAudio, onStatus]);
+
+  useEffect(() => {
+    if (__DEV__) {
+      console.info("[Curimba] áudio", { blocked });
+    }
+  }, [blocked]);
 
   useEffect(() => {
     load();

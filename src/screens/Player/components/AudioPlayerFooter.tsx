@@ -7,8 +7,10 @@ import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
 export function AudioPlayerFooter(props: {
   ponto: PlayerPonto | null;
   variant: "light" | "dark";
+  curimbaEnabled?: boolean;
 }) {
   const { ponto, variant } = props;
+  const curimbaEnabled = props.curimbaEnabled === true;
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -29,6 +31,29 @@ export function AudioPlayerFooter(props: {
   const hasAudio = Boolean(ponto?.audio_url);
   const progress = 0;
   const isPlaying = false;
+
+  if (curimbaEnabled) {
+    return (
+      <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
+        <View style={styles.row}>
+          <View style={styles.meta}>
+            <Text
+              style={[styles.nowPlaying, { color: textSecondary }]}
+              numberOfLines={1}
+            >
+              Modo Curimba: apenas letra
+            </Text>
+            <Text
+              style={[styles.title, { color: textPrimary }]}
+              numberOfLines={1}
+            >
+              {ponto?.title ?? ""}
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>

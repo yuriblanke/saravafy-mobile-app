@@ -1,3 +1,7 @@
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { useToast } from "@/contexts/ToastContext";
+import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
+import { AtabaqueIcon } from "@/src/components/icons/AtabaqueIcon";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -42,7 +46,7 @@ export default function PlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  const { showToast } = require("@/contexts/ToastContext").useToast();
+  const { showToast } = useToast();
 
   const source = typeof params.source === "string" ? params.source : null;
   const searchQuery = typeof params.q === "string" ? params.q : "";
@@ -61,8 +65,13 @@ export default function PlayerScreen() {
 
   const { width } = useWindowDimensions();
 
-  const { effectiveTheme } =
-    require("@/contexts/PreferencesContext").usePreferences();
+  const {
+    effectiveTheme,
+    curimbaEnabled,
+    setCurimbaEnabled,
+    curimbaOnboardingDismissed,
+    setCurimbaOnboardingDismissed,
+  } = usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
 
   const textPrimary =
@@ -80,6 +89,7 @@ export default function PlayerScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
@@ -126,6 +136,20 @@ export default function PlayerScreen() {
   const onIncreaseFont = useCallback(() => {
     setLyricsFontSize((prev) => Math.min(LYRICS_FONT_MAX, prev + 2));
   }, []);
+
+  const onToggleCurimba = useCallback(() => {
+    const next = !curimbaEnabled;
+    setCurimbaEnabled(next);
+
+    if (__DEV__) {
+      console.info("[Curimba] toggle (player)", { enabled: next });
+      console.info("[Curimba] áudio", { blocked: next });
+    }
+
+    if (next && !curimbaOnboardingDismissed) {
+      setIsCurimbaExplainerOpen(true);
+    }
+  }, [curimbaEnabled, curimbaOnboardingDismissed, setCurimbaEnabled]);
 
   const getItemLayout = useCallback(
     (_: ArrayLike<CollectionPlayerItem> | null | undefined, index: number) => {
@@ -240,6 +264,22 @@ export default function PlayerScreen() {
 
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={
+              curimbaEnabled ? "Desativar Modo Curimba" : "Ativar Modo Curimba"
+            }
+            onPress={onToggleCurimba}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <AtabaqueIcon
+              size={18}
+              color={curimbaEnabled ? colors.brass600 : textPrimary}
+              filled={curimbaEnabled}
+            />
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
             accessibilityLabel="Diminuir fonte"
             onPress={onDecreaseFont}
             hitSlop={10}
@@ -298,7 +338,11 @@ export default function PlayerScreen() {
         />
       </View>
 
-      <AudioPlayerFooter ponto={activePonto} variant={variant} />
+      <AudioPlayerFooter
+        ponto={activePonto}
+        variant={variant}
+        curimbaEnabled={curimbaEnabled}
+      />
 
       <PlayerSearchModal
         visible={isSearchOpen}
@@ -312,6 +356,14 @@ export default function PlayerScreen() {
         message={shareMessage}
         onClose={() => setIsShareOpen(false)}
         showToast={showToast}
+      />
+
+      <CurimbaExplainerBottomSheet
+        visible={isCurimbaExplainerOpen}
+        variant={variant}
+        dontShowAgain={curimbaOnboardingDismissed}
+        onChangeDontShowAgain={setCurimbaOnboardingDismissed}
+        onClose={() => setIsCurimbaExplainerOpen(false)}
       />
     </View>
   );

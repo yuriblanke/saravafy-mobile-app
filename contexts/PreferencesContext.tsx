@@ -479,9 +479,14 @@ type PreferencesContextValue = {
 
 const STORAGE_KEYS = {
   themeMode: "@saravafy:themeMode",
+  curimbaEnabled: "preferences.curimba_mode_enabled",
+  curimbaOnboardingDismissed: "preferences.curimba_explainer_dont_show_again",
+  startPageSnapshot: "@saravafy:startPageSnapshot",
+} as const;
+
+const LEGACY_STORAGE_KEYS = {
   curimbaEnabled: "@saravafy:curimbaEnabled",
   curimbaOnboardingDismissed: "@saravafy:curimbaOnboardingDismissed",
-  startPageSnapshot: "@saravafy:startPageSnapshot",
 } as const;
 
 const PreferencesContext = createContext<PreferencesContextValue | undefined>(
@@ -560,8 +565,35 @@ export function PreferencesProvider({
       try {
         const [rawThemeMode, rawCurimba, rawDismissed] = await Promise.all([
           AsyncStorage.getItem(STORAGE_KEYS.themeMode),
-          AsyncStorage.getItem(STORAGE_KEYS.curimbaEnabled),
-          AsyncStorage.getItem(STORAGE_KEYS.curimbaOnboardingDismissed),
+          (async () => {
+            const v = await AsyncStorage.getItem(STORAGE_KEYS.curimbaEnabled);
+            if (v != null) return v;
+            const legacy = await AsyncStorage.getItem(
+              LEGACY_STORAGE_KEYS.curimbaEnabled
+            );
+            if (legacy != null) {
+              AsyncStorage.setItem(STORAGE_KEYS.curimbaEnabled, legacy).catch(
+                () => undefined
+              );
+            }
+            return legacy;
+          })(),
+          (async () => {
+            const v = await AsyncStorage.getItem(
+              STORAGE_KEYS.curimbaOnboardingDismissed
+            );
+            if (v != null) return v;
+            const legacy = await AsyncStorage.getItem(
+              LEGACY_STORAGE_KEYS.curimbaOnboardingDismissed
+            );
+            if (legacy != null) {
+              AsyncStorage.setItem(
+                STORAGE_KEYS.curimbaOnboardingDismissed,
+                legacy
+              ).catch(() => undefined);
+            }
+            return legacy;
+          })(),
         ]);
 
         if (cancelled) return;
@@ -594,12 +626,18 @@ export function PreferencesProvider({
   useEffect(() => {
     // Modo Curimba: manter tela ligada.
     if (curimbaEnabled) {
+      if (__DEV__) {
+        console.info("[Curimba] keep-awake on");
+      }
       void activateKeepAwakeAsync("saravafy-curimba");
       return () => {
         deactivateKeepAwake("saravafy-curimba");
       };
     }
 
+    if (__DEV__) {
+      console.info("[Curimba] keep-awake off");
+    }
     deactivateKeepAwake("saravafy-curimba");
     return;
   }, [curimbaEnabled]);
@@ -633,6 +671,9 @@ export function PreferencesProvider({
   };
 
   const setCurimbaEnabled = (enabled: boolean) => {
+    if (__DEV__) {
+      console.info("[Curimba] toggle", { enabled });
+    }
     setCurimbaEnabledState(enabled);
     AsyncStorage.setItem(STORAGE_KEYS.curimbaEnabled, String(enabled)).catch(
       () => undefined

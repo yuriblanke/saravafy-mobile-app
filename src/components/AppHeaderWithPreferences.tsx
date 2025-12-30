@@ -17,6 +17,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRootPager } from "@/contexts/RootPagerContext";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 
 function getInitials(value: string | undefined) {
@@ -57,6 +58,8 @@ export function AppHeaderWithPreferences() {
     setActiveContext,
     curimbaEnabled,
     setCurimbaEnabled,
+    curimbaOnboardingDismissed,
+    setCurimbaOnboardingDismissed,
     startPagePreference,
   } = usePreferences();
 
@@ -95,6 +98,7 @@ export function AppHeaderWithPreferences() {
 
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
+  const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -178,6 +182,13 @@ export function AppHeaderWithPreferences() {
 
   const onToggleCurimba = (next: boolean) => {
     setCurimbaEnabled(next);
+
+    if (next && !curimbaOnboardingDismissed) {
+      if (__DEV__) {
+        console.info("[Curimba] explainer requested (preferences)");
+      }
+      setIsCurimbaExplainerOpen(true);
+    }
   };
 
   return (
@@ -516,6 +527,14 @@ export function AppHeaderWithPreferences() {
       >
         <View />
       </BottomSheet>
+
+      <CurimbaExplainerBottomSheet
+        visible={isCurimbaExplainerOpen}
+        variant={variant}
+        dontShowAgain={curimbaOnboardingDismissed}
+        onChangeDontShowAgain={setCurimbaOnboardingDismissed}
+        onClose={() => setIsCurimbaExplainerOpen(false)}
+      />
     </>
   );
 }
