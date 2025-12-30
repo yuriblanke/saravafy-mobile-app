@@ -60,3 +60,6 @@ expo-env.d.ts
 # Local dev artifacts (schema dumps)
 README.schema-completo.json
 README.schema-query.sql
+
+# Local-only destructive maintenance scripts
+scripts/supabase/delete-playlists.sql

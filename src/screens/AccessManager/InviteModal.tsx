@@ -8,21 +8,30 @@ import {
   View,
 } from "react-native";
 
-import { BottomSheet } from "@/src/components/BottomSheet";
 import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
+import { BottomSheet } from "@/src/components/BottomSheet";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
-import { getAccessRoleLabel } from "@/src/constants/accessRoleCopy";
+import {
+  getAccessRoleInfoProps,
+  getAccessRoleLabel,
+} from "@/src/constants/accessRoleCopy";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 
+import type { InfoProps } from "@/src/components/AccessRoleInfo";
+
 import type { AccessRole } from "./InviteRow";
 
-export type InviteModalMode = "gestao" | "membro";
+export type InviteModalMode = "gestao" | "membro" | "curator";
 
-export type InviteSubmitPayload = {
-  email: string;
-  role: AccessRole;
-};
+export type InviteSubmitPayload =
+  | {
+      email: string;
+      role: AccessRole;
+    }
+  | {
+      email: string;
+    };
 
 function normalizeEmail(v: string) {
   return String(v ?? "")
@@ -37,23 +46,31 @@ function isValidEmail(email: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 }
 
-type Props = {
+type CommonProps = {
   visible: boolean;
   variant: "light" | "dark";
-  mode: InviteModalMode;
   onClose: () => void;
-  onSubmit: (payload: InviteSubmitPayload) => Promise<void>;
   isSubmitting: boolean;
 };
 
-export function InviteModal({
-  visible,
-  variant,
-  mode,
-  onClose,
-  onSubmit,
-  isSubmitting,
-}: Props) {
+type TerreiroInviteProps = CommonProps & {
+  mode: "gestao" | "membro";
+  onSubmit: (payload: { email: string; role: AccessRole }) => Promise<void>;
+};
+
+type CuratorInviteProps = CommonProps & {
+  mode: "curator";
+  inviteTitle: string;
+  fixedRoleLabel: string;
+  infoProps: InfoProps;
+  onSubmit: (payload: { email: string }) => Promise<void>;
+};
+
+type Props = TerreiroInviteProps | CuratorInviteProps;
+
+export function InviteModal(props: Props) {
+  const { visible, variant, mode, onClose, onSubmit, isSubmitting } = props;
+
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<AccessRole>("editor");
   const [didTrySubmit, setDidTrySubmit] = useState(false);
@@ -92,7 +109,12 @@ export function InviteModal({
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
-  const title = mode === "gestao" ? "Convidar gestão" : "Convidar membro";
+  const title =
+    mode === "curator"
+      ? props.inviteTitle
+      : mode === "gestao"
+      ? "Convidar gestão"
+      : "Convidar membro";
 
   const roleLabel = getAccessRoleLabel(role);
 
@@ -101,6 +123,13 @@ export function InviteModal({
   const handleSubmit = async () => {
     setDidTrySubmit(true);
     if (!emailOk) return;
+
+    if (mode === "curator") {
+      await onSubmit({
+        email: normalizedEmail,
+      });
+      return;
+    }
 
     await onSubmit({
       email: normalizedEmail,
@@ -160,7 +189,10 @@ export function InviteModal({
               <Text style={[styles.label, { color: textSecondary }]}>
                 Nível de acesso
               </Text>
-              <AccessRoleInfo variant={variant} role={role} />
+              <AccessRoleInfo
+                variant={variant}
+                info={getAccessRoleInfoProps(role)}
+              />
             </View>
             <Pressable
               accessibilityRole="button"
@@ -186,14 +218,31 @@ export function InviteModal({
               <Ionicons name="chevron-down" size={16} color={textMuted} />
             </Pressable>
           </>
+        ) : mode === "curator" ? (
+          <View style={styles.memberFixedRow}>
+            <Text style={[styles.label, { color: textSecondary }]}>
+              Nível de acesso
+            </Text>
+            <View style={styles.memberFixedRight}>
+              <Text style={[styles.memberFixedValue, { color: textMuted }]}>
+                {props.fixedRoleLabel}
+              </Text>
+              <AccessRoleInfo variant={variant} info={props.infoProps} />
+            </View>
+          </View>
         ) : (
           <View style={styles.memberFixedRow}>
-            <Text style={[styles.label, { color: textSecondary }]}>Nível de acesso</Text>
+            <Text style={[styles.label, { color: textSecondary }]}>
+              Nível de acesso
+            </Text>
             <View style={styles.memberFixedRight}>
               <Text style={[styles.memberFixedValue, { color: textMuted }]}>
                 {getAccessRoleLabel("member")}
               </Text>
-              <AccessRoleInfo variant={variant} role="member" />
+              <AccessRoleInfo
+                variant={variant}
+                info={getAccessRoleInfoProps("member")}
+              />
             </View>
           </View>
         )}

@@ -16,6 +16,7 @@ import {
 } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
@@ -148,6 +149,7 @@ export function InviteGate() {
   const { showToast } = useToast();
   const { effectiveTheme, fetchTerreirosQueAdministro } = usePreferences();
   const queryClient = useQueryClient();
+  const { setTerreiroGateActive } = useInviteGates();
 
   const segments = useSegments();
   const rootNavState = useRootNavigationState();
@@ -817,6 +819,26 @@ export function InviteGate() {
   const modalLead = useMemo(() => {
     return "Você recebeu um convite para ajudar a cuidar dos pontos do terreiro:";
   }, []);
+
+  useEffect(() => {
+    const active =
+      !!userId &&
+      !!normalizedUserEmail &&
+      (pendingInvites.length > 0 ||
+        isBannerVisible ||
+        isModalVisible ||
+        shouldOpenModalWhenReady);
+
+    setTerreiroGateActive(active);
+  }, [
+    isBannerVisible,
+    isModalVisible,
+    normalizedUserEmail,
+    pendingInvites.length,
+    setTerreiroGateActive,
+    shouldOpenModalWhenReady,
+    userId,
+  ]);
 
   if (!userId || !normalizedUserEmail) {
     return null;

@@ -1,5 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
+import { useRootPager } from "@/contexts/RootPagerContext";
+import { useToast } from "@/contexts/ToastContext";
+import { supabase } from "@/lib/supabase";
+import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
+import { BottomSheet } from "@/src/components/BottomSheet";
+import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import {
   PreferencesPageItem,
   PreferencesRadioGroup,
@@ -7,18 +13,22 @@ import {
   PreferencesSwitchItem,
   type PreferencesRadioOption,
 } from "@/src/components/preferences";
+import { TagChip } from "@/src/components/TagChip";
+import {
+  getGlobalRoleBadgeLabel,
+  getGlobalRoleInfoProps,
+} from "@/src/domain/globalRoles";
+import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
+import { useMyEditableTerreirosQuery } from "@/src/queries/me";
+import { InviteModal } from "@/src/screens/AccessManager/InviteModal";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
-
-import { useRootPager } from "@/contexts/RootPagerContext";
-
-import { BottomSheet } from "@/src/components/BottomSheet";
-import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
-import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 
 function getInitials(value: string | undefined) {
   const fallback = "YB";
@@ -45,11 +55,35 @@ function getDisplayName(value: string | undefined) {
   return raw;
 }
 
+function normalizeEmail(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+type CuratorInviteRow = {
+  id: string;
+  email: string;
+  status?: string | null;
+  created_at?: string | null;
+};
+
+function GlobalRoleBadge({ label }: { label: string }) {
+  return (
+    <View style={styles.globalRoleBadge}>
+      <Text style={styles.globalRoleBadgeText} numberOfLines={1}>
+        {label}
+      </Text>
+    </View>
+  );
+}
+
 export function AppHeaderWithPreferences() {
   const router = useRouter();
   const pathname = usePathname();
   const rootPager = useRootPager();
   const { user, signOut } = useAuth();
+  const { showToast } = useToast();
   const {
     themeMode,
     setThemeMode,
@@ -97,6 +131,9 @@ export function AppHeaderWithPreferences() {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
+  const [isCuratorInviteOpen, setIsCuratorInviteOpen] = useState(false);
+  const [isCuratorInviteSubmitting, setIsCuratorInviteSubmitting] =
+    useState(false);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -121,6 +158,13 @@ export function AppHeaderWithPreferences() {
 
   const userId = user?.id ?? null;
 
+  const { isDevMaster, isLoading: isDevMasterLoading } = useIsDevMaster();
+  const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
+
+  const shouldShowDevMaster = !isDevMasterLoading && isDevMaster;
+  const shouldShowCurator =
+    !shouldShowDevMaster && !isCuratorLoading && isCurator;
+
   const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
   const myEditableTerreiros = useMemo(
     () => myEditableTerreirosQuery.data ?? [],
@@ -131,6 +175,71 @@ export function AppHeaderWithPreferences() {
     () => myEditableTerreiros.filter((t) => t.role === "admin"),
     [myEditableTerreiros]
   );
+
+  const curatorInvitesQuery = useQuery({
+    queryKey: ["curatorInvites", "pending", userId],
+    enabled: !!userId && shouldShowDevMaster && isPreferencesOpen,
+    staleTime: 10_000,
+    queryFn: async () => {
+      const res = await supabase
+        .from("curator_invites")
+        .select("id, email, status, created_at")
+        .eq("status", "pending")
+        .order("created_at", { ascending: true });
+
+      if (res.error) {
+        if (__DEV__) {
+          console.warn("[Prefs.curatorInvites] error", res.error);
+        }
+        return [] as CuratorInviteRow[];
+      }
+
+      const rows = (res.data ?? []) as any[];
+      return rows
+        .map((r) => ({
+          id: String(r?.id ?? ""),
+          email: normalizeEmail(String(r?.email ?? "")),
+          status: typeof r?.status === "string" ? r.status : null,
+          created_at: typeof r?.created_at === "string" ? r.created_at : null,
+        }))
+        .filter((r) => r.id && r.email);
+    },
+  });
+
+  const pendingCuratorInvites = useMemo(() => {
+    const items = curatorInvitesQuery.data ?? [];
+    const seen: Record<string, true> = {};
+    const out: CuratorInviteRow[] = [];
+    for (const i of items) {
+      const key = normalizeEmail(i.email);
+      if (!key) continue;
+      if (seen[key]) continue;
+      seen[key] = true;
+      out.push(i);
+    }
+    return out;
+  }, [curatorInvitesQuery.data]);
+
+  const cancelCuratorInvite = async (inviteId: string) => {
+    if (!shouldShowDevMaster) {
+      showToast("Você não tem permissão para isso.");
+      return;
+    }
+
+    const rpc = await supabase.rpc("cancel_curator_invite", {
+      invite_id: inviteId,
+    });
+
+    if (rpc.error) {
+      showToast(
+        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+      );
+      return;
+    }
+
+    showToast("Convite cancelado.");
+    await curatorInvitesQuery.refetch();
+  };
 
   const contextAvatarUrl = userPhotoUrl;
   const contextInitials = initials;
@@ -314,6 +423,29 @@ export function AppHeaderWithPreferences() {
             <PreferencesPageItem
               variant={variant}
               title={userDisplayName}
+              afterTitle={
+                shouldShowDevMaster ? (
+                  <>
+                    <GlobalRoleBadge
+                      label={getGlobalRoleBadgeLabel("dev_master")}
+                    />
+                    <AccessRoleInfo
+                      variant={variant}
+                      info={getGlobalRoleInfoProps("dev_master")}
+                    />
+                  </>
+                ) : shouldShowCurator ? (
+                  <>
+                    <GlobalRoleBadge
+                      label={getGlobalRoleBadgeLabel("curator")}
+                    />
+                    <AccessRoleInfo
+                      variant={variant}
+                      info={getGlobalRoleInfoProps("curator")}
+                    />
+                  </>
+                ) : null
+              }
               avatarUrl={userPhotoUrl}
               initials={initials}
               onPress={undefined}
@@ -327,6 +459,153 @@ export function AppHeaderWithPreferences() {
           <View
             style={[styles.blockDivider, { backgroundColor: dividerColor }]}
           />
+
+          {shouldShowDevMaster ? (
+            <>
+              <PreferencesSection
+                title="Administração do acervo"
+                variant={variant}
+              >
+                <View style={styles.pagesList}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setIsCuratorInviteOpen(true)}
+                    style={({ pressed }) => [
+                      styles.prefActionRow,
+                      {
+                        borderColor: dividerColor,
+                        backgroundColor:
+                          variant === "light"
+                            ? colors.inputBgLight
+                            : colors.inputBgDark,
+                      },
+                      pressed ? styles.prefActionRowPressed : null,
+                    ]}
+                  >
+                    <View style={styles.prefActionLeft}>
+                      <Text
+                        style={[styles.prefActionTitle, { color: textPrimary }]}
+                      >
+                        Convidar {getGlobalRoleBadgeLabel("curator")}
+                      </Text>
+                      <View style={styles.prefActionMeta}>
+                        <TagChip
+                          label="Somente Dev Master"
+                          variant={variant}
+                          kind="custom"
+                          tone="medium"
+                        />
+                        <AccessRoleInfo
+                          variant={variant}
+                          info={getGlobalRoleInfoProps("curator")}
+                        />
+                      </View>
+                    </View>
+
+                    <Ionicons
+                      name="chevron-forward"
+                      size={18}
+                      color={textMuted}
+                    />
+                  </Pressable>
+
+                  {curatorInvitesQuery.isFetching &&
+                  pendingCuratorInvites.length === 0 ? (
+                    <Text style={[styles.helperText, { color: textSecondary }]}>
+                      Carregando convites…
+                    </Text>
+                  ) : pendingCuratorInvites.length === 0 ? (
+                    <Text style={[styles.helperText, { color: textSecondary }]}>
+                      Nenhum convite pendente.
+                    </Text>
+                  ) : (
+                    <View
+                      style={[
+                        styles.curatorInvitesCard,
+                        {
+                          borderColor: dividerColor,
+                          backgroundColor:
+                            variant === "light"
+                              ? colors.inputBgLight
+                              : colors.inputBgDark,
+                        },
+                      ]}
+                    >
+                      {pendingCuratorInvites.map((inv, idx) => {
+                        const isLast = idx === pendingCuratorInvites.length - 1;
+                        return (
+                          <View
+                            key={inv.id}
+                            style={[
+                              styles.curatorInviteRow,
+                              {
+                                borderBottomColor: dividerColor,
+                                borderBottomWidth: isLast
+                                  ? 0
+                                  : StyleSheet.hairlineWidth,
+                              },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.curatorInviteEmail,
+                                { color: textPrimary },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {inv.email}
+                            </Text>
+
+                            <View style={styles.curatorInviteRight}>
+                              <TagChip
+                                label="Pendente"
+                                variant={variant}
+                                kind="custom"
+                                tone="medium"
+                              />
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel={`Cancelar convite para ${inv.email}`}
+                                onPress={() => {
+                                  Alert.alert(
+                                    "Cancelar convite",
+                                    `Cancelar convite para ${inv.email}?`,
+                                    [
+                                      { text: "Voltar", style: "cancel" },
+                                      {
+                                        text: "Cancelar convite",
+                                        style: "destructive",
+                                        onPress: () => {
+                                          void cancelCuratorInvite(inv.id);
+                                        },
+                                      },
+                                    ]
+                                  );
+                                }}
+                                hitSlop={10}
+                                style={({ pressed }) => [
+                                  styles.curatorInviteCancel,
+                                  pressed ? styles.prefActionRowPressed : null,
+                                ]}
+                              >
+                                <Text style={styles.curatorInviteCancelText}>
+                                  Cancelar
+                                </Text>
+                              </Pressable>
+                            </View>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  )}
+                </View>
+              </PreferencesSection>
+
+              <View
+                style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+              />
+            </>
+          ) : null}
 
           <PreferencesSection title="Meus terreiros" variant={variant}>
             <View style={styles.pagesList}>
@@ -504,6 +783,64 @@ export function AppHeaderWithPreferences() {
         onChangeDontShowAgain={setCurimbaOnboardingDismissed}
         onClose={() => setIsCurimbaExplainerOpen(false)}
       />
+
+      <InviteModal
+        visible={isCuratorInviteOpen}
+        variant={variant}
+        mode="curator"
+        inviteTitle={`Convidar ${getGlobalRoleBadgeLabel("curator")}`}
+        fixedRoleLabel={getGlobalRoleBadgeLabel("curator")}
+        infoProps={getGlobalRoleInfoProps("curator")}
+        isSubmitting={isCuratorInviteSubmitting}
+        onClose={() => {
+          if (isCuratorInviteSubmitting) return;
+          setIsCuratorInviteOpen(false);
+        }}
+        onSubmit={async ({ email }) => {
+          if (!shouldShowDevMaster) {
+            showToast("Você não tem permissão para convidar.");
+            return;
+          }
+
+          const normalized = normalizeEmail(email);
+          if (!normalized) {
+            showToast("Informe um e-mail válido.");
+            return;
+          }
+
+          const hasDuplicate = pendingCuratorInvites.some(
+            (i) => normalizeEmail(i.email) === normalized
+          );
+
+          if (hasDuplicate) {
+            showToast("Já existe um convite pendente para esse e-mail.");
+            return;
+          }
+
+          setIsCuratorInviteSubmitting(true);
+          try {
+            const rpc = await supabase.rpc("create_curator_invite", {
+              email: normalized,
+            });
+
+            if (rpc.error) {
+              showToast(
+                typeof rpc.error.message === "string" &&
+                  rpc.error.message.trim()
+                  ? rpc.error.message
+                  : "Não foi possível enviar o convite."
+              );
+              return;
+            }
+
+            showToast("Convite enviado.");
+            setIsCuratorInviteOpen(false);
+            await curatorInvitesQuery.refetch();
+          } finally {
+            setIsCuratorInviteSubmitting(false);
+          }
+        }}
+      />
     </>
   );
 }
@@ -591,6 +928,78 @@ const styles = StyleSheet.create({
   },
   pagesList: {
     gap: spacing.xs,
+  },
+  globalRoleBadge: {
+    maxWidth: 170,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+    backgroundColor: colors.brass600,
+  },
+  globalRoleBadgeText: {
+    color: colors.paper50,
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  prefActionRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    gap: spacing.md,
+  },
+  prefActionRowPressed: {
+    opacity: 0.82,
+  },
+  prefActionLeft: {
+    flex: 1,
+    minWidth: 0,
+    gap: 6,
+  },
+  prefActionTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  prefActionMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  curatorInvitesCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    overflow: "hidden",
+  },
+  curatorInviteRow: {
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  curatorInviteEmail: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  curatorInviteRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  curatorInviteCancel: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  curatorInviteCancelText: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: colors.danger,
   },
   helperText: {
     fontSize: 13,

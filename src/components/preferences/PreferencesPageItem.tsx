@@ -9,6 +9,7 @@ type Props = {
   title: string;
   avatarUrl?: string;
   initials: string;
+  afterTitle?: React.ReactNode;
   onPress?: () => void;
   onPressEdit: () => void;
 };
@@ -18,6 +19,7 @@ export function PreferencesPageItem({
   title,
   avatarUrl,
   initials,
+  afterTitle,
   onPress,
   onPressEdit,
 }: Props) {
@@ -71,12 +73,18 @@ export function PreferencesPageItem({
         </View>
 
         <View style={styles.textCol}>
-          <Text
-            style={[styles.title, { color: textPrimary }]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text
+              style={[styles.title, { color: textPrimary }]}
+              numberOfLines={1}
+            >
+              {title}
+            </Text>
+
+            {afterTitle ? (
+              <View style={styles.afterTitle}>{afterTitle}</View>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -159,9 +167,22 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
   title: {
+    flexShrink: 1,
+    minWidth: 0,
     fontSize: 14,
     fontWeight: "800",
+  },
+  afterTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   avatarWrap: {
     width: 32,

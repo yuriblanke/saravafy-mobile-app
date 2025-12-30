@@ -788,9 +788,11 @@ export default function AccessManagerScreen() {
     reload: reloadInvites,
   } = useTerreiroInvites(terreiroId);
 
+  type TerreiroInviteModalMode = Exclude<InviteModalMode, "curator">;
+
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
   const [inviteModalMode, setInviteModalMode] =
-    useState<InviteModalMode>("gestao");
+    useState<TerreiroInviteModalMode>("gestao");
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [busyActionKey, setBusyActionKey] = useState<string | null>(null);
 
@@ -824,7 +826,7 @@ export default function AccessManagerScreen() {
     return next;
   }, [inviteItems, removedInviteIds]);
 
-  const openInviteModal = useCallback((mode: InviteModalMode) => {
+  const openInviteModal = useCallback((mode: TerreiroInviteModalMode) => {
     setInviteModalMode(mode);
     setInviteModalVisible(true);
   }, []);
