@@ -253,19 +253,14 @@ A query de convites pendentes é:
 
 ### Ação: “Aceitar convite”
 
-**Passo 1 — Conceder membership**
+**Passo 1 — Aceitar via RPC (backend)**
 
-- Upsert em `terreiro_members` com:
-  - `terreiro_id`: do convite
-  - `user_id`: do usuário logado
-  - `role`: do convite (`admin` ou `editor`)
-  - `onConflict: "terreiro_id,user_id"`
+- Chama a função RPC `accept_terreiro_invite(invite_id)` no Supabase.
+- A RPC valida que o convite pertence ao e-mail do usuário autenticado e, em seguida:
+  - marca `terreiro_invites.status = "accepted"`
+  - cria/atualiza a linha em `terreiro_members` para o `auth.uid()` com o `role` do convite
 
-**Passo 2 — Marcar convite como aceito**
-
-- Update `terreiro_invites`:
-  - `status = "accepted"`
-  - filtro: `id = <invite.id>`
+> Motivo: com RLS estrito, o usuário convidado não pode inserir direto em `terreiro_members`.
 
 **Resultado UX**
 

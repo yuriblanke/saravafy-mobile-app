@@ -36,6 +36,7 @@ type TerreiroInvite = {
 type InviteGateDebug = {
   step:
     | "refresh"
+    | "accept:rpc"
     | "accept:update_invite"
     | "accept:upsert_member"
     | "accept:rollback_invite"
@@ -443,38 +444,42 @@ export function InviteGate() {
     setDebugInfo(null);
 
     try {
-      // Passo 1: marcar invite como aceito.
-      // IMPORTANT: não usar select().single() aqui — dependendo das RLS policies,
-      // o update pode funcionar mas o retorno (RETURNING) não, gerando erro de "0 rows".
-      const updInvite = await supabase
-        .from("terreiro_invites")
-        .update({ status: "accepted" })
-        .eq("id", currentInvite.id);
+      // Prefer server-side RPC to accept invite + upsert membership.
+      // Client-side upsert into `terreiro_members` is blocked by RLS for non-admins.
+      const rpc = await supabase.rpc("accept_terreiro_invite", {
+        invite_id: currentInvite.id,
+      });
 
-      if (updInvite.error) {
-        throw updInvite.error;
-      }
+      if (rpc.error) {
+        // Fallback to legacy flow if RPC isn't deployed yet.
+        const m = String(rpc.error.message ?? "");
+        const fnMissing =
+          m.includes("accept_terreiro_invite") &&
+          (m.includes("does not exist") || m.includes("Could not find"));
 
-      // Passo 2: criar/ativar vínculo em terreiro_members (PK composta).
-      try {
-        await upsertTerreiroMemberActive({
-          terreiroId: currentInvite.terreiro_id,
-          userId,
-          role: currentInvite.role,
-        });
-      } catch (e) {
-        // Best-effort rollback para não “perder” o convite se a ativação falhar.
-        const rollback = await supabase
-          .from("terreiro_invites")
-          .update({ status: "pending" })
-          .eq("id", currentInvite.id);
-        if (__DEV__ && rollback.error) {
-          console.log("[InviteGate][DEV] rollback invite failed", {
-            inviteId: currentInvite.id,
-            error: rollback.error,
+        if (fnMissing) {
+          // Passo 1: marcar invite como aceito.
+          // IMPORTANT: não usar select().single() aqui — dependendo das RLS policies,
+          // o update pode funcionar mas o retorno (RETURNING) não, gerando erro de "0 rows".
+          const updInvite = await supabase
+            .from("terreiro_invites")
+            .update({ status: "accepted" })
+            .eq("id", currentInvite.id);
+
+          if (updInvite.error) {
+            throw updInvite.error;
+          }
+
+          // Passo 2: criar/ativar vínculo em terreiro_members (PK composta).
+          // NOTE: this may still fail if RLS is strict (expected in production).
+          await upsertTerreiroMemberActive({
+            terreiroId: currentInvite.terreiro_id,
+            userId,
+            role: currentInvite.role,
           });
+        } else {
+          throw rpc.error;
         }
-        throw e;
       }
 
       showToast("Convite aceito.");
@@ -494,6 +499,9 @@ export function InviteGate() {
 
       const info = toDebugFromUnknown({
         step:
+          message && message.includes("accept_terreiro_invite")
+            ? "accept:rpc"
+            :
           message && message.includes("terreiro_members")
             ? "accept:upsert_member"
             : "accept:update_invite",
