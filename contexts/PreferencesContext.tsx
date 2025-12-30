@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabase";
 export type ThemeMode = "system" | "light" | "dark";
 export type ThemeVariant = "light" | "dark";
 
-export type TerreiroRole = "admin" | "editor" | "follower";
+export type TerreiroRole = "admin" | "editor" | "member" | "follower";
 
 export type ManagedTerreiro = {
   id: string;
@@ -79,7 +79,9 @@ type TerreiroMemberRow = {
 export async function fetchTerreirosQueAdministro(userId: string) {
   if (!userId) return [] as ManagedTerreiro[];
 
-  const allowedRoles = ["admin", "editor"] as const;
+  // Warm cache should include all roles that grant access to a terreiro screen.
+  // Admin/editor/member affect UI gating and need to be reflected immediately after accepting invites.
+  const allowedRoles = ["admin", "editor", "member"] as const;
 
   const selectTerreirosAll =
     "id, title, cover_image_url, avatar_url, image_url";
@@ -1126,6 +1128,11 @@ export function PreferencesProvider({
           error: error instanceof Error ? error.message : String(error),
         });
       }
+
+      // Let callers (e.g. InviteGate) decide how to surface this.
+      throw error instanceof Error
+        ? error
+        : new Error("Erro ao buscar terreiros");
     } finally {
       setLoadingTerreirosAdmin(false);
     }

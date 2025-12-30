@@ -281,13 +281,28 @@ export function InviteGate() {
         }
 
         const list = ((res.data ?? []) as any[]).map((row) => {
-          const terreiroObj = row?.terreiro as any;
+          const terreiroRaw = row?.terreiro as any;
+          const terreiroObj = Array.isArray(terreiroRaw)
+            ? (terreiroRaw[0] as any)
+            : (terreiroRaw as any);
+
           const terreiroTitle =
             typeof terreiroObj?.title === "string" && terreiroObj.title.trim()
               ? terreiroObj.title.trim()
               : typeof terreiroObj?.name === "string" && terreiroObj.name.trim()
               ? terreiroObj.name.trim()
               : null;
+
+          if (__DEV__ && !terreiroTitle) {
+            console.info("[InviteGate] missing terreiro title on invite", {
+              inviteId: row?.id,
+              terreiroId: row?.terreiro_id,
+              terreiroRawType: Array.isArray(terreiroRaw)
+                ? "array"
+                : typeof terreiroRaw,
+              terreiroRaw,
+            });
+          }
 
           return {
             id: String(row?.id ?? ""),
@@ -585,15 +600,27 @@ export function InviteGate() {
 
       if (rpc.error) throw rpc.error;
 
-      // Após aceitar convite, o backend cria/ativa `terreiro_members`.
-      // Precisamos atualizar explicitamente as permissões no app.
+      // 1) Atualiza o estado local imediatamente para fechar o modal/banner.
+      resolveInviteLocally(currentInvite.id);
+
+      // 2) Recalcula o warm cache (permissões/terreiros) para refletir o novo role
+      // imediatamente, sem precisar reiniciar o app.
+      let warmOk = true;
       try {
         await fetchTerreirosQueAdministro(userId);
-      } catch {
-        // Best-effort: não bloquear o fluxo de aceitar convite.
+      } catch (error) {
+        warmOk = false;
+        if (__DEV__) {
+          console.info("[InviteGate] warm cache failed after accept", {
+            userId,
+            inviteId: currentInvite.id,
+            terreiroId: currentInvite.terreiro_id,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        }
       }
 
-      // Revalidar caches que dependem de memberships/terreiros.
+      // 3) Revalidar caches React Query que dependem de memberships/terreiros.
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.membership(userId),
       });
@@ -619,22 +646,30 @@ export function InviteGate() {
         queryKey: queryKeys.collections.editableByUserPrefix(userId),
       });
 
-      showToast("Convite aceito.");
+      if (warmOk) {
+        showToast("Convite aceito.");
+      } else {
+        showToast(
+          "Convite aceito, mas não foi possível atualizar permissões agora. Tente novamente em instantes."
+        );
+      }
 
       if (__DEV__) {
         console.log("[InviteGate] accept success", {
           inviteId: currentInvite.id,
           terreiroId: currentInvite.terreiro_id,
           userId,
+          warmOk,
         });
       }
 
-      resolveInviteLocally(currentInvite.id);
-
-      // Reconciliar com o servidor (best-effort).
-      refreshPendingInvites({ skipCache: true })
-        .then(ensureModalForQueue)
-        .catch(() => undefined);
+      // 4) Reconciliar com o servidor (best-effort) para não deixar fila inconsistente.
+      try {
+        const list = await refreshPendingInvites({ skipCache: true });
+        ensureModalForQueue(list);
+      } catch {
+        // ignore
+      }
     } catch (e) {
       const message =
         e instanceof Error
@@ -766,35 +801,22 @@ export function InviteGate() {
     userId,
   ]);
 
-  const bannerText = useMemo(
-    () => {
-      const title =
-        typeof currentInvite?.terreiro_title === "string" &&
-        currentInvite.terreiro_title.trim()
-          ? currentInvite.terreiro_title.trim()
-          : "Terreiro";
-      return `Convite para: ${title}`;
-    },
-    [currentInvite?.terreiro_title]
-  );
+  const inviteTerreiroTitle = useMemo(() => {
+    const title =
+      typeof currentInvite?.terreiro_title === "string" &&
+      currentInvite.terreiro_title.trim()
+        ? currentInvite.terreiro_title.trim()
+        : "Terreiro";
+    return title;
+  }, [currentInvite?.terreiro_title]);
 
-  const modalTitle = useMemo(
-    () => {
-      const title =
-        typeof currentInvite?.terreiro_title === "string" &&
-        currentInvite.terreiro_title.trim()
-          ? currentInvite.terreiro_title.trim()
-          : "Terreiro";
-      return title;
-    },
-    [currentInvite?.terreiro_title]
-  );
+  const bannerText = useMemo(() => {
+    return `Convite para: ${inviteTerreiroTitle}`;
+  }, [inviteTerreiroTitle]);
 
-  const modalBody = useMemo(
-    () =>
-      "Você recebeu um convite para ajudar a cuidar dos pontos de um terreiro no Saravafy.\nEscolha agora se deseja participar.",
-    []
-  );
+  const modalLead = useMemo(() => {
+    return "Você recebeu um convite para ajudar a cuidar dos pontos do terreiro:";
+  }, []);
 
   if (!userId || !normalizedUserEmail) {
     return null;
@@ -840,12 +862,12 @@ export function InviteGate() {
             />
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
-              <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                {modalTitle}
+              <Text style={[styles.modalBody, { color: textSecondary }]}>
+                {modalLead}
               </Text>
 
-              <Text style={[styles.modalBody, { color: textSecondary }]}>
-                {modalBody}
+              <Text style={[styles.modalTitle, { color: textPrimary }]}>
+                {inviteTerreiroTitle}
               </Text>
 
               {isProcessing ? (
