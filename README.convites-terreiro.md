@@ -10,8 +10,8 @@ Este documento descreve **exatamente o que está implementado hoje** no app Sara
 > Fonte da implementação:
 >
 > - Tela de edição/admin do terreiro: [src/screens/TerreiroEditor/TerreiroEditor.tsx](src/screens/TerreiroEditor/TerreiroEditor.tsx)
-> - Gate global de convites (banner + modal): [src/components/InviteGate.tsx](src/components/InviteGate.tsx)
-> - Montagem global do gate: [app/\_layout.tsx](app/_layout.tsx)
+> - Gate global de convites (banner + overlay bloqueante): [src/components/InviteGate.tsx](src/components/InviteGate.tsx)
+> - Montagem global do gate (após boot): [app/\_layout.tsx](app/_layout.tsx)
 > - Uso do role no contexto do terreiro: [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)
 > - Fonte de “terreiros que administro” (switch de contexto): [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx)
 
@@ -53,6 +53,11 @@ No contexto de preferências, o tipo é `TerreiroRole = "admin" | "editor" | "fo
   - `created_at` (string | null)
   - `status` pode existir no banco e é usado como filtro quando disponível.
 
+> Observação importante sobre `role` no convite:
+>
+> - O fluxo de convite no produto usa `role in (admin, editor)`.
+> - O tipo no frontend ainda aceita `member` por compatibilidade com dados antigos, mas o app **não** oferece essa opção no formulário.
+
 ---
 
 ## Restrições de segurança (RLS)
@@ -65,6 +70,11 @@ Este fluxo roda sob **RLS estrito**:
   - atualizar `terreiro_invites`
 
 Por isso, **aceitar/recusar precisa ser via RPC `SECURITY DEFINER`** (backend), e o app só chama a RPC.
+
+Scripts de infra (Supabase SQL Editor):
+
+- Policies/helper functions para evitar recursão e restringir escrita em members: [scripts/supabase/2025-12-28_fix_terreiro_members_rls.sql](scripts/supabase/2025-12-28_fix_terreiro_members_rls.sql)
+- RPCs de accept/reject do convite (SECURITY DEFINER): [scripts/supabase/2025-12-29_accept_terreiro_invite_rpc.sql](scripts/supabase/2025-12-29_accept_terreiro_invite_rpc.sql)
 
 **3) `profiles`**
 
@@ -212,7 +222,12 @@ A mensagem é gerada por `buildInviteShareMessage(invite)` e inclui:
 
 ### Onde o convite aparece
 
-O `InviteGate` é montado globalmente em [app/\_layout.tsx](app/_layout.tsx), então o usuário pode receber o convite em qualquer tela.
+O `InviteGate` é montado globalmente em [app/\_layout.tsx](app/_layout.tsx) **após o boot do app** (`bootComplete`).
+
+Na prática:
+
+- O conteúdo principal (`<Slot />`) renderiza primeiro.
+- Se existirem convites pendentes, o gate renderiza por cima como um **overlay bloqueante**.
 
 ### Regra de elegibilidade
 
@@ -233,11 +248,11 @@ A query de convites pendentes é:
 
 **1) Startup refresh**
 
-- Ao iniciar (ou quando o usuário loga), o app faz refresh e abre o modal se houver pendências.
+- Ao iniciar (ou quando o usuário loga), o app faz refresh e abre o overlay se houver pendências.
 
 **2) Foreground refresh**
 
-- Ao voltar do background para active, refaz refresh e pode abrir o modal.
+- Ao voltar do background para active, refaz refresh e pode abrir o overlay.
 
 **3) Realtime**
 
@@ -256,6 +271,8 @@ A query de convites pendentes é:
 
 ### UI 2: Modal do convite
 
+> Na implementao atual, isso  um **overlay** (no um `Modal` do React Native), mas o comportamento para o usurio  de “modal bloqueante”.
+
 - Título fixo: “Você foi convidada para colaborar em um terreiro”
 - Corpo fixo:
   - “Você recebeu um convite para ajudar a cuidar dos pontos de um terreiro no Saravafy.\nEscolha agora se deseja participar.”
@@ -265,6 +282,9 @@ A query de convites pendentes é:
 - Enquanto processa:
   - desabilita botões
   - bloqueia botão de voltar do Android (BackHandler intercepta)
+- Backdrop:
+  - bloqueia interaes com a tela por baixo
+  - **no fecha** ao tocar no fundo (sem dismiss)
 
 ### Ação: “Aceitar convite”
 
@@ -279,6 +299,7 @@ A query de convites pendentes é:
   - `activated_at = now()`
   - `activated_by = auth.uid()`
 - E faz upsert em `terreiro_members` (PK composta) para conceder o acesso.
+  - Se a coluna `status` existir, grava `status = 'active'`.
 
 **Resultado UX**
 
@@ -305,10 +326,11 @@ A query de convites pendentes é:
 
 ### Tratamento de erro e “modo degradado”
 
-- Se o Supabase retornar erro de **recursão infinita de RLS** em `terreiro_members`, o gate:
+- Se o Supabase retornar erro de **recurso infinita de RLS** ao consultar convites pendentes:
 
-  - desliga o fluxo (não bloqueia o usuário)
-  - em DEV, mostra toast informando que as policies precisam ser ajustadas
+  - o gate entra em “fail open” (no bloqueia o usurio)
+  - interrompe novas tentativas automticas para no martelar o backend
+  - mostra um toast nico informando que convites esto indisponveis
 
 - Em falhas genéricas de rede/servidor:
   - mostra mensagem no modal: “Não foi possível concluir agora. Verifique sua conexão e tente novamente.”
@@ -323,13 +345,13 @@ A query de convites pendentes é:
 
 - `terreiro_id`: do terreiro
 - `email`: do usuário convidado (normalizado por trigger)
-- `role`: `admin` | `editor` | `member`
+- `role`: `admin` | `editor`
 - `status`: `pending`
 - `created_by`: user_id do admin
 
 3. Logar no app com o usuário convidado:
 
-- A Home renderiza, e o InviteGate aparece por cima exigindo aceitar/recusar.
+- A Home renderiza (bootComplete), e o InviteGate aparece por cima exigindo aceitar/recusar.
 
 ---
 
