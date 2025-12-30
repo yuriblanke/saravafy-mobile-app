@@ -208,8 +208,8 @@ function RootLayoutNav() {
     <ThemeProvider
       value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
     >
-      <InviteGate />
       {bootComplete ? <Slot /> : null}
+      {bootComplete ? <InviteGate /> : null}
     </ThemeProvider>
   );
 }

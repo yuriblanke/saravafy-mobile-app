@@ -41,6 +41,42 @@ function isRlsRecursionError(message: string) {
   );
 }
 
+function isPermissionOrRlsError(message: string) {
+  const m = String(message ?? "").toLowerCase();
+  return (
+    m.includes("permission") ||
+    m.includes("not authorized") ||
+    m.includes("row-level") ||
+    m.includes("rls")
+  );
+}
+
+function getFriendlyActionError(message: string) {
+  if (!message) {
+    return "Não foi possível concluir agora. Verifique sua conexão e tente novamente.";
+  }
+
+  if (isRlsRecursionError(message)) {
+    return "Convites indisponíveis no momento (policies de acesso inconsistentes). Tente novamente mais tarde.";
+  }
+
+  if (isPermissionOrRlsError(message)) {
+    return "Você não tem permissão para concluir este convite agora.";
+  }
+
+  const m = message.toLowerCase();
+  if (
+    m.includes("failed to fetch") ||
+    m.includes("network") ||
+    m.includes("timeout") ||
+    m.includes("fetch")
+  ) {
+    return "Sem conexão no momento. Verifique sua internet e tente novamente.";
+  }
+
+  return "Não foi possível concluir agora. Verifique sua conexão e tente novamente.";
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -134,20 +170,14 @@ export function InviteGate() {
             setIsBannerVisible(false);
             lastFetchAtRef.current = Date.now();
 
-            if (__DEV__ && !rlsRecursionNotifiedRef.current) {
+            if (!rlsRecursionNotifiedRef.current) {
               rlsRecursionNotifiedRef.current = true;
               showToast(
-                "Convites indisponíveis (RLS em 'terreiro_members' com recursão). Ajuste as policies no Supabase."
+                "Convites indisponíveis no momento. Tente novamente mais tarde."
               );
             }
 
             return [] as TerreiroInvite[];
-          }
-
-          if (__DEV__) {
-            console.info("[InviteGate] refresh error", {
-              message: res.error.message,
-            });
           }
           throw new Error(res.error.message);
         }
@@ -201,6 +231,15 @@ export function InviteGate() {
       priorityInviteIdRef.current = null;
     }
   }, []);
+
+  const resolveInviteLocally = useCallback(
+    (inviteId: string) => {
+      const next = pendingInvitesRef.current.filter((i) => i.id !== inviteId);
+      setPendingInvites(next);
+      ensureModalForQueue(next);
+    },
+    [ensureModalForQueue]
+  );
 
   const openGateNow = useCallback(async () => {
     try {
@@ -348,42 +387,53 @@ export function InviteGate() {
     setActionError(null);
 
     try {
-      await upsertTerreiroMemberActive({
-        terreiroId: currentInvite.terreiro_id,
-        userId,
-        role: currentInvite.role,
-      });
-
-      const upd = await supabase
+      // Passo 1: marcar invite como aceito.
+      const updInvite = await supabase
         .from("terreiro_invites")
         .update({ status: "accepted" })
-        .eq("id", currentInvite.id);
+        .eq("id", currentInvite.id)
+        .select("id")
+        .single();
 
-      if (upd.error) {
-        throw new Error(upd.error.message);
+      if (updInvite.error) {
+        throw new Error(updInvite.error.message);
       }
 
-      showToast("Convite aceito. Você já pode colaborar.");
+      // Passo 2: criar/ativar vínculo em terreiro_members (PK composta).
+      try {
+        await upsertTerreiroMemberActive({
+          terreiroId: currentInvite.terreiro_id,
+          userId,
+          role: currentInvite.role,
+        });
+      } catch (e) {
+        // Best-effort rollback para não “perder” o convite se a ativação falhar.
+        await supabase
+          .from("terreiro_invites")
+          .update({ status: "pending" })
+          .eq("id", currentInvite.id);
+        throw e;
+      }
 
-      const list = await refreshPendingInvites({ skipCache: true });
-      ensureModalForQueue(list);
+      showToast("Convite aceito.");
+      resolveInviteLocally(currentInvite.id);
+
+      // Reconciliar com o servidor (best-effort).
+      refreshPendingInvites({ skipCache: true })
+        .then(ensureModalForQueue)
+        .catch(() => undefined);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (__DEV__ && isRlsRecursionError(message)) {
-        showToast(
-          "Não foi possível aceitar o convite: policy RLS em 'terreiro_members' está em recursão."
-        );
-      }
-      setActionError(
-        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
-      );
+      setActionError(getFriendlyActionError(message));
+    }
+    finally {
       setIsProcessing(false);
-      return;
     }
   }, [
     currentInvite,
     ensureModalForQueue,
     refreshPendingInvites,
+    resolveInviteLocally,
     showToast,
     userId,
   ]);
@@ -406,22 +456,25 @@ export function InviteGate() {
 
       showToast("Convite recusado.");
 
-      const list = await refreshPendingInvites({ skipCache: true });
-      ensureModalForQueue(list);
+      resolveInviteLocally(currentInvite.id);
+
+      refreshPendingInvites({ skipCache: true })
+        .then(ensureModalForQueue)
+        .catch(() => undefined);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (__DEV__ && isRlsRecursionError(message)) {
-        showToast(
-          "Não foi possível recusar o convite: policy RLS em 'terreiro_members' está em recursão."
-        );
-      }
-      setActionError(
-        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
-      );
-      setIsProcessing(false);
-      return;
+      setActionError(getFriendlyActionError(message));
     }
-  }, [currentInvite, ensureModalForQueue, refreshPendingInvites, showToast]);
+    finally {
+      setIsProcessing(false);
+    }
+  }, [
+    currentInvite,
+    ensureModalForQueue,
+    refreshPendingInvites,
+    resolveInviteLocally,
+    showToast,
+  ]);
 
   const bannerText = useMemo(
     () => "Você recebeu um convite para colaborar em um terreiro",
