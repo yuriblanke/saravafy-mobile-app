@@ -3,7 +3,13 @@ import { useGestureGate } from "@/contexts/GestureGateContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
 import { usePathname, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Animated,
   PanResponder,
@@ -82,7 +88,7 @@ export function AppTabSwipeOverlay() {
   const { width } = useWindowDimensions();
 
   const [panPointerEvents, setPanPointerEvents] = useState<"none" | "auto">(
-    "none",
+    "none"
   );
   const panPointerEventsRef = useRef<"none" | "auto">("none");
   const setPanPE = useCallback((next: "none" | "auto") => {
