@@ -15,7 +15,18 @@ import {
   View,
 } from "react-native";
 
+import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import { colors, spacing } from "@/src/theme";
+
+// --- Swipe-to-close tuning ---
+// Fechamento por duas vias:
+// A) Drag normal: distância (dy)
+// B) Flick down: velocidade (vy e/ou velocidade média calculada)
+const MIN_DRAG_TO_CLOSE = 60;
+const MIN_FLICK_VELOCITY = 0.35;
+const MIN_DIRECTIONAL_DY = 1;
+const HORIZONTAL_SLOP = 8;
+const MIN_FLICK_AVG_PX_PER_S = 700;
 
 type Props = {
   visible: boolean;
@@ -70,9 +81,14 @@ export function BottomSheet({
   snapPoints,
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
+  const rootPager = useRootPagerOptional();
   const translateY = useRef(new Animated.Value(0)).current;
   const [sheetHeight, setSheetHeight] = useState(0);
   const scrollYRef = useRef(0);
+
+  const gestureStartTsRef = useRef(0);
+  const lastMoveTsRef = useRef(0);
+  const lastDyRef = useRef(0);
 
   useEffect(() => {
     if (!visible) {
@@ -80,6 +96,14 @@ export function BottomSheet({
       scrollYRef.current = 0;
     }
   }, [translateY, visible]);
+
+  useEffect(() => {
+    // Quando o sheet está visível, bloqueia swipe horizontal global (tabs).
+    // Home já faz isso manualmente, mas manter aqui garante consistência
+    // para qualquer tela que use BottomSheet.
+    if (!rootPager) return;
+    rootPager.setIsBottomSheetOpen(visible);
+  }, [rootPager, visible]);
 
   const closeBySwipe = useCallback(() => {
     if (!visible) return;
@@ -95,54 +119,116 @@ export function BottomSheet({
     });
   }, [onClose, sheetHeight, translateY, visible]);
 
-  const panResponder = useMemo(() => {
-    if (!enableSwipeToClose) return null;
+  const beginGesture = useCallback(() => {
+    const now = Date.now();
+    gestureStartTsRef.current = now;
+    lastMoveTsRef.current = now;
+    lastDyRef.current = 0;
+  }, []);
 
-    return PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
-        // Bloqueia fechamento se usuário está rolando conteúdo (scrollY > 0)
-        // Apenas permite fechar se scroll está no topo (scrollY === 0) e movimento é para baixo
-        if (scrollYRef.current > 0) return false;
+  const updateGesture = useCallback((dy: number) => {
+    lastDyRef.current = dy;
+    lastMoveTsRef.current = Date.now();
+  }, []);
 
-        // Threshold baixo (2px) para responder a gestos rápidos
-        // Permite movimento horizontal mínimo (8px) para não conflitar com swipes laterais
-        return gesture.dy > 2 && Math.abs(gesture.dx) < 8;
-      },
-      onMoveShouldSetPanResponder: (_evt, gesture) => {
-        // Mesma lógica para onMoveShouldSetPanResponder
-        if (scrollYRef.current > 0) return false;
-        return gesture.dy > 2 && Math.abs(gesture.dx) < 8;
-      },
-      onPanResponderMove: (_evt, gesture) => {
-        // Apenas permite arrastar para baixo (dy > 0)
-        if (gesture.dy <= 0) return;
-        translateY.setValue(gesture.dy);
-      },
-      onPanResponderRelease: (_evt, gesture) => {
-        // Fecha se:
-        // - Arrastou mais de 70px para baixo (reduzido de 90px), OU
-        // - Velocidade vertical para baixo > 0.5 (reduzido de 0.75 para gestos rápidos)
-        const shouldClose = gesture.dy > 70 || gesture.vy > 0.5;
-        if (shouldClose) {
-          closeBySwipe();
-          return;
-        }
+  const shouldCloseFromRelease = useCallback((dy: number, vy: number) => {
+    if (!(dy > 0)) return false;
 
-        // Caso contrário, retorna para posição original
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-      },
-      onPanResponderTerminate: () => {
-        // Se gesto for interrompido, retorna para posição original
-        Animated.spring(translateY, {
-          toValue: 0,
-          useNativeDriver: true,
-        }).start();
-      },
+    const dragClose = dy > MIN_DRAG_TO_CLOSE;
+
+    const dt = (Date.now() - gestureStartTsRef.current) / 1000;
+    const vAvg = dt > 0 ? dy / dt : 0;
+
+    const flickClose =
+      dy > MIN_DIRECTIONAL_DY &&
+      (vy > MIN_FLICK_VELOCITY || vAvg > MIN_FLICK_AVG_PX_PER_S);
+
+    return dragClose || flickClose;
+  }, []);
+
+  const createPanResponder = useCallback(
+    (opts: { canCapture: () => boolean }) => {
+      if (!enableSwipeToClose) return null;
+
+      return PanResponder.create({
+        onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
+          if (!opts.canCapture()) return false;
+
+          const absX = Math.abs(gesture.dx);
+          const absY = Math.abs(gesture.dy);
+
+          // Captura cedo quando houver intenção vertical para baixo.
+          // Evita conflito com swipe horizontal do app.
+          return (
+            gesture.dy > MIN_DIRECTIONAL_DY &&
+            absY > absX &&
+            absX < HORIZONTAL_SLOP
+          );
+        },
+        onMoveShouldSetPanResponder: (_evt, gesture) => {
+          if (!opts.canCapture()) return false;
+
+          const absX = Math.abs(gesture.dx);
+          const absY = Math.abs(gesture.dy);
+          return (
+            gesture.dy > MIN_DIRECTIONAL_DY &&
+            absY > absX &&
+            absX < HORIZONTAL_SLOP
+          );
+        },
+        onPanResponderGrant: () => {
+          beginGesture();
+        },
+        onPanResponderMove: (_evt, gesture) => {
+          if (gesture.dy <= 0) return;
+          updateGesture(gesture.dy);
+          translateY.setValue(gesture.dy);
+        },
+        onPanResponderRelease: (_evt, gesture) => {
+          const dy = lastDyRef.current || gesture.dy;
+          const vy = gesture.vy;
+
+          if (shouldCloseFromRelease(dy, vy)) {
+            closeBySwipe();
+            return;
+          }
+
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        },
+        onPanResponderTerminate: () => {
+          Animated.spring(translateY, {
+            toValue: 0,
+            useNativeDriver: true,
+          }).start();
+        },
+      });
+    },
+    [
+      beginGesture,
+      closeBySwipe,
+      enableSwipeToClose,
+      shouldCloseFromRelease,
+      translateY,
+      updateGesture,
+    ]
+  );
+
+  const handlePanResponder = useMemo(() => {
+    // HANDLE: swipe down sempre pode fechar.
+    return createPanResponder({
+      canCapture: () => true,
     });
-  }, [closeBySwipe, enableSwipeToClose, translateY]);
+  }, [createPanResponder]);
+
+  const contentPanResponder = useMemo(() => {
+    // CONTEÚDO: só fecha se scroll estiver no topo.
+    return createPanResponder({
+      canCapture: () => scrollYRef.current === 0,
+    });
+  }, [createPanResponder]);
 
   const maxSheetHeight = Math.round(screenHeight * 0.85);
   const fixedHeight = resolveSnapHeight(
@@ -184,9 +270,11 @@ export function BottomSheet({
           if (fixedHeight) return;
           setSheetHeight(e.nativeEvent.layout.height);
         }}
-        {...(panResponder ? panResponder.panHandlers : null)}
       >
-        <View style={styles.handleWrap} pointerEvents="none">
+        <View
+          style={styles.handleWrap}
+          {...(handlePanResponder ? handlePanResponder.panHandlers : null)}
+        >
           <View
             style={[
               styles.handle,
@@ -195,22 +283,24 @@ export function BottomSheet({
           />
         </View>
 
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          scrollEventThrottle={16}
-          onScroll={(e) => {
-            // Rastreia posição do scroll para controlar fechamento do bottom sheet
-            // Se scrollY > 0, gesto de swipe para baixo rola o conteúdo ao invés de fechar
-            const nextY = e.nativeEvent.contentOffset?.y ?? 0;
-            scrollYRef.current = nextY > 0 ? nextY : 0;
-          }}
-          // Permite scroll bouncing no topo para melhor UX
-          bounces={true}
+        <View
+          {...(contentPanResponder ? contentPanResponder.panHandlers : null)}
         >
-          {children}
-        </ScrollView>
+          <ScrollView
+            style={styles.scroll}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            scrollEventThrottle={16}
+            onScroll={(e) => {
+              const nextY = e.nativeEvent.contentOffset?.y ?? 0;
+              scrollYRef.current = nextY > 0 ? nextY : 0;
+            }}
+            // Permite scroll bouncing no topo para melhor UX
+            bounces={true}
+          >
+            {children}
+          </ScrollView>
+        </View>
       </Animated.View>
     </View>
   );
