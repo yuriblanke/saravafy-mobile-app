@@ -477,11 +477,13 @@ export default function Terreiros() {
         </View>
 
         {isLoading ? (
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Carregando…
-          </Text>
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
+          </View>
         ) : error ? (
-          <View style={styles.errorBlock}>
+          <View style={[styles.paddedBlock, styles.errorBlock]}>
             <Text style={[styles.bodyText, { color: textSecondary }]}>
               {error}
             </Text>
@@ -503,9 +505,11 @@ export default function Terreiros() {
             </Pressable>
           </View>
         ) : filteredTerreiros.length === 0 ? (
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Nenhum terreiro encontrado.
-          </Text>
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Nenhum terreiro encontrado.
+            </Text>
+          </View>
         ) : (
           <FlatList
             data={filteredTerreiros}
@@ -558,8 +562,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+  },
+  paddedBlock: {
+    paddingHorizontal: spacing.lg,
   },
   sectionTitle: {
     fontSize: 12,
@@ -573,6 +579,7 @@ const styles = StyleSheet.create({
   searchWrap: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
+    paddingHorizontal: spacing.lg,
   },
   searchInputWrap: {
     position: "relative",
@@ -635,6 +642,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   listContent: {
+    paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
     paddingBottom: spacing.xl,
   },

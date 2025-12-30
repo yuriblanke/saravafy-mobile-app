@@ -487,17 +487,23 @@ export default function Terreiro() {
         />
 
         {isLoading ? (
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Carregando…
-          </Text>
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
+          </View>
         ) : error ? (
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            {error}
-          </Text>
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              {error}
+            </Text>
+          </View>
         ) : collections.length === 0 && !creatingCollection ? (
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Nenhuma coleção ainda.
-          </Text>
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Nenhuma coleção ainda.
+            </Text>
+          </View>
         ) : (
           <FlatList
             data={
@@ -930,6 +936,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     gap: 8,
+    paddingHorizontal: spacing.lg,
   },
   newCollectionButton: {
     flexDirection: "row",
@@ -1059,12 +1066,15 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: spacing.lg,
     paddingTop: spacing.md,
+  },
+  paddedBlock: {
+    paddingHorizontal: spacing.lg,
   },
   contextHeader: {
     paddingTop: spacing.lg,
     paddingBottom: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
   titleRow: {
     flexDirection: "row",
@@ -1158,6 +1168,7 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
   listContent: {
+    paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
   },
   cardGap: {
