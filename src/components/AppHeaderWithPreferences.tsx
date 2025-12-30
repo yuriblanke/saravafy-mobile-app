@@ -1,6 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
-import { useToast } from "@/contexts/ToastContext";
 import {
   PreferencesPageItem,
   PreferencesRadioGroup,
@@ -18,6 +17,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRootPager } from "@/contexts/RootPagerContext";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 
 function getInitials(value: string | undefined) {
   const fallback = "YB";
@@ -49,18 +49,12 @@ export function AppHeaderWithPreferences() {
   const pathname = usePathname();
   const rootPager = useRootPager();
   const { user, signOut } = useAuth();
-  const { showToast } = useToast();
   const {
     themeMode,
     setThemeMode,
     effectiveTheme,
     activeContext,
     setActiveContext,
-    terreirosAdmin,
-    loadingTerreirosAdmin,
-    erroTerreirosAdmin,
-    hasAttemptedTerreirosAdmin,
-    fetchTerreirosQueAdministro,
     curimbaEnabled,
     setCurimbaEnabled,
     startPagePreference,
@@ -125,18 +119,11 @@ export function AppHeaderWithPreferences() {
 
   const userId = user?.id ?? null;
 
+  const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
+  const myEditableTerreiros = myEditableTerreirosQuery.data ?? [];
+
   const activeTerreiro = useMemo(() => {
     if (activeContext.kind !== "TERREIRO_PAGE") return null;
-    const fromList =
-      terreirosAdmin.find((t) => t.id === activeContext.terreiroId) ?? null;
-
-    if (fromList) {
-      return {
-        ...fromList,
-        name: activeContext.terreiroName ?? fromList.name,
-        avatarUrl: activeContext.terreiroAvatarUrl ?? fromList.avatarUrl,
-      };
-    }
 
     if (activeContext.terreiroId) {
       return {
@@ -148,12 +135,7 @@ export function AppHeaderWithPreferences() {
     }
 
     return null;
-  }, [activeContext, terreirosAdmin]);
-
-  const contextTitle =
-    activeContext.kind === "USER_PROFILE"
-      ? userDisplayName
-      : activeTerreiro?.name ?? "Terreiro";
+  }, [activeContext]);
 
   const contextAvatarUrl =
     activeContext.kind === "USER_PROFILE"
@@ -165,19 +147,29 @@ export function AppHeaderWithPreferences() {
       ? initials
       : getInitials(activeTerreiro?.name ?? "Terreiro");
 
-  useEffect(() => {
-    if (!isPreferencesOpen) return;
-    if (!userId) return;
-    if (loadingTerreirosAdmin) return;
-    if (hasAttemptedTerreirosAdmin) return;
+  const didLogPrefsVisibleRef = React.useRef(false);
 
-    fetchTerreirosQueAdministro(userId);
+  useEffect(() => {
+    if (!isPreferencesOpen) {
+      didLogPrefsVisibleRef.current = false;
+      return;
+    }
+
+    if (didLogPrefsVisibleRef.current) return;
+    didLogPrefsVisibleRef.current = true;
+
+    if (__DEV__) {
+      console.info("[PrefsDebug] visible", {
+        userId,
+        dataCount: myEditableTerreiros.length,
+        isFetching: myEditableTerreirosQuery.isFetching,
+      });
+    }
   }, [
     isPreferencesOpen,
+    myEditableTerreiros.length,
+    myEditableTerreirosQuery.isFetching,
     userId,
-    loadingTerreirosAdmin,
-    hasAttemptedTerreirosAdmin,
-    fetchTerreirosQueAdministro,
   ]);
 
   const onSelectTheme = (mode: ThemeMode) => {
@@ -267,7 +259,16 @@ export function AppHeaderWithPreferences() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Abrir preferências"
-            onPress={() => setIsPreferencesOpen(true)}
+            onPress={() => {
+              if (__DEV__) {
+                console.info("[PrefsDebug] open", {
+                  userId,
+                  dataCount: myEditableTerreiros.length,
+                  isFetching: myEditableTerreirosQuery.isFetching,
+                });
+              }
+              setIsPreferencesOpen(true);
+            }}
             hitSlop={10}
             style={({ pressed }) => [
               styles.avatarTrigger,
@@ -340,16 +341,11 @@ export function AppHeaderWithPreferences() {
                 }}
               />
 
-              {loadingTerreirosAdmin ? (
-                <Text style={[styles.helperText, { color: textSecondary }]}>
-                  Carregando…
-                </Text>
-              ) : erroTerreirosAdmin ? (
+              {!userId ? null : myEditableTerreirosQuery.isError ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    if (!user?.id) return;
-                    fetchTerreirosQueAdministro(user.id);
+                    void myEditableTerreirosQuery.refetch();
                   }}
                   style={({ pressed }) => [
                     styles.retryRow,
@@ -361,14 +357,23 @@ export function AppHeaderWithPreferences() {
                     Tentar novamente
                   </Text>
                 </Pressable>
+              ) : myEditableTerreirosQuery.isFetching &&
+                myEditableTerreiros.length === 0 ? (
+                <Text style={[styles.helperText, { color: textSecondary }]}>
+                  Carregando terreiros…
+                </Text>
+              ) : myEditableTerreiros.length === 0 ? (
+                <Text style={[styles.helperText, { color: textSecondary }]}>
+                  Você ainda não tem acesso a terreiros como Admin/Editor.
+                </Text>
               ) : (
-                terreirosAdmin.map((t) => (
+                myEditableTerreiros.map((t) => (
                   <PreferencesPageItem
                     key={t.id}
                     variant={variant}
-                    title={t.name}
-                    avatarUrl={t.avatarUrl}
-                    initials={getInitials(t.name)}
+                    title={t.title}
+                    avatarUrl={t.cover_image_url ?? undefined}
+                    initials={getInitials(t.title)}
                     isActive={
                       activeContext.kind === "TERREIRO_PAGE" &&
                       activeContext.terreiroId === t.id
@@ -379,8 +384,8 @@ export function AppHeaderWithPreferences() {
                           setActiveContext({
                             kind: "TERREIRO_PAGE",
                             terreiroId: t.id,
-                            terreiroName: t.name,
-                            terreiroAvatarUrl: t.avatarUrl,
+                            terreiroName: t.title,
+                            terreiroAvatarUrl: t.cover_image_url ?? undefined,
                             role: t.role,
                           })
                         );

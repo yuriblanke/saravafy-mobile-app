@@ -23,6 +23,7 @@ import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
 } from "@/src/queries/collections";
+import { prefetchMyEditableTerreiros } from "@/src/queries/me";
 import { prefetchHomeFeedPontos } from "@/src/queries/pontosFeed";
 import { prefetchExploreTerreiros } from "@/src/queries/terreirosExplore";
 import {
@@ -128,12 +129,14 @@ function RootLayoutNav() {
 
       // Cancel any in-flight requests first
       queryClient.cancelQueries({
-        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
       });
 
       // Remove only user-scoped queries (keys that include previous userId)
       queryClient.removeQueries({
-        predicate: (q) => Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
+        predicate: (q) =>
+          Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
       });
 
       // Reset memory-only preferences that can leak between users
@@ -152,6 +155,7 @@ function RootLayoutNav() {
     if (segments.length > 0) {
       // Já estamos em (app) ou (auth), não é necessário boot
       setBootComplete(true);
+      SplashScreen.hideAsync().catch(() => undefined);
       return;
     }
 
@@ -276,7 +280,20 @@ function RootLayoutNav() {
         console.error("[BootPrefetch] erro ao prefetch memberships:", e);
       }
 
-      // 4) Coleções editáveis do usuário (depende do passo 3)
+      // 4) Terreiros do perfil (admin/editor) para o sheet de Preferências
+      try {
+        await prefetchMyEditableTerreiros(queryClient, {
+          userId,
+          editableTerreiroIds,
+        });
+      } catch (e) {
+        console.error(
+          "[BootPrefetch] erro ao prefetch terreiros do perfil (prefs):",
+          e
+        );
+      }
+
+      // 5) Coleções editáveis do usuário (depende do passo 3)
       try {
         await prefetchEditableCollections(queryClient, {
           userId,
