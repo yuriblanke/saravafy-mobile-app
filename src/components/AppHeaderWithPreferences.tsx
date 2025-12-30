@@ -21,6 +21,7 @@ import {
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { InviteModal } from "@/src/screens/AccessManager/InviteModal";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -177,7 +178,9 @@ export function AppHeaderWithPreferences() {
   );
 
   const curatorInvitesQuery = useQuery({
-    queryKey: ["curatorInvites", "pending", userId],
+    queryKey: userId
+      ? queryKeys.curatorInvites.pendingForDevMaster(userId)
+      : ["curatorInvites", "pending", null],
     enabled: !!userId && shouldShowDevMaster && isPreferencesOpen,
     staleTime: 10_000,
     queryFn: async () => {

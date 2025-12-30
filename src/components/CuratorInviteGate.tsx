@@ -87,6 +87,7 @@ export function CuratorInviteGate() {
   const [currentInvite, setCurrentInvite] = useState<CuratorInvite | null>(
     null
   );
+  const currentInviteRef = useRef<CuratorInvite | null>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -96,6 +97,17 @@ export function CuratorInviteGate() {
   const lastFetchAtRef = useRef<number>(0);
   const inFlightRef = useRef<Promise<CuratorInvite | null> | null>(null);
   const appStateRef = useRef(AppState.currentState);
+  const lastRealtimeKeyRef = useRef<string | null>(null);
+
+  const pendingInviteQueryKey = useMemo(() => {
+    return normalizedUserEmail
+      ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
+      : (["curatorInvites", "pendingForInvitee", null] as const);
+  }, [normalizedUserEmail]);
+
+  const devMasterPendingPrefixKey = useMemo(() => {
+    return queryKeys.curatorInvites.pendingPrefix();
+  }, []);
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -111,6 +123,10 @@ export function CuratorInviteGate() {
 
   const roleLabel = useMemo(() => getGlobalRoleBadgeLabel("curator"), []);
 
+  useEffect(() => {
+    currentInviteRef.current = currentInvite;
+  }, [currentInvite]);
+
   const refreshPendingInvite = useCallback(
     async (options?: { skipCache?: boolean }) => {
       if (!userId) return null;
@@ -123,7 +139,7 @@ export function CuratorInviteGate() {
 
       if (!options?.skipCache) {
         if (now - lastFetchAtRef.current < cacheWindowMs) {
-          return currentInvite;
+          return currentInviteRef.current;
         }
       }
 
@@ -169,7 +185,7 @@ export function CuratorInviteGate() {
         inFlightRef.current = null;
       }
     },
-    [currentInvite, isCurator, normalizedUserEmail, terreiroGateActive, userId]
+    [isCurator, normalizedUserEmail, terreiroGateActive, userId]
   );
 
   useEffect(() => {
@@ -237,6 +253,7 @@ export function CuratorInviteGate() {
             setIsModalVisible(true);
           }
         } else {
+          setIsBannerVisible(false);
           setIsModalVisible(false);
         }
       } catch {
@@ -281,40 +298,72 @@ export function CuratorInviteGate() {
   useEffect(() => {
     if (!normalizedUserEmail) return;
 
+    const handleRow = (row: any) => {
+      if (terreiroGateActive) return;
+
+      const emailRaw = typeof row?.email === "string" ? row.email : "";
+      const statusRaw = typeof row?.status === "string" ? row.status : "";
+      const inviteId = typeof row?.id === "string" ? row.id : null;
+      const createdAt =
+        typeof row?.created_at === "string" ? row.created_at : null;
+
+      if (!emailRaw) return;
+
+      const email = normalizeEmail(emailRaw);
+      if (email !== normalizedUserEmail) return;
+
+      const realtimeKey = inviteId ? `${inviteId}:${statusRaw}` : null;
+      if (realtimeKey && lastRealtimeKeyRef.current === realtimeKey) return;
+      if (realtimeKey) lastRealtimeKeyRef.current = realtimeKey;
+
+      // Status changed away from pending -> close immediately.
+      if (statusRaw && statusRaw !== "pending") {
+        setIsBannerVisible(false);
+        setIsModalVisible(false);
+        setShouldOpenModalWhenReady(false);
+
+        if (inviteId && currentInviteRef.current?.id === inviteId) {
+          setCurrentInvite(null);
+        }
+
+        return;
+      }
+
+      // Status became pending -> show banner (no auto-open).
+      if (inviteId && createdAt) {
+        const prev = currentInviteRef.current;
+        const shouldSet =
+          !prev || prev.id !== inviteId || prev.status !== (statusRaw || "pending");
+
+        if (shouldSet) {
+          setCurrentInvite({
+            id: inviteId,
+            email,
+            status: statusRaw || "pending",
+            created_at: createdAt,
+          });
+        }
+      }
+
+      if (appStateRef.current === "active") {
+        setIsBannerVisible(true);
+      }
+    };
+
     const channel = supabase
       .channel("invite-gate:curator_invites")
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "curator_invites" },
         (payload) => {
-          if (terreiroGateActive) return;
-
-          const row = payload.new as any;
-          const emailRaw = typeof row?.email === "string" ? row.email : "";
-          const status = typeof row?.status === "string" ? row.status : "";
-
-          if (!emailRaw) return;
-          if (status && status !== "pending") return;
-
-          const email = normalizeEmail(emailRaw);
-          if (email !== normalizedUserEmail) return;
-
-          const inviteId = typeof row?.id === "string" ? row.id : null;
-          const createdAt =
-            typeof row?.created_at === "string" ? row.created_at : null;
-
-          if (inviteId && createdAt) {
-            setCurrentInvite({
-              id: inviteId,
-              email,
-              status: status || "pending",
-              created_at: createdAt,
-            });
-          }
-
-          if (appStateRef.current === "active") {
-            setIsBannerVisible(true);
-          }
+          handleRow(payload.new as any);
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "curator_invites" },
+        (payload) => {
+          handleRow(payload.new as any);
         }
       )
       .subscribe();
@@ -342,6 +391,13 @@ export function CuratorInviteGate() {
       setCurrentInvite(null);
       setShouldOpenModalWhenReady(false);
 
+      // Explicit invalidations (avoid waiting for realtime)
+      queryClient.invalidateQueries({ queryKey: pendingInviteQueryKey, exact: true });
+      queryClient.invalidateQueries({
+        queryKey: devMasterPendingPrefixKey,
+        exact: false,
+      });
+
       if (userId) {
         queryClient.invalidateQueries({
           queryKey: queryKeys.globalRoles.isCurator(userId),
@@ -356,7 +412,15 @@ export function CuratorInviteGate() {
     } finally {
       setIsProcessing(false);
     }
-  }, [currentInvite, queryClient, roleLabel, showToast, userId]);
+  }, [
+    currentInvite,
+    devMasterPendingPrefixKey,
+    pendingInviteQueryKey,
+    queryClient,
+    roleLabel,
+    showToast,
+    userId,
+  ]);
 
   const rejectInvite = useCallback(async () => {
     if (!currentInvite) return;
@@ -376,6 +440,19 @@ export function CuratorInviteGate() {
       setCurrentInvite(null);
       setShouldOpenModalWhenReady(false);
 
+      // Explicit invalidations
+      queryClient.invalidateQueries({ queryKey: pendingInviteQueryKey, exact: true });
+      queryClient.invalidateQueries({
+        queryKey: devMasterPendingPrefixKey,
+        exact: false,
+      });
+
+      if (userId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.globalRoles.isCurator(userId),
+        });
+      }
+
       showToast("Convite recusado.");
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
@@ -384,7 +461,14 @@ export function CuratorInviteGate() {
     } finally {
       setIsProcessing(false);
     }
-  }, [currentInvite, showToast]);
+  }, [
+    currentInvite,
+    devMasterPendingPrefixKey,
+    pendingInviteQueryKey,
+    queryClient,
+    showToast,
+    userId,
+  ]);
 
   const onPressBannerCta = useCallback(() => {
     void openGateNow();

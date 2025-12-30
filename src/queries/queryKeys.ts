@@ -60,4 +60,11 @@ export const queryKeys = {
       ["globalRoles", "dev_master", userId] as const,
     isCurator: (userId: string) => ["globalRoles", "curator", userId] as const,
   },
+  curatorInvites: {
+    pendingForInvitee: (normalizedEmail: string) =>
+      ["curatorInvites", "pendingForInvitee", normalizedEmail] as const,
+    pendingForDevMaster: (userId: string) =>
+      ["curatorInvites", "pending", userId] as const,
+    pendingPrefix: () => ["curatorInvites", "pending"] as const,
+  },
 } as const;
