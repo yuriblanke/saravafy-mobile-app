@@ -45,6 +45,13 @@ Requisitos atendidos:
 - Falha no fetch não quebra a página (mostra mensagem e mantém o botão desabilitado).
 - Preserva `tipo/id` no path.
 
+### Identidade visual (parece o app)
+
+A landing **não é um site institucional**: ela é uma extensão do app.
+
+- Cores, tema (dark/light) e “atmosfera” (gradientes/vinheta) seguem os tokens do app (`src/theme/colors.ts`).
+- O layout é propositalmente simples e centrado no CTA, mantendo consistência com a estética do mobile.
+
 ### Anti-cache (por design)
 
 Para evitar o botão “Instalar app” apontar para URLs antigas, a landing **não usa cache local** para `app_install_url`:
