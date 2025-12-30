@@ -20,13 +20,41 @@ export function TagChip({
 }: Props) {
   const isLight = variant === "light";
 
+  // Tokens explícitos e fáceis de entender:
+  // - fundo da tag normal no dark mantém o marrom (earth700)
+  // - texto da tag normal no dark usa um token de texto em fundo escuro
+  const tagBg = isLight ? colors.paper100 : colors.earth700;
+  const textOnTag = isLight ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
+
   const customColor =
     tone === "medium"
       ? colors.brass600
       : isLight
       ? colors.textPrimaryOnLight
       : colors.brass600;
-  const pontoTextColor = isLight ? colors.textPrimaryOnLight : colors.paper100;
+  const pontoTextColor = textOnTag;
+
+  if (__DEV__) {
+    const debugEnabled = !!(globalThis as any).__SARAVAFY_DEBUG_TAGCHIP_COLORS__;
+    if (debugEnabled) {
+      const debugKey = `${variant}:${kind}:${tone}`;
+      const store = ((globalThis as any).__SARAVAFY_DEBUG_TAGCHIP_COLORS_SEEN__ ??=
+        new Set<string>());
+      if (!store.has(debugKey)) {
+        store.add(debugKey);
+        console.info("[TagChip.colors]", {
+          debugKey,
+          variant,
+          kind,
+          tone,
+          tagBg,
+          textOnTag,
+          customColor,
+          resolvedText: kind === "custom" ? customColor : pontoTextColor,
+        });
+      }
+    }
+  }
 
   return (
     <View
@@ -36,7 +64,7 @@ export function TagChip({
           ? [styles.wrapCustom, { borderColor: customColor }]
           : variant === "light"
           ? styles.wrapLight
-          : styles.wrapDarkTest,
+          : [styles.wrapDarkTest, { backgroundColor: tagBg }],
         style,
       ]}
       {...rest}
@@ -61,8 +89,6 @@ const styles = StyleSheet.create({
     backgroundColor: colors.earth700,
   },
   wrap: {
-    position: "relative",
-    overflow: "hidden",
     borderRadius: radii.sm,
     paddingHorizontal: 12,
     paddingVertical: 5,
