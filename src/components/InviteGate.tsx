@@ -20,7 +20,10 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, radii, spacing } from "@/src/theme";
+import { useQueryClient } from "@tanstack/react-query";
+import { useRootNavigationState, useSegments } from "expo-router";
 
 type InviteRole = "admin" | "editor" | "member" | "follower";
 
@@ -134,6 +137,13 @@ export function InviteGate() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const { effectiveTheme, fetchTerreirosQueAdministro } = usePreferences();
+  const queryClient = useQueryClient();
+
+  const segments = useSegments();
+  const rootNavState = useRootNavigationState();
+  const segmentsKey = useMemo(() => segments.join("/"), [segments]);
+  const isNavReady = !!rootNavState?.key;
+  const isAppReady = isNavReady && segments[0] === "(app)";
 
   const variant = effectiveTheme;
 
@@ -149,6 +159,11 @@ export function InviteGate() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [debugInfo, setDebugInfo] = useState<InviteGateDebug | null>(null);
+
+  // Avoid showing the modal before the (app) navigation stack is mounted.
+  // Otherwise we can end up with a black backdrop behind it during boot.
+  const [shouldOpenModalWhenReady, setShouldOpenModalWhenReady] =
+    useState(false);
 
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const realtimeInviteIdRef = useRef<string | null>(null);
@@ -179,6 +194,15 @@ export function InviteGate() {
   useEffect(() => {
     pendingInvitesRef.current = pendingInvites;
   }, [pendingInvites]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    console.log("[InviteGate] nav readiness", {
+      isNavReady,
+      isAppReady,
+      segments: segmentsKey,
+    });
+  }, [isAppReady, isNavReady, segmentsKey]);
 
   const refreshPendingInvites = useCallback(
     async (options?: { skipCache?: boolean }) => {
@@ -267,6 +291,7 @@ export function InviteGate() {
       setIsProcessing(false);
       setActionError(null);
       priorityInviteIdRef.current = null;
+      setShouldOpenModalWhenReady(false);
       return;
     }
 
@@ -276,30 +301,99 @@ export function InviteGate() {
     setActionError(null);
     setIsProcessing(false);
 
+    setShouldOpenModalWhenReady(false);
+
     // If we opened due to a priority invite, clear it after it becomes current.
     if (priorityInviteIdRef.current === first.id) {
       priorityInviteIdRef.current = null;
     }
   }, []);
 
+  const syncQueueToUi = useCallback(
+    (queue: TerreiroInvite[], source: string) => {
+      if (!queue.length) {
+        ensureModalForQueue(queue);
+        return;
+      }
+
+      if (!isAppReady) {
+        setCurrentInvite(queue[0]);
+        setIsModalVisible(false);
+        setIsProcessing(false);
+        setActionError(null);
+        setShouldOpenModalWhenReady(true);
+
+        if (__DEV__) {
+          console.log("[InviteGate] deferring modal until app ready", {
+            source,
+            isAppReady,
+            isNavReady,
+            segments: segmentsKey,
+            inviteId: queue[0]?.id,
+            queueLen: queue.length,
+          });
+        }
+
+        return;
+      }
+
+      if (__DEV__) {
+        console.log("[InviteGate] opening modal", {
+          source,
+          inviteId: queue[0]?.id,
+          queueLen: queue.length,
+        });
+      }
+
+      ensureModalForQueue(queue);
+    },
+    [ensureModalForQueue, isAppReady, isNavReady, segmentsKey]
+  );
+
+  useEffect(() => {
+    if (!shouldOpenModalWhenReady) return;
+    if (!isAppReady) return;
+
+    const queue = pendingInvitesRef.current;
+    if (!queue.length) {
+      setShouldOpenModalWhenReady(false);
+      return;
+    }
+
+    if (__DEV__) {
+      console.log("[InviteGate] app ready -> opening deferred modal", {
+        inviteId: queue[0]?.id,
+        queueLen: queue.length,
+        segments: segmentsKey,
+      });
+    }
+
+    // Let the app render at least one frame before showing the overlay.
+    const t = setTimeout(() => {
+      ensureModalForQueue(queue);
+    }, 0);
+
+    return () => clearTimeout(t);
+  }, [ensureModalForQueue, isAppReady, segmentsKey, shouldOpenModalWhenReady]);
+
   const resolveInviteLocally = useCallback(
     (inviteId: string) => {
       const next = pendingInvitesRef.current.filter((i) => i.id !== inviteId);
       setPendingInvites(next);
-      ensureModalForQueue(next);
+      syncQueueToUi(next, "resolve_local");
     },
-    [ensureModalForQueue]
+    [syncQueueToUi]
   );
 
   const openGateNow = useCallback(async () => {
     try {
       const list = await refreshPendingInvites({ skipCache: true });
-      ensureModalForQueue(list);
+      syncQueueToUi(list, "open_gate_now");
       setIsBannerVisible(false);
     } catch {
       // If refresh fails here, we still keep the app usable.
     }
-  }, [ensureModalForQueue, refreshPendingInvites]);
+  }, [refreshPendingInvites, syncQueueToUi]);
 
   // Startup refresh (immediate gate if pending).
   useEffect(() => {
@@ -309,18 +403,19 @@ export function InviteGate() {
       setIsModalVisible(false);
       setIsBannerVisible(false);
       realtimeInviteIdRef.current = null;
+      setShouldOpenModalWhenReady(false);
       return;
     }
 
     (async () => {
       try {
         const list = await refreshPendingInvites({ skipCache: true });
-        ensureModalForQueue(list);
+        syncQueueToUi(list, "startup_refresh");
       } catch {
         // ignore
       }
     })();
-  }, [ensureModalForQueue, normalizedUserEmail, refreshPendingInvites, userId]);
+  }, [normalizedUserEmail, refreshPendingInvites, syncQueueToUi, userId]);
 
   // Foreground refresh.
   useEffect(() => {
@@ -336,7 +431,7 @@ export function InviteGate() {
           if (!userId || !normalizedUserEmail) return;
           try {
             const list = await refreshPendingInvites({ skipCache: true });
-            ensureModalForQueue(list);
+            syncQueueToUi(list, "foreground_refresh");
           } catch {
             // ignore
           }
@@ -345,7 +440,7 @@ export function InviteGate() {
     });
 
     return () => sub.remove();
-  }, [ensureModalForQueue, normalizedUserEmail, refreshPendingInvites, userId]);
+  }, [normalizedUserEmail, refreshPendingInvites, syncQueueToUi, userId]);
 
   // Realtime subscription (banner only; gate on CTA or next foreground).
   useEffect(() => {
@@ -454,7 +549,42 @@ export function InviteGate() {
         // Best-effort: não bloquear o fluxo de aceitar convite.
       }
 
+      // Revalidar caches que dependem de memberships/terreiros.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.membership(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiroAccessIds(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.editableTerreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.permissions(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.editableByUser(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.accountable(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.editableByUserPrefix(userId),
+      });
+
       showToast("Convite aceito.");
+
+      if (__DEV__) {
+        console.log("[InviteGate] accept success", {
+          inviteId: currentInvite.id,
+          terreiroId: currentInvite.terreiro_id,
+          userId,
+        });
+      }
+
       resolveInviteLocally(currentInvite.id);
 
       // Reconciliar com o servidor (best-effort).
@@ -494,6 +624,7 @@ export function InviteGate() {
     currentInvite,
     ensureModalForQueue,
     fetchTerreirosQueAdministro,
+    queryClient,
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
@@ -509,15 +640,47 @@ export function InviteGate() {
 
     try {
       // RLS estrito: recusar precisa ser via RPC SECURITY DEFINER.
-      const rpc = await supabase.rpc("decline_terreiro_invite", {
-        p_invite_id: currentInvite.id,
+      // NOTE: Não usar `decline_terreiro_invite` enquanto o banco estiver com
+      // CHECK status=('pending'|'accepted'|'rejected') e activated_consistency.
+      const rpc = await supabase.rpc("reject_terreiro_invite", {
+        invite_id: currentInvite.id,
       });
 
       if (rpc.error) throw rpc.error;
 
       showToast("Convite recusado.");
 
+      if (__DEV__) {
+        console.log("[InviteGate] reject success", {
+          inviteId: currentInvite.id,
+          terreiroId: currentInvite.terreiro_id,
+          userId: userId ?? undefined,
+        });
+      }
+
       resolveInviteLocally(currentInvite.id);
+
+      // Revalidar caches que dependem de memberships/terreiros (por via das dúvidas).
+      if (userId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.membership(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.terreiros(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.terreiroAccessIds(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.editableTerreiros(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.permissions(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.editableByUserPrefix(userId),
+        });
+      }
 
       refreshPendingInvites({ skipCache: true })
         .then(ensureModalForQueue)
@@ -552,6 +715,7 @@ export function InviteGate() {
   }, [
     currentInvite,
     ensureModalForQueue,
+    queryClient,
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,

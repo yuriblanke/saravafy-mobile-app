@@ -1,5 +1,12 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
@@ -222,6 +229,13 @@ export function InviteModal({
             </Text>
           </Pressable>
         </View>
+
+        <Image
+          source={require("@/assets/images/filler.png")}
+          style={styles.filler}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
       </BottomSheet>
 
       <SelectModal
@@ -245,6 +259,11 @@ const styles = StyleSheet.create({
   sheetHead: {
     marginBottom: spacing.md,
     gap: 4,
+  },
+  filler: {
+    width: "100%",
+    height: 265,
+    marginTop: spacing.lg,
   },
   sheetTitle: {
     fontSize: 16,

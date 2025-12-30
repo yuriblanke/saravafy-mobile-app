@@ -9,10 +9,17 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -99,6 +106,8 @@ export default function Home() {
   const [createCollectionError, setCreateCollectionError] = useState<
     string | null
   >(null);
+
+  const createCollectionTitleInputRef = useRef<TextInput>(null);
 
   const variant = effectiveTheme;
   const textPrimary =
@@ -207,8 +216,19 @@ export default function Home() {
 
   const openCreateCollection = useCallback(() => {
     setCreateCollectionError(null);
+    setCreateCollectionTitle("");
     setIsCreateCollectionModalOpen(true);
   }, []);
+
+  useEffect(() => {
+    if (!isCreateCollectionModalOpen) return;
+
+    const t = setTimeout(() => {
+      createCollectionTitleInputRef.current?.focus();
+    }, 150);
+
+    return () => clearTimeout(t);
+  }, [isCreateCollectionModalOpen]);
 
   const onCreateCollection = useCallback(async () => {
     if (!user?.id) return;
@@ -727,6 +747,7 @@ export default function Home() {
           </View>
 
           <TextInput
+            ref={createCollectionTitleInputRef}
             value={createCollectionTitle}
             onChangeText={(v) => {
               setCreateCollectionTitle(v.slice(0, 40));
@@ -802,6 +823,13 @@ export default function Home() {
               <Text style={styles.primaryActionText}>Criar</Text>
             </Pressable>
           </View>
+
+          <Image
+            source={require("@/assets/images/filler.png")}
+            style={styles.filler}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -1134,6 +1162,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.sm,
+  },
+  filler: {
+    width: "100%",
+    height: 270,
+    marginTop: spacing.lg,
   },
   secondaryActionBtn: {
     flex: 1,
