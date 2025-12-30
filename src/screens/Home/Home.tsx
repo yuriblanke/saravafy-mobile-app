@@ -1,7 +1,9 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -35,9 +37,8 @@ import {
   useEditableCollections,
   type EditableCollection,
 } from "@/src/queries/collections";
+import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
-
-const ITEMS_PER_PAGE = 10;
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
@@ -81,8 +82,7 @@ export function getLyricsPreview(lyrics: string, maxLines = 6) {
 
 export default function Home() {
   // Adapta o padrão de tema igual Terreiros
-  const { effectiveTheme, selectedTerreiroFilterId } =
-    require("@/contexts/PreferencesContext").usePreferences();
+  const { effectiveTheme } = usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const router = useRouter();
@@ -108,6 +108,12 @@ export default function Home() {
   >(null);
 
   const createCollectionTitleInputRef = useRef<TextInput>(null);
+
+  type CollectionsOwnerFilter = "all" | "user" | `terreiro:${string}`;
+  const [collectionsFilter, setCollectionsFilter] =
+    useState<CollectionsOwnerFilter>("all");
+  const [isCollectionsFilterModalOpen, setIsCollectionsFilterModalOpen] =
+    useState(false);
 
   const variant = effectiveTheme;
   const textPrimary =
@@ -140,23 +146,75 @@ export default function Home() {
 
   // Fonte ÚNICA do BottomSheet: coleções editáveis (escrita) por regra de produto.
   const editableCollectionsQuery = useEditableCollections(userId);
-  const editableCollections = editableCollectionsQuery.data ?? [];
+  const editableCollections = useMemo(
+    () => editableCollectionsQuery.data ?? [],
+    [editableCollectionsQuery.data]
+  );
   const collectionsError = editableCollectionsQuery.isError
     ? getErrorMessage(editableCollectionsQuery.error)
     : null;
+
+  const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
+  const myEditableTerreiros = useMemo(
+    () => myEditableTerreirosQuery.data ?? [],
+    [myEditableTerreirosQuery.data]
+  );
+
+  const collectionsFilterItems: SelectItem[] = useMemo(() => {
+    const base: SelectItem[] = [
+      { key: "all", label: "Todos", value: "all" },
+      {
+        key: "user",
+        label: "Coleções do usuário",
+        value: "user",
+      },
+    ];
+
+    const terreiroItems = myEditableTerreiros.map((t) => {
+      return {
+        key: `terreiro:${t.id}`,
+        label: `Terreiro: ${t.title}`,
+        value: `terreiro:${t.id}`,
+      } satisfies SelectItem;
+    });
+
+    return [...base, ...terreiroItems];
+  }, [myEditableTerreiros]);
+
+  const collectionsFilterLabel = useMemo(() => {
+    if (collectionsFilter === "all") return "Todos";
+    if (collectionsFilter === "user") return "Coleções do usuário";
+    if (collectionsFilter.startsWith("terreiro:")) {
+      const id = collectionsFilter.slice("terreiro:".length);
+      const match = myEditableTerreiros.find((t) => t.id === id);
+      return `Terreiro: ${match?.title ?? "Terreiro"}`;
+    }
+    return "Todos";
+  }, [collectionsFilter, myEditableTerreiros]);
+
+  const visibleEditableCollections = useMemo(() => {
+    if (!user?.id) return [] as EditableCollection[];
+    if (collectionsFilter === "all") return editableCollections;
+    if (collectionsFilter === "user") {
+      return editableCollections.filter(
+        (c) => c.owner_user_id === user.id && !c.owner_terreiro_id
+      );
+    }
+    if (collectionsFilter.startsWith("terreiro:")) {
+      const id = collectionsFilter.slice("terreiro:".length);
+      return editableCollections.filter((c) => c.owner_terreiro_id === id);
+    }
+    return editableCollections;
+  }, [collectionsFilter, editableCollections, user?.id]);
 
   const closeAddToCollectionSheet = useCallback(() => {
     setAddModalVisible(false);
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
+    setIsCollectionsFilterModalOpen(false);
     rootPager.setIsBottomSheetOpen(false);
-  }, [
-    editableCollections.length,
-    editableCollectionsQuery.isFetching,
-    rootPager,
-    userId,
-  ]);
+  }, [rootPager]);
 
   useEffect(() => {
     if (!addModalVisible) return;
@@ -242,8 +300,10 @@ export default function Home() {
     setIsCreatingCollection(true);
     setCreateCollectionError(null);
 
-    // Owner baseado no filtro explícito (opcional). Se não houver filtro, é coleção pessoal.
-    const ownerTerreiroId = selectedTerreiroFilterId;
+    // Owner baseado APENAS no filtro local do sheet.
+    const ownerTerreiroId = collectionsFilter.startsWith("terreiro:")
+      ? collectionsFilter.slice("terreiro:".length)
+      : null;
     const ownerUserId = ownerTerreiroId ? null : user.id;
 
     const created = await createCollection({
@@ -269,7 +329,7 @@ export default function Home() {
 
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
-  }, [queryClient, createCollectionTitle, selectedTerreiroFilterId, user?.id]);
+  }, [collectionsFilter, queryClient, createCollectionTitle, user?.id]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -563,6 +623,46 @@ export default function Home() {
               <View style={styles.sheetActionsRow}>
                 <Pressable
                   accessibilityRole="button"
+                  accessibilityLabel="Filtrar coleções"
+                  onPress={() => setIsCollectionsFilterModalOpen(true)}
+                  disabled={
+                    editableCollectionsQuery.isFetching &&
+                    editableCollections.length === 0
+                  }
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    styles.filterBtn,
+                    pressed ? styles.filterBtnPressed : null,
+                    editableCollectionsQuery.isFetching &&
+                    editableCollections.length === 0
+                      ? styles.btnDisabled
+                      : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="funnel-outline"
+                    size={16}
+                    color={textSecondary}
+                  />
+                  <Text
+                    style={[
+                      styles.filterBtnText,
+                      { color: textPrimary, flexShrink: 1, minWidth: 0 },
+                    ]}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                  >
+                    {collectionsFilterLabel}
+                  </Text>
+                  <Ionicons
+                    name="chevron-down"
+                    size={16}
+                    color={textSecondary}
+                  />
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
                   onPress={openCreateCollection}
                   disabled={
                     isCreatingCollection ||
@@ -595,7 +695,13 @@ export default function Home() {
                   </Text>
                   <Text style={[styles.emptyText, { color: textSecondary }]}>
                     Você ainda não tem permissão para adicionar pontos em
-                    coleções. Troque de terreiro no perfil ou peça acesso.
+                    coleções. Peça acesso a uma coleção ou a um terreiro.
+                  </Text>
+                </View>
+              ) : visibleEditableCollections.length === 0 ? (
+                <View style={styles.emptyBlock}>
+                  <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+                    Nenhuma coleção nesse filtro.
                   </Text>
                 </View>
               ) : (
@@ -621,7 +727,7 @@ export default function Home() {
                   )}
 
                   <View style={styles.sheetList}>
-                    {editableCollections.map((c) => {
+                    {visibleEditableCollections.map((c) => {
                       const title = (c.title ?? "").trim() || "Coleção";
                       // SEMPRE mostra o label do terreiro quando aplicável
                       const ownerLabel = getCollectionOwnerLabel(c);
@@ -716,6 +822,23 @@ export default function Home() {
           )}
         </View>
       </BottomSheet>
+
+      <SelectModal
+        title="Filtrar coleções"
+        visible={isCollectionsFilterModalOpen}
+        variant={variant}
+        items={collectionsFilterItems}
+        onClose={() => setIsCollectionsFilterModalOpen(false)}
+        onSelect={(value) => {
+          if (
+            value === "all" ||
+            value === "user" ||
+            value.startsWith("terreiro:")
+          ) {
+            setCollectionsFilter(value as CollectionsOwnerFilter);
+          }
+        }}
+      />
 
       <BottomSheet
         visible={isCreateCollectionModalOpen}
@@ -1099,9 +1222,10 @@ const styles = StyleSheet.create({
   sheetActionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
     minHeight: 44,
     marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
   filterBtn: {
     minHeight: 44,
@@ -1110,6 +1234,8 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     paddingVertical: 6,
     paddingRight: spacing.sm,
+    flex: 1,
+    minWidth: 0,
     flexShrink: 1,
   },
   filterBtnPressed: {
@@ -1123,6 +1249,7 @@ const styles = StyleSheet.create({
     alignSelf: "flex-end",
     paddingVertical: 6,
     marginBottom: spacing.sm,
+    flexShrink: 0,
   },
   newCollectionCtaPressed: {
     opacity: 0.85,
