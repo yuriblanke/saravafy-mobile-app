@@ -302,6 +302,9 @@ export function AppTabSwipeOverlay() {
       },
 
       onPanResponderRelease: (_evt, gesture) => {
+        // Ao terminar o gesto, o overlay volta a no participar do hit-test.
+        setPanPE("none");
+
         const absX = Math.abs(gesture.dx);
         const absY = Math.abs(gesture.dy);
 
@@ -407,7 +410,6 @@ export function AppTabSwipeOverlay() {
             translateX.setValue(0);
             swipeRecognizedRef.current = false;
             rejectedForVerticalRef.current = false;
-            setPanPE("none");
           });
           return;
         }
@@ -422,11 +424,13 @@ export function AppTabSwipeOverlay() {
           }
           swipeRecognizedRef.current = false;
           rejectedForVerticalRef.current = false;
-          setPanPE("none");
         });
       },
 
       onPanResponderTerminate: () => {
+        // Ao terminar/interromper o gesto, o overlay volta a no participar do hit-test.
+        setPanPE("none");
+
         // Gesto interrompido, volta para posição original
         Animated.spring(translateX, {
           toValue: 0,
@@ -437,7 +441,6 @@ export function AppTabSwipeOverlay() {
           }
           swipeRecognizedRef.current = false;
           rejectedForVerticalRef.current = false;
-          setPanPE("none");
         });
 
         if (__DEV__) {
