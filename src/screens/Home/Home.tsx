@@ -74,7 +74,7 @@ export function getLyricsPreview(lyrics: string, maxLines = 6) {
 
 export default function Home() {
   // Adapta o padrão de tema igual Terreiros
-  const { effectiveTheme, activeContext } =
+  const { effectiveTheme, activeContext, terreirosAdmin } =
     require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -179,6 +179,47 @@ export default function Home() {
       (c) => c.owner_terreiro_id === activeContext.terreiroId
     );
   }, [allCollections, activeContext, user?.id]);
+
+  const terreiroRoleById = useMemo(() => {
+    const map = new Map<string, "admin" | "editor">();
+    for (const t of terreirosAdmin ?? []) {
+      if (!t?.id) continue;
+      if (t.role === "admin" || t.role === "editor") {
+        map.set(t.id, t.role);
+      }
+    }
+    return map;
+  }, [terreirosAdmin]);
+
+  const canWriteToCollection = useCallback(
+    (c: AccountableCollection): boolean => {
+      if (!user?.id) return false;
+
+      // Coleção pessoal: sempre editável pela dona.
+      if (c.owner_user_id === user.id) return true;
+
+      // Coleção de terreiro: só se a usuária for admin/editor do terreiro.
+      const terreiroId = c.owner_terreiro_id;
+      if (!terreiroId) return false;
+
+      // Preferir o role do contexto ativo quando ele bate com o terreiro.
+      const roleFromActiveContext =
+        activeContext.kind === "TERREIRO_PAGE" &&
+        activeContext.terreiroId === terreiroId
+          ? activeContext.role
+          : undefined;
+
+      const role = roleFromActiveContext ?? terreiroRoleById.get(terreiroId);
+      return role === "admin" || role === "editor";
+    },
+    [activeContext.kind, activeContext.role, activeContext.terreiroId, terreiroRoleById, user?.id]
+  );
+
+  // IMPORTANT (UX): este filtro  APENAS para o fluxo de “Adicionar ponto  escolher coleo”.
+  // No afeta a aba Terreiros (leitura/descoberta).
+  const writableCollections = useMemo(() => {
+    return filteredCollections.filter(canWriteToCollection);
+  }, [canWriteToCollection, filteredCollections]);
 
   const getCollectionOwnerLabel = (c: AccountableCollection) => {
     if (!user?.id) return "";
@@ -536,10 +577,14 @@ export default function Home() {
                 </Pressable>
               </View>
 
-              {filteredCollections.length === 0 ? (
+              {writableCollections.length === 0 ? (
                 <View style={styles.emptyBlock}>
+                  <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+                    Nenhuma coleção disponível
+                  </Text>
                   <Text style={[styles.emptyText, { color: textSecondary }]}>
-                    Nenhuma coleção criada ainda.
+                    Você ainda não tem permissão para adicionar pontos em
+                    coleções. Troque de terreiro no perfil ou peça acesso.
                   </Text>
                 </View>
               ) : (
@@ -565,7 +610,7 @@ export default function Home() {
                   )}
 
                   <View style={styles.sheetList}>
-                    {filteredCollections.map((c) => {
+                    {writableCollections.map((c) => {
                       const title = (c.title ?? "").trim() || "Coleção";
                       // SEMPRE mostra o label do terreiro quando aplicável
                       const ownerLabel = getCollectionOwnerLabel(c);
@@ -1063,6 +1108,11 @@ const styles = StyleSheet.create({
   emptyBlock: {
     paddingTop: spacing.sm,
     gap: spacing.xs,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    lineHeight: 22,
+    fontWeight: "900",
   },
   emptyText: {
     fontSize: 16,
