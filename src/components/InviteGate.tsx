@@ -133,7 +133,7 @@ function normalizeEmail(email: string) {
 export function InviteGate() {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { effectiveTheme } = usePreferences();
+  const { effectiveTheme, fetchTerreirosQueAdministro } = usePreferences();
 
   const variant = effectiveTheme;
 
@@ -446,6 +446,14 @@ export function InviteGate() {
 
       if (rpc.error) throw rpc.error;
 
+      // Após aceitar convite, o backend cria/ativa `terreiro_members`.
+      // Precisamos atualizar explicitamente as permissões no app.
+      try {
+        await fetchTerreirosQueAdministro(userId);
+      } catch {
+        // Best-effort: não bloquear o fluxo de aceitar convite.
+      }
+
       showToast("Convite aceito.");
       resolveInviteLocally(currentInvite.id);
 
@@ -485,6 +493,7 @@ export function InviteGate() {
   }, [
     currentInvite,
     ensureModalForQueue,
+    fetchTerreirosQueAdministro,
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
