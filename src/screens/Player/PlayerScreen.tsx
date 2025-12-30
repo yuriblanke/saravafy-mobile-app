@@ -56,7 +56,8 @@ export default function PlayerScreen() {
 
   const source = typeof params.source === "string" ? params.source : null;
   const searchQuery = typeof params.q === "string" ? params.q : "";
-  const terreiroId = typeof params.terreiroId === "string" ? params.terreiroId : "";
+  const terreiroId =
+    typeof params.terreiroId === "string" ? params.terreiroId : "";
 
   const collectionId = String(params.collectionId ?? "");
   const initialPontoId =
@@ -371,7 +372,7 @@ export default function PlayerScreen() {
                 variant={variant}
                 lyricsFontSize={lyricsFontSize}
                 customTags={
-                  canSeeCustomTags ? (customTagsMap[item.ponto.id] ?? []) : []
+                  canSeeCustomTags ? customTagsMap[item.ponto.id] ?? [] : []
                 }
               />
             </View>

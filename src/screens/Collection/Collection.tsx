@@ -11,7 +11,7 @@ import {
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
-import { mergeCustomAndPointTags } from "@/src/utils/mergeTags";
+import { isMediumTag, mergeCustomAndPointTags } from "@/src/utils/mergeTags";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -566,7 +566,7 @@ export default function Collection() {
 
                     {(() => {
                       const custom = canSeeCustomTags
-                        ? (customTagsMap[item.ponto.id] ?? [])
+                        ? customTagsMap[item.ponto.id] ?? []
                         : [];
                       const merged = mergeCustomAndPointTags(
                         custom,
@@ -585,6 +585,7 @@ export default function Collection() {
                               label={t}
                               variant={variant}
                               kind="custom"
+                              tone={isMediumTag(t) ? "medium" : "default"}
                             />
                           ))}
                           {merged.point.map((t) => (

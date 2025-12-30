@@ -1,8 +1,18 @@
 export function normalizeTag(value: string): string {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, " ");
+  return (
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      // remove diacritics for stable comparisons (e.g. "médium" -> "medium")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, " ")
+  );
+}
+
+export function isMediumTag(label: string): boolean {
+  const n = normalizeTag(label);
+  return n.startsWith("medium:") || n.startsWith("medium ");
 }
 
 export function mergeCustomAndPointTags(

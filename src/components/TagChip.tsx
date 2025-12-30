@@ -7,6 +7,7 @@ type Props = ViewProps & {
   label: string;
   variant?: "dark" | "light";
   kind?: "ponto" | "custom";
+  tone?: "default" | "medium";
 };
 
 export function TagChip({
@@ -14,11 +15,17 @@ export function TagChip({
   style,
   variant = "dark",
   kind = "ponto",
+  tone = "default",
   ...rest
 }: Props) {
   const isLight = variant === "light";
 
-  const customColor = isLight ? colors.textPrimaryOnLight : colors.brass600;
+  const customColor =
+    tone === "medium"
+      ? colors.brass600
+      : isLight
+      ? colors.textPrimaryOnLight
+      : colors.brass600;
   const pontoTextColor = isLight ? colors.textPrimaryOnLight : colors.paper100;
 
   return (
