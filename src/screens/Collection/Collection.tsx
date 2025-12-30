@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { supabase } from "@/lib/supabase";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -61,6 +62,7 @@ export default function Collection() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const rootPager = useRootPager();
+  const { shouldBlockPress } = useGestureBlock();
 
   const { user } = useAuth();
 
@@ -453,6 +455,8 @@ export default function Collection() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
+                    if (shouldBlockPress()) return;
+
                     router.push({
                       pathname: "/player",
                       params: {

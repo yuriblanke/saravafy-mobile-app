@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
@@ -335,7 +336,7 @@ function TerreiroCard({
               />
             ) : (
               <Image
-                source={require("@/assets/images/filler.png")}
+                source={require("@/assets/images/image_cover_filler.png")}
                 resizeMode="cover"
                 style={styles.cardImage}
               />
@@ -392,6 +393,7 @@ function TerreiroCard({
 export default function Terreiros() {
   const router = useRouter();
   const { effectiveTheme, setActiveContext } = usePreferences();
+  const gestureGate = useGestureGate();
   const variant = effectiveTheme;
 
   const textPrimary =
@@ -532,6 +534,8 @@ export default function Terreiros() {
                     expanded={expanded}
                     onToggleExpanded={() => toggleExpanded(item.id)}
                     onOpenCollections={() => {
+                      if (gestureGate.shouldBlockPress()) return;
+
                       const name =
                         (typeof item.name === "string" && item.name.trim()) ||
                         "Terreiro";

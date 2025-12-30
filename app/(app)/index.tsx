@@ -1,7 +1,8 @@
 import { useRootPager } from "@/contexts/RootPagerContext";
+import { useTabController } from "@/contexts/TabControllerContext";
 import Home from "@/src/screens/Home/Home";
 import Terreiros from "@/src/screens/Terreiros/Terreiros";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo } from "react";
 import { useWindowDimensions, View } from "react-native";
 import { TabView } from "react-native-tab-view";
 /**
@@ -21,6 +22,7 @@ import { TabView } from "react-native-tab-view";
  * - NÃO modificar a estrutura sem considerar o impacto em AppHeaderWithPreferences
  */ export default function RootPager() {
   const ctx = useRootPager();
+  const tabController = useTabController();
   const { width } = useWindowDimensions();
 
   const routes = useMemo(() => {
@@ -38,6 +40,16 @@ import { TabView } from "react-native-tab-view";
     if (route.key === "terreiros") return <Terreiros />;
     return <View />;
   }, []);
+
+  useEffect(() => {
+    tabController.registerGoToTab((tab) => {
+      ctx.setActiveKey(tab);
+    });
+
+    return () => {
+      tabController.registerGoToTab(null);
+    };
+  }, [ctx, tabController]);
 
   return (
     <View style={{ flex: 1 }}>

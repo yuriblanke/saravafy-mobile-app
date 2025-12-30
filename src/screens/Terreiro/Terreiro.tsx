@@ -1,3 +1,4 @@
+import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -35,6 +36,7 @@ import {
 export default function Terreiro() {
   const router = useRouter();
   const rootPager = useRootPager();
+  const { shouldBlockPress } = useGestureBlock();
   const params = useLocalSearchParams<{
     bootStart?: string;
     bootOffline?: string;
@@ -510,6 +512,8 @@ export default function Terreiro() {
 
               // Navega para a tela de Collection
               const handlePress = () => {
+                if (shouldBlockPress()) return;
+
                 if (!isEditingThisCollection && !isNew) {
                   router.push({
                     pathname: "/collection/[id]",

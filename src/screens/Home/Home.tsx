@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
@@ -80,6 +81,7 @@ export default function Home() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const rootPager = useRootPager();
+  const { shouldBlockPress } = useGestureBlock();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
   // Estado para modal de adicionar à coleção
@@ -374,6 +376,7 @@ export default function Home() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
+                    if (shouldBlockPress()) return;
                     router.push({
                       pathname: "/player",
                       params: {

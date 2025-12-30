@@ -1,3 +1,4 @@
+import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
@@ -48,6 +49,7 @@ export function AppTabSwipeOverlay() {
   const pathname = usePathname();
   const rootPager = useRootPager();
   const tabController = useTabController();
+  const gestureBlock = useGestureBlock();
   const gestureGate = useGestureGate();
   const { width } = useWindowDimensions();
 
@@ -55,6 +57,7 @@ export function AppTabSwipeOverlay() {
   const swipeRecognizedRef = useRef(false);
   const didNavigateRef = useRef(false);
   const rejectedForVerticalRef = useRef(false);
+  const didMarkRef = useRef(false);
 
   // Desabilita overlay no player (swipe de música tem prioridade)
   // e quando algum bottom sheet está aberto (o TabView já bloqueia swipe nesse estado).
@@ -69,7 +72,12 @@ export function AppTabSwipeOverlay() {
       isOverlayDisabled,
       isBottomSheetOpen: !!rootPager?.isBottomSheetOpen,
     });
-  }, [isOverlayDisabled, isPlayerActive, pathname, rootPager?.isBottomSheetOpen]);
+  }, [
+    isOverlayDisabled,
+    isPlayerActive,
+    pathname,
+    rootPager?.isBottomSheetOpen,
+  ]);
 
   const panResponder = useMemo(() => {
     if (isOverlayDisabled) return null;
@@ -111,6 +119,7 @@ export function AppTabSwipeOverlay() {
         swipeRecognizedRef.current = false;
         didNavigateRef.current = false;
         rejectedForVerticalRef.current = false;
+        didMarkRef.current = false;
         translateX.setValue(0);
 
         if (__DEV__) {
@@ -122,8 +131,18 @@ export function AppTabSwipeOverlay() {
         const absX = Math.abs(gesture.dx);
         const absY = Math.abs(gesture.dy);
 
+        // Prompt B: se um swipe horizontal foi reconhecido nesse gesto,
+        // bloquear press por uma janela curta para evitar tap fantasma.
+        if (!didMarkRef.current && shouldCaptureSwipe(gesture.dx, gesture.dy)) {
+          didMarkRef.current = true;
+          gestureBlock.markSwipeRecognized();
+        }
+
         // Reject early para vertical: não brigar com scroll.
-        if (!swipeRecognizedRef.current && shouldRejectForVertical(gesture.dx, gesture.dy)) {
+        if (
+          !swipeRecognizedRef.current &&
+          shouldRejectForVertical(gesture.dx, gesture.dy)
+        ) {
           rejectedForVerticalRef.current = true;
           return;
         }
@@ -234,6 +253,7 @@ export function AppTabSwipeOverlay() {
             translateX.setValue(0);
             swipeRecognizedRef.current = false;
             rejectedForVerticalRef.current = false;
+            didMarkRef.current = false;
           });
           return;
         }
@@ -248,6 +268,7 @@ export function AppTabSwipeOverlay() {
           }
           swipeRecognizedRef.current = false;
           rejectedForVerticalRef.current = false;
+          didMarkRef.current = false;
         });
       },
 
@@ -262,6 +283,7 @@ export function AppTabSwipeOverlay() {
           }
           swipeRecognizedRef.current = false;
           rejectedForVerticalRef.current = false;
+          didMarkRef.current = false;
         });
 
         if (__DEV__) {
@@ -274,6 +296,7 @@ export function AppTabSwipeOverlay() {
     pathname,
     router,
     tabController,
+    gestureBlock,
     gestureGate,
     translateX,
     width,

@@ -1,7 +1,11 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { GestureBlockProvider } from "@/contexts/GestureBlockContext";
+import { GestureGateProvider } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
+import { TabControllerProvider } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
+import { AppTabSwipeOverlay } from "@/src/components/AppTabSwipeOverlay";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyActiveTerreiroIdsQuery } from "@/src/queries/me";
@@ -59,57 +63,66 @@ export default function AppLayout() {
 
   return (
     <SaravafyScreen variant={effectiveTheme}>
-      <RootPagerProvider>
-        {showGlobalHeader ? <AppHeaderWithPreferences /> : null}
+      <GestureGateProvider>
+        <GestureBlockProvider>
+          <RootPagerProvider>
+            <TabControllerProvider>
+              {showGlobalHeader ? <AppHeaderWithPreferences /> : null}
 
-        <View style={{ flex: 1 }}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              contentStyle: { backgroundColor: "transparent" },
-              // As telas ficam propositalmente sem background sólido para
-              // deixar o SaravafyScreen aparecer (gradiente/textura).
-              // Com animação de Stack, isso causa um frame onde a tela anterior
-              // "vaza" por baixo durante transições. Desabilitamos a animação
-              // globalmente para eliminar qualquer sobreposição visual.
-              animation: "none",
-            }}
-          >
-            <Stack.Screen name="index" />
+              <View style={{ flex: 1 }}>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    contentStyle: { backgroundColor: "transparent" },
+                    // As telas ficam propositalmente sem background sólido para
+                    // deixar o SaravafyScreen aparecer (gradiente/textura).
+                    // Com animação de Stack, isso causa um frame onde a tela anterior
+                    // "vaza" por baixo durante transições. Desabilitamos a animação
+                    // globalmente para eliminar qualquer sobreposição visual.
+                    animation: "none",
+                  }}
+                >
+                  <Stack.Screen name="index" />
 
-            <Stack.Screen name="terreiro" />
-            <Stack.Screen name="player" />
-            <Stack.Screen name="collection/[id]" />
+                  <Stack.Screen name="terreiro" />
+                  <Stack.Screen name="player" />
+                  <Stack.Screen name="collection/[id]" />
 
-            <Stack.Screen
-              name="terreiro-editor"
-              options={{
-                presentation: "modal",
-                animation: "slide_from_bottom",
-                contentStyle: {
-                  backgroundColor:
-                    effectiveTheme === "light"
-                      ? colors.paper50
-                      : colors.forest900,
-                },
-              }}
-            />
-            <Stack.Screen
-              name="access-manager"
-              options={{
-                presentation: "modal",
-                animation: "slide_from_bottom",
-                contentStyle: {
-                  backgroundColor:
-                    effectiveTheme === "light"
-                      ? colors.paper50
-                      : colors.forest900,
-                },
-              }}
-            />
-          </Stack>
-        </View>
-      </RootPagerProvider>
+                  <Stack.Screen
+                    name="terreiro-editor"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="access-manager"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+                </Stack>
+
+                {/* Overlay global para swipe horizontal entre abas (topo real) */}
+                <AppTabSwipeOverlay />
+              </View>
+            </TabControllerProvider>
+          </RootPagerProvider>
+        </GestureBlockProvider>
+      </GestureGateProvider>
     </SaravafyScreen>
   );
 }
