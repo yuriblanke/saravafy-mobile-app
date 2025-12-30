@@ -56,3 +56,7 @@ android/
 
 expo-env.d.ts
 # @end expo-cli
+
+# Local dev artifacts (schema dumps)
+README.schema-completo.json
+README.schema-query.sql

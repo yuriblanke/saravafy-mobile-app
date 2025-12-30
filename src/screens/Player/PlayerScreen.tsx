@@ -1,7 +1,6 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
-import { AtabaqueIcon } from "@/src/components/icons/AtabaqueIcon";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -17,6 +16,7 @@ import React, {
 import {
   ActivityIndicator,
   FlatList,
+  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -33,6 +33,9 @@ import {
 
 const LYRICS_FONT_MIN = 14;
 const LYRICS_FONT_MAX = 26;
+
+const curimbaOnPng = require("@/assets/images/curimba-on.png");
+const curimbaOffPng = require("@/assets/images/curimba-off.png");
 
 function parseIntSafe(value: unknown): number | null {
   const n = Number(value);
@@ -271,10 +274,11 @@ export default function PlayerScreen() {
             hitSlop={10}
             style={styles.headerIconBtn}
           >
-            <AtabaqueIcon
-              size={18}
-              color={curimbaEnabled ? colors.brass600 : textPrimary}
-              filled={curimbaEnabled}
+            <Image
+              source={curimbaEnabled ? curimbaOnPng : curimbaOffPng}
+              style={styles.curimbaIcon}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
             />
           </Pressable>
 
@@ -394,6 +398,10 @@ const styles = StyleSheet.create({
   fontBtnText: {
     fontSize: 14,
     fontWeight: "900",
+  },
+  curimbaIcon: {
+    width: 18,
+    height: 18,
   },
   body: {
     flex: 1,

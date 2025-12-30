@@ -271,7 +271,7 @@ A query de convites pendentes é:
 
 ### UI 2: Modal do convite
 
-> Na implementao atual, isso  um **overlay** (no um `Modal` do React Native), mas o comportamento para o usurio  de “modal bloqueante”.
+> Na implementação atual, isso é um **overlay** (não um `Modal` do React Native), mas o comportamento para o usuário é de “modal bloqueante”.
 
 - Título fixo: “Você foi convidada para colaborar em um terreiro”
 - Corpo fixo:
@@ -281,10 +281,11 @@ A query de convites pendentes é:
   - Secundário: “Recusar convite”
 - Enquanto processa:
   - desabilita botões
-  - bloqueia botão de voltar do Android (BackHandler intercepta)
+- Android (botão voltar):
+  - enquanto o overlay estiver visível, o botão de voltar é bloqueado (BackHandler intercepta)
 - Backdrop:
-  - bloqueia interaes com a tela por baixo
-  - **no fecha** ao tocar no fundo (sem dismiss)
+  - bloqueia interações com a tela por baixo
+  - **não fecha** ao tocar no fundo (sem dismiss)
 
 ### Ação: “Aceitar convite”
 
@@ -303,7 +304,7 @@ A query de convites pendentes é:
 
 **Resultado UX**
 
-- Toast: “Convite aceito. Você já pode colaborar.”
+- Toast: “Convite aceito.”
 - Refresh da fila; se houver mais convites, avança para o próximo; senão fecha o modal.
 
 ### Ação: “Recusar convite”
@@ -326,11 +327,11 @@ A query de convites pendentes é:
 
 ### Tratamento de erro e “modo degradado”
 
-- Se o Supabase retornar erro de **recurso infinita de RLS** ao consultar convites pendentes:
+- Se o Supabase retornar erro de **recursão infinita de RLS** ao consultar convites pendentes:
 
-  - o gate entra em “fail open” (no bloqueia o usurio)
-  - interrompe novas tentativas automticas para no martelar o backend
-  - mostra um toast nico informando que convites esto indisponveis
+  - o gate entra em “fail open” (não bloqueia o usuário)
+  - interrompe novas tentativas automáticas para não martelar o backend
+  - mostra um toast único: “Convites indisponíveis no momento. Tente novamente mais tarde.”
 
 - Em falhas genéricas de rede/servidor:
   - mostra mensagem no modal: “Não foi possível concluir agora. Verifique sua conexão e tente novamente.”
@@ -418,7 +419,7 @@ A tela `TerreiroEditor` também tem um BottomSheet informativo “Papéis no ter
   - “Aceitar convite”
   - “Recusar convite”
 - Toasts:
-  - “Convite aceito. Você já pode colaborar.”
+  - “Convite aceito.”
   - “Convite recusado.”
 
 ---
