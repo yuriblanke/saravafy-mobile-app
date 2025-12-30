@@ -45,10 +45,8 @@ export default function LoginScreen() {
     <SaravafyScreen variant={variant}>
       <View style={styles.container}>
         <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-
-        <Text style={[styles.title, { color: textPrimary }]}>Bem-vindo</Text>
         <Text style={[styles.subtitle, { color: textSecondary }]}>
-          Entre para continuar.
+          Deixa o ponto te guiar
         </Text>
 
         <Pressable

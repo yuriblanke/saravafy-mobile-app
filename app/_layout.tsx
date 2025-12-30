@@ -38,6 +38,7 @@ import {
 
 export {
   // Catch any errors thrown by the Layout component.
+  import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
   ErrorBoundary,
 } from "expo-router";
 
@@ -61,6 +62,7 @@ export default function RootLayout() {
   });
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
+                <TerreirosRealtimeSync />
   useEffect(() => {
     if (error) throw error;
   }, [error]);

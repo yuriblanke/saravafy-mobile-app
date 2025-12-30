@@ -17,9 +17,9 @@ import {
   View,
 } from "react-native";
 import {
-  fetchTerreirosWithRole,
   type TerreiroListItem,
 } from "./data/terreiros";
+import { useTerreirosWithRoleQuery } from "@/src/queries/terreirosWithRole";
 
 function toActiveContextRole(role: TerreiroListItem["role"]) {
   return role === "admin" || role === "editor" || role === "follower"
@@ -413,10 +413,7 @@ export default function Terreiros() {
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
   const { user } = useAuth();
-  const userId = user?.id ?? "";
-  const [terreiros, setTerreiros] = useState<TerreiroListItem[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const userId = user?.id ?? null;
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTerreiroId, setExpandedTerreiroId] = useState<string | null>(
     null
@@ -426,28 +423,10 @@ export default function Terreiros() {
     setExpandedTerreiroId((prev) => (prev === id ? null : id));
   }, []);
 
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const data = await fetchTerreirosWithRole(userId);
-      setTerreiros(data);
-    } catch (e) {
-      if (__DEV__) {
-        console.info("[Terreiros] erro ao carregar", {
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-      setError("Erro ao carregar os terreiros.");
-      setTerreiros([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [userId]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  const terreirosQuery = useTerreirosWithRoleQuery(userId);
+  const terreiros = (terreirosQuery.data ?? []) as TerreiroListItem[];
+  const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
+  const error = terreirosQuery.isError ? "Erro ao carregar os terreiros." : null;
 
   const filteredTerreiros = useMemo(() => {
     const q = normalize(searchQuery);
@@ -505,7 +484,9 @@ export default function Terreiros() {
             </Text>
             <Pressable
               accessibilityRole="button"
-              onPress={load}
+              onPress={() => {
+                void terreirosQuery.refetch();
+              }}
               style={[
                 styles.retryBtn,
                 variant === "light"
