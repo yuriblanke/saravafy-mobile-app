@@ -27,8 +27,15 @@ import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { APP_INSTALL_URL } from "@/src/config/links";
+import { queryKeys } from "@/src/queries/queryKeys";
+import {
+  invalidateTerreiro,
+  invalidateTerreiroListsForRoles,
+  patchTerreiroInLists,
+} from "@/src/queries/terreirosCache";
 import { colors, radii, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
 import * as FileSystem from "expo-file-system";
@@ -386,6 +393,8 @@ export default function TerreiroEditor() {
     mode?: EditorMode;
     terreiroId?: string;
   }>();
+
+  const queryClient = useQueryClient();
 
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -1094,6 +1103,26 @@ export default function TerreiroEditor() {
         });
 
         if (user?.id) {
+          patchTerreiroInLists(queryClient, {
+            userId: user.id,
+            terreiro: {
+              id: createdId,
+              name: title,
+              coverImageUrl:
+                typeof finalCoverUrl === "string" ? finalCoverUrl : undefined,
+              role: "admin",
+            },
+          });
+
+          invalidateTerreiro(queryClient, createdId);
+          invalidateTerreiroListsForRoles(queryClient, user.id);
+          void queryClient.refetchQueries({
+            queryKey: queryKeys.terreiros.withRole(user.id),
+            type: "all",
+          });
+        }
+
+        if (user?.id) {
           fetchTerreirosQueAdministro(user.id).catch(() => undefined);
         }
 
@@ -1189,6 +1218,24 @@ export default function TerreiroEditor() {
         terreiroName: title,
         terreiroAvatarUrl: coverImageUrl || undefined,
       });
+
+      if (user?.id) {
+        patchTerreiroInLists(queryClient, {
+          userId: user.id,
+          terreiro: {
+            id,
+            name: title,
+            coverImageUrl: wantsRemoveCover
+              ? null
+              : typeof coverImageUrl === "string" && coverImageUrl
+              ? coverImageUrl
+              : undefined,
+          },
+        });
+
+        invalidateTerreiro(queryClient, id);
+        invalidateTerreiroListsForRoles(queryClient, user.id);
+      }
 
       if (user?.id) {
         fetchTerreirosQueAdministro(user.id).catch(() => undefined);

@@ -7,7 +7,7 @@ import {
   invalidateTerreiroListsForRoles,
 } from "@/src/queries/terreirosCache";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 type PgChangePayload = {
   eventType?: string;

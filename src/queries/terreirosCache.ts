@@ -50,6 +50,11 @@ export function patchTerreiroInLists(
   const { userId, terreiro } = params;
   if (!userId || !terreiro?.id) return;
 
+  const hasCoverField = Object.prototype.hasOwnProperty.call(
+    terreiro,
+    "coverImageUrl"
+  );
+
   // Patch the main "Terreiros" list cache if present.
   const key = queryKeys.terreiros.withRole(userId);
   const prev = queryClient.getQueryData(key) as any;
@@ -61,8 +66,11 @@ export function patchTerreiroInLists(
       next[idx] = {
         ...next[idx],
         name: terreiro.name,
-        coverImageUrl:
-          typeof terreiro.coverImageUrl === "string" ? terreiro.coverImageUrl : next[idx]?.coverImageUrl,
+        coverImageUrl: hasCoverField
+          ? typeof terreiro.coverImageUrl === "string"
+            ? terreiro.coverImageUrl
+            : undefined
+          : next[idx]?.coverImageUrl,
         role: terreiro.role ?? next[idx]?.role,
       };
     } else {
@@ -70,7 +78,8 @@ export function patchTerreiroInLists(
         id: terreiro.id,
         name: terreiro.name,
         role: terreiro.role ?? "admin",
-        coverImageUrl: typeof terreiro.coverImageUrl === "string" ? terreiro.coverImageUrl : undefined,
+        coverImageUrl:
+          typeof terreiro.coverImageUrl === "string" ? terreiro.coverImageUrl : undefined,
       });
     }
 
@@ -85,7 +94,13 @@ export function patchTerreiroInLists(
   if (Array.isArray(prevEditable)) {
     const next = [...prevEditable];
     const idx = next.findIndex((t: any) => t?.id === terreiro.id);
-    const cover = typeof terreiro.coverImageUrl === "string" ? terreiro.coverImageUrl : null;
+    const cover = hasCoverField
+      ? typeof terreiro.coverImageUrl === "string"
+        ? terreiro.coverImageUrl
+        : null
+      : idx >= 0
+      ? next[idx]?.cover_image_url ?? null
+      : null;
 
     if (idx >= 0) {
       next[idx] = {

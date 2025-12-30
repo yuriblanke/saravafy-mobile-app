@@ -19,6 +19,7 @@ import {
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
+import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
 import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
@@ -38,7 +39,6 @@ import {
 
 export {
   // Catch any errors thrown by the Layout component.
-  import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
   ErrorBoundary,
 } from "expo-router";
 
@@ -62,7 +62,6 @@ export default function RootLayout() {
   });
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
-                <TerreirosRealtimeSync />
   useEffect(() => {
     if (error) throw error;
   }, [error]);
@@ -78,6 +77,7 @@ export default function RootLayout() {
           <RootPagerProvider>
             <ToastProvider>
               <RootLayoutNav />
+              <TerreirosRealtimeSync />
             </ToastProvider>
           </RootPagerProvider>
         </PreferencesProvider>

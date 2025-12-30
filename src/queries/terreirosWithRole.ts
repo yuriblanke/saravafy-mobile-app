@@ -164,8 +164,7 @@ export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroLi
     }
   }
 
-  return rows
-    .map((t: any) => {
+  const mapped = rows.map((t: any): TerreiroListItem | null => {
       const id = typeof t?.id === "string" ? t.id : "";
       if (!id) return null;
 
@@ -184,7 +183,7 @@ export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroLi
       const contato = contatoByTerreiroId[id];
       const responsaveis = responsaveisByTerreiroId[id] ?? [];
 
-      return {
+      const item: TerreiroListItem = {
         id,
         name: typeof t?.title === "string" ? t.title : "Terreiro",
         role,
@@ -233,9 +232,12 @@ export async function fetchTerreirosWithRole(userId: string): Promise<TerreiroLi
           typeof t?.cover_image_url === "string" && t.cover_image_url.trim()
             ? t.cover_image_url.trim()
             : undefined,
-      } satisfies TerreiroListItem;
-    })
-    .filter((x): x is TerreiroListItem => !!x);
+      };
+
+      return item;
+    });
+
+  return mapped.filter((x): x is TerreiroListItem => x !== null);
 }
 
 export function useTerreirosWithRoleQuery(userId: string | null) {

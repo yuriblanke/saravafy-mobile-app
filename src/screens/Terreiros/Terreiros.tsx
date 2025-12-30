@@ -5,7 +5,7 @@ import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   FlatList,
   Image,
@@ -424,7 +424,10 @@ export default function Terreiros() {
   }, []);
 
   const terreirosQuery = useTerreirosWithRoleQuery(userId);
-  const terreiros = (terreirosQuery.data ?? []) as TerreiroListItem[];
+  const terreiros = useMemo(
+    () => (terreirosQuery.data ?? []) as TerreiroListItem[],
+    [terreirosQuery.data]
+  );
   const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
   const error = terreirosQuery.isError ? "Erro ao carregar os terreiros." : null;
 
