@@ -102,9 +102,34 @@ function RootLayoutNav() {
     if (isLoading) return;
 
     didPrefetchCollectionsRef.current = true;
-    prefetchAccountableCollections(queryClient, user.id).catch((e) => {
-      console.error("[Boot] erro ao prefetch collections:", e);
-    });
+
+    if (__DEV__) {
+      console.info("[Boot] prefetch accountable collections start", {
+        userId: user.id,
+      });
+    }
+    prefetchAccountableCollections(queryClient, user.id)
+      .catch((e) => {
+        console.error("[Boot] erro ao prefetch collections:", e);
+      })
+      .finally(() => {
+        if (!__DEV__) return;
+        try {
+          const data = queryClient.getQueryData([
+            "collections",
+            "accountable",
+          ] as const);
+          console.info("[Boot] prefetch accountable collections done", {
+            userId: user.id,
+            cachedCount: Array.isArray(data) ? data.length : null,
+          });
+        } catch {
+          console.info("[Boot] prefetch accountable collections done", {
+            userId: user.id,
+            cachedCount: null,
+          });
+        }
+      });
   }, [user?.id, isLoading, queryClient]);
 
   // LATCHES: Boot e navegação devem acontecer apenas 1x por cold start

@@ -37,6 +37,13 @@ export async function fetchAccountableCollections(
 ): Promise<AccountableCollection[]> {
   if (!userId) return [];
 
+  const startedAt = Date.now();
+  if (__DEV__) {
+    console.info("[Collections] fetchAccountableCollections start", {
+      userId,
+    });
+  }
+
   try {
     // RLS cuida do controle de acesso - buscamos TODAS as coleções visíveis
     const res = await supabase
@@ -90,9 +97,24 @@ export async function fetchAccountableCollections(
       })
       .filter(Boolean) as AccountableCollection[];
 
+    if (__DEV__) {
+      console.info("[Collections] fetchAccountableCollections ok", {
+        userId,
+        ms: Date.now() - startedAt,
+        count: mapped.length,
+      });
+    }
+
     return mapped;
   } catch (e) {
     console.error("[fetchAccountableCollections] erro:", e);
+    if (__DEV__) {
+      console.info("[Collections] fetchAccountableCollections error", {
+        userId,
+        ms: Date.now() - startedAt,
+        message: getErrorMessage(e),
+      });
+    }
     throw new Error(getErrorMessage(e));
   }
 }

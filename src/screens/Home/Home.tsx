@@ -74,8 +74,15 @@ export function getLyricsPreview(lyrics: string, maxLines = 6) {
 
 export default function Home() {
   // Adapta o padrão de tema igual Terreiros
-  const { effectiveTheme, activeContext, terreirosAdmin } =
-    require("@/contexts/PreferencesContext").usePreferences();
+  const {
+    effectiveTheme,
+    activeContext,
+    terreirosAdmin,
+    loadingTerreirosAdmin,
+    erroTerreirosAdmin,
+    hasLoadedTerreirosAdmin,
+    hasAttemptedTerreirosAdmin,
+  } = require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
   const router = useRouter();
@@ -137,15 +144,49 @@ export default function Home() {
     : null;
 
   const closeAddToCollectionSheet = useCallback(() => {
+    if (__DEV__) {
+      console.info("[AddToCollectionDebug] close sheet", {
+        userId,
+        allCount: allCollections.length,
+      });
+    }
     setAddModalVisible(false);
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
     rootPager.setIsBottomSheetOpen(false);
-  }, [rootPager]);
+  }, [allCollections.length, rootPager, userId]);
 
   const openAddToCollectionSheet = useCallback(
     (ponto: Ponto) => {
+      if (__DEV__) {
+        console.info("[AddToCollectionDebug] open sheet", {
+          userId,
+          pontoId: ponto?.id ?? null,
+          query: {
+            status: accountableCollectionsQuery.status,
+            fetchStatus: accountableCollectionsQuery.fetchStatus,
+            isFetching: accountableCollectionsQuery.isFetching,
+            dataUpdatedAt: accountableCollectionsQuery.dataUpdatedAt,
+            dataCount: allCollections.length,
+            error: collectionsError,
+          },
+          activeContextKind: activeContext.kind,
+          activeTerreiroId:
+            activeContext.kind === "TERREIRO_PAGE"
+              ? activeContext.terreiroId
+              : null,
+          activeRole:
+            activeContext.kind === "TERREIRO_PAGE"
+              ? activeContext.role ?? null
+              : null,
+          terreirosAdminCount: (terreirosAdmin ?? []).length,
+          loadingTerreirosAdmin,
+          hasLoadedTerreirosAdmin,
+          hasAttemptedTerreirosAdmin,
+          erroTerreirosAdmin,
+        });
+      }
       // IMPORTANT: o sheet abre sem "piscar" loading.
       // A lista é servida do cache (ou vazia) e refetch ocorre em background.
       setIsCreateCollectionModalOpen(false);
@@ -159,7 +200,22 @@ export default function Home() {
       setAddModalVisible(true);
       rootPager.setIsBottomSheetOpen(true);
     },
-    [rootPager]
+    [
+      activeContext,
+      accountableCollectionsQuery.dataUpdatedAt,
+      accountableCollectionsQuery.fetchStatus,
+      accountableCollectionsQuery.isFetching,
+      accountableCollectionsQuery.status,
+      allCollections.length,
+      collectionsError,
+      erroTerreirosAdmin,
+      hasAttemptedTerreirosAdmin,
+      hasLoadedTerreirosAdmin,
+      loadingTerreirosAdmin,
+      rootPager,
+      terreirosAdmin,
+      userId,
+    ]
   );
 
   const filteredCollections = useMemo(() => {
@@ -212,7 +268,13 @@ export default function Home() {
       const role = roleFromActiveContext ?? terreiroRoleById.get(terreiroId);
       return role === "admin" || role === "editor";
     },
-    [activeContext.kind, activeContext.role, activeContext.terreiroId, terreiroRoleById, user?.id]
+    [
+      activeContext.kind,
+      activeContext.role,
+      activeContext.terreiroId,
+      terreiroRoleById,
+      user?.id,
+    ]
   );
 
   // IMPORTANT (UX): este filtro  APENAS para o fluxo de “Adicionar ponto  escolher coleo”.
@@ -220,6 +282,86 @@ export default function Home() {
   const writableCollections = useMemo(() => {
     return filteredCollections.filter(canWriteToCollection);
   }, [canWriteToCollection, filteredCollections]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    console.info("[AddToCollectionDebug] collections query state", {
+      userId,
+      enabled: !!userId,
+      status: accountableCollectionsQuery.status,
+      fetchStatus: accountableCollectionsQuery.fetchStatus,
+      isFetching: accountableCollectionsQuery.isFetching,
+      isPending: accountableCollectionsQuery.isPending,
+      isSuccess: accountableCollectionsQuery.isSuccess,
+      isError: accountableCollectionsQuery.isError,
+      dataUpdatedAt: accountableCollectionsQuery.dataUpdatedAt,
+      dataCount: allCollections.length,
+      error: collectionsError,
+    });
+  }, [
+    userId,
+    accountableCollectionsQuery.status,
+    accountableCollectionsQuery.fetchStatus,
+    accountableCollectionsQuery.isFetching,
+    accountableCollectionsQuery.isPending,
+    accountableCollectionsQuery.isSuccess,
+    accountableCollectionsQuery.isError,
+    accountableCollectionsQuery.dataUpdatedAt,
+    allCollections.length,
+    collectionsError,
+  ]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    console.info("[AddToCollectionDebug] derived collections", {
+      userId,
+      activeContextKind: activeContext.kind,
+      activeTerreiroId:
+        activeContext.kind === "TERREIRO_PAGE"
+          ? activeContext.terreiroId
+          : null,
+      activeRole:
+        activeContext.kind === "TERREIRO_PAGE"
+          ? activeContext.role ?? null
+          : null,
+      terreirosAdminCount: (terreirosAdmin ?? []).length,
+      loadingTerreirosAdmin,
+      hasLoadedTerreirosAdmin,
+      hasAttemptedTerreirosAdmin,
+      erroTerreirosAdmin,
+      allCount: allCollections.length,
+      filteredCount: filteredCollections.length,
+      writableCount: writableCollections.length,
+    });
+  }, [
+    userId,
+    activeContext,
+    terreirosAdmin,
+    loadingTerreirosAdmin,
+    hasLoadedTerreirosAdmin,
+    hasAttemptedTerreirosAdmin,
+    erroTerreirosAdmin,
+    allCollections.length,
+    filteredCollections.length,
+    writableCollections.length,
+  ]);
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    if (!addModalVisible) return;
+    console.info("[AddToCollectionDebug] sheet visible", {
+      userId,
+      allCount: allCollections.length,
+      filteredCount: filteredCollections.length,
+      writableCount: writableCollections.length,
+    });
+  }, [
+    addModalVisible,
+    userId,
+    allCollections.length,
+    filteredCollections.length,
+    writableCollections.length,
+  ]);
 
   const getCollectionOwnerLabel = (c: AccountableCollection) => {
     if (!user?.id) return "";

@@ -203,6 +203,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
     supabase.auth
       .getSession()
       .then(({ data: { session } }) => {
+        if (__DEV__) {
+          console.info("[Auth] getSession ok", {
+            hasSession: !!session,
+            userId: session?.user?.id ?? null,
+          });
+        }
         setSession(session);
         setUser(session?.user ?? null);
         setIsLoading(false);
@@ -240,6 +246,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
+      if (__DEV__) {
+        console.info("[Auth] onAuthStateChange", {
+          event,
+          hasSession: !!session,
+          userId: session?.user?.id ?? null,
+        });
+      }
       setSession(session);
       setUser(session?.user ?? null);
       setIsLoading(false);
