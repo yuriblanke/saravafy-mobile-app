@@ -914,7 +914,8 @@ import {
   View,
 } from "react-native";
 
-import { AccessSection } from "./AccessSection";
+import { TagChip } from "@/src/components/TagChip";
+
 import { GestaoList } from "./GestaoList";
 import { InviteModal, type InviteModalMode } from "./InviteModal";
 import { type AccessRole, type InviteStatus } from "./InviteRow";
@@ -1011,6 +1012,10 @@ export default function AccessManagerScreen() {
     variant === "light"
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
+  const textMuted =
+    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+  const dividerColor =
+    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
 
   const { data: membership } = useTerreiroMembershipStatus(terreiroId);
   const canSeeManager =
@@ -1383,14 +1388,17 @@ export default function AccessManagerScreen() {
       .map((m) => {
         const uid = String(m.user_id ?? "");
         const profile = memberProfilesById[uid];
-        const email = profile?.email ? normalizeEmail(profile.email) : uid;
+        const label =
+          typeof profile?.full_name === "string" && profile.full_name.trim()
+            ? profile.full_name.trim()
+            : normalizeEmail(profile?.email ?? "");
         const role =
           String(m.role ?? "") === "admin"
             ? ("admin" as const)
             : ("editor" as const);
         return {
           userId: uid,
-          label: email,
+          label,
           role,
         };
       });
@@ -1402,10 +1410,13 @@ export default function AccessManagerScreen() {
       .map((m) => {
         const uid = String(m.user_id ?? "");
         const profile = memberProfilesById[uid];
-        const email = profile?.email ? normalizeEmail(profile.email) : uid;
+        const label =
+          typeof profile?.full_name === "string" && profile.full_name.trim()
+            ? profile.full_name.trim()
+            : normalizeEmail(profile?.email ?? "");
         return {
           userId: uid,
-          label: email,
+          label,
         };
       });
   }, [memberProfilesById, visiblePeople]);
@@ -1502,18 +1513,32 @@ export default function AccessManagerScreen() {
           </Text>
         ) : null}
 
-        <AccessSection
-          variant={variant}
-          title="Gestão do terreiro"
-          actionLabel="+ Convidar gestão"
-          onPressAction={() => {
-            if (!canSeeManager) {
-              showToast("Você não tem permissão para convidar.");
-              return;
-            }
-            openInviteModal("gestao");
-          }}
-        >
+        <View style={styles.sectionsWrap}>
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: textMuted }]}>
+              Gestão do terreiro
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (!canSeeManager) {
+                  showToast("Você não tem permissão para convidar.");
+                  return;
+                }
+                openInviteModal("gestao");
+              }}
+              hitSlop={10}
+              style={({ pressed }) => [pressed ? styles.actionPressed : null]}
+            >
+              <Text style={styles.actionText}>+ Convidar gestão</Text>
+            </Pressable>
+          </View>
+
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
+
           <GestaoList
             variant={variant}
             items={gestaoPeople}
@@ -1524,23 +1549,40 @@ export default function AccessManagerScreen() {
             isLastAdmin={isLastAdmin}
             isBusy={isBusyForGestao}
             onOpenMenu={openMenuForGestao}
+            onPressLastAdminMenuDisabled={() => {
+              showToast(
+                "Para remover este usuário é necessário adicionar outro admin."
+              );
+            }}
           />
-        </AccessSection>
 
-        <View style={styles.sectionSpacer} />
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
 
-        <AccessSection
-          variant={variant}
-          title="Membros"
-          actionLabel="+ Convidar membro"
-          onPressAction={() => {
-            if (!canSeeManager) {
-              showToast("Você não tem permissão para convidar.");
-              return;
-            }
-            openInviteModal("membro");
-          }}
-        >
+          <View style={styles.sectionHeaderRow}>
+            <Text style={[styles.sectionTitle, { color: textMuted }]}>Membros</Text>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (!canSeeManager) {
+                  showToast("Você não tem permissão para convidar.");
+                  return;
+                }
+                openInviteModal("membro");
+              }}
+              hitSlop={10}
+              style={({ pressed }) => [pressed ? styles.actionPressed : null]}
+            >
+              <Text style={styles.actionText}>+ Convidar membro</Text>
+            </Pressable>
+          </View>
+
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
+
           <MembersList
             variant={variant}
             items={memberPeople}
@@ -1550,11 +1592,32 @@ export default function AccessManagerScreen() {
             isBusy={isBusyForMember}
             onOpenMenu={openMenuForMember}
           />
-        </AccessSection>
 
-        <View style={styles.sectionSpacer} />
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
 
-        <AccessSection variant={variant} title="Convites enviados">
+          <View style={styles.sectionHeaderRow}>
+            <View style={styles.sectionHeaderLeft}>
+              <Text style={[styles.sectionTitle, { color: textMuted }]}>
+                Convites enviados
+              </Text>
+              <TagChip
+                label="Pendente"
+                variant={variant}
+                kind="custom"
+                tone="medium"
+                style={styles.sectionHeaderChip}
+              />
+            </View>
+
+            <View />
+          </View>
+
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
+
           <PendingInvitesList
             variant={variant}
             items={pendingInvites.map((i) => ({
@@ -1568,7 +1631,7 @@ export default function AccessManagerScreen() {
             isBusy={isBusyForInvite}
             onOpenMenu={openMenuForInvite}
           />
-        </AccessSection>
+        </View>
 
         <Image
           source={require("@/assets/images/filler.png")}
@@ -1913,8 +1976,40 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     opacity: 0.9,
   },
-  sectionSpacer: {
-    height: spacing.lg,
+  sectionsWrap: {
+    gap: spacing.sm,
+  },
+  sectionHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 6,
+  },
+  sectionHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    minWidth: 0,
+  },
+  sectionHeaderChip: {
+    opacity: 0.9,
+  },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+  actionText: {
+    color: colors.brass600,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  actionPressed: {
+    opacity: 0.7,
+  },
+  blockDivider: {
+    height: StyleSheet.hairlineWidth,
+    opacity: 0.6,
   },
   filler: {
     width: "100%",

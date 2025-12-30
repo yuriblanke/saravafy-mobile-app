@@ -34,6 +34,9 @@ export function MembersList({
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
+  const borderColor =
+    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
+
   if (isLoading) {
     return (
       <Text style={[styles.inlineText, { color: textSecondary }]}>
@@ -59,9 +62,15 @@ export function MembersList({
   }
 
   return (
-    <View style={styles.list}>
-      {items.map((p) => {
+    <View
+      style={[
+        styles.list,
+        { borderTopColor: borderColor, borderBottomColor: borderColor },
+      ]}
+    >
+      {items.map((p, index) => {
         const busy = isBusy(p.userId);
+        const isLast = index === items.length - 1;
 
         return (
           <InviteRow
@@ -70,6 +79,7 @@ export function MembersList({
             email={p.label}
             role="member"
             isBusy={busy}
+            isLast={isLast}
             onOpenMenu={() => onOpenMenu(p)}
             menuDisabled={!canManage || busy}
             menuAccessibilityLabel="Ações do membro"
@@ -82,9 +92,11 @@ export function MembersList({
 
 const styles = StyleSheet.create({
   list: {
-    gap: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   inlineText: {
+    paddingHorizontal: spacing.lg,
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.9,

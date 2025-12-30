@@ -76,8 +76,8 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   body: {
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: 0,
     paddingBottom: spacing.lg,
-    gap: spacing.sm,
+    gap: 0,
   },
 });

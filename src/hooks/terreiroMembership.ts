@@ -289,6 +289,37 @@ export type TerreiroInviteRow = {
   created_at?: string | null;
 };
 
+type TerreiroMemberEmailRow = {
+  user_id: string;
+  email: string;
+};
+
+async function fetchTerreiroMemberIdentity(
+  terreiroId: string
+): Promise<Record<string, string>> {
+  const res = await supabase.rpc("fn_get_terreiro_member_identity", {
+    p_terreiro_id: terreiroId,
+  });
+
+  if (res.error) {
+    throw new Error(
+      typeof res.error.message === "string"
+        ? res.error.message
+        : "Erro ao carregar e-mails."
+    );
+  }
+
+  const rows = (res.data ?? []) as any[];
+  const map: Record<string, string> = {};
+  for (const r of rows) {
+    const uid = typeof r?.user_id === "string" ? r.user_id : "";
+    const email = typeof r?.email === "string" ? r.email : "";
+    if (!uid || !email) continue;
+    map[uid] = email;
+  }
+  return map;
+}
+
 async function fetchProfilesByIds(
   ids: string[]
 ): Promise<Record<string, ProfileLite>> {
@@ -605,11 +636,34 @@ export function useTerreiroMembers(terreiroId: string) {
       setItems(mapped);
 
       try {
+        // Prefer canonical identity from auth.users via RPC.
+        const emailsByUserId = await fetchTerreiroMemberIdentity(terreiroId);
+
         const ids = mapped.map((m) => m.user_id);
         const profiles = await fetchProfilesByIds(ids);
-        setProfilesById(profiles);
+
+        const merged: Record<string, ProfileLite> = { ...profiles };
+        for (const id of ids) {
+          const uid = String(id ?? "");
+          if (!uid) continue;
+          const email = emailsByUserId[uid];
+          if (!email) continue;
+          merged[uid] = {
+            ...(merged[uid] ?? { id: uid }),
+            email,
+          };
+        }
+
+        setProfilesById(merged);
       } catch {
-        setProfilesById({});
+        // Backwards-compatible fallback: rely on profiles table only.
+        try {
+          const ids = mapped.map((m) => m.user_id);
+          const profiles = await fetchProfilesByIds(ids);
+          setProfilesById(profiles);
+        } catch {
+          setProfilesById({});
+        }
       }
 
       return mapped;

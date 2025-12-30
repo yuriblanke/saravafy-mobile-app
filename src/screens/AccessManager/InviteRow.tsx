@@ -29,7 +29,9 @@ type Props = {
   isBusy: boolean;
   onOpenMenu?: () => void;
   menuDisabled?: boolean;
+  onDisabledMenuPress?: () => void;
   menuAccessibilityLabel?: string;
+  isLast?: boolean;
 };
 
 export function InviteRow({
@@ -40,53 +42,59 @@ export function InviteRow({
   status,
   onOpenMenu,
   menuDisabled,
+  onDisabledMenuPress,
   menuAccessibilityLabel,
+  isLast,
 }: Props) {
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
-  const canOpenMenu = typeof onOpenMenu === "function";
-  const disabled = !!menuDisabled || isBusy;
+  const canOpenMenu =
+    typeof onOpenMenu === "function" || typeof onDisabledMenuPress === "function";
+  const isMenuDisabled = !!menuDisabled || isBusy;
+  const pressDisabled = isBusy || (menuDisabled && !onDisabledMenuPress);
 
   return (
     <View
       style={[
         styles.row,
         {
-          borderColor:
+          borderBottomColor:
             variant === "light"
               ? colors.surfaceCardBorderLight
               : colors.surfaceCardBorder,
+          borderBottomWidth: isLast ? 0 : StyleSheet.hairlineWidth,
         },
       ]}
     >
-      <View style={styles.left}>
-        <Text style={[styles.email, { color: textPrimary }]} numberOfLines={1}>
-          {email}
-        </Text>
+      <Text style={[styles.email, { color: textPrimary }]} numberOfLines={1}>
+        {email}
+      </Text>
 
-        <View style={styles.badgesRow}>
-          <TagChip label={roleLabel(role)} variant={variant} />
-          {status ? (
-            <TagChip label={statusLabel(status)} variant={variant} />
-          ) : null}
-        </View>
-      </View>
+      <View style={styles.meta}>
+        <TagChip label={roleLabel(role)} variant={variant} />
+        {status ? <TagChip label={statusLabel(status)} variant={variant} /> : null}
 
-      <View style={styles.right}>
         {canOpenMenu ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={menuAccessibilityLabel || "Mais ações"}
-            onPress={onOpenMenu}
-            disabled={disabled}
+            accessibilityState={{ disabled: isMenuDisabled }}
+            onPress={() => {
+              if (isMenuDisabled) {
+                onDisabledMenuPress?.();
+                return;
+              }
+              onOpenMenu?.();
+            }}
+            disabled={pressDisabled}
             hitSlop={10}
             style={({ pressed }) => [
               styles.menuBtn,
               pressed ? styles.actionPressed : null,
-              disabled ? styles.actionDisabled : null,
+              isMenuDisabled ? styles.actionDisabled : null,
             ]}
           >
             <Ionicons name="ellipsis-vertical" size={18} color={textMuted} />
@@ -101,34 +109,23 @@ export function InviteRow({
 
 const styles = StyleSheet.create({
   row: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 14,
     paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
+    paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: spacing.md,
   },
-  left: {
+  email: {
     flex: 1,
     minWidth: 0,
-    gap: 6,
-  },
-  email: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "800",
   },
-  badgesRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  right: {
+  meta: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "flex-end",
-    gap: 10,
+    gap: 8,
   },
   actionPressed: {
     opacity: 0.7,

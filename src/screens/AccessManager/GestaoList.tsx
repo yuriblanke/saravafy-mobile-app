@@ -1,7 +1,6 @@
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 
-import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
 
 import { InviteRow, type AccessRole } from "./InviteRow";
@@ -22,6 +21,7 @@ type Props = {
   isLastAdmin: (userId: string) => boolean;
   isBusy: (userId: string) => boolean;
   onOpenMenu: (person: GestaoPerson) => void;
+  onPressLastAdminMenuDisabled: () => void;
 };
 
 export function GestaoList({
@@ -34,11 +34,15 @@ export function GestaoList({
   isLastAdmin,
   isBusy,
   onOpenMenu,
+  onPressLastAdminMenuDisabled,
 }: Props) {
   const textSecondary =
     variant === "light"
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
+
+  const borderColor =
+    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
 
   if (isLoading) {
     return (
@@ -65,31 +69,40 @@ export function GestaoList({
   }
 
   return (
-    <View style={styles.list}>
-      {items.map((p) => {
+    <View
+      style={[
+        styles.list,
+        { borderTopColor: borderColor, borderBottomColor: borderColor },
+      ]}
+    >
+      {items.map((p, index) => {
         const busy = isBusy(p.userId);
         const lastAdmin = p.role === "admin" && isLastAdmin(p.userId);
+        const isLast = index === items.length - 1;
+
+        const menuDisabled = !canManage || busy || lastAdmin;
 
         return (
-          <View key={p.userId} style={styles.rowWrap}>
-            <InviteRow
-              variant={variant}
-              email={p.label}
-              role={p.role}
-              isBusy={busy}
-              onOpenMenu={() => onOpenMenu(p)}
-              menuDisabled={!canManage || busy}
-              menuAccessibilityLabel={
-                lastAdmin && canChangeRole ? "Ações (último admin)" : "Ações"
-              }
-            />
-
-            {lastAdmin ? (
-              <View style={styles.hintRow}>
-                <TagChip label="Último admin" variant={variant} />
-              </View>
-            ) : null}
-          </View>
+          <InviteRow
+            key={p.userId}
+            variant={variant}
+            email={p.label}
+            role={p.role}
+            isBusy={busy}
+            isLast={isLast}
+            onOpenMenu={() => onOpenMenu(p)}
+            menuDisabled={menuDisabled}
+            onDisabledMenuPress={
+              lastAdmin
+                ? () => {
+                    onPressLastAdminMenuDisabled();
+                  }
+                : undefined
+            }
+            menuAccessibilityLabel={
+              lastAdmin && canChangeRole ? "Ações (último admin)" : "Ações"
+            }
+          />
         );
       })}
     </View>
@@ -98,16 +111,11 @@ export function GestaoList({
 
 const styles = StyleSheet.create({
   list: {
-    gap: spacing.sm,
-  },
-  rowWrap: {
-    gap: 6,
-  },
-  hintRow: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   inlineText: {
+    paddingHorizontal: spacing.lg,
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.9,

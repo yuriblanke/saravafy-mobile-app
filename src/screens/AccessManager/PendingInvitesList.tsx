@@ -35,6 +35,9 @@ export function PendingInvitesList({
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
+  const borderColor =
+    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
+
   if (isLoading) {
     return (
       <Text style={[styles.inlineText, { color: textSecondary }]}>
@@ -60,9 +63,15 @@ export function PendingInvitesList({
   }
 
   return (
-    <View style={styles.list}>
-      {items.map((inv) => {
+    <View
+      style={[
+        styles.list,
+        { borderTopColor: borderColor, borderBottomColor: borderColor },
+      ]}
+    >
+      {items.map((inv, index) => {
         const busy = isBusy(inv.id);
+        const isLast = index === items.length - 1;
 
         return (
           <InviteRow
@@ -70,8 +79,8 @@ export function PendingInvitesList({
             variant={variant}
             email={inv.email}
             role={inv.role}
-            status="pending"
             isBusy={busy}
+            isLast={isLast}
             onOpenMenu={() => onOpenMenu(inv)}
             menuDisabled={!canManage || busy}
             menuAccessibilityLabel="Ações do convite"
@@ -84,9 +93,11 @@ export function PendingInvitesList({
 
 const styles = StyleSheet.create({
   list: {
-    gap: spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   inlineText: {
+    paddingHorizontal: spacing.lg,
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.9,
