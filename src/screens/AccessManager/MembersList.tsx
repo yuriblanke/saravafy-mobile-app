@@ -7,7 +7,8 @@ import { InviteRow } from "./InviteRow";
 
 type MemberPerson = {
   userId: string;
-  label: string;
+  displayName: string | null;
+  email: string;
 };
 
 type Props = {
@@ -76,7 +77,7 @@ export function MembersList({
           <InviteRow
             key={p.userId}
             variant={variant}
-            email={p.label}
+            email={p.displayName || p.email}
             role="member"
             isBusy={busy}
             isLast={isLast}

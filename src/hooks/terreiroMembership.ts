@@ -269,7 +269,6 @@ export type ProfileLite = {
   id: string;
   full_name?: string | null;
   avatar_url?: string | null;
-  email?: string | null;
 };
 
 export type TerreiroMemberRow = {
@@ -328,7 +327,7 @@ async function fetchProfilesByIds(
 
   const res = await supabase
     .from("profiles")
-    .select("id, full_name, avatar_url, email")
+    .select("id, full_name, avatar_url")
     .in("id", unique);
 
   if (res.error) {
@@ -348,7 +347,39 @@ async function fetchProfilesByIds(
       id,
       full_name: typeof r.full_name === "string" ? r.full_name : null,
       avatar_url: typeof r.avatar_url === "string" ? r.avatar_url : null,
-      email: typeof r.email === "string" ? r.email : null,
+    };
+  }
+  return map;
+}
+
+async function fetchDisplayProfilesByIds(
+  ids: string[]
+): Promise<Record<string, ProfileLite>> {
+  const unique = Array.from(new Set(ids)).filter(Boolean);
+  if (unique.length === 0) return {};
+
+  const res = await supabase
+    .from("profiles")
+    .select("id, full_name, avatar_url")
+    .in("id", unique);
+
+  if (res.error) {
+    throw new Error(
+      typeof res.error.message === "string"
+        ? res.error.message
+        : "Erro ao carregar perfis."
+    );
+  }
+
+  const rows = (res.data ?? []) as any[];
+  const map: Record<string, ProfileLite> = {};
+  for (const r of rows) {
+    const id = typeof r?.id === "string" ? r.id : "";
+    if (!id) continue;
+    map[id] = {
+      id,
+      full_name: typeof r.full_name === "string" ? r.full_name : null,
+      avatar_url: typeof r.avatar_url === "string" ? r.avatar_url : null,
     };
   }
   return map;
@@ -577,6 +608,9 @@ export function useTerreiroMembers(terreiroId: string) {
   const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>(
     {}
   );
+  const [identityByUserId, setIdentityByUserId] = useState<
+    Record<string, TerreiroMemberEmailRow>
+  >({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -584,6 +618,7 @@ export function useTerreiroMembers(terreiroId: string) {
     if (!terreiroId) {
       setItems([]);
       setProfilesById({});
+      setIdentityByUserId({});
       setError(null);
       setIsLoading(false);
       return [] as TerreiroMemberRow[];
@@ -597,7 +632,6 @@ export function useTerreiroMembers(terreiroId: string) {
         .from("terreiro_members")
         .select("terreiro_id, user_id, role, status, created_at")
         .eq("terreiro_id", terreiroId)
-        .eq("status", "active")
         .order("created_at", { ascending: true });
 
       if (res.error && isColumnMissingError(res.error, "status")) {
@@ -635,41 +669,30 @@ export function useTerreiroMembers(terreiroId: string) {
 
       setItems(mapped);
 
+      // Canonical identity is ALWAYS sourced from RPC (auth.users fallback).
+      const emailsByUserId = await fetchTerreiroMemberIdentity(terreiroId);
+      setIdentityByUserId(
+        Object.fromEntries(
+          Object.entries(emailsByUserId).map(([user_id, email]) => [
+            user_id,
+            { user_id, email },
+          ])
+        )
+      );
+
       try {
-        // Prefer canonical identity from auth.users via RPC.
-        const emailsByUserId = await fetchTerreiroMemberIdentity(terreiroId);
-
         const ids = mapped.map((m) => m.user_id);
-        const profiles = await fetchProfilesByIds(ids);
-
-        const merged: Record<string, ProfileLite> = { ...profiles };
-        for (const id of ids) {
-          const uid = String(id ?? "");
-          if (!uid) continue;
-          const email = emailsByUserId[uid];
-          if (!email) continue;
-          merged[uid] = {
-            ...(merged[uid] ?? { id: uid }),
-            email,
-          };
-        }
-
-        setProfilesById(merged);
+        const profiles = await fetchDisplayProfilesByIds(ids);
+        setProfilesById(profiles);
       } catch {
-        // Backwards-compatible fallback: rely on profiles table only.
-        try {
-          const ids = mapped.map((m) => m.user_id);
-          const profiles = await fetchProfilesByIds(ids);
-          setProfilesById(profiles);
-        } catch {
-          setProfilesById({});
-        }
+        setProfilesById({});
       }
 
       return mapped;
     } catch (e) {
       setItems([]);
       setProfilesById({});
+      setIdentityByUserId({});
       setError(getErrorMessage(e));
       return [] as TerreiroMemberRow[];
     } finally {
@@ -681,7 +704,7 @@ export function useTerreiroMembers(terreiroId: string) {
     load();
   }, [load]);
 
-  return { items, profilesById, isLoading, error, reload: load };
+  return { items, profilesById, identityByUserId, isLoading, error, reload: load };
 }
 
 export function useTerreiroInvites(terreiroId: string) {

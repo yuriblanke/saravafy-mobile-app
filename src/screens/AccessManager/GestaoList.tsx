@@ -7,7 +7,8 @@ import { InviteRow, type AccessRole } from "./InviteRow";
 
 type GestaoPerson = {
   userId: string;
-  label: string;
+  displayName: string | null;
+  email: string;
   role: Exclude<AccessRole, "member">;
 };
 
@@ -86,7 +87,7 @@ export function GestaoList({
           <InviteRow
             key={p.userId}
             variant={variant}
-            email={p.label}
+            email={p.displayName || p.email}
             role={p.role}
             isBusy={busy}
             isLast={isLast}

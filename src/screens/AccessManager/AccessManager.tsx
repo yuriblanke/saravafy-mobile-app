@@ -55,265 +55,6 @@ type InviteItem = {
         {
           event: "INSERT",
           schema: "public",
-          table: "terreiro_membership_requests",
-          filter: `terreiro_id=eq.${terreiroId}`,
-        },
-        () => {
-          reloadPending();
-          showToast("Novo pedido de membro.");
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [terreiroId, canSeeManager, reloadPending, showToast]);
-
-  const peopleItems: PersonItem[] = useMemo(() => {
-    return memberRows.map((m) => {
-      const profile = memberProfiles[m.user_id];
-      const name =
-        (profile?.full_name && profile.full_name.trim()) ||
-        (profile?.email && profile.email.trim()) ||
-        "Usuário";
-
-      const roleRaw = String(m.role ?? "");
-      const role: AccessRole =
-        roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
-          ? roleRaw
-          : "member";
-
-      return {
-        id: m.user_id,
-        name,
-        email: profile?.email ?? undefined,
-        role,
-      };
-    });
-  }, [memberRows, memberProfiles]);
-
-  const requestItems: RequestItem[] = useMemo(() => {
-    return pendingRows.map((r) => {
-      const profile = pendingProfiles[r.user_id];
-      const name =
-        (profile?.full_name && profile.full_name.trim()) ||
-        (profile?.email && profile.email.trim()) ||
-        "Solicitante";
-      const email = (profile?.email && profile.email.trim()) || r.user_id;
-      const requestedAtLabel = formatRequestedAtLabel(r.created_at);
-
-      return {
-        id: r.id,
-        name,
-        email,
-        requestedAtLabel,
-      };
-    });
-  }, [pendingRows, pendingProfiles]);
-
-  const inviteItems: InviteItem[] = useMemo(() => {
-    return inviteRows.map((i) => {
-      const roleRaw = String(i.role ?? "");
-      const role: AccessRole =
-        roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
-          ? roleRaw
-          : "member";
-
-      return {
-        id: i.id,
-        email: i.email,
-        role,
-        statusLabel: formatInviteStatusLabel(i.status),
-      };
-    });
-  }, [inviteRows]);
-
-  const onSendInvite = useCallback(async () => {
-    if (!canSeeManager) {
-      showToast("Você não tem permissão para convidar.");
-      return;
-    }
-
-    if (!terreiroId) {
-      showToast("Terreiro inválido.");
-      return;
-    }
-
-    const email = normalizeEmail(inviteEmail);
-    if (!isValidEmail(email)) {
-      setInviteError("Informe um e-mail válido.");
-      return;
-    }
-
-    setInviteError("");
-
-    const res = await createInvite({
-      email,
-      role: inviteRole,
-    });
-
-    if (!res.ok) {
-      setInviteError(res.error || "Erro ao enviar convite.");
-      return;
-    }
-
-    setIsInviteSheetOpen(false);
-    setInviteEmail("");
-    showToast(`Convite enviado para ${email} (${roleLabel(inviteRole)}).`);
-    reloadInvites();
-  }, [
-    canSeeManager,
-    createInvite,
-    inviteEmail,
-    inviteRole,
-    reloadInvites,
-    showToast,
-    terreiroId,
-  ]);
-
-  const onApproveRequest = useCallback(
-    async (req: RequestItem) => {
-      if (!canSeeManager) {
-        showToast("Você não tem permissão para aprovar.");
-        return;
-      }
-
-      const res = await approve(req.id);
-      if (!res.ok) {
-        showToast(friendlyMembershipReviewError(res.error || "Erro."));
-        return;
-      }
-
-      showToast("Pedido aprovado.");
-      await Promise.all([reloadPending(), reloadMembers()]);
-    },
-    [approve, canSeeManager, reloadMembers, reloadPending, showToast]
-  );
-
-  const onRejectRequest = useCallback(
-    async (req: RequestItem) => {
-      if (!canSeeManager) {
-        showToast("Você não tem permissão para recusar.");
-        return;
-      }
-
-      const res = await reject(req.id);
-      if (!res.ok) {
-        showToast(friendlyMembershipReviewError(res.error || "Erro."));
-        return;
-      }
-
-      showToast("Pedido recusado.");
-      await Promise.all([reloadPending(), reloadMembers()]);
-    },
-    [canSeeManager, reject, reloadMembers, reloadPending, showToast]
-  );
-
-  return (
-    <View style={styles.screen}>
-      <View style={styles.headerRow}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={styles.headerIconBtn}
-        >
-          <Ionicons name="chevron-back" size={22} color={textPrimary} />
-        </Pressable>
-
-        <Text
-          style={[styles.headerTitle, { color: textPrimary }]}
-          numberOfLines={1}
-        >
-          Gerenciar acesso
-        </Text>
-
-        <View style={styles.headerIconBtn} />
-      </View>
-
-      <View style={styles.content}>
-        <View style={styles.contextHeader}>
-          <Text style={[styles.title, { color: textPrimary }]}>
-            {terreiroTitle}
-          </Text>
-          <Text style={[styles.subtitle, { color: textSecondary }]}>
-            Pessoas, pedidos e convites em um lugar só
-          </Text>
-        </View>
-
-        {!canSeeManager ? (
-          <SurfaceCard variant={variant} style={styles.noticeCard}>
-            <Text style={[styles.noticeText, { color: textSecondary }]}>
-              Esta tela é para Admins e Editors. (Layout pronto; regras finais
-              de permissão serão conectadas depois.)
-            </Text>
-          </SurfaceCard>
-        ) : null}
-
-        <SurfaceCard variant={variant} style={styles.managerCard}>
-          <PreferencesRadioGroup
-            variant={variant}
-            value={tab}
-            onChange={setTab}
-            options={tabOptions}
-          />
-
-          {tab === "people" ? (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-                  Pessoas
-                </Text>
-                {canSeeManager ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => setIsInviteSheetOpen(true)}
-                    style={({ pressed }) => [
-                      styles.primaryBtn,
-                      pressed ? styles.btnPressed : null,
-                      variant === "light"
-                        ? styles.primaryBtnLight
-                        : styles.primaryBtnDark,
-                    ]}
-                  >
-                    <Text
-                      style={
-                        variant === "light"
-                          ? styles.primaryBtnTextLight
-                          : styles.primaryBtnTextDark
-                      }
-                    >
-                      Convidar pessoa
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-
-              {isLoadingMembers ? (
-                <SurfaceCard variant={variant} style={styles.noticeCard}>
-                  <Text style={[styles.noticeText, { color: textSecondary }]}>
-                    Carregando pessoas...
-                  </Text>
-                </SurfaceCard>
-              ) : membersError ? (
-                <SurfaceCard variant={variant} style={styles.noticeCard}>
-                  <Text style={[styles.noticeText, { color: textSecondary }]}>
-                    Não foi possível carregar pessoas.
-                  </Text>
-                </SurfaceCard>
-              ) : peopleItems.length === 0 ? (
-                <SurfaceCard variant={variant} style={styles.noticeCard}>
-                  <Text style={[styles.noticeText, { color: textSecondary }]}>
-                    Ainda não tem ninguém aqui.
-                  </Text>
-                </SurfaceCard>
-              ) : (
-                peopleItems.map((p) => (
-                  <SurfaceCard
-                    key={p.id}
-                    variant={variant}
-                    style={styles.itemCard}
                   >
                     <View style={styles.itemRow}>
                       <View style={styles.itemMeta}>
@@ -944,10 +685,11 @@ type MenuTarget =
   | {
       kind: "gestao";
       userId: string;
-      label: string;
+      displayName: string | null;
+      email: string;
       role: Exclude<AccessRole, "member">;
     }
-  | { kind: "member"; userId: string; label: string }
+  | { kind: "member"; userId: string; displayName: string | null; email: string }
   | { kind: "invite"; id: string; email: string; role: AccessRole };
 
 type RoleChangeTarget = {
@@ -1026,6 +768,7 @@ export default function AccessManagerScreen() {
   const {
     items: memberRows,
     profilesById: memberProfilesById,
+    identityByUserId,
     isLoading: isLoadingMembers,
     error: membersError,
     reload: reloadMembers,
@@ -1237,7 +980,11 @@ export default function AccessManagerScreen() {
       if (!uid) return;
 
       const profile = memberProfilesById[uid];
-      const email = profile?.email ? normalizeEmail(profile.email) : uid;
+      const email = normalizeEmail(identityByUserId[uid]?.email ?? "");
+      const displayName =
+        typeof profile?.full_name === "string" && profile.full_name.trim()
+          ? profile.full_name.trim()
+          : null;
       const roleRaw = String(member?.role ?? "");
       const role: AccessRole =
         roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
@@ -1247,11 +994,11 @@ export default function AccessManagerScreen() {
       setConfirmRemoveTarget({
         kind: "member",
         userId: uid,
-        label: email,
+        label: displayName || email,
         role,
       });
     },
-    [memberProfilesById]
+    [identityByUserId, memberProfilesById]
   );
 
   const confirmRemove = useCallback(async () => {
@@ -1388,21 +1135,23 @@ export default function AccessManagerScreen() {
       .map((m) => {
         const uid = String(m.user_id ?? "");
         const profile = memberProfilesById[uid];
-        const label =
+        const email = normalizeEmail(identityByUserId[uid]?.email ?? "");
+        const displayName =
           typeof profile?.full_name === "string" && profile.full_name.trim()
             ? profile.full_name.trim()
-            : normalizeEmail(profile?.email ?? "");
+            : null;
         const role =
           String(m.role ?? "") === "admin"
             ? ("admin" as const)
             : ("editor" as const);
         return {
           userId: uid,
-          label,
+          displayName,
+          email,
           role,
         };
       });
-  }, [memberProfilesById, visiblePeople]);
+  }, [identityByUserId, memberProfilesById, visiblePeople]);
 
   const memberPeople = useMemo(() => {
     return visiblePeople
@@ -1410,16 +1159,18 @@ export default function AccessManagerScreen() {
       .map((m) => {
         const uid = String(m.user_id ?? "");
         const profile = memberProfilesById[uid];
-        const label =
+        const email = normalizeEmail(identityByUserId[uid]?.email ?? "");
+        const displayName =
           typeof profile?.full_name === "string" && profile.full_name.trim()
             ? profile.full_name.trim()
-            : normalizeEmail(profile?.email ?? "");
+            : null;
         return {
           userId: uid,
-          label,
+          displayName,
+          email,
         };
       });
-  }, [memberProfilesById, visiblePeople]);
+  }, [identityByUserId, memberProfilesById, visiblePeople]);
 
   const adminCount = useMemo(() => {
     return visiblePeople.reduce((acc, m) => {
@@ -1435,14 +1186,19 @@ export default function AccessManagerScreen() {
   );
 
   const openMenuForGestao = useCallback(
-    (p: { userId: string; label: string; role: "admin" | "editor" }) => {
+    (p: {
+      userId: string;
+      displayName: string | null;
+      email: string;
+      role: "admin" | "editor";
+    }) => {
       setMenuTarget({ kind: "gestao", ...p });
     },
     []
   );
 
   const openMenuForMember = useCallback(
-    (p: { userId: string; label: string }) => {
+    (p: { userId: string; displayName: string | null; email: string }) => {
       setMenuTarget({ kind: "member", ...p });
     },
     []
@@ -1684,7 +1440,11 @@ export default function AccessManagerScreen() {
                   }
                   requestRoleToggle({
                     userId: menuTarget.userId,
-                    label: menuTarget.label,
+                    label:
+                      (typeof menuTarget.displayName === "string" &&
+                      menuTarget.displayName.trim()
+                        ? menuTarget.displayName.trim()
+                        : menuTarget.email) || "",
                     from: menuTarget.role,
                     to: menuTarget.role === "admin" ? "editor" : "admin",
                   });
