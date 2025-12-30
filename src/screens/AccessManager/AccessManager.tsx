@@ -48,157 +48,6 @@ type InviteItem = {
   statusLabel: string;
 };
 
-function roleLabel(role: AccessRole) {
-  if (role === "admin") return "Admin";
-  if (role === "editor") return "Editor";
-  return "Membro";
-}
-
-function normalizeEmail(v: string) {
-  return String(v ?? "")
-    .trim()
-    .toLowerCase();
-}
-
-function isValidEmail(email: string) {
-  const e = normalizeEmail(email);
-  if (!e) return false;
-  if (e.includes(" ")) return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
-}
-
-function formatRequestedAtLabel(createdAt?: string | null) {
-  if (!createdAt) return "";
-  const d = new Date(createdAt);
-  if (Number.isNaN(d.getTime())) return "";
-
-  const now = new Date();
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  const thatDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
-  const diffDays = Math.round(
-    (today.getTime() - thatDay.getTime()) / (24 * 60 * 60 * 1000)
-  );
-
-  if (diffDays === 0) return "Hoje";
-  if (diffDays === 1) return "Ontem";
-  return d.toLocaleDateString("pt-BR");
-}
-
-function formatInviteStatusLabel(status: string) {
-  if (status === "pending") return "Pendente";
-  if (status === "accepted") return "Aceito";
-  if (status === "rejected") return "Recusado";
-  return status || "";
-}
-
-function friendlyMembershipReviewError(raw: string) {
-  const m = String(raw ?? "").toLowerCase();
-  if (!m) return "";
-  if (
-    m.includes("permission") ||
-    m.includes("not authorized") ||
-    m.includes("rls")
-  ) {
-    return "Você não tem permissão para aprovar este pedido.";
-  }
-  return raw;
-}
-
-export default function AccessManager() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  const { effectiveTheme } = usePreferences();
-  const { showToast } = useToast();
-
-  const variant: "light" | "dark" = effectiveTheme;
-
-  const terreiroId = String(params.terreiroId ?? "");
-  const terreiroTitle =
-    (typeof params.terreiroTitle === "string" && params.terreiroTitle.trim()) ||
-    "Gerenciar acesso";
-
-  const textPrimary =
-    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
-  const textSecondary =
-    variant === "light"
-      ? colors.textSecondaryOnLight
-      : colors.textSecondaryOnDark;
-  const textMuted =
-    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
-
-  const canSeeManager = false;
-
-  const [tab, setTab] = useState<AccessTab>("people");
-  const tabOptions = useMemo(() => {
-    return [
-      {
-        key: "people",
-        label: "Pessoas",
-        description: "Admins, Editors e Membros",
-      },
-      {
-        key: "requests",
-        label: "Pedidos pendentes",
-        description: "Solicitações para virar membro",
-      },
-      {
-        key: "invites",
-        label: "Convites",
-        description: "Pendentes e histórico",
-      },
-    ] satisfies readonly PreferencesRadioOption<AccessTab>[];
-  }, []);
-
-  const [isInviteSheetOpen, setIsInviteSheetOpen] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<AccessRole>("member");
-  const [inviteError, setInviteError] = useState<string>("");
-  const [isInviteRoleModalOpen, setIsInviteRoleModalOpen] = useState(false);
-
-  const inviteRoleItems: SelectItem[] = useMemo(
-    () => [
-      { key: "admin", label: "Admin", value: "admin" },
-      { key: "editor", label: "Editor", value: "editor" },
-      { key: "member", label: "Membro", value: "member" },
-    ],
-    []
-  );
-
-  const {
-    items: memberRows,
-    profilesById: memberProfiles,
-    isLoading: isLoadingMembers,
-    error: membersError,
-    reload: reloadMembers,
-  } = useTerreiroMembers(terreiroId);
-
-  const {
-    items: pendingRows,
-    profilesById: pendingProfiles,
-    isLoading: isLoadingPending,
-    error: pendingError,
-    reload: reloadPending,
-  } = usePendingTerreiroMembershipRequests(terreiroId);
-
-  const {
-    items: inviteRows,
-    isLoading: isLoadingInvites,
-    error: invitesError,
-    reload: reloadInvites,
-  } = useTerreiroInvites(terreiroId);
-
-  const { create: createInvite, isCreating: isCreatingInvite } =
-    useCreateTerreiroInvite(terreiroId);
-
-  const {
-    approve,
-    reject,
-    isProcessing: isReviewProcessing,
-  } = useReviewTerreiroMembershipRequest();
-
-  useEffect(() => {
-    if (!terreiroId || !canSeeManager) return;
-
     const channel = supabase
       .channel(`terreiro_membership_requests:${terreiroId}`)
       .on(
@@ -1066,8 +915,11 @@ import {
 } from "react-native";
 
 import { AccessSection } from "./AccessSection";
+import { GestaoList } from "./GestaoList";
 import { InviteModal, type InviteModalMode } from "./InviteModal";
-import { InviteRow, type AccessRole, type InviteStatus } from "./InviteRow";
+import { type AccessRole, type InviteStatus } from "./InviteRow";
+import { MembersList } from "./MembersList";
+import { PendingInvitesList } from "./PendingInvitesList";
 
 type TerreiroInviteLite = {
   id: string;
@@ -1086,6 +938,23 @@ type TerreiroMemberLite = {
 type RemoveTarget =
   | { kind: "invite"; id: string; label: string; status: InviteStatus }
   | { kind: "member"; userId: string; label: string; role: AccessRole };
+
+type MenuTarget =
+  | {
+      kind: "gestao";
+      userId: string;
+      label: string;
+      role: Exclude<AccessRole, "member">;
+    }
+  | { kind: "member"; userId: string; label: string }
+  | { kind: "invite"; id: string; email: string; role: AccessRole };
+
+type RoleChangeTarget = {
+  userId: string;
+  label: string;
+  from: Exclude<AccessRole, "member">;
+  to: Exclude<AccessRole, "member">;
+};
 
 function normalizeEmail(v: string) {
   return String(v ?? "")
@@ -1109,29 +978,9 @@ function isDuplicatePendingInviteError(error: unknown) {
   return m.includes("duplicate") || m.includes("unique") || m.includes("23505");
 }
 
-function isMissingFunctionError(error: unknown) {
-  const msg =
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
-
-  const m = msg.toLowerCase();
-  return m.includes("function") && m.includes("does not exist");
-}
-
 function toAccessRole(raw: string): AccessRole {
   if (raw === "admin" || raw === "editor") return raw;
   return "member";
-}
-
-function statusWeight(status: string): number {
-  if (status === "pending") return 0;
-  if (status === "accepted") return 1;
-  if (status === "rejected") return 2;
-  return 3;
 }
 
 function createdAtMs(createdAt: string | null) {
@@ -1140,7 +989,7 @@ function createdAtMs(createdAt: string | null) {
   return Number.isFinite(t) ? t : 0;
 }
 
-export default function AccessManager() {
+export default function AccessManagerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
 
@@ -1167,6 +1016,7 @@ export default function AccessManager() {
   const canSeeManager =
     membership.isActiveMember &&
     (membership.role === "admin" || membership.role === "editor");
+  const canChangeRoles = canSeeManager && membership.role === "admin";
 
   const {
     items: memberRows,
@@ -1187,7 +1037,11 @@ export default function AccessManager() {
   const [inviteModalMode, setInviteModalMode] =
     useState<InviteModalMode>("gestao");
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
-  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+  const [busyActionKey, setBusyActionKey] = useState<string | null>(null);
+
+  const [menuTarget, setMenuTarget] = useState<MenuTarget | null>(null);
+  const [confirmRoleChangeTarget, setConfirmRoleChangeTarget] =
+    useState<RoleChangeTarget | null>(null);
 
   const [confirmRemoveTarget, setConfirmRemoveTarget] =
     useState<RemoveTarget | null>(null);
@@ -1200,31 +1054,20 @@ export default function AccessManager() {
     Record<string, true>
   >({});
 
-  const sortedInvites = useMemo(() => {
+  const pendingInvites = useMemo(() => {
     const items = (inviteItems ?? []) as unknown as TerreiroInviteLite[];
-    const next = items.filter((i) => !removedInviteIds[String(i?.id ?? "")]);
+    const next = items
+      .filter((i) => !removedInviteIds[String(i?.id ?? "")])
+      .filter((i) => String(i?.status ?? "") === "pending");
+
     next.sort((a, b) => {
-      const wa = statusWeight(String(a?.status ?? ""));
-      const wb = statusWeight(String(b?.status ?? ""));
-      if (wa !== wb) return wa - wb;
       return (
         createdAtMs(b?.created_at ?? null) - createdAtMs(a?.created_at ?? null)
       );
     });
+
     return next;
   }, [inviteItems, removedInviteIds]);
-
-  const gestaoInvites = useMemo(() => {
-    return sortedInvites.filter(
-      (i) => i.role === "admin" || i.role === "editor"
-    );
-  }, [sortedInvites]);
-
-  const membrosInvites = useMemo(() => {
-    return sortedInvites.filter(
-      (i) => i.role !== "admin" && i.role !== "editor"
-    );
-  }, [sortedInvites]);
 
   const openInviteModal = useCallback((mode: InviteModalMode) => {
     setInviteModalMode(mode);
@@ -1235,6 +1078,16 @@ export default function AccessManager() {
     if (inviteSubmitting) return;
     setInviteModalVisible(false);
   }, [inviteSubmitting]);
+
+  const closeMenu = useCallback(() => {
+    if (busyActionKey) return;
+    setMenuTarget(null);
+  }, [busyActionKey]);
+
+  const closeConfirmRoleChange = useCallback(() => {
+    if (busyActionKey) return;
+    setConfirmRoleChangeTarget(null);
+  }, [busyActionKey]);
 
   const closeConfirmRemove = useCallback(() => {
     if (busyRemoveKey) return;
@@ -1300,131 +1153,78 @@ export default function AccessManager() {
     ]
   );
 
-  const acceptInvite = useCallback(
-    async (inviteId: string) => {
-      if (!canSeeManager) {
-        showToast("Você não tem permissão para aceitar.");
-        return;
-      }
-      if (!user?.id) {
-        showToast("Faça login para continuar.");
-        return;
-      }
-      if (!inviteId || busyInviteId) return;
+  const requestRoleToggle = useCallback((target: RoleChangeTarget) => {
+    setConfirmRoleChangeTarget(target);
+  }, []);
 
-      setBusyInviteId(inviteId);
-      try {
-        const rpc = await supabase.rpc("accept_terreiro_invite", {
-          p_invite_id: inviteId,
+  const confirmRoleToggle = useCallback(async () => {
+    if (!confirmRoleChangeTarget) return;
+    if (!terreiroId) {
+      showToast("Terreiro inválido.");
+      return;
+    }
+    if (!canChangeRoles) {
+      showToast("Você não tem permissão para alterar papéis.");
+      return;
+    }
+    if (busyActionKey) return;
+
+    const key = `role:${confirmRoleChangeTarget.userId}`;
+    setBusyActionKey(key);
+    try {
+      const res = await supabase
+        .from("terreiro_members")
+        .update({ role: confirmRoleChangeTarget.to } as any)
+        .eq("terreiro_id", terreiroId)
+        .eq("user_id", confirmRoleChangeTarget.userId);
+
+      if (res.error) {
+        showToast(
+          typeof res.error.message === "string"
+            ? res.error.message
+            : "Não foi possível alterar o papel."
+        );
+        return;
+      }
+
+      showToast("Papel atualizado.");
+      setConfirmRoleChangeTarget(null);
+      setMenuTarget(null);
+      await reloadMembers();
+
+      const myUserId = user?.id ?? null;
+      if (myUserId) {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.me.membership(myUserId),
         });
-
-        if (rpc.error) {
-          if (isMissingFunctionError(rpc.error)) {
-            const fallback = await supabase
-              .from("terreiro_invites")
-              .update({
-                status: "accepted",
-                activated_at: new Date().toISOString(),
-                activated_by: user.id,
-              } as any)
-              .eq("id", inviteId);
-
-            if (fallback.error) {
-              showToast(
-                typeof fallback.error.message === "string"
-                  ? fallback.error.message
-                  : "Não foi possível aceitar o convite."
-              );
-              return;
-            }
-          } else {
-            showToast(
-              typeof rpc.error.message === "string"
-                ? rpc.error.message
-                : "Não foi possível aceitar o convite."
-            );
-            return;
-          }
-        }
-
-        showToast("Convite aceito.");
-        await reloadInvites();
-      } finally {
-        setBusyInviteId(null);
-      }
-    },
-    [busyInviteId, canSeeManager, reloadInvites, showToast, user?.id]
-  );
-
-  const declineInvite = useCallback(
-    async (inviteId: string) => {
-      if (!canSeeManager) {
-        showToast("Você não tem permissão para recusar.");
-        return;
-      }
-      if (!user?.id) {
-        showToast("Faça login para continuar.");
-        return;
-      }
-      if (!inviteId || busyInviteId) return;
-
-      setBusyInviteId(inviteId);
-      try {
-        const rpc = await supabase.rpc("decline_terreiro_invite", {
-          p_invite_id: inviteId,
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiros.withRole(myUserId),
         });
-
-        if (rpc.error) {
-          if (isMissingFunctionError(rpc.error)) {
-            const fallback = await supabase
-              .from("terreiro_invites")
-              .update({
-                status: "rejected",
-                activated_at: new Date().toISOString(),
-                activated_by: user.id,
-              } as any)
-              .eq("id", inviteId);
-
-            if (fallback.error) {
-              showToast(
-                typeof fallback.error.message === "string"
-                  ? fallback.error.message
-                  : "Não foi possível recusar o convite."
-              );
-              return;
-            }
-          } else {
-            showToast(
-              typeof rpc.error.message === "string"
-                ? rpc.error.message
-                : "Não foi possível recusar o convite."
-            );
-            return;
-          }
-        }
-
-        showToast("Convite recusado.");
-        await reloadInvites();
-      } finally {
-        setBusyInviteId(null);
       }
-    },
-    [busyInviteId, canSeeManager, reloadInvites, showToast, user?.id]
-  );
+    } finally {
+      setBusyActionKey(null);
+    }
+  }, [
+    busyActionKey,
+    canChangeRoles,
+    confirmRoleChangeTarget,
+    queryClient,
+    reloadMembers,
+    showToast,
+    terreiroId,
+    user?.id,
+  ]);
 
-  const openRemoveForInvite = useCallback(
-    (invite: TerreiroInviteLite) => {
-      const id = String(invite?.id ?? "");
-      if (!id) return;
-      setConfirmRemoveTarget({
-        kind: "invite",
-        id,
-        label: normalizeEmail(String(invite?.email ?? "")),
-        status: String(invite?.status ?? "") as InviteStatus,
-      });
-    },
-    []
-  );
+  const openRemoveForInvite = useCallback((invite: TerreiroInviteLite) => {
+    const id = String(invite?.id ?? "");
+    if (!id) return;
+    setConfirmRemoveTarget({
+      kind: "invite",
+      id,
+      label: normalizeEmail(String(invite?.email ?? "")),
+      status: String(invite?.status ?? "") as InviteStatus,
+    });
+  }, []);
 
   const openRemoveForMember = useCallback(
     (member: TerreiroMemberLite) => {
@@ -1512,7 +1312,9 @@ export default function AccessManager() {
 
       if (rpc.error) {
         if (isCannotRemoveLastAdminError(rpc.error)) {
-          showToast("Não é possível remover a última pessoa admin deste terreiro.");
+          showToast(
+            "Não é possível remover a última pessoa admin deste terreiro."
+          );
           return;
         }
 
@@ -1560,7 +1362,7 @@ export default function AccessManager() {
     user?.id,
   ]);
 
-  const visibleMembers = useMemo(() => {
+  const visiblePeople = useMemo(() => {
     const rows = (memberRows ?? []) as unknown as TerreiroMemberLite[];
     return rows.filter((m) => {
       const uid = String(m?.user_id ?? "");
@@ -1568,16 +1370,98 @@ export default function AccessManager() {
       if (removedMemberIds[uid]) return false;
 
       const status = String(m?.status ?? "");
-      // If `status` column isn't present, treat as active.
       return !status || status === "active";
     });
   }, [memberRows, removedMemberIds]);
 
+  const gestaoPeople = useMemo(() => {
+    return visiblePeople
+      .filter((m) => {
+        const r = String(m?.role ?? "");
+        return r === "admin" || r === "editor";
+      })
+      .map((m) => {
+        const uid = String(m.user_id ?? "");
+        const profile = memberProfilesById[uid];
+        const email = profile?.email ? normalizeEmail(profile.email) : uid;
+        const role =
+          String(m.role ?? "") === "admin"
+            ? ("admin" as const)
+            : ("editor" as const);
+        return {
+          userId: uid,
+          label: email,
+          role,
+        };
+      });
+  }, [memberProfilesById, visiblePeople]);
+
+  const memberPeople = useMemo(() => {
+    return visiblePeople
+      .filter((m) => String(m?.role ?? "") === "member")
+      .map((m) => {
+        const uid = String(m.user_id ?? "");
+        const profile = memberProfilesById[uid];
+        const email = profile?.email ? normalizeEmail(profile.email) : uid;
+        return {
+          userId: uid,
+          label: email,
+        };
+      });
+  }, [memberProfilesById, visiblePeople]);
+
   const adminCount = useMemo(() => {
-    return visibleMembers.reduce((acc, m) => {
+    return visiblePeople.reduce((acc, m) => {
       return String(m?.role ?? "") === "admin" ? acc + 1 : acc;
     }, 0);
-  }, [visibleMembers]);
+  }, [visiblePeople]);
+
+  const isLastAdmin = useCallback(
+    (_userId: string) => {
+      return adminCount <= 1;
+    },
+    [adminCount]
+  );
+
+  const openMenuForGestao = useCallback(
+    (p: { userId: string; label: string; role: "admin" | "editor" }) => {
+      setMenuTarget({ kind: "gestao", ...p });
+    },
+    []
+  );
+
+  const openMenuForMember = useCallback(
+    (p: { userId: string; label: string }) => {
+      setMenuTarget({ kind: "member", ...p });
+    },
+    []
+  );
+
+  const openMenuForInvite = useCallback(
+    (inv: { id: string; email: string; role: AccessRole }) => {
+      setMenuTarget({ kind: "invite", ...inv });
+    },
+    []
+  );
+
+  const isBusyForMember = useCallback(
+    (userId: string) => {
+      return (
+        busyRemoveKey === `member:${userId}` ||
+        busyActionKey === `role:${userId}`
+      );
+    },
+    [busyActionKey, busyRemoveKey]
+  );
+
+  const isBusyForInvite = useCallback(
+    (inviteId: string) => {
+      return busyRemoveKey === `invite:${inviteId}`;
+    },
+    [busyRemoveKey]
+  );
+
+  const isBusyForGestao = isBusyForMember;
 
   return (
     <View style={styles.root}>
@@ -1610,9 +1494,6 @@ export default function AccessManager() {
           <Text style={[styles.title, { color: textPrimary }]}>
             {terreiroTitle}
           </Text>
-          <Text style={[styles.subtitle, { color: textSecondary }]}>
-            Convites por e-mail
-          </Text>
         </View>
 
         {!canSeeManager ? (
@@ -1621,61 +1502,9 @@ export default function AccessManager() {
           </Text>
         ) : null}
 
-        <AccessSection variant={variant} title="Membros atuais">
-          {isLoadingMembers ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          ) : membersError ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Não foi possível carregar membros.
-            </Text>
-          ) : visibleMembers.length === 0 ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Nenhum membro.
-            </Text>
-          ) : (
-            visibleMembers.map((m) => {
-              const uid = String(m.user_id ?? "");
-              const profile = memberProfilesById[uid];
-              const email = profile?.email ? normalizeEmail(profile.email) : uid;
-
-              const roleRaw = String(m.role ?? "");
-              const role: AccessRole =
-                roleRaw === "admin" ||
-                roleRaw === "editor" ||
-                roleRaw === "member"
-                  ? roleRaw
-                  : "member";
-
-              const isLastAdmin = role === "admin" && adminCount <= 1;
-              const removeKey = `member:${uid}`;
-              const rowBusy =
-                busyInviteId === uid || busyRemoveKey === removeKey;
-
-              return (
-                <InviteRow
-                  key={uid}
-                  variant={variant}
-                  email={email}
-                  role={role}
-                  status="active"
-                  showActions={false}
-                  isBusy={rowBusy}
-                  onAccept={() => undefined}
-                  onDecline={() => undefined}
-                  onRemove={() => openRemoveForMember(m)}
-                  removeDisabled={!canSeeManager || rowBusy || isLastAdmin}
-                  removeAccessibilityLabel="Remover acesso"
-                />
-              );
-            })
-          )}
-        </AccessSection>
-
         <AccessSection
           variant={variant}
-          title="Gestão"
+          title="Gestão do terreiro"
           actionLabel="+ Convidar gestão"
           onPressAction={() => {
             if (!canSeeManager) {
@@ -1685,42 +1514,17 @@ export default function AccessManager() {
             openInviteModal("gestao");
           }}
         >
-          {isLoadingInvites ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          ) : invitesError ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Não foi possível carregar convites.
-            </Text>
-          ) : gestaoInvites.length === 0 ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Nenhum convite.
-            </Text>
-          ) : (
-            gestaoInvites.map((inv) => {
-              const status = String(inv.status ?? "") as InviteStatus;
-              const showActions = canSeeManager && status === "pending";
-              const removeKey = `invite:${inv.id}`;
-              const isBusy = busyInviteId === inv.id || busyRemoveKey === removeKey;
-              return (
-                <InviteRow
-                  key={inv.id}
-                  variant={variant}
-                  email={normalizeEmail(inv.email)}
-                  role={toAccessRole(inv.role)}
-                  status={status}
-                  showActions={showActions}
-                  isBusy={isBusy}
-                  onAccept={() => acceptInvite(inv.id)}
-                  onDecline={() => declineInvite(inv.id)}
-                  onRemove={() => openRemoveForInvite(inv)}
-                  removeDisabled={!canSeeManager || isBusy}
-                  removeAccessibilityLabel="Remover convite"
-                />
-              );
-            })
-          )}
+          <GestaoList
+            variant={variant}
+            items={gestaoPeople}
+            isLoading={isLoadingMembers}
+            error={membersError}
+            canManage={canSeeManager}
+            canChangeRole={canChangeRoles}
+            isLastAdmin={isLastAdmin}
+            isBusy={isBusyForGestao}
+            onOpenMenu={openMenuForGestao}
+          />
         </AccessSection>
 
         <View style={styles.sectionSpacer} />
@@ -1737,42 +1541,33 @@ export default function AccessManager() {
             openInviteModal("membro");
           }}
         >
-          {isLoadingInvites ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          ) : invitesError ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Não foi possível carregar convites.
-            </Text>
-          ) : membrosInvites.length === 0 ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>
-              Nenhum convite.
-            </Text>
-          ) : (
-            membrosInvites.map((inv) => {
-              const status = String(inv.status ?? "") as InviteStatus;
-              const showActions = canSeeManager && status === "pending";
-              const removeKey = `invite:${inv.id}`;
-              const isBusy = busyInviteId === inv.id || busyRemoveKey === removeKey;
-              return (
-                <InviteRow
-                  key={inv.id}
-                  variant={variant}
-                  email={normalizeEmail(inv.email)}
-                  role="member"
-                  status={status}
-                  showActions={showActions}
-                  isBusy={isBusy}
-                  onAccept={() => acceptInvite(inv.id)}
-                  onDecline={() => declineInvite(inv.id)}
-                  onRemove={() => openRemoveForInvite(inv)}
-                  removeDisabled={!canSeeManager || isBusy}
-                  removeAccessibilityLabel="Remover convite"
-                />
-              );
-            })
-          )}
+          <MembersList
+            variant={variant}
+            items={memberPeople}
+            isLoading={isLoadingMembers}
+            error={membersError}
+            canManage={canSeeManager}
+            isBusy={isBusyForMember}
+            onOpenMenu={openMenuForMember}
+          />
+        </AccessSection>
+
+        <View style={styles.sectionSpacer} />
+
+        <AccessSection variant={variant} title="Convites enviados">
+          <PendingInvitesList
+            variant={variant}
+            items={pendingInvites.map((i) => ({
+              id: String(i.id),
+              email: normalizeEmail(String(i.email ?? "")),
+              role: toAccessRole(String(i.role ?? "")),
+            }))}
+            isLoading={isLoadingInvites}
+            error={invitesError}
+            canManage={canSeeManager}
+            isBusy={isBusyForInvite}
+            onOpenMenu={openMenuForInvite}
+          />
         </AccessSection>
 
         <Image
@@ -1793,6 +1588,212 @@ export default function AccessManager() {
         onClose={closeInviteModal}
         onSubmit={createInvite}
       />
+
+      <BottomSheet
+        visible={!!menuTarget}
+        variant={variant}
+        onClose={closeMenu}
+        snapPoints={[280]}
+      >
+        <View style={styles.menuSheet}>
+          <Text style={[styles.menuTitle, { color: textPrimary }]}>
+            {menuTarget?.kind === "invite"
+              ? "Ações do convite"
+              : menuTarget?.kind === "member"
+              ? "Ações do membro"
+              : "Ações da gestão"}
+          </Text>
+
+          {menuTarget?.kind === "gestao" ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  if (!canChangeRoles) {
+                    showToast("Você não tem permissão para alterar papéis.");
+                    return;
+                  }
+                  if (menuTarget.role === "admin" && adminCount <= 1) {
+                    showToast(
+                      "Não é possível alterar o papel do último admin."
+                    );
+                    return;
+                  }
+                  requestRoleToggle({
+                    userId: menuTarget.userId,
+                    label: menuTarget.label,
+                    from: menuTarget.role,
+                    to: menuTarget.role === "admin" ? "editor" : "admin",
+                  });
+                }}
+                disabled={
+                  !canSeeManager ||
+                  !canChangeRoles ||
+                  busyActionKey != null ||
+                  (menuTarget.role === "admin" && adminCount <= 1)
+                }
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  pressed ? styles.menuPressed : null,
+                  !canChangeRoles ||
+                  (menuTarget.role === "admin" && adminCount <= 1)
+                    ? styles.menuDisabled
+                    : null,
+                ]}
+              >
+                <Text style={[styles.menuItemText, { color: textPrimary }]}>
+                  Alterar papel
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const uid = menuTarget.userId;
+                  const role = menuTarget.role;
+                  if (role === "admin" && adminCount <= 1) {
+                    showToast(
+                      "Não é possível remover a última pessoa admin deste terreiro."
+                    );
+                    return;
+                  }
+                  openRemoveForMember({
+                    user_id: uid,
+                    role,
+                    status: "active",
+                  });
+                  setMenuTarget(null);
+                }}
+                disabled={
+                  !canSeeManager ||
+                  busyRemoveKey != null ||
+                  (menuTarget.role === "admin" && adminCount <= 1)
+                }
+                style={({ pressed }) => [
+                  styles.menuItem,
+                  pressed ? styles.menuPressed : null,
+                  menuTarget.role === "admin" && adminCount <= 1
+                    ? styles.menuDisabled
+                    : null,
+                ]}
+              >
+                <Text style={[styles.menuItemText, { color: colors.danger }]}>
+                  Remover acesso
+                </Text>
+              </Pressable>
+            </>
+          ) : null}
+
+          {menuTarget?.kind === "member" ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                openRemoveForMember({
+                  user_id: menuTarget.userId,
+                  role: "member",
+                  status: "active",
+                });
+                setMenuTarget(null);
+              }}
+              disabled={!canSeeManager || busyRemoveKey != null}
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed ? styles.menuPressed : null,
+              ]}
+            >
+              <Text style={[styles.menuItemText, { color: colors.danger }]}>
+                Remover acesso
+              </Text>
+            </Pressable>
+          ) : null}
+
+          {menuTarget?.kind === "invite" ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                openRemoveForInvite({
+                  id: menuTarget.id,
+                  email: menuTarget.email,
+                  role: menuTarget.role,
+                  status: "pending",
+                  created_at: null,
+                });
+                setMenuTarget(null);
+              }}
+              disabled={!canSeeManager || busyRemoveKey != null}
+              style={({ pressed }) => [
+                styles.menuItem,
+                pressed ? styles.menuPressed : null,
+              ]}
+            >
+              <Text style={[styles.menuItemText, { color: colors.danger }]}>
+                Cancelar convite
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </BottomSheet>
+
+      <BottomSheet
+        visible={!!confirmRoleChangeTarget}
+        variant={variant}
+        onClose={closeConfirmRoleChange}
+        snapPoints={[300]}
+      >
+        <View style={styles.confirmSheet}>
+          <Text style={[styles.confirmTitle, { color: textPrimary }]}>
+            Alterar papel?
+          </Text>
+
+          <Text style={[styles.confirmBody, { color: textSecondary }]}>
+            {confirmRoleChangeTarget?.from === "admin"
+              ? "A pessoa deixará de ser admin e virará editor."
+              : "A pessoa virará admin."}
+          </Text>
+
+          <Text style={[styles.confirmHint, { color: textSecondary }]}>
+            {confirmRoleChangeTarget?.label || ""}
+          </Text>
+
+          <View style={styles.confirmActions}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={closeConfirmRoleChange}
+              disabled={!!busyActionKey}
+              style={({ pressed }) => [
+                styles.confirmBtn,
+                styles.confirmBtnSecondary,
+                {
+                  borderColor:
+                    variant === "light"
+                      ? colors.surfaceCardBorderLight
+                      : colors.surfaceCardBorder,
+                },
+                pressed ? styles.confirmPressed : null,
+                busyActionKey ? styles.confirmDisabled : null,
+              ]}
+            >
+              <Text style={[styles.confirmBtnText, { color: textPrimary }]}>
+                Cancelar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={confirmRoleToggle}
+              disabled={!!busyActionKey}
+              style={({ pressed }) => [
+                styles.confirmBtn,
+                styles.confirmBtnDanger,
+                pressed ? styles.confirmPressed : null,
+                busyActionKey ? styles.confirmDisabled : null,
+              ]}
+            >
+              <Text style={styles.confirmBtnTextDanger}>Confirmar</Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheet>
 
       <BottomSheet
         visible={!!confirmRemoveTarget}
@@ -1979,5 +1980,33 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "900",
     color: colors.paper50,
+  },
+  menuSheet: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: 8,
+  },
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+    marginBottom: 6,
+  },
+  menuItem: {
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: "flex-start",
+    justifyContent: "center",
+    paddingHorizontal: spacing.md,
+  },
+  menuItemText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  menuPressed: {
+    opacity: 0.8,
+  },
+  menuDisabled: {
+    opacity: 0.5,
   },
 });

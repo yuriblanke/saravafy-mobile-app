@@ -1,3 +1,3 @@
-import AccessManager from "@/src/screens/AccessManager/AccessManager";
+import AccessManagerScreen from "@/src/screens/AccessManager/AccessManager";
 
-export default AccessManager;
+export default AccessManagerScreen;

@@ -18,7 +18,6 @@ function statusLabel(status: InviteStatus) {
   if (status === "pending") return "Pendente";
   if (status === "accepted") return "Aceito";
   if (status === "rejected") return "Recusado";
-  if (status === "active") return "Ativo";
   return status || "";
 }
 
@@ -26,33 +25,30 @@ type Props = {
   variant: "light" | "dark";
   email: string;
   role: AccessRole;
-  status: InviteStatus;
-  showActions: boolean;
+  status?: InviteStatus;
   isBusy: boolean;
-  onAccept: () => void;
-  onDecline: () => void;
-  onRemove: () => void;
-  removeDisabled: boolean;
-  removeAccessibilityLabel?: string;
+  onOpenMenu?: () => void;
+  menuDisabled?: boolean;
+  menuAccessibilityLabel?: string;
 };
 
 export function InviteRow({
   variant,
   email,
   role,
-  status,
-  showActions,
   isBusy,
-  onAccept,
-  onDecline,
-  onRemove,
-  removeDisabled,
-  removeAccessibilityLabel,
+  status,
+  onOpenMenu,
+  menuDisabled,
+  menuAccessibilityLabel,
 }: Props) {
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+
+  const canOpenMenu = typeof onOpenMenu === "function";
+  const disabled = !!menuDisabled || isBusy;
 
   return (
     <View
@@ -73,69 +69,31 @@ export function InviteRow({
 
         <View style={styles.badgesRow}>
           <TagChip label={roleLabel(role)} variant={variant} />
-          <TagChip label={statusLabel(status)} variant={variant} />
+          {status ? (
+            <TagChip label={statusLabel(status)} variant={variant} />
+          ) : null}
         </View>
       </View>
 
       <View style={styles.right}>
-        {showActions ? (
-          <View style={styles.actions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onAccept}
-              disabled={isBusy}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                pressed ? styles.actionPressed : null,
-                isBusy ? styles.actionDisabled : null,
-              ]}
-            >
-              <Text
-                style={[styles.actionText, { color: colors.success }]}
-                numberOfLines={1}
-              >
-                Aceitar
-              </Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={onDecline}
-              disabled={isBusy}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.actionBtn,
-                pressed ? styles.actionPressed : null,
-                isBusy ? styles.actionDisabled : null,
-              ]}
-            >
-              <Text
-                style={[styles.actionText, { color: colors.danger }]}
-                numberOfLines={1}
-              >
-                Recusar
-              </Text>
-            </Pressable>
-          </View>
+        {canOpenMenu ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={menuAccessibilityLabel || "Mais ações"}
+            onPress={onOpenMenu}
+            disabled={disabled}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.menuBtn,
+              pressed ? styles.actionPressed : null,
+              disabled ? styles.actionDisabled : null,
+            ]}
+          >
+            <Ionicons name="ellipsis-vertical" size={18} color={textMuted} />
+          </Pressable>
         ) : (
           <Text style={[styles.noActions, { color: textMuted }]} />
         )}
-
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={removeAccessibilityLabel || "Remover"}
-          onPress={onRemove}
-          disabled={removeDisabled}
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.trashBtn,
-            pressed ? styles.actionPressed : null,
-            removeDisabled ? styles.actionDisabled : null,
-          ]}
-        >
-          <Ionicons name="trash-outline" size={18} color={colors.danger} />
-        </Pressable>
       </View>
     </View>
   );
@@ -172,26 +130,13 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     gap: 10,
   },
-  actions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  actionBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-  },
   actionPressed: {
     opacity: 0.7,
   },
   actionDisabled: {
     opacity: 0.5,
   },
-  actionText: {
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  trashBtn: {
+  menuBtn: {
     paddingVertical: 6,
     paddingHorizontal: 6,
   },
