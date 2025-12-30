@@ -1,3 +1,4 @@
+/*
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
@@ -8,8 +9,9 @@ import {
   PreferencesRadioGroup,
   type PreferencesRadioOption,
 } from "@/src/components/preferences/PreferencesRadioGroup";
-import {
-  useCreateTerreiroInvite,
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const { effectiveTheme, activeContext } = usePreferences();
   usePendingTerreiroMembershipRequests,
   useReviewTerreiroMembershipRequest,
   useTerreiroInvites,
@@ -1037,5 +1039,526 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.md,
     marginTop: spacing.lg,
+  },
+});
+
+*/
+
+import { useAuth } from "@/contexts/AuthContext";
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { useToast } from "@/contexts/ToastContext";
+import { supabase } from "@/lib/supabase";
+import { useTerreiroInvites } from "@/src/hooks/terreiroMembership";
+import { colors, spacing } from "@/src/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import React, { useCallback, useMemo, useState } from "react";
+import {
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
+import { AccessSection } from "./AccessSection";
+import { InviteModal, type InviteModalMode } from "./InviteModal";
+import { InviteRow, type AccessRole, type InviteStatus } from "./InviteRow";
+
+type TerreiroInviteLite = {
+  id: string;
+  email: string;
+  role: string;
+  status: string;
+  created_at: string | null;
+};
+
+function normalizeEmail(v: string) {
+  return String(v ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function isDuplicatePendingInviteError(error: unknown) {
+  const anyErr = error as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
+  if (code === "23505") return true;
+
+  const msg = typeof anyErr?.message === "string" ? anyErr.message : "";
+  const m = msg.toLowerCase();
+  return m.includes("duplicate") || m.includes("unique") || m.includes("23505");
+}
+
+function isMissingFunctionError(error: unknown) {
+  const msg =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : "";
+
+  const m = msg.toLowerCase();
+  return m.includes("function") && m.includes("does not exist");
+}
+
+function toAccessRole(raw: string): AccessRole {
+  if (raw === "admin" || raw === "editor") return raw;
+  return "member";
+}
+
+function statusWeight(status: string): number {
+  if (status === "pending") return 0;
+  if (status === "accepted") return 1;
+  if (status === "rejected") return 2;
+  return 3;
+}
+
+function createdAtMs(createdAt: string | null) {
+  if (!createdAt) return 0;
+  const t = new Date(createdAt).getTime();
+  return Number.isFinite(t) ? t : 0;
+}
+
+export default function AccessManager() {
+  const router = useRouter();
+  const params = useLocalSearchParams();
+
+  const { user } = useAuth();
+  const { showToast } = useToast();
+  const { effectiveTheme, activeContext } = usePreferences();
+
+  const variant: "light" | "dark" = effectiveTheme;
+
+  const terreiroId = String(params.terreiroId ?? "");
+  const terreiroTitle =
+    (typeof params.terreiroTitle === "string" && params.terreiroTitle.trim()) ||
+    "Gerenciar acesso";
+
+  const textPrimary =
+    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
+  const textSecondary =
+    variant === "light"
+      ? colors.textSecondaryOnLight
+      : colors.textSecondaryOnDark;
+
+  const canSeeManager = useMemo(() => {
+    const roleFromContext =
+      activeContext?.kind === "TERREIRO_PAGE" ? activeContext.role : undefined;
+    return roleFromContext === "admin" || roleFromContext === "editor";
+  }, [activeContext]);
+
+  const {
+    items: inviteItems,
+    isLoading: isLoadingInvites,
+    error: invitesError,
+    reload: reloadInvites,
+  } = useTerreiroInvites(terreiroId);
+
+  const [inviteModalVisible, setInviteModalVisible] = useState(false);
+  const [inviteModalMode, setInviteModalMode] = useState<InviteModalMode>(
+    "gestao"
+  );
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
+
+  const sortedInvites = useMemo(() => {
+    const items = (inviteItems ?? []) as unknown as TerreiroInviteLite[];
+    const next = [...items];
+    next.sort((a, b) => {
+      const wa = statusWeight(String(a?.status ?? ""));
+      const wb = statusWeight(String(b?.status ?? ""));
+      if (wa !== wb) return wa - wb;
+      return (
+        createdAtMs(b?.created_at ?? null) - createdAtMs(a?.created_at ?? null)
+      );
+    });
+    return next;
+  }, [inviteItems]);
+
+  const gestaoInvites = useMemo(() => {
+    return sortedInvites.filter((i) => i.role === "admin" || i.role === "editor");
+  }, [sortedInvites]);
+
+  const membrosInvites = useMemo(() => {
+    return sortedInvites.filter((i) => i.role !== "admin" && i.role !== "editor");
+  }, [sortedInvites]);
+
+  const openInviteModal = useCallback((mode: InviteModalMode) => {
+    setInviteModalMode(mode);
+    setInviteModalVisible(true);
+  }, []);
+
+  const closeInviteModal = useCallback(() => {
+    if (inviteSubmitting) return;
+    setInviteModalVisible(false);
+  }, [inviteSubmitting]);
+
+  const createInvite = useCallback(
+    async (payload: { email: string; role: AccessRole }) => {
+      if (!canSeeManager) {
+        showToast("Você não tem permissão para convidar.");
+        return;
+      }
+      if (!terreiroId) {
+        showToast("Terreiro inválido.");
+        return;
+      }
+      if (!user?.id) {
+        showToast("Faça login para continuar.");
+        return;
+      }
+      if (inviteSubmitting) return;
+
+      const email = normalizeEmail(payload.email);
+
+      setInviteSubmitting(true);
+      try {
+        const res = await supabase.from("terreiro_invites").insert({
+          terreiro_id: terreiroId,
+          email,
+          role: payload.role,
+          status: "pending",
+          created_by: user.id,
+        } as any);
+
+        if (res.error) {
+          if (isDuplicatePendingInviteError(res.error)) {
+            showToast("Já existe um convite pendente para esse e-mail.");
+            return;
+          }
+
+          showToast(
+            typeof res.error.message === "string"
+              ? res.error.message
+              : "Não foi possível enviar o convite."
+          );
+          return;
+        }
+
+        showToast("Convite enviado.");
+        setInviteModalVisible(false);
+        await reloadInvites();
+      } finally {
+        setInviteSubmitting(false);
+      }
+    },
+    [canSeeManager, inviteSubmitting, reloadInvites, showToast, terreiroId, user?.id]
+  );
+
+  const acceptInvite = useCallback(
+    async (inviteId: string) => {
+      if (!canSeeManager) {
+        showToast("Você não tem permissão para aceitar.");
+        return;
+      }
+      if (!user?.id) {
+        showToast("Faça login para continuar.");
+        return;
+      }
+      if (!inviteId || busyInviteId) return;
+
+      setBusyInviteId(inviteId);
+      try {
+        const rpc = await supabase.rpc("accept_terreiro_invite", {
+          p_invite_id: inviteId,
+        });
+
+        if (rpc.error) {
+          if (isMissingFunctionError(rpc.error)) {
+            const fallback = await supabase
+              .from("terreiro_invites")
+              .update({
+                status: "accepted",
+                activated_at: new Date().toISOString(),
+                activated_by: user.id,
+              } as any)
+              .eq("id", inviteId);
+
+            if (fallback.error) {
+              showToast(
+                typeof fallback.error.message === "string"
+                  ? fallback.error.message
+                  : "Não foi possível aceitar o convite."
+              );
+              return;
+            }
+          } else {
+            showToast(
+              typeof rpc.error.message === "string"
+                ? rpc.error.message
+                : "Não foi possível aceitar o convite."
+            );
+            return;
+          }
+        }
+
+        showToast("Convite aceito.");
+        await reloadInvites();
+      } finally {
+        setBusyInviteId(null);
+      }
+    },
+    [busyInviteId, canSeeManager, reloadInvites, showToast, user?.id]
+  );
+
+  const declineInvite = useCallback(
+    async (inviteId: string) => {
+      if (!canSeeManager) {
+        showToast("Você não tem permissão para recusar.");
+        return;
+      }
+      if (!user?.id) {
+        showToast("Faça login para continuar.");
+        return;
+      }
+      if (!inviteId || busyInviteId) return;
+
+      setBusyInviteId(inviteId);
+      try {
+        const rpc = await supabase.rpc("decline_terreiro_invite", {
+          p_invite_id: inviteId,
+        });
+
+        if (rpc.error) {
+          if (isMissingFunctionError(rpc.error)) {
+            const fallback = await supabase
+              .from("terreiro_invites")
+              .update({
+                status: "rejected",
+                activated_at: new Date().toISOString(),
+                activated_by: user.id,
+              } as any)
+              .eq("id", inviteId);
+
+            if (fallback.error) {
+              showToast(
+                typeof fallback.error.message === "string"
+                  ? fallback.error.message
+                  : "Não foi possível recusar o convite."
+              );
+              return;
+            }
+          } else {
+            showToast(
+              typeof rpc.error.message === "string"
+                ? rpc.error.message
+                : "Não foi possível recusar o convite."
+            );
+            return;
+          }
+        }
+
+        showToast("Convite recusado.");
+        await reloadInvites();
+      } finally {
+        setBusyInviteId(null);
+      }
+    },
+    [busyInviteId, canSeeManager, reloadInvites, showToast, user?.id]
+  );
+
+  return (
+    <View style={styles.root}>
+      <View style={styles.headerRow}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.headerIconBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={textPrimary} />
+        </Pressable>
+
+        <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+          Gerenciar acesso
+        </Text>
+
+        <View style={styles.headerIconBtn} />
+      </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={styles.contextHeader}>
+          <Text style={[styles.title, { color: textPrimary }]}>{terreiroTitle}</Text>
+          <Text style={[styles.subtitle, { color: textSecondary }]}>Convites por e-mail</Text>
+        </View>
+
+        {!canSeeManager ? (
+          <Text style={[styles.noticeText, { color: textSecondary }]}>
+            Esta tela é para Admins e Editors.
+          </Text>
+        ) : null}
+
+        <AccessSection
+          variant={variant}
+          title="Gestão"
+          actionLabel="+ Convidar gestão"
+          onPressAction={() => {
+            if (!canSeeManager) {
+              showToast("Você não tem permissão para convidar.");
+              return;
+            }
+            openInviteModal("gestao");
+          }}
+        >
+          {isLoadingInvites ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>Carregando…</Text>
+          ) : invitesError ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>Não foi possível carregar convites.</Text>
+          ) : gestaoInvites.length === 0 ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>Nenhum convite.</Text>
+          ) : (
+            gestaoInvites.map((inv) => {
+              const status = String(inv.status ?? "") as InviteStatus;
+              const showActions = canSeeManager && status === "pending";
+              const isBusy = busyInviteId === inv.id;
+              return (
+                <InviteRow
+                  key={inv.id}
+                  variant={variant}
+                  email={normalizeEmail(inv.email)}
+                  role={toAccessRole(inv.role)}
+                  status={status}
+                  showActions={showActions}
+                  isBusy={isBusy}
+                  onAccept={() => acceptInvite(inv.id)}
+                  onDecline={() => declineInvite(inv.id)}
+                />
+              );
+            })
+          )}
+        </AccessSection>
+
+        <View style={styles.sectionSpacer} />
+
+        <AccessSection
+          variant={variant}
+          title="Membros"
+          actionLabel="+ Convidar membro"
+          onPressAction={() => {
+            if (!canSeeManager) {
+              showToast("Você não tem permissão para convidar.");
+              return;
+            }
+            openInviteModal("membro");
+          }}
+        >
+          {isLoadingInvites ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>Carregando…</Text>
+          ) : invitesError ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>Não foi possível carregar convites.</Text>
+          ) : membrosInvites.length === 0 ? (
+            <Text style={[styles.inlineText, { color: textSecondary }]}>Nenhum convite.</Text>
+          ) : (
+            membrosInvites.map((inv) => {
+              const status = String(inv.status ?? "") as InviteStatus;
+              const showActions = canSeeManager && status === "pending";
+              const isBusy = busyInviteId === inv.id;
+              return (
+                <InviteRow
+                  key={inv.id}
+                  variant={variant}
+                  email={normalizeEmail(inv.email)}
+                  role="member"
+                  status={status}
+                  showActions={showActions}
+                  isBusy={isBusy}
+                  onAccept={() => acceptInvite(inv.id)}
+                  onDecline={() => declineInvite(inv.id)}
+                />
+              );
+            })
+          )}
+        </AccessSection>
+
+        <Image
+          source={require("@/assets/images/filler.png")}
+          style={styles.filler}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
+
+        <View style={styles.bottomPad} />
+      </ScrollView>
+
+      <InviteModal
+        visible={inviteModalVisible}
+        variant={variant}
+        mode={inviteModalMode}
+        isSubmitting={inviteSubmitting}
+        onClose={closeInviteModal}
+        onSubmit={createInvite}
+      />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+  },
+  headerRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.sm,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  headerIconBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  headerTitle: {
+    flex: 1,
+    textAlign: "center",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  scrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+    paddingBottom: spacing.xl,
+  },
+  contextHeader: {
+    marginBottom: spacing.lg,
+    gap: 4,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: "900",
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.9,
+  },
+  noticeText: {
+    fontSize: 13,
+    fontWeight: "800",
+    marginBottom: spacing.lg,
+  },
+  inlineText: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.9,
+  },
+  sectionSpacer: {
+    height: spacing.lg,
+  },
+  filler: {
+    width: "100%",
+    height: 265,
+    marginTop: spacing.lg,
+  },
+  bottomPad: {
+    height: spacing.xl,
   },
 });
