@@ -349,6 +349,19 @@ function RootLayoutNav() {
     });
   }, [bootComplete, isLoading, isReady, queryClient, user?.id]);
 
+  // Global auth guard: se o usuário não estiver autenticado por qualquer motivo,
+  // redireciona para /login (exceto dentro do grupo (auth) e callback /auth/*).
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isReady) return;
+    if (user?.id) return;
+
+    const first = segments[0];
+    if (first === "(auth)" || first === "auth") return;
+
+    router.replace("/login");
+  }, [isLoading, isReady, router, segments, user?.id]);
+
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;
 
