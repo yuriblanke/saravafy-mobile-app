@@ -45,6 +45,28 @@ Requisitos atendidos:
 - Falha no fetch não quebra a página (mostra mensagem e mantém o botão desabilitado).
 - Preserva `tipo/id` no path.
 
+### Anti-cache (por design)
+
+Para evitar o botão “Instalar app” apontar para URLs antigas, a landing **não usa cache local** para `app_install_url`:
+
+- Não usa `localStorage`/`sessionStorage`.
+- Não usa Service Worker.
+- Cada leitura do `app_install_url` é feita via rede.
+
+Detalhes de implementação (em `web-landing/index.html`):
+
+- O fetch para `public_app_config` usa `cache: "no-store"`.
+- Envia headers anti-cache: `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` e `Pragma: no-cache`.
+- Adiciona um cache-buster na URL do endpoint: `&t=<Date.now()>`.
+- No **clique** do botão “Instalar app”, a landing **refaz o fetch** e só então redireciona para a URL mais recente.
+
+### Teste rápido (sem cache)
+
+1. Abra a landing em uma aba normal e verifique o status “Pronto para instalar.”.
+2. No Supabase, altere o valor de `public_app_config.value` onde `key = 'app_install_url'` para uma URL `https://` diferente.
+3. Recarregue a landing (ou abra em aba anônima) e confirme que o botão passa a redirecionar para a URL nova.
+4. Clique em “Instalar app” e confirme que o redirecionamento usa o valor novo (o clique sempre refaz o fetch).
+
 ### Configuração do Supabase na landing
 
 A landing usa o REST do Supabase (público) e precisa de:
@@ -70,6 +92,7 @@ No repo eles estão em:
 ### Preencher placeholders
 
 - iOS: no `apple-app-site-association`
+
   - `<IOS_TEAM_ID>`
   - `<IOS_BUNDLE_ID>`
 

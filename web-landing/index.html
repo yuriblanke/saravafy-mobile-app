@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="pt-br">
   <head>
     <meta charset="UTF-8" />
@@ -61,21 +61,32 @@
 
         async function fetchInstallUrl() {
           const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
-          const anonKey = String(window.SARAVAFY_SUPABASE_ANON_KEY || "").trim();
+          const anonKey = String(
+            window.SARAVAFY_SUPABASE_ANON_KEY || ""
+          ).trim();
 
           if (!supabaseUrl || !anonKey) {
-            return { url: null, reason: "Config do Supabase ausente na landing." };
+            return {
+              url: null,
+              reason: "Config do Supabase ausente na landing.",
+            };
           }
 
-          const endpoint =
+          const endpointBase =
             supabaseUrl.replace(/\/+$/, "") +
             "/rest/v1/public_app_config?select=value&key=eq.app_install_url&limit=1";
 
+          // Cache-buster to defeat intermediary caches.
+          const endpoint = endpointBase + "&t=" + Date.now();
+
           const res = await fetch(endpoint, {
             method: "GET",
+            cache: "no-store",
             headers: {
               apikey: anonKey,
               Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
               Accept: "application/json",
             },
           });
@@ -83,23 +94,67 @@
           if (!res.ok) {
             return {
               url: null,
-              reason: "Falha ao buscar link de instalação (HTTP " + res.status + ")",
+              reason:
+                "Falha ao buscar link de instalação (HTTP " + res.status + ")",
             };
           }
 
           const data = await res.json();
           const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          const value = row && typeof row.value === "string" ? row.value.trim() : "";
+          const value =
+            row && typeof row.value === "string" ? row.value.trim() : "";
 
           if (!value) {
             return { url: null, reason: "Link de instalação não configurado." };
           }
 
           if (!isValidHttpsUrl(value)) {
-            return { url: null, reason: "Link de instalação inválido (esperado https://)." };
+            return {
+              url: null,
+              reason: "Link de instalação inválido (esperado https://).",
+            };
           }
 
           return { url: value, reason: null };
+        }
+
+        const installDefaultLabel = installBtn.textContent || "Instalar app";
+        let installBusy = false;
+
+        function setInstallBusy(isBusy) {
+          installBusy = !!isBusy;
+          installBtn.disabled = installBusy;
+          installBtn.textContent = installBusy
+            ? "Carregando…"
+            : installDefaultLabel;
+        }
+
+        function setInstallEnabled(isEnabled) {
+          if (installBusy) return;
+          installBtn.disabled = !isEnabled;
+          installBtn.textContent = installDefaultLabel;
+        }
+
+        async function refreshInstallAvailability() {
+          setStatus("Carregando link de instalação…");
+
+          try {
+            const result = await fetchInstallUrl();
+            if (result.url) {
+              setInstallEnabled(true);
+              setStatus("Pronto para instalar.");
+              return;
+            }
+
+            setInstallEnabled(false);
+            setStatus(
+              result.reason || "Não foi possível obter o link de instalação.",
+              "error"
+            );
+          } catch {
+            setInstallEnabled(false);
+            setStatus("Erro ao buscar o link de instalação.", "error");
+          }
         }
 
         const parsed = parseLink();
@@ -125,26 +180,33 @@
           window.prompt("Copie o link:", text);
         });
 
-        setStatus("Carregando link de instalação…");
+        installBtn.addEventListener("click", async function () {
+          if (installBusy) return;
 
-        fetchInstallUrl()
-          .then(function (result) {
+          // Always refetch on click to ensure the freshest install URL.
+          setInstallBusy(true);
+          setStatus("Buscando link de instalação…");
+
+          try {
+            const result = await fetchInstallUrl();
             if (result.url) {
-              installBtn.disabled = false;
-              installBtn.addEventListener("click", function () {
-                window.location.href = result.url;
-              });
-              setStatus("Pronto para instalar.");
+              setStatus("Redirecionando…");
+              window.location.href = result.url;
               return;
             }
 
-            installBtn.disabled = true;
-            setStatus(result.reason || "Não foi possível obter o link de instalação.", "error");
-          })
-          .catch(function () {
-            installBtn.disabled = true;
+            setStatus(
+              result.reason || "Não foi possível obter o link de instalação.",
+              "error"
+            );
+          } catch {
             setStatus("Erro ao buscar o link de instalação.", "error");
-          });
+          } finally {
+            setInstallBusy(false);
+          }
+        });
+
+        void refreshInstallAvailability();
       })();
     </script>
   </body>
