@@ -500,7 +500,9 @@ export function PreferencesProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [themeMode, setThemeModeState] = useState<ThemeMode>("light");
+  // Default de primeira execução: começar em dark mode.
+  // A pessoa ainda pode escolher "light" ou "system" manualmente nas preferências.
+  const [themeMode, setThemeModeState] = useState<ThemeMode>("dark");
   const [curimbaEnabled, setCurimbaEnabledState] = useState(false);
   const [curimbaOnboardingDismissed, setCurimbaOnboardingDismissedState] =
     useState(false);
@@ -580,14 +582,14 @@ export function PreferencesProvider({
 
         if (cancelled) return;
 
-        // Primeira execução: começar no tema claro (especialmente no login).
+        // Primeira execução: começar no tema escuro (default do app).
         if (rawThemeMode == null) {
-          setThemeModeState("light");
-          AsyncStorage.setItem(STORAGE_KEYS.themeMode, "light").catch(
+          setThemeModeState("dark");
+          AsyncStorage.setItem(STORAGE_KEYS.themeMode, "dark").catch(
             () => undefined
           );
         } else {
-          const parsedThemeMode = coerceThemeMode(rawThemeMode) ?? "light";
+          const parsedThemeMode = coerceThemeMode(rawThemeMode) ?? "dark";
           setThemeModeState(parsedThemeMode);
         }
 
