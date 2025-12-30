@@ -2,6 +2,8 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
+import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
+import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
@@ -54,6 +56,7 @@ export default function PlayerScreen() {
 
   const source = typeof params.source === "string" ? params.source : null;
   const searchQuery = typeof params.q === "string" ? params.q : "";
+  const terreiroId = typeof params.terreiroId === "string" ? params.terreiroId : "";
 
   const collectionId = String(params.collectionId ?? "");
   const initialPontoId =
@@ -88,6 +91,19 @@ export default function PlayerScreen() {
   const { items, isLoading, error, isEmpty, reload } = useCollectionPlayerData(
     source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
   );
+
+  const membership = useTerreiroMembershipStatus(terreiroId);
+  const canSeeCustomTags = !!terreiroId && membership.data.isActiveMember;
+
+  const pontoIds = useMemo(() => {
+    return items.map((it) => it.ponto.id).filter(Boolean);
+  }, [items]);
+
+  const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
+    { terreiroId, pontoIds },
+    { enabled: canSeeCustomTags && pontoIds.length > 0 }
+  );
+  const customTagsMap = customTagsMapQuery.data ?? {};
 
   const [lyricsFontSize, setLyricsFontSize] = useState(20);
   const [activeIndex, setActiveIndex] = useState(0);
@@ -354,6 +370,9 @@ export default function PlayerScreen() {
                 ponto={item.ponto}
                 variant={variant}
                 lyricsFontSize={lyricsFontSize}
+                customTags={
+                  canSeeCustomTags ? (customTagsMap[item.ponto.id] ?? []) : []
+                }
               />
             </View>
           )}

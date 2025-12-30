@@ -1,5 +1,6 @@
 import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
+import { mergeCustomAndPointTags } from "@/src/utils/mergeTags";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
@@ -9,8 +10,9 @@ export function PlayerContent(props: {
   ponto: PlayerPonto;
   variant: "light" | "dark";
   lyricsFontSize: number;
+  customTags?: readonly string[];
 }) {
-  const { ponto, variant, lyricsFontSize } = props;
+  const { ponto, variant, lyricsFontSize, customTags } = props;
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -19,16 +21,22 @@ export function PlayerContent(props: {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
+  const mergedTags = mergeCustomAndPointTags(customTags ?? [], ponto.tags);
+  const hasAnyTags = mergedTags.custom.length > 0 || mergedTags.point.length > 0;
+
   return (
     <View style={styles.page}>
       <Text style={[styles.title, { color: textPrimary }]} numberOfLines={2}>
         {ponto.title}
       </Text>
 
-      {Array.isArray(ponto.tags) && ponto.tags.length > 0 ? (
+      {hasAnyTags ? (
         <View style={styles.tagsWrap}>
-          {ponto.tags.map((t) => (
-            <TagChip key={t} label={t} variant={variant} />
+          {mergedTags.custom.map((t) => (
+            <TagChip key={`custom-${ponto.id}-${t}`} label={t} variant={variant} kind="custom" />
+          ))}
+          {mergedTags.point.map((t) => (
+            <TagChip key={`ponto-${ponto.id}-${t}`} label={t} variant={variant} />
           ))}
         </View>
       ) : (

@@ -8,12 +8,20 @@ import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
+import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
+import { mergeCustomAndPointTags } from "@/src/utils/mergeTags";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -102,9 +110,7 @@ export default function Collection() {
     typeof collection?.visibility === "string" ? collection.visibility : "";
   const isMembersOnly = !!collection && visibility === "members";
 
-  const membership = useTerreiroMembershipStatus(
-    isMembersOnly ? terreiroId : ""
-  );
+  const membership = useTerreiroMembershipStatus(terreiroId);
   const createRequest = useCreateTerreiroMembershipRequest(
     isMembersOnly ? terreiroId : ""
   );
@@ -150,6 +156,19 @@ export default function Collection() {
     isEmpty: pontosEmpty,
     reload: reloadPontos,
   } = useCollectionPlayerData({ collectionId }, { enabled: shouldLoadPontos });
+
+  const pontoIds = useMemo(() => {
+    return orderedItems
+      .map((it) => String(it?.ponto?.id ?? ""))
+      .filter(Boolean);
+  }, [orderedItems]);
+
+  const canSeeCustomTags = !!terreiroId && membership.data.isActiveMember;
+  const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
+    { terreiroId, pontoIds },
+    { enabled: canSeeCustomTags && pontoIds.length > 0 }
+  );
+  const customTagsMap = customTagsMapQuery.data ?? {};
 
   const loadCollection = useCallback(async () => {
     if (!collectionId) {
@@ -532,6 +551,7 @@ export default function Collection() {
                       params: {
                         collectionId,
                         initialPontoId: item.ponto.id,
+                        terreiroId: terreiroId || undefined,
                       },
                     });
                   }}
@@ -544,13 +564,39 @@ export default function Collection() {
                       {item.ponto.title}
                     </Text>
 
-                    {item.ponto.tags.length > 0 ? (
-                      <View style={styles.tagsWrap}>
-                        {item.ponto.tags.map((t) => (
-                          <TagChip key={t} label={t} variant={variant} />
-                        ))}
-                      </View>
-                    ) : null}
+                    {(() => {
+                      const custom = canSeeCustomTags
+                        ? (customTagsMap[item.ponto.id] ?? [])
+                        : [];
+                      const merged = mergeCustomAndPointTags(
+                        custom,
+                        item.ponto.tags
+                      );
+
+                      const hasAnyTags =
+                        merged.custom.length > 0 || merged.point.length > 0;
+                      if (!hasAnyTags) return null;
+
+                      return (
+                        <View style={styles.tagsWrap}>
+                          {merged.custom.map((t) => (
+                            <TagChip
+                              key={`custom-${item.ponto.id}-${t}`}
+                              label={t}
+                              variant={variant}
+                              kind="custom"
+                            />
+                          ))}
+                          {merged.point.map((t) => (
+                            <TagChip
+                              key={`ponto-${item.ponto.id}-${t}`}
+                              label={t}
+                              variant={variant}
+                            />
+                          ))}
+                        </View>
+                      );
+                    })()}
 
                     <Text
                       style={[styles.preview, { color: textSecondary }]}

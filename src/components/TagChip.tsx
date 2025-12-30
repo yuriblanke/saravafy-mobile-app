@@ -3,20 +3,33 @@ import { StyleSheet, Text, View, type ViewProps } from "react-native";
 
 import { colors, radii } from "@/src/theme";
 
-const noise = require("@/assets/textures/noise_128.png");
-
 type Props = ViewProps & {
   label: string;
   variant?: "dark" | "light";
+  kind?: "ponto" | "custom";
 };
 
-export function TagChip({ label, style, variant = "dark", ...rest }: Props) {
-  // ...existing code...
+export function TagChip({
+  label,
+  style,
+  variant = "dark",
+  kind = "ponto",
+  ...rest
+}: Props) {
+  const isLight = variant === "light";
+
+  const customColor = isLight ? colors.textPrimaryOnLight : colors.brass600;
+  const pontoTextColor = isLight ? colors.textPrimaryOnLight : colors.paper100;
+
   return (
     <View
       style={[
         styles.wrap,
-        variant === "light" ? styles.wrapLight : styles.wrapDarkTest,
+        kind === "custom"
+          ? [styles.wrapCustom, { borderColor: customColor }]
+          : variant === "light"
+          ? styles.wrapLight
+          : styles.wrapDarkTest,
         style,
       ]}
       {...rest}
@@ -26,10 +39,7 @@ export function TagChip({ label, style, variant = "dark", ...rest }: Props) {
           style={[
             styles.textBase,
             {
-              color:
-                variant === "light"
-                  ? colors.textPrimaryOnLight
-                  : colors.paper100,
+              color: kind === "custom" ? customColor : pontoTextColor,
             },
           ]}
           numberOfLines={1}
@@ -52,6 +62,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 5,
   },
+  wrapCustom: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
+  },
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 0,
@@ -73,8 +87,5 @@ const styles = StyleSheet.create({
   textBase: {
     fontSize: 12,
     fontWeight: "700",
-  },
-  noiseImage: {
-    opacity: 0.1,
   },
 });

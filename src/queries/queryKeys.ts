@@ -12,6 +12,11 @@ export const queryKeys = {
     terreiro: (terreiroId: string) =>
       ["pontos", { scope: "terreiro", terreiroId }] as const,
     feed: (userId: string) => ["pontos", "feed", userId] as const,
+    customTagsByTerreiro: (params: {
+      terreiroId: string;
+      pontoIdsHash: string;
+    }) =>
+      ["pontos", "customTags", params.terreiroId, params.pontoIdsHash] as const,
   },
   terreiros: {
     exploreInitial: () => ["terreiros", "explore", "initial"] as const,
