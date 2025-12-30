@@ -39,6 +39,8 @@ No contexto de preferências, o tipo é `TerreiroRole = "admin" | "editor" | "fo
   - `role` ("admin" | "editor")
   - `status` (string; o app usa: `pending`, `accepted`, `rejected`)
   - `created_at` (string | null)
+  - `activated_at` (string | null)
+  - `activated_by` (string | null)
   - `created_by` (string; setado no insert)
 
 **2) `terreiro_members`**
@@ -50,6 +52,19 @@ No contexto de preferências, o tipo é `TerreiroRole = "admin" | "editor" | "fo
   - `role` ("admin" | "editor" | "follower" dependendo do contexto)
   - `created_at` (string | null)
   - `status` pode existir no banco e é usado como filtro quando disponível.
+
+---
+
+## Restrições de segurança (RLS)
+
+Este fluxo roda sob **RLS estrito**:
+
+- A pessoa convidada consegue apenas **ler** seus convites (policy `select_own_invites`).
+- A pessoa convidada **não** consegue:
+  - inserir/upsert em `terreiro_members`
+  - atualizar `terreiro_invites`
+
+Por isso, **aceitar/recusar precisa ser via RPC `SECURITY DEFINER`** (backend), e o app só chama a RPC.
 
 **3) `profiles`**
 
@@ -255,12 +270,15 @@ A query de convites pendentes é:
 
 **Passo 1 — Aceitar via RPC (backend)**
 
-- Chama a função RPC `accept_terreiro_invite(invite_id)` no Supabase.
-- A RPC valida que o convite pertence ao e-mail do usuário autenticado e, em seguida:
-  - marca `terreiro_invites.status = "accepted"`
-  - cria/atualiza a linha em `terreiro_members` para o `auth.uid()` com o `role` do convite
+- O app chama:
 
-> Motivo: com RLS estrito, o usuário convidado não pode inserir direto em `terreiro_members`.
+  - `await supabase.rpc('accept_terreiro_invite', { invite_id })`
+
+- A RPC valida auth + email do JWT, trava o invite (`SELECT ... FOR UPDATE`), atualiza:
+  - `status = 'accepted'`
+  - `activated_at = now()`
+  - `activated_by = auth.uid()`
+- E faz upsert em `terreiro_members` (PK composta) para conceder o acesso.
 
 **Resultado UX**
 
@@ -269,9 +287,16 @@ A query de convites pendentes é:
 
 ### Ação: “Recusar convite”
 
-- Update `terreiro_invites`:
-  - `status = "rejected"`
-  - filtro: `id = <invite.id>`
+**Via RPC (backend)**
+
+- O app chama:
+
+  - `await supabase.rpc('reject_terreiro_invite', { invite_id })`
+
+- A RPC valida auth + email do JWT, trava o invite (`SELECT ... FOR UPDATE`) e atualiza:
+  - `status = 'rejected'`
+  - `activated_at = now()`
+  - `activated_by = auth.uid()`
 
 **Resultado UX**
 
@@ -288,6 +313,23 @@ A query de convites pendentes é:
 - Em falhas genéricas de rede/servidor:
   - mostra mensagem no modal: “Não foi possível concluir agora. Verifique sua conexão e tente novamente.”
   - mantém o modal aberto para tentar de novo.
+
+---
+
+## Seed manual (para testar)
+
+1. Criar um terreiro e um admin (precisa existir um admin em `terreiro_members`).
+2. Criar um convite `pending` em `terreiro_invites`:
+
+- `terreiro_id`: do terreiro
+- `email`: do usuário convidado (normalizado por trigger)
+- `role`: `admin` | `editor` | `member`
+- `status`: `pending`
+- `created_by`: user_id do admin
+
+3. Logar no app com o usuário convidado:
+
+- A Home renderiza, e o InviteGate aparece por cima exigindo aceitar/recusar.
 
 ---
 

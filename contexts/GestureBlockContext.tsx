@@ -1,4 +1,10 @@
-import React, { createContext, useContext, useMemo, useRef } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 
 type GestureBlockApi = {
   markSwipeRecognized: () => void;
@@ -13,17 +19,51 @@ export function GestureBlockProvider({
   children: React.ReactNode;
 }) {
   const blockedUntilRef = useRef(0);
+  const blockWindowMs = 150;
+
+  useEffect(() => {
+    if (!__DEV__) return;
+    console.log("[GestureBlock] mount", {
+      blockedUntil: blockedUntilRef.current,
+      blockWindowMs,
+    });
+    return () => {
+      console.log("[GestureBlock] unmount", {
+        blockedUntil: blockedUntilRef.current,
+        blockWindowMs,
+      });
+    };
+  }, [blockWindowMs]);
 
   const value = useMemo<GestureBlockApi>(() => {
     return {
       markSwipeRecognized: () => {
-        blockedUntilRef.current = Date.now() + 250;
+        const now = Date.now();
+        blockedUntilRef.current = now + blockWindowMs;
+        if (__DEV__) {
+          console.log("[GestureBlock] markSwipeRecognized", {
+            now,
+            blockedUntil: blockedUntilRef.current,
+            windowMs: blockWindowMs,
+          });
+        }
       },
       shouldBlockPress: () => {
-        return Date.now() < blockedUntilRef.current;
+        const now = Date.now();
+        const blockedUntil = blockedUntilRef.current;
+        const blocked = now < blockedUntil;
+        if (__DEV__) {
+          console.log("[GestureBlock] shouldBlockPress", {
+            now,
+            blockedUntil,
+            blocked,
+            dt: blockedUntil - now,
+          });
+        }
+        return blocked;
       },
     };
-  }, []);
+  }, [blockWindowMs]);
 
   return (
     <GestureBlockContext.Provider value={value}>

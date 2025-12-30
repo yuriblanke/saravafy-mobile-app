@@ -455,7 +455,32 @@ export default function Collection() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    if (shouldBlockPress()) return;
+                    const now = Date.now();
+                    if (shouldBlockPress()) {
+                      if (__DEV__) {
+                        console.log("[PressGuard] blocked", {
+                          screen: "Collection",
+                          now,
+                        });
+                      }
+                      return;
+                    }
+
+                    if (__DEV__) {
+                      console.log("[PressGuard] allowed", {
+                        screen: "Collection",
+                        now,
+                      });
+                    }
+
+                    if (__DEV__) {
+                      console.log("[Navigation] click -> /player", {
+                        screen: "Collection",
+                        now,
+                        collectionId,
+                        initialPontoId: item.ponto.id,
+                      });
+                    }
 
                     router.push({
                       pathname: "/player",

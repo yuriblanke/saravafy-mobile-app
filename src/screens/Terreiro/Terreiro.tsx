@@ -512,9 +512,32 @@ export default function Terreiro() {
 
               // Navega para a tela de Collection
               const handlePress = () => {
-                if (shouldBlockPress()) return;
+                const now = Date.now();
+                if (shouldBlockPress()) {
+                  if (__DEV__) {
+                    console.log("[PressGuard] blocked", {
+                      screen: "Terreiro",
+                      now,
+                    });
+                  }
+                  return;
+                }
+
+                if (__DEV__) {
+                  console.log("[PressGuard] allowed", {
+                    screen: "Terreiro",
+                    now,
+                  });
+                }
 
                 if (!isEditingThisCollection && !isNew) {
+                  if (__DEV__) {
+                    console.log("[Navigation] click -> /collection/[id]", {
+                      screen: "Terreiro",
+                      now,
+                      collectionId: item.id,
+                    });
+                  }
                   router.push({
                     pathname: "/collection/[id]",
                     params: {

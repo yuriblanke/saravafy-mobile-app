@@ -6,9 +6,9 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   AppState,
   BackHandler,
-  Modal,
   Pressable,
   StyleSheet,
   Text,
@@ -20,7 +20,6 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import { upsertTerreiroMemberActive } from "@/src/hooks/terreiroMembership";
 import { colors, radii, spacing } from "@/src/theme";
 
 type InviteRole = "admin" | "editor" | "member";
@@ -34,13 +33,7 @@ type TerreiroInvite = {
 };
 
 type InviteGateDebug = {
-  step:
-    | "refresh"
-    | "accept:rpc"
-    | "accept:update_invite"
-    | "accept:upsert_member"
-    | "accept:rollback_invite"
-    | "reject:update_invite";
+  step: "refresh" | "accept:rpc" | "reject:rpc" | "reject:update_invite";
   inviteId?: string;
   terreiroId?: string;
   role?: string;
@@ -111,11 +104,12 @@ function toDebugFromUnknown(params: {
     error instanceof Error
       ? error.message
       : typeof asAny?.message === "string"
-        ? asAny.message
-        : "";
+      ? asAny.message
+      : "";
 
   const code = typeof asAny?.code === "string" ? asAny.code : undefined;
-  const details = typeof asAny?.details === "string" ? asAny.details : undefined;
+  const details =
+    typeof asAny?.details === "string" ? asAny.details : undefined;
   const hint = typeof asAny?.hint === "string" ? asAny.hint : undefined;
 
   return {
@@ -444,42 +438,17 @@ export function InviteGate() {
     setDebugInfo(null);
 
     try {
-      // Prefer server-side RPC to accept invite + upsert membership.
-      // Client-side upsert into `terreiro_members` is blocked by RLS for non-admins.
+      // RLS estrito: aceitar precisa ser via RPC SECURITY DEFINER.
       const rpc = await supabase.rpc("accept_terreiro_invite", {
         invite_id: currentInvite.id,
       });
 
-      if (rpc.error) {
-        // Fallback to legacy flow if RPC isn't deployed yet.
-        const m = String(rpc.error.message ?? "");
-        const fnMissing =
-          m.includes("accept_terreiro_invite") &&
-          (m.includes("does not exist") || m.includes("Could not find"));
+      if (rpc.error) throw rpc.error;
 
-        if (fnMissing) {
-          // Passo 1: marcar invite como aceito.
-          // IMPORTANT: não usar select().single() aqui — dependendo das RLS policies,
-          // o update pode funcionar mas o retorno (RETURNING) não, gerando erro de "0 rows".
-          const updInvite = await supabase
-            .from("terreiro_invites")
-            .update({ status: "accepted" })
-            .eq("id", currentInvite.id);
-
-          if (updInvite.error) {
-            throw updInvite.error;
-          }
-
-          // Passo 2: criar/ativar vínculo em terreiro_members (PK composta).
-          // NOTE: this may still fail if RLS is strict (expected in production).
-          await upsertTerreiroMemberActive({
-            terreiroId: currentInvite.terreiro_id,
-            userId,
-            role: currentInvite.role,
-          });
-        } else {
-          throw rpc.error;
-        }
+      // Espera um retorno { ok: true } (jsonb), mas não depende disso para UX.
+      const ok = (rpc.data as any)?.ok;
+      if (ok === false) {
+        throw new Error("RPC retornou ok=false");
       }
 
       showToast("Convite aceito.");
@@ -494,29 +463,27 @@ export function InviteGate() {
         e instanceof Error
           ? e.message
           : typeof (e as any)?.message === "string"
-            ? (e as any).message
-            : String(e);
+          ? (e as any).message
+          : String(e);
 
       const info = toDebugFromUnknown({
-        step:
-          message && message.includes("accept_terreiro_invite")
-            ? "accept:rpc"
-            :
-          message && message.includes("terreiro_members")
-            ? "accept:upsert_member"
-            : "accept:update_invite",
+        step: "accept:rpc",
         inviteId: currentInvite.id,
         terreiroId: currentInvite.terreiro_id,
         role: currentInvite.role,
         userId: userId ?? undefined,
         error: e,
       });
+
       setDebugInfo(info);
 
       if (__DEV__) {
-        console.log("[InviteGate][DEV] accept failed", info);
+        console.log("[InviteGate] accept failed", info);
       }
-      setActionError(getFriendlyActionError(message));
+
+      const friendly = getFriendlyActionError(message);
+      setActionError(friendly);
+      showToast(friendly);
     } finally {
       setIsProcessing(false);
     }
@@ -537,13 +504,16 @@ export function InviteGate() {
     setDebugInfo(null);
 
     try {
-      const upd = await supabase
-        .from("terreiro_invites")
-        .update({ status: "rejected" })
-        .eq("id", currentInvite.id);
+      // RLS estrito: recusar precisa ser via RPC SECURITY DEFINER.
+      const rpc = await supabase.rpc("reject_terreiro_invite", {
+        invite_id: currentInvite.id,
+      });
 
-      if (upd.error) {
-        throw new Error(upd.error.message);
+      if (rpc.error) throw rpc.error;
+
+      const ok = (rpc.data as any)?.ok;
+      if (ok === false) {
+        throw new Error("RPC retornou ok=false");
       }
 
       showToast("Convite recusado.");
@@ -558,11 +528,11 @@ export function InviteGate() {
         e instanceof Error
           ? e.message
           : typeof (e as any)?.message === "string"
-            ? (e as any).message
-            : String(e);
+          ? (e as any).message
+          : String(e);
 
       const info = toDebugFromUnknown({
-        step: "reject:update_invite",
+        step: "reject:rpc",
         inviteId: currentInvite.id,
         terreiroId: currentInvite.terreiro_id,
         role: currentInvite.role,
@@ -572,9 +542,11 @@ export function InviteGate() {
       setDebugInfo(info);
 
       if (__DEV__) {
-        console.log("[InviteGate][DEV] reject failed", info);
+        console.log("[InviteGate] reject failed", info);
       }
-      setActionError(getFriendlyActionError(message));
+      const friendly = getFriendlyActionError(message);
+      setActionError(friendly);
+      showToast(friendly);
     } finally {
       setIsProcessing(false);
     }
@@ -636,87 +608,96 @@ export function InviteGate() {
         </View>
       ) : null}
 
-      <Modal
-        visible={isModalVisible}
-        transparent
-        animationType="fade"
-        statusBarTranslucent
-        onRequestClose={() => {
-          // Block close via Android back; BackHandler already intercepts.
-        }}
-      >
-        <View style={styles.modalBackdrop}>
-          <SurfaceCard variant={variant} style={styles.modalCard}>
-            <Text style={[styles.modalTitle, { color: textPrimary }]}>
-              {modalTitle}
-            </Text>
+      {isModalVisible ? (
+        <View style={styles.overlayHost} pointerEvents="box-none">
+          <View style={styles.modalBackdrop} pointerEvents="box-none">
+            {/* Backdrop: blocks interactions, but does NOT close on press */}
+            <Pressable
+              accessibilityRole="none"
+              onPress={() => undefined}
+              style={styles.backdropBlocker}
+            />
 
-            <Text style={[styles.modalBody, { color: textSecondary }]}>
-              {modalBody}
-            </Text>
+            <SurfaceCard variant={variant} style={styles.modalCard}>
+              <Text style={[styles.modalTitle, { color: textPrimary }]}>
+                {modalTitle}
+              </Text>
 
-            {actionError ? (
-              <>
-                <Text style={[styles.modalError, { color: textSecondary }]}>
-                  {actionError}
-                </Text>
+              <Text style={[styles.modalBody, { color: textSecondary }]}>
+                {modalBody}
+              </Text>
 
-                {__DEV__ && debugInfo ? (
-                  <Text
-                    style={[
-                      styles.modalDevDetails,
-                      { color: textSecondary, opacity: 0.9 },
-                    ]}
-                  >
-                    {`DEV details: step=${debugInfo.step}`}
-                    {debugInfo.code ? `\ncode=${debugInfo.code}` : ""}
-                    {debugInfo.message
-                      ? `\nmessage=${debugInfo.message}`
-                      : ""}
-                    {debugInfo.details
-                      ? `\ndetails=${debugInfo.details}`
-                      : ""}
-                    {debugInfo.hint ? `\nhint=${debugInfo.hint}` : ""}
+              {isProcessing ? (
+                <View style={styles.processingRow}>
+                  <ActivityIndicator />
+                </View>
+              ) : null}
+
+              {actionError ? (
+                <>
+                  <Text style={[styles.modalError, { color: textSecondary }]}>
+                    {actionError}
                   </Text>
-                ) : null}
-              </>
-            ) : null}
 
-            <View style={styles.modalButtons}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Aceitar convite"
-                disabled={isProcessing}
-                onPress={acceptInvite}
-                style={({ pressed }) => [
-                  styles.primaryBtn,
-                  pressed ? styles.btnPressed : null,
-                  isProcessing ? styles.btnDisabled : null,
-                ]}
-              >
-                <Text style={styles.primaryBtnText}>Aceitar convite</Text>
-              </Pressable>
+                  {__DEV__ && debugInfo ? (
+                    <Text
+                      style={[
+                        styles.modalDevDetails,
+                        { color: textSecondary, opacity: 0.9 },
+                      ]}
+                    >
+                      {`DEV details: step=${debugInfo.step}`}
+                      {debugInfo.code ? `\ncode=${debugInfo.code}` : ""}
+                      {debugInfo.message
+                        ? `\nmessage=${debugInfo.message}`
+                        : ""}
+                      {debugInfo.details
+                        ? `\ndetails=${debugInfo.details}`
+                        : ""}
+                      {debugInfo.hint ? `\nhint=${debugInfo.hint}` : ""}
+                    </Text>
+                  ) : null}
+                </>
+              ) : null}
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Recusar convite"
-                disabled={isProcessing}
-                onPress={rejectInvite}
-                style={({ pressed }) => [
-                  styles.secondaryBtn,
-                  { borderColor: inputBorder, backgroundColor: inputBg },
-                  pressed ? styles.btnPressed : null,
-                  isProcessing ? styles.btnDisabled : null,
-                ]}
-              >
-                <Text style={[styles.secondaryBtnText, { color: textPrimary }]}>
-                  Recusar convite
-                </Text>
-              </Pressable>
-            </View>
-          </SurfaceCard>
+              <View style={styles.modalButtons}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Aceitar convite"
+                  disabled={isProcessing}
+                  onPress={acceptInvite}
+                  style={({ pressed }) => [
+                    styles.primaryBtn,
+                    pressed ? styles.btnPressed : null,
+                    isProcessing ? styles.btnDisabled : null,
+                  ]}
+                >
+                  <Text style={styles.primaryBtnText}>Aceitar convite</Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Recusar convite"
+                  disabled={isProcessing}
+                  onPress={rejectInvite}
+                  style={({ pressed }) => [
+                    styles.secondaryBtn,
+                    { borderColor: inputBorder, backgroundColor: inputBg },
+                    pressed ? styles.btnPressed : null,
+                    isProcessing ? styles.btnDisabled : null,
+                  ]}
+                >
+                  <Text
+                    style={[styles.secondaryBtnText, { color: textPrimary }]}
+                  >
+                    Recusar convite
+                  </Text>
+                </Pressable>
+              </View>
+            </SurfaceCard>
+          </View>
         </View>
-      </Modal>
+      ) : null}
     </>
   );
 }
@@ -764,12 +745,19 @@ const styles = StyleSheet.create({
     opacity: 0.92,
   },
 
+  overlayHost: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 1000,
+  },
   modalBackdrop: {
     flex: 1,
     backgroundColor: colors.overlayBackdrop,
     paddingHorizontal: spacing.lg,
     alignItems: "center",
     justifyContent: "center",
+  },
+  backdropBlocker: {
+    ...StyleSheet.absoluteFillObject,
   },
   modalCard: {
     width: "100%",
@@ -806,6 +794,11 @@ const styles = StyleSheet.create({
   modalButtons: {
     marginTop: spacing.lg,
     gap: spacing.md,
+  },
+  processingRow: {
+    marginTop: spacing.md,
+    alignItems: "center",
+    justifyContent: "center",
   },
   primaryBtn: {
     minHeight: 44,

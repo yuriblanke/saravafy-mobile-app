@@ -376,7 +376,29 @@ export default function Home() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    if (shouldBlockPress()) return;
+                    const now = Date.now();
+                    if (shouldBlockPress()) {
+                      if (__DEV__) {
+                        console.log("[PressGuard] blocked", {
+                          screen: "Home",
+                          now,
+                        });
+                      }
+                      return;
+                    }
+                    if (__DEV__) {
+                      console.log("[PressGuard] allowed", {
+                        screen: "Home",
+                        now,
+                      });
+                    }
+                    if (__DEV__) {
+                      console.log("[Navigation] click -> /player", {
+                        screen: "Home",
+                        now,
+                        initialPontoId: item.id,
+                      });
+                    }
                     router.push({
                       pathname: "/player",
                       params: {
