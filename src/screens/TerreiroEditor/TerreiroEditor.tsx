@@ -756,17 +756,24 @@ export default function TerreiroEditor() {
     if (!user?.id) return;
     if (inviteSending) return;
 
-    const email = normalizeEmail(inviteEmail);
-    if (!isValidEmail(email)) {
+    const emailNorm = inviteEmail.trim().toLowerCase();
+    if (!emailNorm) {
+      setInviteInlineError("Informe um e-mail válido.");
+      return;
+    }
+
+    if (!isValidEmail(emailNorm)) {
       setInviteInlineError("Informe um e-mail válido.");
       return;
     }
 
     const pendingDup = invitesPending.some(
-      (i) => normalizeEmail(i.email) === email && i.status === "pending"
+      (i) => normalizeEmail(i.email) === emailNorm && i.status === "pending"
     );
     if (pendingDup) {
-      setInviteInlineError("Este e-mail já tem um convite pendente.");
+      setInviteInlineError(
+        "Este e-mail já possui um convite pendente para este terreiro."
+      );
       return;
     }
 
@@ -775,7 +782,7 @@ export default function TerreiroEditor() {
       if (!pid) return false;
       const p = profilesById[pid];
       const memberEmail = p?.email ? normalizeEmail(p.email) : "";
-      return memberEmail && memberEmail === email;
+        return memberEmail && memberEmail === emailNorm;
     });
     if (memberEmailMatch) {
       setInviteInlineError("Esta pessoa já tem acesso ao terreiro.");
@@ -789,7 +796,7 @@ export default function TerreiroEditor() {
         .from("terreiro_invites")
         .insert({
           terreiro_id: resolvedTerreiroId,
-          email,
+          email: emailNorm,
           role: inviteRole,
           created_by: user.id,
           status: "pending",
@@ -798,11 +805,18 @@ export default function TerreiroEditor() {
         .single();
 
       if (insertRes.error) {
-        throw new Error(
-          typeof insertRes.error.message === "string"
-            ? insertRes.error.message
-            : "Não foi possível enviar o convite."
-        );
+        const err = insertRes.error as any;
+        const code = typeof err?.code === "string" ? err.code : "";
+        const message = typeof err?.message === "string" ? err.message : "";
+
+        if (code === "23505" || message.includes("ux_terreiro_invites_pending")) {
+          setInviteInlineError(
+            "Este e-mail já possui um convite pendente para este terreiro."
+          );
+          return;
+        }
+
+        throw new Error(message || "Não foi possível enviar o convite.");
       }
 
       setInviteEmail("");
