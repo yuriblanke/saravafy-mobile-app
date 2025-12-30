@@ -22,7 +22,7 @@ import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { colors, radii, spacing } from "@/src/theme";
 
-type InviteRole = "admin" | "editor" | "member";
+type InviteRole = "admin" | "editor" | "member" | "follower";
 
 type TerreiroInvite = {
   id: string;
@@ -382,7 +382,8 @@ export function InviteGate() {
             typeof row?.created_at === "string" &&
             (row?.role === "admin" ||
               row?.role === "editor" ||
-              row?.role === "member")
+              row?.role === "member" ||
+              row?.role === "follower")
               ? {
                   id: row.id,
                   terreiro_id: row.terreiro_id,
@@ -440,16 +441,10 @@ export function InviteGate() {
     try {
       // RLS estrito: aceitar precisa ser via RPC SECURITY DEFINER.
       const rpc = await supabase.rpc("accept_terreiro_invite", {
-        invite_id: currentInvite.id,
+        p_invite_id: currentInvite.id,
       });
 
       if (rpc.error) throw rpc.error;
-
-      // Espera um retorno { ok: true } (jsonb), mas não depende disso para UX.
-      const ok = (rpc.data as any)?.ok;
-      if (ok === false) {
-        throw new Error("RPC retornou ok=false");
-      }
 
       showToast("Convite aceito.");
       resolveInviteLocally(currentInvite.id);
@@ -505,16 +500,11 @@ export function InviteGate() {
 
     try {
       // RLS estrito: recusar precisa ser via RPC SECURITY DEFINER.
-      const rpc = await supabase.rpc("reject_terreiro_invite", {
-        invite_id: currentInvite.id,
+      const rpc = await supabase.rpc("decline_terreiro_invite", {
+        p_invite_id: currentInvite.id,
       });
 
       if (rpc.error) throw rpc.error;
-
-      const ok = (rpc.data as any)?.ok;
-      if (ok === false) {
-        throw new Error("RPC retornou ok=false");
-      }
 
       showToast("Convite recusado.");
 
