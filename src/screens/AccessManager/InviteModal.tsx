@@ -9,7 +9,9 @@ import {
 } from "react-native";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
+import { getAccessRoleLabel } from "@/src/constants/accessRoleCopy";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -73,7 +75,7 @@ export function InviteModal({
   const roleItems: SelectItem[] = useMemo(
     () => [
       { key: "admin", label: "Admin", value: "admin" },
-      { key: "editor", label: "Editor", value: "editor" },
+      { key: "editor", label: "Editora", value: "editor" },
     ],
     []
   );
@@ -92,8 +94,7 @@ export function InviteModal({
 
   const title = mode === "gestao" ? "Convidar gestão" : "Convidar membro";
 
-  const roleLabel =
-    role === "admin" ? "Admin" : role === "editor" ? "Editor" : "Membro";
+  const roleLabel = getAccessRoleLabel(role);
 
   const submitDisabled = isSubmitting || !emailOk;
 
@@ -155,7 +156,12 @@ export function InviteModal({
 
         {mode === "gestao" ? (
           <>
-            <Text style={[styles.label, { color: textSecondary }]}>Papel</Text>
+            <View style={styles.labelRow}>
+              <Text style={[styles.label, { color: textSecondary }]}>
+                Nível de acesso
+              </Text>
+              <AccessRoleInfo variant={variant} role={role} />
+            </View>
             <Pressable
               accessibilityRole="button"
               onPress={() => setRoleModalOpen(true)}
@@ -181,12 +187,15 @@ export function InviteModal({
             </Pressable>
           </>
         ) : (
-          <Text
-            style={[styles.roleFixed, { color: textMuted }]}
-            numberOfLines={2}
-          >
-            Papel: Membro
-          </Text>
+          <View style={styles.memberFixedRow}>
+            <Text style={[styles.label, { color: textSecondary }]}>Nível de acesso</Text>
+            <View style={styles.memberFixedRight}>
+              <Text style={[styles.memberFixedValue, { color: textMuted }]}>
+                {getAccessRoleLabel("member")}
+              </Text>
+              <AccessRoleInfo variant={variant} role="member" />
+            </View>
+          </View>
         )}
 
         <View style={styles.sheetActions}>
@@ -274,6 +283,12 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginBottom: 6,
   },
+  labelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
+  },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
     borderRadius: 14,
@@ -302,8 +317,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
-  roleFixed: {
+  memberFixedRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: spacing.md,
     marginBottom: spacing.md,
+  },
+  memberFixedRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  memberFixedValue: {
     fontSize: 12,
     fontWeight: "800",
   },

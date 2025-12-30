@@ -1,7 +1,9 @@
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { TagChip } from "@/src/components/TagChip";
+import { getAccessRoleLabel } from "@/src/constants/accessRoleCopy";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -9,9 +11,7 @@ export type AccessRole = "admin" | "editor" | "member";
 export type InviteStatus = "pending" | "accepted" | "rejected" | string;
 
 function roleLabel(role: AccessRole) {
-  if (role === "admin") return "Admin";
-  if (role === "editor") return "Editor";
-  return "Membro";
+  return getAccessRoleLabel(role);
 }
 
 function statusLabel(status: InviteStatus) {
@@ -76,6 +76,7 @@ export function InviteRow({
 
       <View style={styles.meta}>
         <TagChip label={roleLabel(role)} variant={variant} />
+        <AccessRoleInfo variant={variant} role={role} />
         {status ? (
           <TagChip label={statusLabel(status)} variant={variant} />
         ) : null}

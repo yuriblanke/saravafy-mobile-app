@@ -1,19 +1,20 @@
-# Fluxo — Convidar alguém para ser Admin/Editor de um Terreiro
+\# Fluxo — Convites e níveis de acesso (Admin / Editora / Membro)
 
 Este documento descreve **exatamente o que está implementado hoje** no app Saravafy para:
 
-- Convidar alguém para colaborar em um terreiro como **Admin** ou **Editor**
-- Compartilhar o convite (WhatsApp/Instagram/cópia)
-- Aceitar ou recusar o convite (lado de quem foi convidado)
-- O que muda no app **depois do aceite** (gates e permissões de UI)
+- Enviar convites para um terreiro com nível **Admin**, **Editora** ou **Membro**
+- Cancelar convites enviados
+- Aceitar ou recusar convites (lado de quem foi convidado)
+- O que muda no app **depois do aceite** (permissões e acesso a conteúdo)
 
-> Fonte da implementação:
->
-> - Tela de edição/admin do terreiro: [src/screens/TerreiroEditor/TerreiroEditor.tsx](src/screens/TerreiroEditor/TerreiroEditor.tsx)
-> - Gate global de convites (banner + overlay bloqueante): [src/components/InviteGate.tsx](src/components/InviteGate.tsx)
-> - Montagem global do gate (após boot): [app/\_layout.tsx](app/_layout.tsx)
-> - Uso do role no contexto do terreiro: [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)
-> - Fonte de “terreiros que administro” (switch de contexto): [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx)
+\> Fonte principal da implementação:
+\>
+\> - Tela “Gerenciar acesso” (gestão/membros/convites): [src/screens/AccessManager/AccessManager.tsx](src/screens/AccessManager/AccessManager.tsx)
+\> - Modal “Convidar gestão / Convidar membro” (nível de acesso): [src/screens/AccessManager/InviteModal.tsx](src/screens/AccessManager/InviteModal.tsx)
+\> - Linha (badge) de role com tooltip (i): [src/screens/AccessManager/InviteRow.tsx](src/screens/AccessManager/InviteRow.tsx)
+\> - Gate global de convites (banner + overlay bloqueante): [src/components/InviteGate.tsx](src/components/InviteGate.tsx)
+\> - Gatilho do gate após boot: [app/\_layout.tsx](app/_layout.tsx)
+\> - Exemplo de conteúdo “só para membros” (coleção `visibility = 'members'`): [src/screens/Collection/Collection.tsx](src/screens/Collection/Collection.tsx)
 
 ---
 
@@ -21,200 +22,129 @@ Este documento descreve **exatamente o que está implementado hoje** no app Sara
 
 ### Papéis existentes
 
-- `admin`: pode editar dados do terreiro e gerenciar pessoas/permissões
-- `editor`: pode colaborar com coleções/pontos, mas **não** gerencia pessoas/permissões
-- `follower`: papel usado no app para consumo/seguimento (não entra no fluxo de convite)
+- `admin` / **Admin**
+- `editor` / **Editora**
+- `member` / **Membro**
 
-No contexto de preferências, o tipo é `TerreiroRole = "admin" | "editor" | "follower"`: [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx)
+Existe também `follower` no app, mas ele **não faz parte do fluxo de convites** descrito aqui.
 
-### Tabelas / entidades usadas pelo fluxo
+### Níveis de acesso (texto do app)
 
-**1) `terreiro_invites`**
+Os textos abaixo são os mesmos exibidos no app (tooltip “i” em “Nível de acesso”).
 
-- Usada para criar convites (lado do admin) e para listar convites pendentes (lado do convidado).
-- Campos lidos/escritos pelo app:
-  - `id` (string)
-  - `terreiro_id` (string)
-  - `email` (string)
-  - `role` ("admin" | "editor")
-  - `status` (string; o app usa: `pending`, `accepted`, `rejected`)
-  - `created_at` (string | null)
-  - `activated_at` (string | null)
-  - `activated_by` (string | null)
-  - `created_by` (string; setado no insert)
+#### ADMIN — Administração
 
-**2) `terreiro_members`**
+**Pode:**
+
+- Convidar pessoas como Admin, Editora ou Membro
+- Criar, editar e organizar coleções
+- Criar e editar tags customizadas (usadas para adicionar o médium que traz a entidade)
+- Definir se o terreiro é público ou privado
+
+#### EDITOR — Edição
+
+**Pode:**
+
+- Criar, editar e organizar coleções
+- Criar e editar tags customizadas (usadas para adicionar o médium que traz a entidade)
+
+**Não pode:**
+
+- Convidar pessoas
+- Alterar a visibilidade do terreiro
+
+#### MEMBRO
+
+**São:**
+
+- Pessoas da corrente
+- Pessoas da assistência
+- Visitantes do terreiro
+
+**Pode:**
+
+- Acessar os pontos do terreiro
+
+---
+
+## Tabelas / entidades usadas pelo fluxo
+
+### 1) `terreiro_invites`
+
+- Usada para criar convites (Admin) e para listar convites pendentes (lado do convidado).
+- Campos usados pelo app (principais):
+  - `id`
+  - `terreiro_id`
+  - `email`
+  - `role` (`admin` | `editor` | `member`)
+  - `status` (`pending`, `accepted`, `rejected`)
+  - `created_at`
+  - `activated_at`
+  - `activated_by`
+  - `created_by`
+
+### 2) `terreiro_members`
 
 - Usada para conceder acesso após o aceite do convite.
-- Campos lidos/escritos:
-  - `terreiro_id` (string)
-  - `user_id` (string)
-  - `role` ("admin" | "editor" | "follower" dependendo do contexto)
-  - `created_at` (string | null)
-  - `status` pode existir no banco e é usado como filtro quando disponível.
+- Campos usados (principais):
+  - `terreiro_id`
+  - `user_id`
+  - `role` (`admin` | `editor` | `member` | `follower` dependendo do contexto)
+  - `status` (quando disponível no banco; o app trata `active` / `pending`)
 
-> Observação importante sobre `role` no convite:
->
-> - O fluxo de convite no produto usa `role in (admin, editor)`.
-> - O tipo no frontend ainda aceita `member` por compatibilidade com dados antigos, mas o app **não** oferece essa opção no formulário.
+### Restrições de segurança (RLS)
 
----
+Este fluxo roda sob **RLS estrito**.
 
-## Restrições de segurança (RLS)
-
-Este fluxo roda sob **RLS estrito**:
-
-- A pessoa convidada consegue apenas **ler** seus convites (policy `select_own_invites`).
-- A pessoa convidada **não** consegue:
-  - inserir/upsert em `terreiro_members`
-  - atualizar `terreiro_invites`
-
-Por isso, **aceitar/recusar precisa ser via RPC `SECURITY DEFINER`** (backend), e o app só chama a RPC.
-
-Scripts de infra (Supabase SQL Editor):
-
-- Policies/helper functions para evitar recursão e restringir escrita em members: [scripts/supabase/2025-12-28_fix_terreiro_members_rls.sql](scripts/supabase/2025-12-28_fix_terreiro_members_rls.sql)
-- RPCs de accept/reject do convite (SECURITY DEFINER): [scripts/supabase/2025-12-29_accept_terreiro_invite_rpc.sql](scripts/supabase/2025-12-29_accept_terreiro_invite_rpc.sql)
-
-**3) `profiles`**
-
-- Usada apenas para:
-  - Exibir nome/avatar de membros
-  - Checar duplicidade de convite por e-mail (se o membro já tem acesso)
-- Campos usados: `id`, `full_name`, `avatar_url`, `email`
+- A pessoa convidada consegue apenas **ler** seus convites.
+- Para **aceitar/recusar**, o app chama RPCs `SECURITY DEFINER` no backend.
 
 ---
 
-## Fluxo A — Convidar alguém (lado do Admin)
+## Fluxo A — Enviar convite (lado do Admin)
 
 ### Entry point / onde fica
 
-- O fluxo de convite fica dentro da tela **Editar terreiro** (TerreiroEditor), na seção de administração (membros + convites).
+- A gestão de acesso fica na tela **Gerenciar acesso** (AccessManager).
 
-### Pré-condições
+### Seções
 
-- O convite só está disponível quando o terreiro já existe (**modo edit**):
+Dentro da tela, existem três blocos principais:
 
-  - `isEdit` precisa ser `true`.
-  - UI exibe aviso quando ainda não salvou: “Salve o terreiro para poder convidar pessoas.”
+- **Gestão** (Admin/Editora)
+- **Membros**
+- **Convites enviados** (pendentes)
 
-- Apenas **Admin** pode ver e usar o bloco de convites:
-  - Admin é definido como: usuário é `created_by` do terreiro **OU** seu `terreiro_members.role` é `admin`.
-  - Editors não têm acesso ao convite.
+### Modal de convite
 
-### Seções envolvidas
+Ao convidar, o app abre um BottomSheet (`InviteModal`) em um dos modos:
 
-**1) “Pessoas com acesso”**
+- **Convidar gestão**: permite escolher **Admin** ou **Editora**
+- **Convidar membro**: nível de acesso fica fixo em **Membro**
 
-- Lista `members` (`terreiro_members`) com nome/avatar (de `profiles`) e o papel (`Admin`/`Editor`).
+O campo “Nível de acesso” tem um ícone “i” que mostra a explicação do papel.
 
-**2) “Convites pendentes” (somente Admin)**
+### Validações principais
 
-- Lista convites em `terreiro_invites` com `status = "pending"`.
-- Para cada convite:
-  - mostra `email`
-  - mostra `role` (renderizado via `roleLabel`)
-  - botão “Compartilhar”
+- O e-mail é normalizado com `trim()` + `toLowerCase()`.
+- O app evita convites duplicados pendentes para o mesmo e-mail.
 
-**3) CTA “Convidar pessoas da curimba”**
+### Persistência
 
-- Abre um formulário inline para criar um novo convite.
+Em sucesso, o app faz `insert` em `terreiro_invites` com:
 
-### Formulário: campos e validações
-
-**Campo 1 — E-mail**
-
-- Input de texto (keyboard email).
-- Normalização: `trim()` + `toLowerCase()`.
-- Validação de formato:
-  - sem espaços
-  - regex simples `^[^\s@]+@[^\s@]+\.[^\s@]+$`
-- Mensagens de erro:
-  - “Informe um e-mail válido.”
-
-**Campo 2 — Papel**
-
-- Select que abre um modal.
-- Valores possíveis:
-  - `admin`
-  - `editor`
-- Default do formulário: `editor`.
-
-### Modal: selecionar papel
-
-- Modal `SelectModal` (título: “Papel”) com duas opções:
-  - “Admin” → value `admin`
-  - “Editor” → value `editor`
-
-### Regras de bloqueio antes do envio
-
-Antes de criar o convite, a tela valida:
-
-- Não permitir convite duplicado pendente:
-
-  - se já existe `terreiro_invites` com o mesmo `email` e `status === "pending"`
-  - erro: “Este e-mail já tem um convite pendente.”
-
-- Não permitir convidar quem já tem acesso:
-  - se o email do membro (via `profilesById[user_id].email`) bater com o email digitado
-  - erro: “Esta pessoa já tem acesso ao terreiro.”
-
-### Ação: “Enviar convite” (persistência)
-
-- Insert em `terreiro_invites` com payload:
-  - `terreiro_id`: id do terreiro
-  - `email`: email normalizado
-  - `role`: papel escolhido (`admin` | `editor`)
-  - `created_by`: id do usuário atual
-  - `status`: `pending`
-
-**Em sucesso:**
-
-- limpa e-mail
-- fecha o formulário
-- recarrega a seção admin (members + convites)
-
-**Em erro:**
-
-- abre um `Alert` com título “Erro” e a mensagem do backend (quando disponível).
+- `terreiro_id`
+- `email`
+- `role` (`admin` | `editor` | `member`)
+- `status = 'pending'`
+- `created_by = auth.uid()`
 
 ---
 
-## Fluxo B — Compartilhar convite (lado do Admin)
+## Fluxo B — Cancelar convite (lado do Admin)
 
-### Entry point
-
-- Botão “Compartilhar” em um convite pendente.
-
-### BottomSheet: opções de compartilhamento
-
-Abre um `BottomSheet` com as ações (nesta ordem):
-
-1. “Copiar mensagem”
-2. “Mais opções…”
-
-### Mensagem de convite (conteúdo do produto)
-
-A mensagem é gerada por `buildInviteShareMessage(invite)` e inclui:
-
-- Nome do terreiro
-- Aviso de que não está oficialmente na Play Store
-- Link de instalação: `APP_INSTALL_URL`
-- Passo explícito: “Entre com o e-mail <emailConvidado>”
-- Explicação: “Assim que entrar, o convite vai aparecer para você aceitar ou recusar.”
-
-### Comportamento por opção
-
-**1) Copiar mensagem**
-
-- Copia para o clipboard.
-- Toast “Mensagem copiada.” (ou equivalente)
-- Fecha o sheet.
-
-**2) Mais opções…**
-
-- Abre o share nativo (`Share.share({ message })`)
-- Fecha o sheet.
+- Em “Convites enviados”, cada convite pendente tem um menu de ações.
+- A ação **Cancelar convite** remove o registro via `delete` em `terreiro_invites`.
 
 ---
 
@@ -339,6 +269,17 @@ A query de convites pendentes é:
 
 ---
 
+## Conteúdo privado / “members only” (estado atual)
+
+Hoje, a restrição de acesso no app aparece de forma prática no conteúdo de **coleções**:
+
+- `collections.visibility = 'members'` exige que o usuário seja **membro ativo** do terreiro para carregar os pontos.
+- Se a pessoa não for membro, o app mostra um fluxo de **pedido de acesso** e bloqueia o conteúdo.
+
+Na prática, isso é o que o produto trata como “conteúdo do terreiro privado” (a permissão vem de `terreiro_members`).
+
+---
+
 ## Seed manual (para testar)
 
 1. Criar um terreiro e um admin (precisa existir um admin em `terreiro_members`).
@@ -346,7 +287,7 @@ A query de convites pendentes é:
 
 - `terreiro_id`: do terreiro
 - `email`: do usuário convidado (normalizado por trigger)
-- `role`: `admin` | `editor`
+- `role`: `admin` | `editor` | `member`
 - `status`: `pending`
 - `created_by`: user_id do admin
 
@@ -383,27 +324,21 @@ Quando `canEdit` é falso, a tela:
 
 Fonte: [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)
 
-### 3) Diferenciação Admin vs Editor
+### 3) Diferenciação Admin vs Editora vs Membro
 
-No app (neste fluxo), a distinção prática é:
-
-- **Admin**: consegue convidar pessoas (apenas no editor do terreiro) e tem permissões descritas no sheet “Papéis no terreiro”.
-- **Editor**: consegue colaborar com coleções/pontos, mas não gerencia pessoas/permissões.
-
-A tela `TerreiroEditor` também tem um BottomSheet informativo “Papéis no terreiro” com essas regras de produto (texto fixo):
-
-- Admin: “Alterar todos os dados do terreiro”, “Convidar e remover pessoas”, “Definir quem pode colaborar”
-- Editor: “Criar e editar coleções”, “Organizar e adicionar pontos”; não pode “Alterar dados do terreiro” nem “Gerenciar pessoas ou permissões”.
+- **Admin**: gerencia pessoas (convida/remove) e também cria/edita conteúdo.
+- **Editora**: cria/edita conteúdo, mas não gerencia pessoas.
+- **Membro**: acessa os pontos do terreiro (inclui corrente/assistência/visitantes).
 
 ---
 
 ## Estados, mensagens e cópias (inventário rápido)
 
-### Admin (TerreiroEditor)
+### Admin (AccessManager)
 
 - “Salve o terreiro para poder convidar pessoas.”
-- “Convites pendentes” / “Nenhum convite pendente.”
-- “Convidar pessoas da curimba”
+-- “Convites enviados” / “Nenhum convite pendente.”
+-- “Convidar gestão” / “Convidar membro”
 - Erros inline:
   - “Informe um e-mail válido.”
   - “Este e-mail já tem um convite pendente.”
@@ -426,6 +361,6 @@ A tela `TerreiroEditor` também tem um BottomSheet informativo “Papéis no ter
 
 ## Observações técnicas que afetam o produto
 
-- O convite é por **email** (não por user_id). O usuário precisa estar logado com o mesmo email convidado.
+- O convite é por **email** (não por `user_id`). O usuário precisa estar logado com o mesmo e-mail convidado.
 - O modal não abre automaticamente na chegada realtime; abre via banner CTA ou no próximo foreground refresh.
 - Se as policies de RLS em `terreiro_members` estiverem em recursão, o fluxo pode ficar indisponível; o app tenta “falhar aberto” (não travar UX).
