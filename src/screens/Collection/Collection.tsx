@@ -92,6 +92,7 @@ export default function Collection() {
   const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionError, setCollectionError] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
 
   const terreiroId =
     typeof collection?.owner_terreiro_id === "string"
@@ -176,7 +177,22 @@ export default function Collection() {
 
   const isPendingView = isMembersOnly && isLoggedIn && hasPendingRequest;
 
-  const shareMessage = buildShareMessageForColecao(title);
+  const openShare = useCallback(async () => {
+    try {
+      const message = await buildShareMessageForColecao(title);
+      setShareMessage(message);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Collection] erro ao gerar mensagem de share", {
+          error: getErrorMessage(e),
+        });
+      }
+
+      setShareMessage(`Olha essa coleção “${title}” no Saravafy.`);
+    }
+
+    setIsShareOpen(true);
+  }, [title]);
 
   const isLoading = collectionLoading || pontosLoading;
   const error = collectionError || pontosError;
@@ -203,7 +219,7 @@ export default function Collection() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Compartilhar"
-          onPress={() => setIsShareOpen(true)}
+          onPress={openShare}
           hitSlop={10}
           style={styles.headerIconBtn}
         >

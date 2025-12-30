@@ -26,7 +26,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
-import { APP_INSTALL_URL } from "@/src/config/links";
+import { getCachedAppInstallUrl } from "@/src/config/remoteConfig";
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
   invalidateTerreiro,
@@ -493,17 +493,25 @@ export default function TerreiroEditor() {
   const [inviteSending, setInviteSending] = useState(false);
 
   const buildInviteShareMessage = useCallback(
-    (invite: TerreiroInviteRow) => {
+    async (invite: TerreiroInviteRow) => {
       const terreiroName = (form.title || "").trim() || "Terreiro";
       const emailConvidado = normalizeEmail(invite.email);
+      const installUrl = await getCachedAppInstallUrl();
+
+      const hasInstallUrl = !!(
+        typeof installUrl === "string" && installUrl.trim()
+      );
+      const emailStepNumber = hasInstallUrl ? 3 : 1;
 
       return (
         `Você foi convidada para colaborar no terreiro “${terreiroName}” no Saravafy.\n\n` +
-        `O Saravafy ainda não foi lançado oficialmente na Play Store.\n` +
-        `Para instalar agora, será necessário permitir a instalação de apps fora da loja.\n\n` +
-        `1) Baixe o app pelo link: ${APP_INSTALL_URL}\n` +
-        `2) Ao instalar, aceite a permissão para apps desconhecidos\n` +
-        `3) Entre com o e-mail ${emailConvidado}\n\n` +
+        (hasInstallUrl
+          ? `O Saravafy ainda não foi lançado oficialmente na Play Store.\n` +
+            `Para instalar agora, será necessário permitir a instalação de apps fora da loja.\n\n` +
+            `1) Baixe o app pelo link: ${installUrl}\n` +
+            `2) Ao instalar, aceite a permissão para apps desconhecidos\n`
+          : "") +
+        `${emailStepNumber}) Entre com o e-mail ${emailConvidado}\n\n` +
         `Assim que entrar, o convite vai aparecer para você aceitar ou recusar.`
       );
     },
@@ -530,7 +538,7 @@ export default function TerreiroEditor() {
 
   const copyInviteMessageOnly = useCallback(async () => {
     if (!inviteToShare) return;
-    const message = buildInviteShareMessage(inviteToShare);
+    const message = await buildInviteShareMessage(inviteToShare);
     await copyInviteMessage(message);
     closeInviteShareSheet();
   }, [
@@ -542,7 +550,7 @@ export default function TerreiroEditor() {
 
   const shareInviteMoreOptions = useCallback(async () => {
     if (!inviteToShare) return;
-    const message = buildInviteShareMessage(inviteToShare);
+    const message = await buildInviteShareMessage(inviteToShare);
 
     try {
       await Share.share({ message });

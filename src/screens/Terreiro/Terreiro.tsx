@@ -12,13 +12,7 @@ import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   FlatList,
@@ -75,9 +69,25 @@ export default function Terreiro() {
   const terreiroName = resolvedTerreiroName ?? "Terreiro";
 
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
 
-  const shareMessage = useMemo(() => {
-    return buildShareMessageForTerreiro(terreiroName);
+  const openShare = useCallback(async () => {
+    setIsTerreiroMenuOpen(false);
+
+    try {
+      const message = await buildShareMessageForTerreiro(terreiroName);
+      setShareMessage(message);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Terreiro] erro ao gerar mensagem de share", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+
+      setShareMessage(`Olha o terreiro “${terreiroName}” no Saravafy.`);
+    }
+
+    setIsShareOpen(true);
   }, [terreiroName]);
 
   const terreiroId = resolvedTerreiroId;
@@ -862,10 +872,7 @@ export default function Terreiro() {
               accessibilityRole="button"
               accessibilityLabel="Compartilhar terreiro"
               hitSlop={10}
-              onPress={() => {
-                setIsTerreiroMenuOpen(false);
-                setIsShareOpen(true);
-              }}
+              onPress={openShare}
               style={({ pressed }) => [
                 styles.sheetActionRow,
                 pressed ? styles.sheetActionPressed : null,

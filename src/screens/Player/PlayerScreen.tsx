@@ -92,6 +92,7 @@ export default function PlayerScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isShareOpen, setIsShareOpen] = useState(false);
+  const [shareMessage, setShareMessage] = useState("");
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
@@ -128,8 +129,24 @@ export default function PlayerScreen() {
 
   const activePonto = items[activeIndex]?.ponto ?? null;
 
-  const shareMessage = useMemo(() => {
-    return buildShareMessageForPonto(activePonto?.title ?? "");
+  const openShare = useCallback(async () => {
+    const title = activePonto?.title ?? "";
+
+    try {
+      const message = await buildShareMessageForPonto(title);
+      setShareMessage(message);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Player] erro ao gerar mensagem de share", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+
+      const safeTitle = title?.trim() || "Ponto";
+      setShareMessage(`Olha esse ponto “${safeTitle}” no Saravafy.`);
+    }
+
+    setIsShareOpen(true);
   }, [activePonto?.title]);
 
   const onDecreaseFont = useCallback(() => {
@@ -258,7 +275,7 @@ export default function PlayerScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Compartilhar"
-            onPress={() => setIsShareOpen(true)}
+            onPress={openShare}
             hitSlop={10}
             style={styles.headerIconBtn}
           >

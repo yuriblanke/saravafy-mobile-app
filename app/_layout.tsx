@@ -20,6 +20,7 @@ import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { InviteGate } from "@/src/components/InviteGate";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
+import { warmRemoteConfig } from "@/src/config/remoteConfig";
 import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
@@ -60,6 +61,11 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
   });
+
+  // Warm remote config in background once per app boot.
+  useEffect(() => {
+    warmRemoteConfig();
+  }, []);
 
   // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {

@@ -1,4 +1,4 @@
-import { APP_INSTALL_URL } from "@/src/config/links";
+import { getCachedAppInstallUrl } from "@/src/config/remoteConfig";
 import * as Clipboard from "expo-clipboard";
 import { Share } from "react-native";
 
@@ -7,44 +7,60 @@ function sanitizeTitle(value: string, fallback: string) {
   return trimmed.length > 0 ? trimmed : fallback;
 }
 
-function buildPreWebInstallBlock() {
-  return (
-    `O Saravafy ainda não foi lançado oficialmente na Play Store.\n` +
-    `Para instalar agora, será necessário permitir a instalação de apps fora da loja.\n\n` +
-    `1) Baixe o app pelo link: ${APP_INSTALL_URL}\n` +
-    `2) Ao instalar, aceite a permissão para apps desconhecidos\n`
-  );
+async function buildPreWebInstallBlock(): Promise<{
+  preInstallBlock: string;
+  openAppStepNumber: number;
+}> {
+  const installUrl = await getCachedAppInstallUrl();
+  if (!installUrl) {
+    return { preInstallBlock: "", openAppStepNumber: 1 };
+  }
+
+  return {
+    preInstallBlock:
+      `O Saravafy ainda não foi lançado oficialmente na Play Store.\n` +
+      `Para instalar agora, será necessário permitir a instalação de apps fora da loja.\n\n` +
+      `1) Baixe o app pelo link: ${installUrl}\n` +
+      `2) Ao instalar, aceite a permissão para apps desconhecidos\n`,
+    openAppStepNumber: 3,
+  };
 }
 
-export function buildShareMessageForPonto(pontoTitle: string) {
+export async function buildShareMessageForPonto(pontoTitle: string) {
   const safeTitle = sanitizeTitle(pontoTitle, "Ponto");
+  const { preInstallBlock, openAppStepNumber } =
+    await buildPreWebInstallBlock();
 
   return (
     `Olha esse ponto “${safeTitle}” no Saravafy.\n\n` +
-    buildPreWebInstallBlock() +
-    `3) Abra o Saravafy e procure por “${safeTitle}”\n\n` +
+    preInstallBlock +
+    `${openAppStepNumber}) Abra o Saravafy e procure por “${safeTitle}”\n\n` +
     `Aí você consegue ver e adicionar nas suas coleções.`
   );
 }
 
-export function buildShareMessageForColecao(collectionTitle: string) {
+export async function buildShareMessageForColecao(collectionTitle: string) {
   const safeTitle = sanitizeTitle(collectionTitle, "Coleção");
+  const { preInstallBlock, openAppStepNumber } =
+    await buildPreWebInstallBlock();
 
   return (
     `Olha essa coleção “${safeTitle}” no Saravafy.\n\n` +
-    buildPreWebInstallBlock() +
-    `3) Abra o Saravafy e procure pela coleção “${safeTitle}”\n\n` +
+    preInstallBlock +
+    `${openAppStepNumber}) Abra o Saravafy e procure pela coleção “${safeTitle}”\n\n` +
     `Aí você consegue ver os pontos e salvar pra depois.`
   );
 }
 
-export function buildShareMessageForTerreiro(terreiroName: string) {
+export async function buildShareMessageForTerreiro(terreiroName: string) {
   const safeName = sanitizeTitle(terreiroName, "Terreiro");
+  const { preInstallBlock, openAppStepNumber } =
+    await buildPreWebInstallBlock();
 
   return (
     `Olha o terreiro “${safeName}” no Saravafy.\n\n` +
-    buildPreWebInstallBlock() +
-    `3) Abra o Saravafy e procure por “${safeName}”\n\n` +
+    preInstallBlock +
+    `${openAppStepNumber}) Abra o Saravafy e procure por “${safeName}”\n\n` +
     `Assim você encontra as coleções e os pontos desse terreiro.`
   );
 }
