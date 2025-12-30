@@ -35,7 +35,8 @@ const LYRICS_FONT_MIN = 14;
 const LYRICS_FONT_MAX = 26;
 
 const curimbaOnPng = require("@/assets/images/curimba-on.png");
-const curimbaOffPng = require("@/assets/images/curimba-off.png");
+const curimbaOffOnDarkPng = require("@/assets/images/curimba-off-on-dark.png");
+const curimbaOffOnLightPng = require("@/assets/images/curimba-off-on-light.png");
 
 function parseIntSafe(value: unknown): number | null {
   const n = Number(value);
@@ -292,7 +293,13 @@ export default function PlayerScreen() {
             style={styles.headerIconBtn}
           >
             <Image
-              source={curimbaEnabled ? curimbaOnPng : curimbaOffPng}
+              source={
+                curimbaEnabled
+                  ? curimbaOnPng
+                  : variant === "light"
+                  ? curimbaOffOnLightPng
+                  : curimbaOffOnDarkPng
+              }
               style={styles.curimbaIcon}
               resizeMode="contain"
               accessibilityIgnoresInvertColors
