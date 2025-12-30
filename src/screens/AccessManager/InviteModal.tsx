@@ -11,10 +11,7 @@ import {
 import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
-import {
-  getAccessRoleInfoProps,
-  getAccessRoleLabel,
-} from "@/src/constants/accessRoleCopy";
+import { dismissAllTooltips } from "@/src/components/TooltipPopover";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -55,6 +52,7 @@ type CommonProps = {
 
 type TerreiroInviteProps = CommonProps & {
   mode: "gestao" | "membro";
+  roleDefinitions: TerreiroRoleDefinitions;
   onSubmit: (payload: { email: string; role: AccessRole }) => Promise<void>;
 };
 
@@ -67,6 +65,13 @@ type CuratorInviteProps = CommonProps & {
 };
 
 type Props = TerreiroInviteProps | CuratorInviteProps;
+
+export type TerreiroRoleDefinition = {
+  label: string;
+  infoProps: InfoProps;
+};
+
+export type TerreiroRoleDefinitions = Record<AccessRole, TerreiroRoleDefinition>;
 
 export function InviteModal(props: Props) {
   const { visible, variant, mode, onClose, onSubmit, isSubmitting } = props;
@@ -89,13 +94,16 @@ export function InviteModal(props: Props) {
     }
   }, [mode, visible]);
 
-  const roleItems: SelectItem[] = useMemo(
-    () => [
-      { key: "admin", label: "Admin", value: "admin" },
-      { key: "editor", label: "Editora", value: "editor" },
-    ],
-    []
-  );
+  const roleDefs: TerreiroRoleDefinitions | null =
+    mode === "curator" ? null : props.roleDefinitions;
+
+  const roleItems: SelectItem[] = useMemo(() => {
+    if (!roleDefs) return [];
+    return [
+      { key: "admin", label: roleDefs.admin.label, value: "admin" },
+      { key: "editor", label: roleDefs.editor.label, value: "editor" },
+    ];
+  }, [roleDefs]);
 
   const normalizedEmail = normalizeEmail(email);
   const emailOk = isValidEmail(normalizedEmail);
@@ -116,7 +124,8 @@ export function InviteModal(props: Props) {
       ? "Convidar gestão"
       : "Convidar membro";
 
-  const roleLabel = getAccessRoleLabel(role);
+  const roleLabel =
+    (roleDefs && roleDefs[role]?.label) || String(role ?? "");
 
   const submitDisabled = isSubmitting || !emailOk;
 
@@ -185,18 +194,12 @@ export function InviteModal(props: Props) {
 
         {mode === "gestao" ? (
           <>
-            <View style={styles.labelRow}>
-              <Text style={[styles.label, { color: textSecondary }]}>
-                Nível de acesso
-              </Text>
-              <AccessRoleInfo
-                variant={variant}
-                info={getAccessRoleInfoProps(role)}
-              />
-            </View>
             <Pressable
               accessibilityRole="button"
-              onPress={() => setRoleModalOpen(true)}
+              onPress={() => {
+                dismissAllTooltips();
+                setRoleModalOpen(true);
+              }}
               style={({ pressed }) => [
                 styles.selectField,
                 {
@@ -213,9 +216,15 @@ export function InviteModal(props: Props) {
               ]}
             >
               <Text style={[styles.selectValue, { color: textPrimary }]}>
-                {roleLabel}
+                Role: {roleLabel}
               </Text>
-              <Ionicons name="chevron-down" size={16} color={textMuted} />
+              <View style={styles.selectRight}>
+                <AccessRoleInfo
+                  variant={variant}
+                  info={roleDefs ? roleDefs[role].infoProps : { title: "" }}
+                />
+                <Ionicons name="chevron-down" size={16} color={textMuted} />
+              </View>
             </Pressable>
           </>
         ) : mode === "curator" ? (
@@ -233,15 +242,15 @@ export function InviteModal(props: Props) {
         ) : (
           <View style={styles.memberFixedRow}>
             <Text style={[styles.label, { color: textSecondary }]}>
-              Nível de acesso
+              Role
             </Text>
             <View style={styles.memberFixedRight}>
               <Text style={[styles.memberFixedValue, { color: textMuted }]}>
-                {getAccessRoleLabel("member")}
+                Role: {roleDefs ? roleDefs.member.label : "member"}
               </Text>
               <AccessRoleInfo
                 variant={variant}
-                info={getAccessRoleInfoProps("member")}
+                info={roleDefs ? roleDefs.member.infoProps : { title: "" }}
               />
             </View>
           </View>
@@ -337,6 +346,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     marginTop: spacing.md,
+  },
+  selectRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,

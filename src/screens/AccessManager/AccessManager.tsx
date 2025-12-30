@@ -637,6 +637,10 @@ import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { dismissAllTooltips } from "@/src/components/TooltipPopover";
 import {
+  getAccessRoleInfoProps,
+  getAccessRoleLabel,
+} from "@/src/constants/accessRoleCopy";
+import {
   useTerreiroInvites,
   useTerreiroMembers,
   useTerreiroMembershipStatus,
@@ -828,8 +832,26 @@ export default function AccessManagerScreen() {
   }, [inviteItems, removedInviteIds]);
 
   const openInviteModal = useCallback((mode: TerreiroInviteModalMode) => {
+    dismissAllTooltips();
     setInviteModalMode(mode);
     setInviteModalVisible(true);
+  }, []);
+
+  const roleDefinitions = useMemo(() => {
+    return {
+      admin: {
+        label: getAccessRoleLabel("admin"),
+        infoProps: getAccessRoleInfoProps("admin"),
+      },
+      editor: {
+        label: getAccessRoleLabel("editor"),
+        infoProps: getAccessRoleInfoProps("editor"),
+      },
+      member: {
+        label: getAccessRoleLabel("member"),
+        infoProps: getAccessRoleInfoProps("member"),
+      },
+    };
   }, []);
 
   const closeInviteModal = useCallback(() => {
@@ -1410,6 +1432,7 @@ export default function AccessManagerScreen() {
         visible={inviteModalVisible}
         variant={variant}
         mode={inviteModalMode}
+        roleDefinitions={roleDefinitions}
         isSubmitting={inviteSubmitting}
         onClose={closeInviteModal}
         onSubmit={createInvite}

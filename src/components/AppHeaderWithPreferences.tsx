@@ -25,6 +25,7 @@ import { queryKeys } from "@/src/queries/queryKeys";
 import { InviteModal } from "@/src/screens/AccessManager/InviteModal";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { dismissAllTooltips } from "@/src/components/TooltipPopover";
 import { useQuery } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter } from "expo-router";
@@ -472,7 +473,10 @@ export function AppHeaderWithPreferences() {
                 <View style={styles.pagesList}>
                   <Pressable
                     accessibilityRole="button"
-                    onPress={() => setIsCuratorInviteOpen(true)}
+                    onPress={() => {
+                      dismissAllTooltips();
+                      setIsCuratorInviteOpen(true);
+                    }}
                     style={({ pressed }) => [
                       styles.prefActionRow,
                       {
@@ -823,15 +827,44 @@ export function AppHeaderWithPreferences() {
           setIsCuratorInviteSubmitting(true);
           try {
             const rpc = await supabase.rpc("create_curator_invite", {
-              email: normalized,
+              p_email: normalized,
             });
 
             if (rpc.error) {
+              const msg =
+                typeof rpc.error.message === "string" ? rpc.error.message : "";
+
+              if (
+                msg.includes("schema cache") ||
+                msg.includes("Could not find the function")
+              ) {
+                showToast(
+                  "O servidor ainda está atualizando. Tente novamente em alguns segundos."
+                );
+                return;
+              }
+
+              if (msg.includes("not_dev_master")) {
+                showToast(
+                  "Somente Dev Master pode convidar Guardiã do Acervo."
+                );
+                return;
+              }
+
+              if (msg.includes("invite_already_pending")) {
+                showToast("Já existe um convite pendente para este e-mail.");
+                return;
+              }
+
+              if (msg.includes("invalid_email")) {
+                showToast("E-mail inválido.");
+                return;
+              }
+
               showToast(
-                typeof rpc.error.message === "string" &&
-                  rpc.error.message.trim()
-                  ? rpc.error.message
-                  : "Não foi possível enviar o convite."
+                msg.trim()
+                  ? msg
+                  : "Não foi possível enviar o convite agora. Tente novamente."
               );
               return;
             }

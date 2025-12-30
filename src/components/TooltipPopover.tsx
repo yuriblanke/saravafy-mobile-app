@@ -34,6 +34,9 @@ type AnchorRect = {
 
 type Props = {
   anchorRef: React.RefObject<any>;
+  open: boolean;
+  onClose: () => void;
+  variant?: "light" | "dark";
   title?: string;
   text: string;
   maxWidth?: number;
@@ -44,6 +47,9 @@ const SCREEN_PADDING = 12;
 
 export function TooltipPopover({
   anchorRef,
+  open,
+  onClose,
+  variant: variantOverride,
   title,
   text,
   maxWidth = 260,
@@ -51,23 +57,15 @@ export function TooltipPopover({
   const { effectiveTheme } = usePreferences();
   const pathname = usePathname();
 
-  const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<AnchorRect | null>(null);
   const [cardSize, setCardSize] = useState<{
     width: number;
     height: number;
   } | null>(null);
 
-  const close = useCallback(() => setOpen(false), []);
-  const toggle = useCallback(() => {
-    setOpen((v) => {
-      const next = !v;
-      if (next) {
-        dismissAllTooltips();
-      }
-      return next;
-    });
-  }, []);
+  const close = useCallback(() => {
+    onClose();
+  }, [onClose]);
 
   // Close when navigating to another route.
   useEffect(() => {
@@ -78,6 +76,7 @@ export function TooltipPopover({
 
   // Global dismiss channel (used by scroll begin drag).
   useEffect(() => {
+    if (!open) return;
     const fn = () => {
       if (open) close();
     };
@@ -130,20 +129,13 @@ export function TooltipPopover({
     };
   }, [measureAnchor, open]);
 
-  const variant = effectiveTheme;
+  const variant = variantOverride ?? effectiveTheme;
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
     variant === "light"
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
-  const iconBorder =
-    variant === "light"
-      ? colors.surfaceCardBorderLight
-      : colors.surfaceCardBorder;
-  const iconBg = variant === "light" ? colors.inputBgLight : colors.inputBgDark;
-  const iconText =
-    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
   const windowDims = Dimensions.get("window");
 
@@ -183,93 +175,60 @@ export function TooltipPopover({
     return { left, top, width: maxCardWidth };
   }, [anchor, cardSize?.height, maxWidth, windowDims.height, windowDims.width]);
 
+  if (!open) return null;
+
   return (
-    <>
+    <Modal
+      visible
+      transparent
+      animationType="fade"
+      onRequestClose={close}
+      statusBarTranslucent
+    >
       <Pressable
-        ref={anchorRef}
         accessibilityRole="button"
-        accessibilityLabel="Ver detalhes"
-        onPress={toggle}
-        hitSlop={8}
-        style={[
-          styles.icon,
-          {
-            backgroundColor: iconBg,
-            borderColor: iconBorder,
-          },
-        ]}
-      >
-        <Text style={[styles.iconText, { color: iconText }]}>i</Text>
-      </Pressable>
+        accessibilityLabel="Fechar explicação"
+        onPress={close}
+        style={styles.backdrop}
+      />
 
-      <Modal
-        visible={open}
-        transparent
-        animationType="fade"
-        onRequestClose={close}
-        statusBarTranslucent
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Fechar explicação"
-          onPress={close}
-          style={styles.backdrop}
-        />
+      {computed ? (
+        <View
+          pointerEvents="box-none"
+          style={[
+            styles.cardHost,
+            {
+              left: computed.left,
+              top: computed.top,
+              width: computed.width,
+            },
+          ]}
+          onLayout={(e) => {
+            const { width, height } = e.nativeEvent.layout;
+            if (!Number.isFinite(width) || !Number.isFinite(height)) return;
+            if (width <= 0 || height <= 0) return;
 
-        {computed ? (
-          <View
-            pointerEvents="box-none"
-            style={[
-              styles.cardHost,
-              {
-                left: computed.left,
-                top: computed.top,
-                width: computed.width,
-              },
-            ]}
-            onLayout={(e) => {
-              const { width, height } = e.nativeEvent.layout;
-              if (!Number.isFinite(width) || !Number.isFinite(height)) return;
-              if (width <= 0 || height <= 0) return;
-
-              const prev = cardSize;
-              if (prev && prev.width === width && prev.height === height)
-                return;
-              setCardSize({ width, height });
-            }}
-          >
-            <SurfaceCard variant={variant} style={styles.card}>
-              {typeof title === "string" && title.trim() ? (
-                <Text style={[styles.title, { color: textPrimary }]}>
-                  {title.trim()}
-                </Text>
-              ) : null}
-
-              <Text style={[styles.body, { color: textSecondary }]}>
-                {text}
+            const prev = cardSize;
+            if (prev && prev.width === width && prev.height === height) return;
+            setCardSize({ width, height });
+          }}
+        >
+          <SurfaceCard variant={variant} style={styles.card}>
+            {typeof title === "string" && title.trim() ? (
+              <Text style={[styles.title, { color: textPrimary }]}>
+                {title.trim()}
               </Text>
-            </SurfaceCard>
-          </View>
-        ) : null}
-      </Modal>
-    </>
+            ) : null}
+
+            <Text style={[styles.body, { color: textSecondary }]}>{text}</Text>
+          </SurfaceCard>
+        </View>
+      ) : null}
+    </Modal>
   );
 }
 
 const styles = StyleSheet.create({
-  icon: {
-    width: 18,
-    height: 18,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  iconText: {
-    fontSize: 12,
-    fontWeight: "900",
-    lineHeight: 12,
-  },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "transparent",

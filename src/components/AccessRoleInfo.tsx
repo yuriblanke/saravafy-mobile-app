@@ -1,6 +1,8 @@
-import React, { useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef, useState } from "react";
+import { Pressable, StyleSheet, Text } from "react-native";
 
-import { TooltipPopover } from "@/src/components/TooltipPopover";
+import { TooltipPopover, dismissAllTooltips } from "@/src/components/TooltipPopover";
+import { colors } from "@/src/theme";
 
 export type InfoSection = {
   title?: string;
@@ -20,8 +22,18 @@ type Props = {
   info: InfoProps;
 };
 
-export function AccessRoleInfo({ info }: Props) {
+export function AccessRoleInfo({ info, variant }: Props) {
   const anchorRef = useRef<any>(null);
+  const [open, setOpen] = useState(false);
+
+  const close = useCallback(() => setOpen(false), []);
+  const toggle = useCallback(() => {
+    setOpen((v) => {
+      const next = !v;
+      if (next) dismissAllTooltips();
+      return next;
+    });
+  }, []);
 
   const text = useMemo(() => {
     const lines: string[] = [];
@@ -56,12 +68,58 @@ export function AccessRoleInfo({ info }: Props) {
     return lines.join("\n").trim() || " ";
   }, [info.body, info.heading, info.sections]);
 
+  const iconBorder =
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
+  const iconBg = variant === "light" ? colors.inputBgLight : colors.inputBgDark;
+  const iconText =
+    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+
   return (
-    <TooltipPopover
-      anchorRef={anchorRef}
-      title={info.title}
-      text={text}
-      maxWidth={260}
-    />
+    <>
+      <Pressable
+        ref={anchorRef}
+        accessibilityRole="button"
+        accessibilityLabel={info.accessibilityLabel || "Ver detalhes"}
+        onPress={toggle}
+        hitSlop={8}
+        style={[
+          styles.icon,
+          {
+            backgroundColor: iconBg,
+            borderColor: iconBorder,
+          },
+        ]}
+      >
+        <Text style={[styles.iconText, { color: iconText }]}>i</Text>
+      </Pressable>
+
+      <TooltipPopover
+        anchorRef={anchorRef}
+        open={open}
+        onClose={close}
+        variant={variant}
+        title={info.title}
+        text={text}
+        maxWidth={260}
+      />
+    </>
   );
 }
+
+const styles = StyleSheet.create({
+  icon: {
+    width: 18,
+    height: 18,
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  iconText: {
+    fontSize: 12,
+    fontWeight: "900",
+    lineHeight: 12,
+  },
+});
