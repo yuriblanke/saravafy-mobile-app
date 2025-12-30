@@ -41,19 +41,17 @@ export function TagChip({
       ]}
       {...rest}
     >
-      <View style={styles.content} collapsable={false}>
-        <Text
-          style={[
-            styles.textBase,
-            {
-              color: kind === "custom" ? customColor : pontoTextColor,
-            },
-          ]}
-          numberOfLines={1}
-        >
-          {label}
-        </Text>
-      </View>
+      <Text
+        style={[
+          styles.textBase,
+          {
+            color: kind === "custom" ? customColor : pontoTextColor,
+          },
+        ]}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
     </View>
   );
 }
@@ -72,19 +70,6 @@ const styles = StyleSheet.create({
   wrapCustom: {
     backgroundColor: "transparent",
     borderWidth: 1,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFillObject,
-    zIndex: 0,
-    elevation: 0,
-  },
-  content: {
-    position: "relative",
-    zIndex: 1,
-    elevation: 1,
-  },
-  wrapDark: {
-    backgroundColor: colors.earth700,
   },
   wrapLight: {
     backgroundColor: colors.paper100,
