@@ -8,9 +8,9 @@ import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferen
 import { AppTabSwipeOverlay } from "@/src/components/AppTabSwipeOverlay";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
-import { useMyActiveTerreiroIdsQuery } from "@/src/queries/me";
+import { useMyTerreiroIdsQuery } from "@/src/queries/me";
 import { colors } from "@/src/theme";
-import { Stack, useSegments } from "expo-router";
+import { Stack, useGlobalSearchParams, useSegments } from "expo-router";
 import React, { useMemo } from "react";
 import { View } from "react-native";
 
@@ -29,19 +29,27 @@ import { View } from "react-native";
  * - backgroundColor: "transparent" no Stack para deixar o SaravafyScreen aparecer
  */
 export default function AppLayout() {
-  const { effectiveTheme, activeContext } = usePreferences();
+  const { effectiveTheme, selectedTerreiroFilterId } = usePreferences();
   const { user } = useAuth();
   const segments = useSegments();
 
-  const activeTerreiroId =
-    activeContext.kind === "TERREIRO_PAGE" ? activeContext.terreiroId : null;
+  const globalParams = useGlobalSearchParams<{
+    terreiroId?: string;
+  }>();
+
+  const routeTerreiroId =
+    segments[1] === "terreiro" && typeof globalParams?.terreiroId === "string"
+      ? globalParams.terreiroId
+      : null;
+
+  const scopeTerreiroId = routeTerreiroId ?? selectedTerreiroFilterId ?? null;
 
   const myUserId = user?.id ?? null;
-  const myTerreirosQuery = useMyActiveTerreiroIdsQuery(myUserId);
+  const myTerreirosQuery = useMyTerreiroIdsQuery(myUserId);
   const myTerreiroIds = myTerreirosQuery.data ?? [];
 
   useRealtimeTerreiroScope({
-    activeTerreiroId,
+    scopeTerreiroId,
     myTerreiroIds,
     myUserId,
   });

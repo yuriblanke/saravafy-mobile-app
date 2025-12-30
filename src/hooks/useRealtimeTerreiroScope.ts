@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "@/src/queries/queryKeys";
 
 type RealtimeParams = {
-  activeTerreiroId: string | null;
+  scopeTerreiroId: string | null;
   myTerreiroIds: readonly string[];
   myUserId: string | null;
 };
@@ -70,7 +70,7 @@ function getCollectionsPontosCollectionId(payload: any): string | null {
 export function useRealtimeTerreiroScope(params: RealtimeParams) {
   const queryClient = useQueryClient();
 
-  const { activeTerreiroId, myTerreiroIds, myUserId } = params;
+  const { scopeTerreiroId, myTerreiroIds, myUserId } = params;
 
   const myTerreiroSet = useMemo(
     () => new Set((myTerreiroIds ?? []).filter(Boolean)),
@@ -78,10 +78,10 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
   );
 
   useEffect(() => {
-    if (!activeTerreiroId) return;
+    if (!scopeTerreiroId) return;
 
     const channelPontos = supabase
-      .channel(`rt:pontos:${activeTerreiroId}`)
+      .channel(`rt:pontos:${scopeTerreiroId}`)
       .on(
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "pontos" },
@@ -92,16 +92,16 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
               ? (payload as any).new.owner_terreiro_id
               : null;
 
-          if (ownerTerreiroId !== activeTerreiroId) return;
+          if (ownerTerreiroId !== scopeTerreiroId) return;
 
           queryClient.invalidateQueries({
-            queryKey: queryKeys.pontos.terreiro(activeTerreiroId),
+            queryKey: queryKeys.pontos.terreiro(scopeTerreiroId),
           });
         }
       );
 
     const channelCollections = supabase
-      .channel(`rt:collections:${activeTerreiroId}`)
+      .channel(`rt:collections:${scopeTerreiroId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "collections" },
@@ -110,14 +110,14 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
           const ownerUserId = getCollectionOwnerUserId(payload);
 
           const isInScope =
-            ownerTerreiroId === activeTerreiroId ||
+            ownerTerreiroId === scopeTerreiroId ||
             (!!myUserId && ownerUserId === myUserId);
 
           if (!isInScope) return;
 
-          if (ownerTerreiroId === activeTerreiroId) {
+          if (ownerTerreiroId === scopeTerreiroId) {
             queryClient.invalidateQueries({
-              queryKey: queryKeys.collections.terreiro(activeTerreiroId),
+              queryKey: queryKeys.collections.terreiro(scopeTerreiroId),
             });
           }
 
@@ -125,7 +125,7 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.available({
                 userId: myUserId,
-                terreiroId: activeTerreiroId,
+                terreiroId: scopeTerreiroId,
               }),
             });
           }
@@ -133,7 +133,7 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
       );
 
     const channelCollectionsPontos = supabase
-      .channel(`rt:collections_pontos:${activeTerreiroId}`)
+      .channel(`rt:collections_pontos:${scopeTerreiroId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "collections_pontos" },
@@ -148,14 +148,14 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
 
           // Sem owner direto: invalida listas do terreiro atual.
           queryClient.invalidateQueries({
-            queryKey: queryKeys.collections.terreiro(activeTerreiroId),
+            queryKey: queryKeys.collections.terreiro(scopeTerreiroId),
           });
 
           if (myUserId) {
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.available({
                 userId: myUserId,
-                terreiroId: activeTerreiroId,
+                terreiroId: scopeTerreiroId,
               }),
             });
           }
@@ -163,7 +163,7 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
       );
 
     const channelTerreiroMembers = supabase
-      .channel(`rt:terreiro_members:${activeTerreiroId}`)
+      .channel(`rt:terreiro_members:${scopeTerreiroId}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "terreiro_members" },
@@ -199,5 +199,5 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
       supabase.removeChannel(channelCollectionsPontos);
       supabase.removeChannel(channelTerreiroMembers);
     };
-  }, [activeTerreiroId, myTerreiroSet, myUserId, queryClient]);
+  }, [myTerreiroSet, myUserId, queryClient, scopeTerreiroId]);
 }

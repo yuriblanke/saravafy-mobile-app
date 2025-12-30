@@ -9,8 +9,7 @@ type Props = {
   title: string;
   avatarUrl?: string;
   initials: string;
-  isActive: boolean;
-  onPressSwitch?: () => void;
+  onPress?: () => void;
   onPressEdit: () => void;
 };
 
@@ -19,8 +18,7 @@ export function PreferencesPageItem({
   title,
   avatarUrl,
   initials,
-  isActive,
-  onPressSwitch,
+  onPress,
   onPressEdit,
 }: Props) {
   const [isEditPressed, setIsEditPressed] = React.useState(false);
@@ -38,10 +36,6 @@ export function PreferencesPageItem({
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
-  const textSecondary =
-    variant === "light"
-      ? colors.textSecondaryOnLight
-      : colors.textSecondaryOnDark;
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
@@ -83,14 +77,6 @@ export function PreferencesPageItem({
           >
             {title}
           </Text>
-          {isActive ? (
-            <Text
-              style={[styles.activeHint, { color: textSecondary }]}
-              numberOfLines={1}
-            >
-              Usando agora
-            </Text>
-          ) : null}
         </View>
       </View>
 
@@ -123,7 +109,7 @@ export function PreferencesPageItem({
     </>
   );
 
-  if (isActive) {
+  if (!onPress) {
     return <View style={[styles.row, { borderColor }]}>{content}</View>;
   }
 
@@ -131,10 +117,9 @@ export function PreferencesPageItem({
     <Pressable
       accessibilityRole="button"
       disabled={isEditPressed}
-      onPress={(e) => {
-        // Só dispara se não estamos pressionando o botão Editar
+      onPress={() => {
         if (isEditPressed) return;
-        onPressSwitch?.();
+        onPress();
       }}
       style={({ pressed }) => [
         styles.row,
@@ -177,12 +162,6 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 14,
     fontWeight: "800",
-  },
-  activeHint: {
-    marginTop: 2,
-    fontSize: 12,
-    fontWeight: "600",
-    opacity: 0.85,
   },
   avatarWrap: {
     width: 32,

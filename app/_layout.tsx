@@ -94,30 +94,20 @@ export default function RootLayout() {
 
 function RootLayoutNav() {
   const systemColorScheme = useColorScheme();
-  const {
-    themeMode,
-    isReady,
-    bootstrapStartPage,
-    setActiveContext,
-    clearStartPageSnapshotOnly,
-  } = usePreferences();
+  const { themeMode, isReady, bootstrapStartPage, clearStartPageSnapshotOnly } =
+    usePreferences();
   const { user, isLoading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const bootstrapStartPageRef = useRef(bootstrapStartPage);
-  const setActiveContextRef = useRef(setActiveContext);
   const didRunPrefetchPlanRef = useRef<Set<string>>(new Set());
   const prevUserIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     bootstrapStartPageRef.current = bootstrapStartPage;
   }, [bootstrapStartPage]);
-
-  useEffect(() => {
-    setActiveContextRef.current = setActiveContext;
-  }, [setActiveContext]);
 
   // LATCHES: Boot e navegação devem acontecer apenas 1x por cold start
   const didCompleteBootRef = useRef(false);
@@ -152,7 +142,6 @@ function RootLayoutNav() {
       });
 
       // Reset memory-only preferences that can leak between users
-      setActiveContextRef.current({ kind: "USER_PROFILE" });
       clearStartPageSnapshotOnly().catch(() => undefined);
 
       // Allow prefetch plan to run for a future login
@@ -193,7 +182,6 @@ function RootLayoutNav() {
         if (!user?.id) {
           // Sem sessão: sempre login.
           preferredHref = "/login";
-          setActiveContextRef.current({ kind: "USER_PROFILE" });
         } else {
           const decision = await bootstrapStartPageRef.current(user.id);
 
@@ -210,16 +198,8 @@ function RootLayoutNav() {
               terreiroId: decision.terreiroContext.terreiroId,
               terreiroTitle: decision.terreiroContext.terreiroName,
             };
-            setActiveContextRef.current({
-              kind: "TERREIRO_PAGE",
-              terreiroId: decision.terreiroContext.terreiroId,
-              terreiroName: decision.terreiroContext.terreiroName,
-              terreiroAvatarUrl: decision.terreiroContext.terreiroAvatarUrl,
-              role: decision.terreiroContext.role,
-            });
           } else {
             preferredHref = "/(app)";
-            setActiveContextRef.current({ kind: "USER_PROFILE" });
           }
         }
 

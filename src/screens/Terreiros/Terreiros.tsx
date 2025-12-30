@@ -19,12 +19,6 @@ import {
 } from "react-native";
 import { type TerreiroListItem } from "./data/terreiros";
 
-function toActiveContextRole(role: TerreiroListItem["role"]) {
-  return role === "admin" || role === "editor" || role === "follower"
-    ? role
-    : "follower";
-}
-
 function normalize(value: string) {
   return value.trim().toLowerCase();
 }
@@ -397,7 +391,7 @@ function TerreiroCard({
 
 export default function Terreiros() {
   const router = useRouter();
-  const { effectiveTheme, setActiveContext } = usePreferences();
+  const { effectiveTheme } = usePreferences();
   const gestureGate = useGestureGate();
   const variant = effectiveTheme;
 
@@ -535,15 +529,10 @@ export default function Terreiros() {
                         (typeof item.name === "string" && item.name.trim()) ||
                         "Terreiro";
 
-                      const role = toActiveContextRole(item.role);
-                      setActiveContext({
-                        kind: "TERREIRO_PAGE",
-                        terreiroId: item.id,
-                        terreiroName: name,
-                        terreiroAvatarUrl: item.coverImageUrl,
-                        role,
+                      router.push({
+                        pathname: "/terreiro" as any,
+                        params: { terreiroId: item.id, terreiroTitle: name },
                       });
-                      router.push("/terreiro");
                     }}
                   />
                 </View>

@@ -20,7 +20,7 @@ function isColumnMissingError(error: unknown, columnName: string) {
   );
 }
 
-export function useMyActiveTerreiroIdsQuery(userId: string | null) {
+export function useMyTerreiroIdsQuery(userId: string | null) {
   return useQuery({
     queryKey: userId ? queryKeys.me.terreiros(userId) : [],
     enabled: !!userId,

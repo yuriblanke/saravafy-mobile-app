@@ -81,7 +81,7 @@ export function getLyricsPreview(lyrics: string, maxLines = 6) {
 
 export default function Home() {
   // Adapta o padrão de tema igual Terreiros
-  const { effectiveTheme, activeContext } =
+  const { effectiveTheme, selectedTerreiroFilterId } =
     require("@/contexts/PreferencesContext").usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
@@ -242,9 +242,8 @@ export default function Home() {
     setIsCreatingCollection(true);
     setCreateCollectionError(null);
 
-    // Owner baseado no perfil ativo (não no filtro manual)
-    const ownerTerreiroId =
-      activeContext.kind === "TERREIRO_PAGE" ? activeContext.terreiroId : null;
+    // Owner baseado no filtro explícito (opcional). Se não houver filtro, é coleção pessoal.
+    const ownerTerreiroId = selectedTerreiroFilterId;
     const ownerUserId = ownerTerreiroId ? null : user.id;
 
     const created = await createCollection({
@@ -270,7 +269,7 @@ export default function Home() {
 
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
-  }, [queryClient, activeContext, createCollectionTitle, user?.id]);
+  }, [queryClient, createCollectionTitle, selectedTerreiroFilterId, user?.id]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),

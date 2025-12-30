@@ -7,6 +7,7 @@ import { BottomSheet } from "@/src/components/BottomSheet";
 import { Separator } from "@/src/components/Separator";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
@@ -38,8 +39,7 @@ export default function Terreiro() {
     terreiroTitle?: string;
   }>();
   const { showToast } = useToast();
-  const { effectiveTheme, activeContext, clearStartPageSnapshotOnly } =
-    usePreferences();
+  const { effectiveTheme, clearStartPageSnapshotOnly } = usePreferences();
 
   const variant = effectiveTheme;
 
@@ -53,18 +53,10 @@ export default function Terreiro() {
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
   const resolvedTerreiroId =
-    activeContext.kind === "TERREIRO_PAGE"
-      ? activeContext.terreiroId
-      : typeof params.terreiroId === "string"
-      ? params.terreiroId
-      : "";
+    typeof params.terreiroId === "string" ? params.terreiroId : "";
 
   const resolvedTerreiroName =
-    activeContext.kind === "TERREIRO_PAGE"
-      ? activeContext.terreiroName
-      : typeof params.terreiroTitle === "string"
-      ? params.terreiroTitle
-      : undefined;
+    typeof params.terreiroTitle === "string" ? params.terreiroTitle : undefined;
 
   const terreiroName = resolvedTerreiroName ?? "Terreiro";
 
@@ -91,12 +83,11 @@ export default function Terreiro() {
   }, [terreiroName]);
 
   const terreiroId = resolvedTerreiroId;
-
-  const activeTerreiroRole =
-    activeContext.kind === "TERREIRO_PAGE" ? activeContext.role : null;
+  const { data: membership } = useTerreiroMembershipStatus(terreiroId);
+  const myRole = membership.role;
   const isAdminOrEditor =
-    activeTerreiroRole === "admin" || activeTerreiroRole === "editor";
-  const isAdmin = activeTerreiroRole === "admin";
+    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
+  const isAdmin = membership.isActiveMember && myRole === "admin";
 
   const [isTerreiroMenuOpen, setIsTerreiroMenuOpen] = useState(false);
 
@@ -154,12 +145,12 @@ export default function Terreiro() {
   }, [canEdit, editingCollectionId, creatingCollection]);
 
   useEffect(() => {
-    if (activeContext.kind === "TERREIRO_PAGE") return;
+    if (terreiroId) return;
     if (params.bootStart === "1") return;
 
     rootPager?.setActiveKey("pontos");
     router.replace("/(app)");
-  }, [activeContext.kind, params.bootStart, rootPager, router]);
+  }, [params.bootStart, rootPager, router, terreiroId]);
 
   useEffect(() => {
     let cancelled = false;

@@ -21,10 +21,10 @@ Este documento consolida, **sem suposições**, todos os valores de `role` que a
 
 ### Tipos/unions que definem “domínios” diferentes
 
-1. **Contexto/Preferências / navegação**
+1. **Preferências / listas / navegação**
 
-- `TerreiroRole = "admin" | "editor" | "follower"` em [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx)
-- Usado para `activeContext.role` (quando a página ativa é um terreiro) e para normalização de role em algumas telas.
+- `TerreiroRole = "admin" | "editor" | "member" | "follower"` em [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx)
+- Usado em tipos/estruturas locais e em algumas listas do app. Não existe mais “troca de perfil” nem role vindo de “contexto ativo”.
 
 2. **Membership/Convites/Requests (acesso “membro”)**
 
@@ -49,29 +49,28 @@ Interpretação desta tabela:
 | **admin**    | **NÃO (depende de RLS)** — telas buscam `terreiros`/`collections` sem checagem de role no client | **NÃO (depende de RLS)** para a lista de coleções do terreiro (fetch por `owner_terreiro_id`)                                                                                                                                                                                                               | **SIM** — `canEdit = role === "admin"                                                                              |                                            | "editor"` em [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)                                    | **NÃO (não há gating por role no client)** — envio de ponto é “curadoria”/login em [src/components/SubmitPontoModal.tsx](src/components/SubmitPontoModal.tsx)                                                                                                           | **SIM** — coleções “editáveis” incluem coleções do terreiro somente se `terreiro_members.role in (admin, editor)` em [src/queries/collections.ts](src/queries/collections.ts) | **SIM** — aparece como “Minhas páginas” (Preferências) via [src/queries/me.ts](src/queries/me.ts) + [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderWithPreferences.tsx) | **SIM** — boot prefetch aquece admin/editor: [app/\_layout.tsx](app/_layout.tsx) passos 3–5 |
 | **editor**   | **NÃO (depende de RLS)**                                                                         | **NÃO (depende de RLS)** para lista de coleções do terreiro                                                                                                                                                                                                                                                 | **SIM** — mesmo `canEdit` (admin/editor) em [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx) | **NÃO (não há gating por role no client)** | **SIM** — mesmo pipeline “editáveis” (admin/editor) em [src/queries/collections.ts](src/queries/collections.ts)        | **SIM** — aparece em “Minhas páginas” (Preferências) como role do terreiro (admin/editor)                                                                                                                                                                               | **SIM** — boot prefetch aquece admin/editor                                                                                                                                   |
 | **member**   | **NÃO (depende de RLS)**                                                                         | **SIM (apenas para coleções `visibility=members`)** — para carregar pontos de uma coleção members-only, exige membership ativa (admin/editor/member) em [src/screens/Collection/Collection.tsx](src/screens/Collection/Collection.tsx) + [src/hooks/terreiroMembership.ts](src/hooks/terreiroMembership.ts) | **NÃO** — não passa no `canEdit` (só admin/editor) e não entra em `fetchEditableTerreiroIds` (filtra admin/editor) | **NÃO (não há gating por role no client)** | **NÃO** — não entra em coleções “editáveis” (admin/editor) em [src/queries/collections.ts](src/queries/collections.ts) | **SIM** — role é preservado na Aba Terreiros (não colapsa para follower); InviteGate e hooks de membership                                                                                                                                                | **SIM (read-side)** — participa de `prefetchMyTerreiroAccessIds` + `prefetchCollectionsByTerreiro` (coleções por terreiro); **não** participa do prefetch “editáveis” (admin/editor)                                                                                 |
-| **follower** | **NÃO (depende de RLS)**                                                                         | **NÃO (depende de RLS)**                                                                                                                                                                                                                                                                                    | **NÃO** — não passa no `canEdit` (só admin/editor)                                                                 | **NÃO (não há gating por role no client)** | **NÃO** — não entra em coleções “editáveis”                                                                            | **SIM** — é usado como default/role não-editável na Aba Terreiros e no ActiveContext (ex.: fallback) em [src/screens/Terreiros/data/terreiros.ts](src/screens/Terreiros/data/terreiros.ts) e [src/screens/Terreiros/Terreiros.tsx](src/screens/Terreiros/Terreiros.tsx) | **NÃO** — não participa do prefetch “editáveis”                                                                                                                               |
+| **follower** | **NÃO (depende de RLS)**                                                                         | **NÃO (depende de RLS)**                                                                                                                                                                                                                                                                                    | **NÃO** — não passa no `canEdit` (só admin/editor)                                                                 | **NÃO (não há gating por role no client)** | **NÃO** — não entra em coleções “editáveis”                                                                            | **SIM** — é usado como default/role não-editável na Aba Terreiros (fallback) em [src/screens/Terreiros/data/terreiros.ts](src/screens/Terreiros/data/terreiros.ts) e [src/screens/Terreiros/Terreiros.tsx](src/screens/Terreiros/Terreiros.tsx)                 | **NÃO** — não participa do prefetch “editáveis”                                                                                                                               |
 
 ## Onde cada role é usado (por área)
 
-### 1) Preferências / Contexto ativo / Start Page
+### 1) Preferências / Start Page / Filtro explícito
 
-- `TerreiroRole = "admin" | "editor" | "follower"` define o domínio de `activeContext.role` em [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx).
-- `fetchTerreiroRole(...)` lê `terreiro_members.role` e **só retorna** `admin/editor/follower`; qualquer outro valor vira `undefined` em [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx).
-- O sheet “Minhas páginas” renderiza **apenas terreiros admin/editor**, via `useMyEditableTerreirosQuery` em [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderWithPreferences.tsx).
+- Preferências mantém um filtro explícito opcional (`selectedTerreiroFilterId`) para telas globais, sem depender de “perfil ativo”, em [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx).
+- O sheet de preferências renderiza a usuária logada + seção “Meus terreiros” (Admin), via `useMyEditableTerreirosQuery` em [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderWithPreferences.tsx).
 
 ### 2) Aba “Terreiros” (lista)
 
 - `fetchTerreirosWithRole(userId)` busca `terreiros` com join em `terreiro_members(role, user_id)` e define role default como `"follower"`.
 - Na normalização, **aceita explicitamente** `admin/editor/member/follower` (preserva `member`, não colapsa para `follower`) em [src/screens/Terreiros/data/terreiros.ts](src/screens/Terreiros/data/terreiros.ts).
-- Ao abrir um terreiro, `activeContext.role` **permanece no domínio** `admin/editor/follower` (por compatibilidade do contexto) e `member` é mapeado para `follower` somente no `activeContext` em [src/screens/Terreiros/Terreiros.tsx](src/screens/Terreiros/Terreiros.tsx).
+- Ao abrir um terreiro, a navegação é feita por rota com `terreiroId`/`terreiroTitle` e as permissões são derivadas de membership em [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx).
 
 Observação: a aba Terreiros usa o `role` do item para decisões locais de UI (ex.: preview de coleções), mas **não concede edição** para `member`.
 
 ### 3) Tela “Terreiro” (coleções do terreiro)
 
 - A lista de coleções do terreiro é carregada por `fetchCollectionsDoTerreiro(terreiroId)` (query por `owner_terreiro_id`) em [src/screens/Terreiro/data/collections.ts](src/screens/Terreiro/data/collections.ts).
-- A capacidade de **editar** coleções nessa tela é definida exclusivamente por `activeContext.role`:
-  - `canEdit = role === "admin" || role === "editor"` em [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx).
+- A capacidade de **editar** coleções nessa tela é definida por membership ativa:
+  - `canEdit = isActiveMember && (role === "admin" || role === "editor")` em [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx).
 
 ### 4) Coleções “members-only” (acesso por membership)
 
@@ -92,7 +91,7 @@ Observação: a aba Terreiros usa o `role` do item para decisões locais de UI (
 
 ### 7) Realtime scope (assinaturas/invalidations)
 
-- O app mantém uma lista “meus terreiros ativos” sem filtrar role (somente `status=active` quando existe) em `useMyActiveTerreiroIdsQuery` em [src/queries/me.ts](src/queries/me.ts).
+- O app mantém uma lista “meus terreiros” (membership ativa quando existe coluna `status`) sem filtrar role em `useMyTerreiroIdsQuery` em [src/queries/me.ts](src/queries/me.ts).
 - Esses IDs entram no escopo do realtime via [app/(app)/\_layout.tsx](<app/(app)/_layout.tsx>) + [src/hooks/useRealtimeTerreiroScope.ts](src/hooks/useRealtimeTerreiroScope.ts) (hook não mapeado aqui por não conter domain de role em si).
 
 ## Participação em warm cache / prefetch (React Query)
@@ -130,7 +129,7 @@ Conclusão:
 - A Aba Terreiros aceita apenas `admin/editor/follower` e qualquer outro role vindo do join (ex.: `member`) vira `follower` por default em [src/screens/Terreiros/data/terreiros.ts](src/screens/Terreiros/data/terreiros.ts).
 - `fetchTerreiroRole` também descarta valores que não sejam `admin/editor/follower` em [contexts/PreferencesContext.tsx](contexts/PreferencesContext.tsx).
 
-Atualização: a Aba Terreiros passou a preservar `member` (não colapsa para `follower`), mas o `activeContext.role` segue sem `member` por enquanto.
+Atualização: a Aba Terreiros passou a preservar `member` (não colapsa para `follower`).
 
 ## Ambiguidades ou riscos atuais (sem assumir backend)
 
@@ -139,10 +138,9 @@ Atualização: a Aba Terreiros passou a preservar `member` (não colapsa para `f
 - O repo contém código que trata `member` como role “real” de membership (hooks + convites), e ao mesmo tempo trata `follower` como role de contexto/lista.
 - Se o backend retorna `terreiro_members.role = "member"` no join da Aba Terreiros, o frontend **não preserva** esse role (vira `follower`).
 
-2. **Start page: role pode virar `undefined`**
+2. **Start page: não carrega role**
 
-- `bootstrapStartPage` busca role via `fetchTerreiroRole`, mas essa função só aceita `admin/editor/follower`. Se o role for `member`, o retorno é `undefined`.
-- Isso afeta UX de “edição”: `Terreiro` só permite editar se `activeContext.role` for admin/editor.
+- A decisão de start page (home vs terreiro) não depende de role no client; permissões são resolvidas na tela via membership.
 
 3. **RPCs de membership request não estão versionadas em SQL neste repo**
 
@@ -150,6 +148,6 @@ Atualização: a Aba Terreiros passou a preservar `member` (não colapsa para `f
 
 ## Base para decisões futuras (descrição, não implementação)
 
-- Unificar o “domínio” de roles em um único tipo no frontend (ex.: `admin/editor/member/follower`) e decidir explicitamente como mapear cada um para `activeContext.role`.
+- Unificar o “domínio” de roles em um único tipo no frontend (ex.: `admin/editor/member/follower`) e decidir explicitamente como mapear cada um em listas e permissões.
 - Tornar a normalização explícita: se `member` deve aparecer como “member” na Aba Terreiros, o parser precisa aceitar esse valor.
 - Documentar/versão-controlar no repo as RPCs de membership requests, assim como já existe para invites.

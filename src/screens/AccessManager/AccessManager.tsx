@@ -11,7 +11,7 @@ import {
 } from "@/src/components/preferences/PreferencesRadioGroup";
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { effectiveTheme, activeContext } = usePreferences();
+  const { effectiveTheme } = usePreferences();
   usePendingTerreiroMembershipRequests,
   useReviewTerreiroMembershipRequest,
   useTerreiroInvites,
@@ -107,7 +107,7 @@ function friendlyMembershipReviewError(raw: string) {
 export default function AccessManager() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { effectiveTheme, activeContext } = usePreferences();
+  const { effectiveTheme } = usePreferences();
   const { showToast } = useToast();
 
   const variant: "light" | "dark" = effectiveTheme;
@@ -126,11 +126,7 @@ export default function AccessManager() {
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
-  const canSeeManager = useMemo(() => {
-    const roleFromContext =
-      activeContext?.kind === "TERREIRO_PAGE" ? activeContext.role : undefined;
-    return roleFromContext === "admin" || roleFromContext === "editor";
-  }, [activeContext]);
+  const canSeeManager = false;
 
   const [tab, setTab] = useState<AccessTab>("people");
   const tabOptions = useMemo(() => {
@@ -1048,7 +1044,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import { useTerreiroInvites } from "@/src/hooks/terreiroMembership";
+import {
+  useTerreiroInvites,
+  useTerreiroMembershipStatus,
+} from "@/src/hooks/terreiroMembership";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -1127,7 +1126,7 @@ export default function AccessManager() {
 
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { effectiveTheme, activeContext } = usePreferences();
+  const { effectiveTheme } = usePreferences();
 
   const variant: "light" | "dark" = effectiveTheme;
 
@@ -1143,11 +1142,10 @@ export default function AccessManager() {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const canSeeManager = useMemo(() => {
-    const roleFromContext =
-      activeContext?.kind === "TERREIRO_PAGE" ? activeContext.role : undefined;
-    return roleFromContext === "admin" || roleFromContext === "editor";
-  }, [activeContext]);
+  const { data: membership } = useTerreiroMembershipStatus(terreiroId);
+  const canSeeManager =
+    membership.isActiveMember &&
+    (membership.role === "admin" || membership.role === "editor");
 
   const {
     items: inviteItems,
@@ -1157,9 +1155,8 @@ export default function AccessManager() {
   } = useTerreiroInvites(terreiroId);
 
   const [inviteModalVisible, setInviteModalVisible] = useState(false);
-  const [inviteModalMode, setInviteModalMode] = useState<InviteModalMode>(
-    "gestao"
-  );
+  const [inviteModalMode, setInviteModalMode] =
+    useState<InviteModalMode>("gestao");
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
   const [busyInviteId, setBusyInviteId] = useState<string | null>(null);
 
@@ -1178,11 +1175,15 @@ export default function AccessManager() {
   }, [inviteItems]);
 
   const gestaoInvites = useMemo(() => {
-    return sortedInvites.filter((i) => i.role === "admin" || i.role === "editor");
+    return sortedInvites.filter(
+      (i) => i.role === "admin" || i.role === "editor"
+    );
   }, [sortedInvites]);
 
   const membrosInvites = useMemo(() => {
-    return sortedInvites.filter((i) => i.role !== "admin" && i.role !== "editor");
+    return sortedInvites.filter(
+      (i) => i.role !== "admin" && i.role !== "editor"
+    );
   }, [sortedInvites]);
 
   const openInviteModal = useCallback((mode: InviteModalMode) => {
@@ -1244,7 +1245,14 @@ export default function AccessManager() {
         setInviteSubmitting(false);
       }
     },
-    [canSeeManager, inviteSubmitting, reloadInvites, showToast, terreiroId, user?.id]
+    [
+      canSeeManager,
+      inviteSubmitting,
+      reloadInvites,
+      showToast,
+      terreiroId,
+      user?.id,
+    ]
   );
 
   const acceptInvite = useCallback(
@@ -1371,7 +1379,10 @@ export default function AccessManager() {
           <Ionicons name="chevron-back" size={22} color={textPrimary} />
         </Pressable>
 
-        <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
           Gerenciar acesso
         </Text>
 
@@ -1384,8 +1395,12 @@ export default function AccessManager() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.contextHeader}>
-          <Text style={[styles.title, { color: textPrimary }]}>{terreiroTitle}</Text>
-          <Text style={[styles.subtitle, { color: textSecondary }]}>Convites por e-mail</Text>
+          <Text style={[styles.title, { color: textPrimary }]}>
+            {terreiroTitle}
+          </Text>
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            Convites por e-mail
+          </Text>
         </View>
 
         {!canSeeManager ? (
@@ -1407,11 +1422,17 @@ export default function AccessManager() {
           }}
         >
           {isLoadingInvites ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>Carregando…</Text>
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
           ) : invitesError ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>Não foi possível carregar convites.</Text>
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Não foi possível carregar convites.
+            </Text>
           ) : gestaoInvites.length === 0 ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>Nenhum convite.</Text>
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Nenhum convite.
+            </Text>
           ) : (
             gestaoInvites.map((inv) => {
               const status = String(inv.status ?? "") as InviteStatus;
@@ -1449,11 +1470,17 @@ export default function AccessManager() {
           }}
         >
           {isLoadingInvites ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>Carregando…</Text>
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
           ) : invitesError ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>Não foi possível carregar convites.</Text>
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Não foi possível carregar convites.
+            </Text>
           ) : membrosInvites.length === 0 ? (
-            <Text style={[styles.inlineText, { color: textSecondary }]}>Nenhum convite.</Text>
+            <Text style={[styles.inlineText, { color: textSecondary }]}>
+              Nenhum convite.
+            </Text>
           ) : (
             membrosInvites.map((inv) => {
               const status = String(inv.status ?? "") as InviteStatus;

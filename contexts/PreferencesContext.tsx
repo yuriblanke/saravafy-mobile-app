@@ -24,18 +24,6 @@ export type ManagedTerreiro = {
   role: TerreiroRole;
 };
 
-export type ActiveContextKind = "USER_PROFILE" | "TERREIRO_PAGE";
-
-export type ActiveContext =
-  | { kind: "USER_PROFILE" }
-  | {
-      kind: "TERREIRO_PAGE";
-      terreiroId: string;
-      terreiroName?: string;
-      terreiroAvatarUrl?: string;
-      role?: TerreiroRole;
-    };
-
 export type StartPagePreference = {
   type: "TERREIRO";
   terreiroId: string;
@@ -79,9 +67,8 @@ type TerreiroMemberRow = {
 export async function fetchTerreirosQueAdministro(userId: string) {
   if (!userId) return [] as ManagedTerreiro[];
 
-  // Warm cache should include all roles that grant access to a terreiro screen.
-  // Admin/editor/member affect UI gating and need to be reflected immediately after accepting invites.
-  const allowedRoles = ["admin", "editor", "member"] as const;
+  // Esta lista é especificamente para "Meus terreiros" (admin).
+  const allowedRoles = ["admin"] as const;
 
   const selectTerreirosAll =
     "id, title, cover_image_url, avatar_url, image_url";
@@ -433,9 +420,9 @@ type PreferencesContextValue = {
   setThemeMode: (mode: ThemeMode) => void;
   effectiveTheme: ThemeVariant;
 
-  activeContext: ActiveContext;
-  setActiveContext: (next: ActiveContext) => void;
-  managedTerreiros: ManagedTerreiro[];
+  // Filtro opcional para telas globais (ex.: Home) sem depender de "perfil ativo".
+  selectedTerreiroFilterId: string | null;
+  setSelectedTerreiroFilterId: (terreiroId: string | null) => void;
 
   loadingTerreirosAdmin: boolean;
   terreirosAdmin: ManagedTerreiro[];
@@ -464,7 +451,6 @@ type PreferencesContextValue = {
       terreiroId: string;
       terreiroName?: string;
       terreiroAvatarUrl?: string;
-      role?: TerreiroRole;
       usedOfflineSnapshot?: boolean;
     };
   }>;
@@ -523,15 +509,9 @@ export function PreferencesProvider({
     Appearance.getColorScheme()
   );
 
-  // Contexto ativo (Meu perfil ↔ Página do terreiro) vive apenas em memória.
-  // Não persistimos em AsyncStorage e não sincronizamos com backend.
-  const [activeContext, setActiveContext] = useState<ActiveContext>({
-    kind: "USER_PROFILE",
-  });
-
-  // Lista local de terreiros onde o usuário tem permissão (admin/editor/follower).
-  // Por enquanto, isso não vem de API (será plugado depois).
-  const [managedTerreiros] = useState<ManagedTerreiro[]>([]);
+  const [selectedTerreiroFilterId, setSelectedTerreiroFilterId] = useState<
+    string | null
+  >(null);
 
   const [loadingTerreirosAdmin, setLoadingTerreirosAdmin] = useState(false);
   const [terreirosAdmin, setTerreirosAdmin] = useState<ManagedTerreiro[]>([]);
@@ -927,24 +907,6 @@ export function PreferencesProvider({
     };
   };
 
-  const fetchTerreiroRole = async (
-    userId: string,
-    terreiroId: string
-  ): Promise<TerreiroRole | undefined> => {
-    if (!userId || !terreiroId) return undefined;
-    const res = await supabase
-      .from("terreiro_members")
-      .select("role")
-      .eq("user_id", userId)
-      .eq("terreiro_id", terreiroId)
-      .maybeSingle();
-    if (res.error) return undefined;
-    const role = (res.data as { role?: unknown } | null)?.role;
-    if (role === "admin" || role === "editor" || role === "follower")
-      return role;
-    return undefined;
-  };
-
   const bootstrapStartPage = async (userId: string) => {
     let online = true;
 
@@ -969,7 +931,6 @@ export function PreferencesProvider({
           terreiroContext: {
             terreiroId: snapshot.start_terreiro_id,
             terreiroName: snapshot.start_terreiro_title ?? undefined,
-            role: undefined,
             usedOfflineSnapshot: true,
           },
         };
@@ -995,7 +956,6 @@ export function PreferencesProvider({
       return { preferredHref: "/(app)" as const };
     }
 
-    const role = await fetchTerreiroRole(userId, pref.terreiroId);
     const normalizedPref: StartPagePreference = {
       type: "TERREIRO",
       terreiroId: terreiroInfo.terreiroId,
@@ -1010,7 +970,6 @@ export function PreferencesProvider({
       preferredHref: "/terreiro" as const,
       terreiroContext: {
         ...terreiroInfo,
-        role,
         usedOfflineSnapshot: false,
       },
     };
@@ -1170,16 +1129,6 @@ export function PreferencesProvider({
       ].sort((a, b) => safeLocaleCompare(a.name, b.name));
     });
 
-    setActiveContext((prev) => {
-      if (prev.kind !== "TERREIRO_PAGE") return prev;
-      if (prev.terreiroId !== patch.terreiroId) return prev;
-      return {
-        ...prev,
-        terreiroName: patch.terreiroName ?? prev.terreiroName,
-        terreiroAvatarUrl: patch.terreiroAvatarUrl ?? prev.terreiroAvatarUrl,
-      };
-    });
-
     setStartPagePreference((prev) => {
       if (!prev || prev.type !== "TERREIRO") return prev;
       if (prev.terreiroId !== patch.terreiroId) return prev;
@@ -1194,9 +1143,8 @@ export function PreferencesProvider({
     themeMode,
     setThemeMode,
     effectiveTheme,
-    activeContext,
-    setActiveContext,
-    managedTerreiros,
+    selectedTerreiroFilterId,
+    setSelectedTerreiroFilterId,
     loadingTerreirosAdmin,
     terreirosAdmin,
     erroTerreirosAdmin,

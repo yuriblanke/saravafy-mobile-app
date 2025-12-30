@@ -360,20 +360,20 @@ A query de convites pendentes é:
 
 > Observação: o aceite grava `terreiro_members`. A partir daí, o app precisa **buscar** essa relação em algum momento para refletir o acesso em UI.
 
-### 1) O role entra na lista “Terreiros que administro” (switch de contexto)
+### 1) O role entra na lista “Meus terreiros” (navegação por rota)
 
-- A UI de preferências lista terreiros onde o usuário tem `terreiro_members.role in (admin, editor)`.
-- A query tenta filtrar também `status = active` quando o campo existe.
-- Ao trocar o contexto para um terreiro, o app seta `activeContext` com `role`: [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderWithPreferences.tsx)
+- A UI de preferências lista terreiros onde o usuário é **Admin** (membership ativa quando existe coluna `status`).
+- Ao tocar em um terreiro, o app navega para a rota `/terreiro` com `terreiroId`/`terreiroTitle`: [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderWithPreferences.tsx)
 
 Isso impacta diretamente permissões na tela do terreiro.
 
-### 2) No “Terreiro” (coleções), `canEdit` depende do role do contexto ativo
+### 2) No “Terreiro” (coleções), `canEdit` depende do role da membership
 
 Na tela do terreiro:
 
-- `activeTerreiroRole` vem de `activeContext.role`.
-- `canEdit = (role === "admin" || role === "editor")`.
+- A tela resolve `terreiroId` por params de rota.
+- A permissão de edição é derivada de `useTerreiroMembershipStatus(terreiroId)`.
+- `canEdit = isActiveMember && (role === "admin" || role === "editor")`.
 
 Quando `canEdit` é falso, a tela:
 

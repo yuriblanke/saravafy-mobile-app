@@ -63,7 +63,8 @@ function hashIds(ids: readonly string[]): string {
  * - Coleções pessoais (owner_user_id = auth.uid())
  * - Coleções de terreiros onde a usuária participa (conforme RLS)
  *
- * Este fetch é global e único. O filtro por "perfil ativo" acontece no client.
+ * Este fetch é global e único. Qualquer filtro por terreiro (quando desejado) acontece no client
+ * via estado explícito (ex.: selectedTerreiroFilterId) ou contexto de navegação (rota).
  */
 export async function fetchAccountableCollections(
   userId: string
@@ -156,7 +157,7 @@ export async function fetchAccountableCollections(
  * Hook global para todas as coleções visíveis pela usuária.
  * QueryKey fixa: ["collections", "accountable"]
  *
- * A lista retornada deve ser filtrada no client conforme perfil ativo.
+ * A lista retornada pode ser filtrada no client por um terreiro específico, quando desejado.
  */
 export function useAccountableCollections(userId: string | null) {
   return useQuery({
@@ -273,7 +274,9 @@ export async function fetchEditableCollections(params: {
 
     // PostgREST: in.(a,b,c)
     const inList = uniqueSorted.join(",");
-    res = await base.or(`owner_user_id.eq.${userId},owner_terreiro_id.in.(${inList})`);
+    res = await base.or(
+      `owner_user_id.eq.${userId},owner_terreiro_id.in.(${inList})`
+    );
   }
 
   if (res.error) {
@@ -383,7 +386,10 @@ export async function prefetchEditableCollections(
   await queryClient.prefetchQuery({
     queryKey: queryKeys.collections.editableByUser({ userId, terreiroIdsHash }),
     queryFn: () =>
-      fetchEditableCollections({ userId, editableTerreiroIds: editableTerreiroIds }),
+      fetchEditableCollections({
+        userId,
+        editableTerreiroIds: editableTerreiroIds,
+      }),
     staleTime: 5 * 60 * 1000,
   });
 }

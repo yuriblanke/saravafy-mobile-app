@@ -2,7 +2,7 @@
 
 Este documento descreve **factualmente**, a partir do código atual, o que este app “aquece” (warm cache) para acelerar UX e manter permissões/visibilidade consistentes.
 
-> Definição usada aqui: “warm cache” = qualquer computação/fetch feito **antes** da tela precisar (prefetch), ou qualquer cache mantido/atualizado para evitar *loading flashes* e reduzir refetches (React Query + caches em memória + AsyncStorage).
+> Definição usada aqui: “warm cache” = qualquer computação/fetch feito **antes** da tela precisar (prefetch), ou qualquer cache mantido/atualizado para evitar _loading flashes_ e reduzir refetches (React Query + caches em memória + AsyncStorage).
 
 ---
 
@@ -19,13 +19,13 @@ Disparo: Root layout, uma vez por boot e, para o plano de prefetch, **uma vez po
   - Fonte/código: `contexts/PreferencesContext.tsx`
   - Particularidade: existe fallback offline via snapshot em AsyncStorage (detalhado em 2.2).
 - **Boot prefetch plan** (warm React Query) roda após `bootComplete` e sessão disponível (`userId`):
-  1) `prefetchHomeFeedPontos(queryClient,{ userId, limit: 10 })`
-  2) `prefetchExploreTerreiros(queryClient,{ limit: 10 })`
-  3) `prefetchEditableTerreiroIds(queryClient, userId)`
-  3b) `prefetchMyTerreiroAccessIds(queryClient, userId)`
-  3c) Para cada `terreiroId` com acesso: `prefetchCollectionsByTerreiro(queryClient,{ terreiroId })`
-  4) `prefetchMyEditableTerreiros(queryClient,{ userId, editableTerreiroIds })`
-  5) `prefetchEditableCollections(queryClient,{ userId, editableTerreiroIds })`
+  1. `prefetchHomeFeedPontos(queryClient,{ userId, limit: 10 })`
+  2. `prefetchExploreTerreiros(queryClient,{ limit: 10 })`
+  3. `prefetchEditableTerreiroIds(queryClient, userId)`
+     3b) `prefetchMyTerreiroAccessIds(queryClient, userId)`
+     3c) Para cada `terreiroId` com acesso: `prefetchCollectionsByTerreiro(queryClient,{ terreiroId })`
+  4. `prefetchMyEditableTerreiros(queryClient,{ userId, editableTerreiroIds })`
+  5. `prefetchEditableCollections(queryClient,{ userId, editableTerreiroIds })`
 
 Observação importante (factual): algumas dessas queries têm prefetch definido, mas **não foram encontradas telas/hooks consumindo esses caches** (ver 2.1 “Consumidores”).
 
@@ -35,7 +35,7 @@ Observação importante (factual): algumas dessas queries têm prefetch definido
 - Ao detectar logout (`prevUserId` -> sem `userId`):
   - `queryClient.cancelQueries({ predicate: q => q.queryKey.includes(prevUserId) })`
   - `queryClient.removeQueries({ predicate: q => q.queryKey.includes(prevUserId) })`
-  - Reseta estado de preferências em memória (`activeContext`) e limpa snapshot de start page.
+  - Limpa snapshot de start page (preferência local) para evitar “leak” entre usuários.
 
 ### 1.3 Aceitar/rejeitar convite (recalcula permissões/visibilidade)
 
@@ -60,7 +60,7 @@ Observação importante (factual): algumas dessas queries têm prefetch definido
 - Arquivo: `src/components/TerreirosRealtimeSync.tsx` (global)
   - Ao montar com `userId`, chama `prefetchMyTerreiroAccessIds(...)` para filtrar eventos e evitar “refetch spam”.
 - Arquivo: `src/hooks/useRealtimeTerreiroScope.ts` (escopo do terreiro ativo)
-  - Monta canais Realtime por `activeTerreiroId` e invalida caches relacionados a `pontos`, `collections` e `terreiro_members`.
+  - Monta canais Realtime por `scopeTerreiroId` e invalida caches relacionados a `pontos`, `collections` e `terreiro_members`.
 
 ---
 
@@ -79,7 +79,8 @@ Observação importante (factual): algumas dessas queries têm prefetch definido
 
 Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (tabela/RPC) → política de cache.
 
-1) `queryKeys.pontos.feed(userId)`
+1. `queryKeys.pontos.feed(userId)`
+
 - Código: `src/queries/pontosFeed.ts`
 - `prefetchHomeFeedPontos(...)` → `fetchHomeFeedPontos({ userId, limit })`
 - Supabase:
@@ -94,7 +95,8 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
 - Consumidores encontrados:
   - Nenhum uso de `useHomeFeedPontos(...)` foi encontrado no código atual (apenas a definição e o prefetch no boot).
 
-2) `queryKeys.terreiros.exploreInitial()`
+2. `queryKeys.terreiros.exploreInitial()`
+
 - Código: `src/queries/terreirosExplore.ts`
 - `prefetchExploreTerreiros(...)` → `fetchExploreTerreiros(limit)`
 - Supabase:
@@ -106,7 +108,8 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
 - Consumidores encontrados:
   - Nenhum uso de `useExploreTerreiros(...)` foi encontrado (apenas definição e prefetch no boot).
 
-3) `queryKeys.terreiros.editableByUser(userId)` (IDs de terreiros editáveis)
+3. `queryKeys.terreiros.editableByUser(userId)` (IDs de terreiros editáveis)
+
 - Código: `src/queries/collections.ts`
 - `prefetchEditableTerreiroIds(...)` / `useEditableTerreiroIds(...)` → `fetchEditableTerreiroIds(userId)`
 - Supabase:
@@ -119,7 +122,8 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
 - Consumidores encontrados:
   - Usado indiretamente por `useEditableCollections(...)` (abaixo).
 
-4) `queryKeys.me.terreiroAccessIds(userId)` (IDs de terreiros com acesso)
+4. `queryKeys.me.terreiroAccessIds(userId)` (IDs de terreiros com acesso)
+
 - Código: `src/queries/me.ts`
 - `prefetchMyTerreiroAccessIds(...)` / `useMyTerreiroAccessIdsQuery(...)`
 - Supabase:
@@ -133,7 +137,8 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
   - Usado por `TerreirosRealtimeSync` para filtrar eventos.
   - Não foi encontrado uso direto de `useMyTerreiroAccessIdsQuery(...)` em telas.
 
-5) `queryKeys.terreiros.collectionsByTerreiro(terreiroId)`
+5. `queryKeys.terreiros.collectionsByTerreiro(terreiroId)`
+
 - Código: `src/queries/terreirosCollections.ts`
 - `prefetchCollectionsByTerreiro(...)` / `useCollectionsByTerreiroQuery(...)` → `fetchCollectionsByTerreiro(terreiroId)`
 - Supabase:
@@ -148,7 +153,8 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
   - Nenhum uso de `useCollectionsByTerreiroQuery(...)` foi encontrado (apenas definição e prefetch no boot).
   - Observação: a tela do terreiro usa **outra fonte** (fetch direto sem React Query), ver 2.3.
 
-6) `queryKeys.me.editableTerreiros(userId)` (dados mínimos de terreiros editáveis para o sheet)
+6. `queryKeys.me.editableTerreiros(userId)` (dados mínimos de terreiros editáveis para o sheet)
+
 - Código: `src/queries/me.ts`
 - `prefetchMyEditableTerreiros(...)` / `useMyEditableTerreirosQuery(...)` → `fetchMyEditableTerreiros({ userId, editableTerreiroIds? })`
 - Supabase:
@@ -160,7 +166,8 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
 - Consumidores encontrados:
   - `src/components/AppHeaderWithPreferences.tsx` usa `useMyEditableTerreirosQuery(userId)`.
 
-7) `queryKeys.collections.editableByUser({ userId, terreiroIdsHash })`
+7. `queryKeys.collections.editableByUser({ userId, terreiroIdsHash })`
+
 - Código: `src/queries/collections.ts`
 - `prefetchEditableCollections(...)` / `useEditableCollections(userId)` → `fetchEditableCollections({ userId, editableTerreiroIds })`
 - Supabase:
@@ -179,12 +186,14 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
 Aquecimento aqui acontece de forma “reativa”: `setQueryData` (patch) e `invalidateQueries` (refetch em background).
 
 - `queryKeys.terreiros.withRole(userId)`
+
   - Código: `src/queries/terreirosWithRole.ts`
   - Consumidor: `src/screens/Terreiros/Terreiros.tsx`
   - Patch: `src/queries/terreirosCache.ts` (`patchTerreiroInLists`)
   - Invalidação: `invalidateTerreiroListsForRoles` e `TerreirosRealtimeSync`
 
 - `queryKeys.collections.accountable(userId)`
+
   - Código: `src/queries/collections.ts` (`useAccountableCollections` / `fetchAccountableCollections`)
   - Invalidações encontradas: `src/screens/Home/Home.tsx`, `src/components/InviteGate.tsx`
   - Observação factual: não foi encontrado uso de `useAccountableCollections(...)` em telas.
@@ -207,6 +216,7 @@ Factual: no código atual, essas keys aparecem em `queryKeys.ts` e em `invalidat
 #### Start page preference (backend) + snapshot offline
 
 O que é “calculado” no boot:
+
 - Online:
   - `fetchStartPageFromBackend(userId)` lê `profiles.primary_terreiro_id`.
   - Se existir, valida acesso com `validateTerreiroAccess(terreiroId)` (consulta `terreiros` para campos mínimos).
@@ -218,6 +228,7 @@ O que é “calculado” no boot:
 #### Preferências locais (persistidas)
 
 Também são carregadas no boot do provider:
+
 - `themeMode` (AsyncStorage `@saravafy:themeMode`)
 - `curimbaEnabled` e `curimbaOnboardingDismissed` (inclui migração de chaves legadas)
 
@@ -265,11 +276,11 @@ Também são carregadas no boot do provider:
 ### 3.2 `useRealtimeTerreiroScope` (escopo do terreiro ativo)
 
 - Arquivo: `src/hooks/useRealtimeTerreiroScope.ts`
-- Canais por `activeTerreiroId`:
-  - `pontos` (INSERT): invalida `queryKeys.pontos.terreiro(activeTerreiroId)` quando o `owner_terreiro_id` bate.
-  - `collections` (*): invalida `queryKeys.collections.terreiro(activeTerreiroId)` e `queryKeys.collections.available(...)` conforme owner/escopo.
-  - `collections_pontos` (*): invalida `queryKeys.collections.byId(collectionId)` + listas relacionadas do terreiro + `available`.
-  - `terreiro_members` (*): se o `terreiroId` está em `myTerreiroIds`, invalida `queryKeys.me.terreiros(userId)` e também `queryKeys.me.membership/permissions` (mesmo que não exista implementação de fetch hoje).
+- Canais por `scopeTerreiroId`:
+  - `pontos` (INSERT): invalida `queryKeys.pontos.terreiro(scopeTerreiroId)` quando o `owner_terreiro_id` bate.
+  - `collections` (\*): invalida `queryKeys.collections.terreiro(scopeTerreiroId)` e `queryKeys.collections.available(...)` conforme owner/escopo.
+  - `collections_pontos` (\*): invalida `queryKeys.collections.byId(collectionId)` + listas relacionadas do terreiro + `available`.
+  - `terreiro_members` (\*): se o `terreiroId` está em `myTerreiroIds`, invalida `queryKeys.me.terreiros(userId)` e também `queryKeys.me.membership/permissions` (mesmo que não exista implementação de fetch hoje).
 
 ---
 
@@ -286,14 +297,56 @@ Também são carregadas no boot do provider:
 
 ## 5) Pontos de melhoria (sem implementar)
 
-1) Remover ou ligar “warm caches sem consumidor”
+---
+
+## Apêndice A) Helpers de cache (setQueryData / invalidate / refetch)
+
+Esta seção lista os pontos “mecânicos” que mexem no cache do React Query (além de prefetch).
+
+### A.1 `patchTerreiroInLists` (atualização local via `setQueryData`)
+
+- Arquivo: `src/queries/terreirosCache.ts`
+- Uso encontrado em: `src/screens/TerreiroEditor/TerreiroEditor.tsx`
+- Efeito: faz patch em listas já carregadas para refletir create/update de terreiro sem esperar refetch.
+- QueryKeys atualizados (quando presentes no cache):
+  - `queryKeys.terreiros.withRole(userId)`
+  - `queryKeys.me.editableTerreiros(userId)`
+
+### A.2 `invalidateTerreiro` (invalidação focada por terreiro)
+
+- Arquivo: `src/queries/terreirosCache.ts`
+- Efeito: invalida caches diretamente relacionados ao `terreiroId`:
+  - `queryKeys.terreiros.byId(terreiroId)`
+  - `queryKeys.terreiros.collectionsByTerreiro(terreiroId)`
+
+### A.3 `invalidateTerreiroListsForRoles` (invalidação “em lote” por usuário)
+
+- Arquivo: `src/queries/terreirosCache.ts`
+- Uso típico: após eventos que mudam role/visibilidade (realtime, aceitar convite, criar/editar terreiro).
+- Efeito: invalida listas derivadas de membership/roles:
+  - `queryKeys.terreiros.withRole(userId)`
+  - `queryKeys.me.terreiroAccessIds(userId)`
+  - `queryKeys.me.terreiros(userId)`
+  - `queryKeys.me.editableTerreiros(userId)`
+  - `queryKeys.me.permissions(userId)` (observação: não há implementação de fetch encontrada)
+
+### A.4 `refetchQueries` explícito
+
+- Arquivo: `src/screens/TerreiroEditor/TerreiroEditor.tsx`
+- Após criar terreiro, além de invalidar, chama `queryClient.refetchQueries({ queryKey: queryKeys.terreiros.withRole(userId), type: "all" })` para forçar atualização imediata da lista.
+
+1. Remover ou ligar “warm caches sem consumidor”
+
 - Hoje há prefetches de queries sem uso encontrado (`pontos.feed`, `terreiros.exploreInitial`, `terreiros.collectionsByTerreiro`, `me.terreiroAccessIds` via hook). Ou conectar telas aos hooks (se for o plano) ou remover prefetch para reduzir custo no boot.
 
-2) Unificar fontes de dados de coleções do terreiro
+2. Unificar fontes de dados de coleções do terreiro
+
 - A tela do terreiro usa fetch direto (`src/screens/Terreiro/data/collections.ts`) enquanto existe uma query React Query equivalente (`src/queries/terreirosCollections.ts`). Unificar evitaria inconsistência e aproveitaria o prefetch.
 
-3) Implementar (ou remover) `me.membership` e `me.permissions`
+3. Implementar (ou remover) `me.membership` e `me.permissions`
+
 - Hoje são invalidadas por realtime/InviteGate mas não existe `queryFn` que preencha esses caches. Isso dificulta “recalcular warm cache” com previsibilidade.
 
-4) Revisar invalidations que parecem “órfãs”
+4. Revisar invalidations que parecem “órfãs”
+
 - `collections.accountable(userId)` é invalidada, mas não há uso do hook em telas; pode ser legado ou pré-trabalho.

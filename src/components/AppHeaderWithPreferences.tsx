@@ -54,8 +54,6 @@ export function AppHeaderWithPreferences() {
     themeMode,
     setThemeMode,
     effectiveTheme,
-    activeContext,
-    setActiveContext,
     curimbaEnabled,
     setCurimbaEnabled,
     curimbaOnboardingDismissed,
@@ -124,32 +122,18 @@ export function AppHeaderWithPreferences() {
   const userId = user?.id ?? null;
 
   const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
-  const myEditableTerreiros = myEditableTerreirosQuery.data ?? [];
+  const myEditableTerreiros = useMemo(
+    () => myEditableTerreirosQuery.data ?? [],
+    [myEditableTerreirosQuery.data]
+  );
 
-  const activeTerreiro = useMemo(() => {
-    if (activeContext.kind !== "TERREIRO_PAGE") return null;
+  const myAdminTerreiros = useMemo(
+    () => myEditableTerreiros.filter((t) => t.role === "admin"),
+    [myEditableTerreiros]
+  );
 
-    if (activeContext.terreiroId) {
-      return {
-        id: activeContext.terreiroId,
-        name: activeContext.terreiroName ?? "Terreiro",
-        avatarUrl: activeContext.terreiroAvatarUrl,
-        role: "admin" as const,
-      };
-    }
-
-    return null;
-  }, [activeContext]);
-
-  const contextAvatarUrl =
-    activeContext.kind === "USER_PROFILE"
-      ? userPhotoUrl
-      : activeTerreiro?.avatarUrl ?? activeContext.terreiroAvatarUrl;
-
-  const contextInitials =
-    activeContext.kind === "USER_PROFILE"
-      ? initials
-      : getInitials(activeTerreiro?.name ?? "Terreiro");
+  const contextAvatarUrl = userPhotoUrl;
+  const contextInitials = initials;
 
   const didLogPrefsVisibleRef = React.useRef(false);
 
@@ -326,32 +310,26 @@ export function AppHeaderWithPreferences() {
         }}
       >
         <View style={styles.menuWrap}>
-          <PreferencesSection title="Minhas páginas" variant={variant}>
-            <View style={styles.pagesList}>
-              <PreferencesPageItem
-                variant={variant}
-                title={userDisplayName}
-                avatarUrl={userPhotoUrl}
-                initials={initials}
-                isActive={activeContext.kind === "USER_PROFILE"}
-                onPressSwitch={async () => {
-                  try {
-                    await Promise.resolve(
-                      setActiveContext({ kind: "USER_PROFILE" })
-                    );
-                    await Haptics.selectionAsync();
-                  } catch {
-                    // silêncio
-                  }
-                  // Trocar para a página de Pontos no RootPager, mas não navegar
-                  rootPager?.setActiveKey("pontos");
-                }}
-                onPressEdit={() => {
-                  setIsPreferencesOpen(false);
-                  setIsEditProfileOpen(true);
-                }}
-              />
+          <View style={styles.pagesList}>
+            <PreferencesPageItem
+              variant={variant}
+              title={userDisplayName}
+              avatarUrl={userPhotoUrl}
+              initials={initials}
+              onPress={undefined}
+              onPressEdit={() => {
+                setIsPreferencesOpen(false);
+                setIsEditProfileOpen(true);
+              }}
+            />
+          </View>
 
+          <View
+            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
+          />
+
+          <PreferencesSection title="Meus terreiros" variant={variant}>
+            <View style={styles.pagesList}>
               {!userId ? null : myEditableTerreirosQuery.isError ? (
                 <Pressable
                   accessibilityRole="button"
@@ -369,42 +347,29 @@ export function AppHeaderWithPreferences() {
                   </Text>
                 </Pressable>
               ) : myEditableTerreirosQuery.isFetching &&
-                myEditableTerreiros.length === 0 ? (
+                myAdminTerreiros.length === 0 ? (
                 <Text style={[styles.helperText, { color: textSecondary }]}>
                   Carregando terreiros…
                 </Text>
-              ) : myEditableTerreiros.length === 0 ? (
+              ) : myAdminTerreiros.length === 0 ? (
                 <Text style={[styles.helperText, { color: textSecondary }]}>
-                  Você ainda não tem acesso a terreiros como Admin/Editor.
+                  Você ainda não é Admin em nenhum terreiro.
                 </Text>
               ) : (
-                myEditableTerreiros.map((t) => (
+                myAdminTerreiros.map((t) => (
                   <PreferencesPageItem
                     key={t.id}
                     variant={variant}
                     title={t.title}
                     avatarUrl={t.cover_image_url ?? undefined}
                     initials={getInitials(t.title)}
-                    isActive={
-                      activeContext.kind === "TERREIRO_PAGE" &&
-                      activeContext.terreiroId === t.id
-                    }
-                    onPressSwitch={async () => {
-                      try {
-                        await Promise.resolve(
-                          setActiveContext({
-                            kind: "TERREIRO_PAGE",
-                            terreiroId: t.id,
-                            terreiroName: t.title,
-                            terreiroAvatarUrl: t.cover_image_url ?? undefined,
-                            role: t.role,
-                          })
-                        );
-                        await Haptics.selectionAsync();
-                      } catch {
-                        // silêncio
-                      }
-                      // Não navegar - apenas trocar contexto e manter modal aberto
+                    onPress={() => {
+                      setIsPreferencesOpen(false);
+                      void Haptics.selectionAsync().catch(() => undefined);
+                      router.push({
+                        pathname: "/terreiro" as any,
+                        params: { terreiroId: t.id, terreiroTitle: t.title },
+                      });
                     }}
                     onPressEdit={() => {
                       router.push({
