@@ -33,6 +33,24 @@ type TerreiroInvite = {
   created_at: string;
 };
 
+type InviteGateDebug = {
+  step:
+    | "refresh"
+    | "accept:update_invite"
+    | "accept:upsert_member"
+    | "accept:rollback_invite"
+    | "reject:update_invite";
+  inviteId?: string;
+  terreiroId?: string;
+  role?: string;
+  userId?: string;
+  raw?: unknown;
+  message?: string;
+  code?: string;
+  details?: string;
+  hint?: string;
+};
+
 function isRlsRecursionError(message: string) {
   const m = String(message ?? "");
   return (
@@ -77,6 +95,42 @@ function getFriendlyActionError(message: string) {
   return "Não foi possível concluir agora. Verifique sua conexão e tente novamente.";
 }
 
+function toDebugFromUnknown(params: {
+  step: InviteGateDebug["step"];
+  inviteId?: string;
+  terreiroId?: string;
+  role?: string;
+  userId?: string;
+  error: unknown;
+}): InviteGateDebug {
+  const { step, inviteId, terreiroId, role, userId, error } = params;
+
+  const asAny = error as any;
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof asAny?.message === "string"
+        ? asAny.message
+        : "";
+
+  const code = typeof asAny?.code === "string" ? asAny.code : undefined;
+  const details = typeof asAny?.details === "string" ? asAny.details : undefined;
+  const hint = typeof asAny?.hint === "string" ? asAny.hint : undefined;
+
+  return {
+    step,
+    inviteId,
+    terreiroId,
+    role,
+    userId,
+    raw: error,
+    message: message || undefined,
+    code,
+    details,
+    hint,
+  };
+}
+
 function normalizeEmail(email: string) {
   return email.trim().toLowerCase();
 }
@@ -99,6 +153,7 @@ export function InviteGate() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [debugInfo, setDebugInfo] = useState<InviteGateDebug | null>(null);
 
   const [isBannerVisible, setIsBannerVisible] = useState(false);
   const realtimeInviteIdRef = useRef<string | null>(null);
@@ -385,18 +440,19 @@ export function InviteGate() {
 
     setIsProcessing(true);
     setActionError(null);
+    setDebugInfo(null);
 
     try {
       // Passo 1: marcar invite como aceito.
+      // IMPORTANT: não usar select().single() aqui — dependendo das RLS policies,
+      // o update pode funcionar mas o retorno (RETURNING) não, gerando erro de "0 rows".
       const updInvite = await supabase
         .from("terreiro_invites")
         .update({ status: "accepted" })
-        .eq("id", currentInvite.id)
-        .select("id")
-        .single();
+        .eq("id", currentInvite.id);
 
       if (updInvite.error) {
-        throw new Error(updInvite.error.message);
+        throw updInvite.error;
       }
 
       // Passo 2: criar/ativar vínculo em terreiro_members (PK composta).
@@ -408,10 +464,16 @@ export function InviteGate() {
         });
       } catch (e) {
         // Best-effort rollback para não “perder” o convite se a ativação falhar.
-        await supabase
+        const rollback = await supabase
           .from("terreiro_invites")
           .update({ status: "pending" })
           .eq("id", currentInvite.id);
+        if (__DEV__ && rollback.error) {
+          console.log("[InviteGate][DEV] rollback invite failed", {
+            inviteId: currentInvite.id,
+            error: rollback.error,
+          });
+        }
         throw e;
       }
 
@@ -423,10 +485,31 @@ export function InviteGate() {
         .then(ensureModalForQueue)
         .catch(() => undefined);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof (e as any)?.message === "string"
+            ? (e as any).message
+            : String(e);
+
+      const info = toDebugFromUnknown({
+        step:
+          message && message.includes("terreiro_members")
+            ? "accept:upsert_member"
+            : "accept:update_invite",
+        inviteId: currentInvite.id,
+        terreiroId: currentInvite.terreiro_id,
+        role: currentInvite.role,
+        userId: userId ?? undefined,
+        error: e,
+      });
+      setDebugInfo(info);
+
+      if (__DEV__) {
+        console.log("[InviteGate][DEV] accept failed", info);
+      }
       setActionError(getFriendlyActionError(message));
-    }
-    finally {
+    } finally {
       setIsProcessing(false);
     }
   }, [
@@ -443,6 +526,7 @@ export function InviteGate() {
 
     setIsProcessing(true);
     setActionError(null);
+    setDebugInfo(null);
 
     try {
       const upd = await supabase
@@ -462,10 +546,28 @@ export function InviteGate() {
         .then(ensureModalForQueue)
         .catch(() => undefined);
     } catch (e) {
-      const message = e instanceof Error ? e.message : String(e);
+      const message =
+        e instanceof Error
+          ? e.message
+          : typeof (e as any)?.message === "string"
+            ? (e as any).message
+            : String(e);
+
+      const info = toDebugFromUnknown({
+        step: "reject:update_invite",
+        inviteId: currentInvite.id,
+        terreiroId: currentInvite.terreiro_id,
+        role: currentInvite.role,
+        userId: userId ?? undefined,
+        error: e,
+      });
+      setDebugInfo(info);
+
+      if (__DEV__) {
+        console.log("[InviteGate][DEV] reject failed", info);
+      }
       setActionError(getFriendlyActionError(message));
-    }
-    finally {
+    } finally {
       setIsProcessing(false);
     }
   }, [
@@ -474,6 +576,7 @@ export function InviteGate() {
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
+    userId,
   ]);
 
   const bannerText = useMemo(
@@ -545,9 +648,30 @@ export function InviteGate() {
             </Text>
 
             {actionError ? (
-              <Text style={[styles.modalError, { color: textSecondary }]}>
-                {actionError}
-              </Text>
+              <>
+                <Text style={[styles.modalError, { color: textSecondary }]}>
+                  {actionError}
+                </Text>
+
+                {__DEV__ && debugInfo ? (
+                  <Text
+                    style={[
+                      styles.modalDevDetails,
+                      { color: textSecondary, opacity: 0.9 },
+                    ]}
+                  >
+                    {`DEV details: step=${debugInfo.step}`}
+                    {debugInfo.code ? `\ncode=${debugInfo.code}` : ""}
+                    {debugInfo.message
+                      ? `\nmessage=${debugInfo.message}`
+                      : ""}
+                    {debugInfo.details
+                      ? `\ndetails=${debugInfo.details}`
+                      : ""}
+                    {debugInfo.hint ? `\nhint=${debugInfo.hint}` : ""}
+                  </Text>
+                ) : null}
+              </>
             ) : null}
 
             <View style={styles.modalButtons}>
@@ -663,6 +787,13 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     textAlign: "center",
     opacity: 0.95,
+  },
+  modalDevDetails: {
+    marginTop: spacing.sm,
+    fontSize: 11,
+    fontWeight: "700",
+    lineHeight: 15,
+    textAlign: "center",
   },
   modalButtons: {
     marginTop: spacing.lg,
