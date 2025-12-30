@@ -23,7 +23,11 @@ import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
 } from "@/src/queries/collections";
-import { prefetchMyEditableTerreiros } from "@/src/queries/me";
+import {
+  prefetchMyEditableTerreiros,
+  prefetchMyTerreiroAccessIds,
+} from "@/src/queries/me";
+import { prefetchCollectionsByTerreiro } from "@/src/queries/terreirosCollections";
 import { prefetchHomeFeedPontos } from "@/src/queries/pontosFeed";
 import { prefetchExploreTerreiros } from "@/src/queries/terreirosExplore";
 import {
@@ -280,6 +284,28 @@ function RootLayoutNav() {
         console.error("[BootPrefetch] erro ao prefetch memberships:", e);
       }
 
+      // 3b) Terreiros com acesso do usuário (admin/editor/member active)
+      let accessTerreiroIds: string[] = [];
+      try {
+        accessTerreiroIds = await prefetchMyTerreiroAccessIds(queryClient, userId);
+      } catch (e) {
+        console.error("[BootPrefetch] erro ao prefetch terreiro access ids:", e);
+        accessTerreiroIds = [];
+      }
+
+      // 3c) Coleções por terreiro (apenas owner_terreiro_id) para a aba Terreiros
+      const collectionsQueries = await Promise.allSettled(
+        accessTerreiroIds.map((terreiroId) =>
+          prefetchCollectionsByTerreiro(queryClient, { terreiroId })
+        )
+      );
+
+      const collectionsPrefetchedCount = collectionsQueries.reduce((acc, r) => {
+        if (r.status !== "fulfilled") return acc;
+        const value = r.value;
+        return acc + (Array.isArray(value) ? value.length : 0);
+      }, 0);
+
       // 4) Terreiros do perfil (admin/editor) para o sheet de Preferências
       try {
         await prefetchMyEditableTerreiros(queryClient, {
@@ -312,6 +338,8 @@ function RootLayoutNav() {
           ms: Date.now() - startedAt,
           editableTerreiroCount: editableTerreiroIds.length,
           editableCollectionsCached: editableCollections.length,
+          accessTerreiroCount: accessTerreiroIds.length,
+          collectionsPrefetchedCount,
         });
       }
     };

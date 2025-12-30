@@ -61,6 +61,98 @@ export function useMyActiveTerreiroIdsQuery(userId: string | null) {
   });
 }
 
+export type TerreiroAccessRole = "admin" | "editor" | "member";
+
+export function useMyTerreiroAccessIdsQuery(userId: string | null) {
+  return useQuery({
+    queryKey: userId ? queryKeys.me.terreiroAccessIds(userId) : [],
+    enabled: !!userId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!userId) return [] as string[];
+
+      const allowedRoles = ["admin", "editor", "member"] as const;
+
+      let res: any = await supabase
+        .from("terreiro_members")
+        .select("terreiro_id, status")
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles])
+        .eq("status", "active");
+
+      if (res.error && isColumnMissingError(res.error, "status")) {
+        res = await supabase
+          .from("terreiro_members")
+          .select("terreiro_id")
+          .eq("user_id", userId)
+          .in("role", [...allowedRoles]);
+      }
+
+      if (res.error) {
+        const message =
+          typeof res.error.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Erro ao carregar terreiros com acesso do usuário.";
+        throw new Error(message);
+      }
+
+      const rows = (res.data ?? []) as Array<{ terreiro_id?: unknown }>;
+      const ids = rows
+        .map((r) => (typeof r?.terreiro_id === "string" ? r.terreiro_id : ""))
+        .filter(Boolean);
+
+      return Array.from(new Set(ids));
+    },
+    placeholderData: (prev) => prev,
+  });
+}
+
+export async function prefetchMyTerreiroAccessIds(
+  queryClient: QueryClient,
+  userId: string
+): Promise<string[]> {
+  if (!userId) return [];
+
+  const data = await queryClient.fetchQuery({
+    queryKey: queryKeys.me.terreiroAccessIds(userId),
+    staleTime: 60_000,
+    queryFn: async () => {
+      const allowedRoles = ["admin", "editor", "member"] as const;
+
+      let res: any = await supabase
+        .from("terreiro_members")
+        .select("terreiro_id, status")
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles])
+        .eq("status", "active");
+
+      if (res.error && isColumnMissingError(res.error, "status")) {
+        res = await supabase
+          .from("terreiro_members")
+          .select("terreiro_id")
+          .eq("user_id", userId)
+          .in("role", [...allowedRoles]);
+      }
+
+      if (res.error) {
+        const message =
+          typeof res.error.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Erro ao carregar terreiros com acesso do usuário.";
+        throw new Error(message);
+      }
+
+      const rows = (res.data ?? []) as Array<{ terreiro_id?: unknown }>;
+      const ids = rows
+        .map((r) => (typeof r?.terreiro_id === "string" ? r.terreiro_id : ""))
+        .filter(Boolean);
+      return Array.from(new Set(ids));
+    },
+  });
+
+  return Array.isArray(data) ? data : [];
+}
+
 export type EditableTerreiroRole = "admin" | "editor";
 
 export type MyEditableTerreiro = {
@@ -152,7 +244,8 @@ async function fetchMyEditableTerreiros(params: {
   const memberRows = (members.data ?? []) as TerreiroMemberEditableRow[];
   const roleByTerreiroId = new Map<string, EditableTerreiroRole>();
   for (const row of memberRows) {
-    const terreiroId = typeof row?.terreiro_id === "string" ? row.terreiro_id : "";
+    const terreiroId =
+      typeof row?.terreiro_id === "string" ? row.terreiro_id : "";
     const role = row?.role;
     if (!terreiroId) continue;
     if (role !== "admin" && role !== "editor") continue;
@@ -174,7 +267,10 @@ async function fetchMyEditableTerreiros(params: {
     .select("id, title, cover_image_url")
     .in("id", terreiroIds);
 
-  if (terreiros.error && isColumnMissingError(terreiros.error, "cover_image_url")) {
+  if (
+    terreiros.error &&
+    isColumnMissingError(terreiros.error, "cover_image_url")
+  ) {
     terreiros = await supabase
       .from("terreiros")
       .select("id, title")
@@ -183,7 +279,8 @@ async function fetchMyEditableTerreiros(params: {
 
   if (terreiros.error) {
     const message =
-      typeof terreiros.error.message === "string" && terreiros.error.message.trim()
+      typeof terreiros.error.message === "string" &&
+      terreiros.error.message.trim()
         ? terreiros.error.message
         : "Erro ao carregar dados dos terreiros.";
     throw new Error(message);
@@ -257,6 +354,9 @@ export async function prefetchMyEditableTerreiros(
     queryKey: key,
     staleTime: 60_000,
     queryFn: async () =>
-      fetchMyEditableTerreiros({ userId: params.userId, editableTerreiroIds: ids }),
+      fetchMyEditableTerreiros({
+        userId: params.userId,
+        editableTerreiroIds: ids,
+      }),
   });
 }

@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { useCollectionsByTerreiroQuery } from "@/src/queries/terreirosCollections";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -20,6 +21,12 @@ import {
   fetchTerreirosWithRole,
   type TerreiroListItem,
 } from "./data/terreiros";
+
+function toActiveContextRole(role: TerreiroListItem["role"]) {
+  return role === "admin" || role === "editor" || role === "follower"
+    ? role
+    : "follower";
+}
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
@@ -123,6 +130,13 @@ function TerreiroCard({
 }) {
   const [imageFailed, setImageFailed] = useState(false);
 
+  const canReadTerreiroCollections =
+    item.role === "admin" || item.role === "editor" || item.role === "member";
+  const collectionsQuery = useCollectionsByTerreiroQuery(
+    canReadTerreiroCollections ? item.id : null
+  );
+  const previewCollections = (collectionsQuery.data ?? []).slice(0, 3);
+
   const name =
     (typeof item.name === "string" && item.name.trim()) || "Terreiro";
 
@@ -187,6 +201,35 @@ function TerreiroCard({
                 {about}
               </Text>
             ) : null}
+
+            {!expanded && canReadTerreiroCollections ? (
+              <View style={styles.collectionsPreviewBlock}>
+                {previewCollections.length > 0 ? (
+                  <>
+                    <Text style={[styles.cardLabel, { color: textMuted }]}>
+                      Coleções
+                    </Text>
+                    {previewCollections.map((c) => (
+                      <Text
+                        key={c.id}
+                        style={[styles.collectionPreviewTitle, { color: textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {c.title?.trim() ? c.title.trim() : "Sem título"}
+                      </Text>
+                    ))}
+                  </>
+                ) : collectionsQuery.isFetching ? (
+                  <Text
+                    style={[styles.collectionPreviewLoading, { color: textMuted }]}
+                    numberOfLines={1}
+                  >
+                    Carregando coleções…
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
             {!expanded ? (
               <View style={styles.collapsedActionsRow}>
                 <Pressable
@@ -539,12 +582,14 @@ export default function Terreiros() {
                       const name =
                         (typeof item.name === "string" && item.name.trim()) ||
                         "Terreiro";
+
+                      const role = toActiveContextRole(item.role);
                       setActiveContext({
                         kind: "TERREIRO_PAGE",
                         terreiroId: item.id,
                         terreiroName: name,
                         terreiroAvatarUrl: item.coverImageUrl,
-                        role: item.role ?? "follower",
+                        role,
                       });
                       router.push("/terreiro");
                     }}
@@ -695,6 +740,20 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontWeight: "600",
+  },
+  collectionsPreviewBlock: {
+    paddingTop: spacing.sm,
+    gap: 4,
+  },
+  collectionPreviewTitle: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  collectionPreviewLoading: {
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "700",
   },
   cardPrimaryBold: {
     fontWeight: "800",

@@ -2,6 +2,8 @@ export const queryKeys = {
   me: {
     membership: (userId: string) => ["me", "membership", userId] as const,
     terreiros: (userId: string) => ["me", "terreiros", userId] as const,
+    terreiroAccessIds: (userId: string) =>
+      ["me", "terreiroAccessIds", userId] as const,
     editableTerreiros: (userId: string) =>
       ["me", "editableTerreiros", userId] as const,
     permissions: (userId: string) => ["me", "permissions", userId] as const,
@@ -15,6 +17,8 @@ export const queryKeys = {
     exploreInitial: () => ["terreiros", "explore", "initial"] as const,
     editableByUser: (userId: string) =>
       ["terreiros", "editableByUser", userId] as const,
+    collectionsByTerreiro: (terreiroId: string) =>
+      ["terreiros", "collectionsByTerreiro", terreiroId] as const,
   },
   collections: {
     // QueryKey por usuário para todas as coleções visíveis pela usuária
@@ -23,7 +27,12 @@ export const queryKeys = {
 
     // Coleções editáveis (escrita) do usuário: depende de memberships admin/editor
     editableByUser: (params: { userId: string; terreiroIdsHash: string }) =>
-      ["collections", "editableByUser", params.userId, params.terreiroIdsHash] as const,
+      [
+        "collections",
+        "editableByUser",
+        params.userId,
+        params.terreiroIdsHash,
+      ] as const,
     editableByUserPrefix: (userId: string) =>
       ["collections", "editableByUser", userId] as const,
 

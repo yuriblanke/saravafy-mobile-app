@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
-// import já existe, não duplicar
-import { TerreiroRole } from "@/contexts/PreferencesContext";
+
+export type TerreiroTabRole = "admin" | "editor" | "member" | "follower";
 
 type TerreiroContatoRow = {
   terreiro_id?: string;
@@ -22,7 +22,7 @@ type TerreiroResponsavelRow = {
 
 type TerreiroMemberRow = {
   user_id?: string | null;
-  role?: TerreiroRole | null;
+  role?: TerreiroTabRole | null;
 };
 
 function isTerreiroMembersPolicyRecursionError(error: unknown) {
@@ -149,9 +149,11 @@ export async function fetchTerreirosWithRole(
         ? members.find((m) => m?.user_id === userId)
         : members[0];
 
-    let role: TerreiroRole = "follower";
+    let role: TerreiroTabRole = "follower";
     const r = match?.role;
-    if (r === "admin" || r === "editor" || r === "follower") role = r;
+    if (r === "admin" || r === "editor" || r === "member" || r === "follower") {
+      role = r;
+    }
 
     const contato =
       typeof t?.id === "string" ? contatoByTerreiroId[t.id] : undefined;
@@ -220,7 +222,7 @@ export async function fetchTerreirosWithRole(
 export type TerreiroListItem = {
   id: string;
   name: string;
-  role?: import("@/contexts/PreferencesContext").TerreiroRole;
+  role?: TerreiroTabRole;
   about?: string;
   linesOfWork?: string;
   city?: string;
