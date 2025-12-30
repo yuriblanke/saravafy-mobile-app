@@ -635,6 +635,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { dismissAllTooltips } from "@/src/components/TooltipPopover";
 import {
   useTerreiroInvites,
   useTerreiroMembers,
@@ -1265,6 +1266,7 @@ export default function AccessManagerScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        onScrollBeginDrag={() => dismissAllTooltips()}
       >
         <View style={styles.contextHeader}>
           <Text style={[styles.title, { color: textPrimary }]}>

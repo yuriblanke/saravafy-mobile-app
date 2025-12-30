@@ -16,6 +16,7 @@ import {
 } from "react-native";
 
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
+import { dismissAllTooltips } from "@/src/components/TooltipPopover";
 import { colors, spacing } from "@/src/theme";
 
 // --- Swipe-to-close tuning ---
@@ -291,6 +292,9 @@ export function BottomSheet({
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
             scrollEventThrottle={16}
+            onScrollBeginDrag={() => {
+              dismissAllTooltips();
+            }}
             onScroll={(e) => {
               const nextY = e.nativeEvent.contentOffset?.y ?? 0;
               scrollYRef.current = nextY > 0 ? nextY : 0;
