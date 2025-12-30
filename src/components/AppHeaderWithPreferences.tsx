@@ -503,7 +503,11 @@ export function AppHeaderWithPreferences() {
                     text: "Sair",
                     style: "destructive",
                     onPress: async () => {
-                      await signOut();
+                      try {
+                        await signOut();
+                      } finally {
+                        router.replace("/login");
+                      }
                     },
                   },
                 ]);
