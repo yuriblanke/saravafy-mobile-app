@@ -36,7 +36,9 @@ export function PendingInvitesList({
       : colors.textSecondaryOnDark;
 
   const borderColor =
-    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
 
   if (isLoading) {
     return (

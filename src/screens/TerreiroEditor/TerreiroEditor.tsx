@@ -1608,10 +1608,7 @@ export default function TerreiroEditor() {
             ) : null}
 
             <View style={styles.adminActionsWrap}>
-              {isTerreiroAdminSectionEnabled &&
-              (myTerreiroRole === "admin" ||
-                myTerreiroRole === "editor" ||
-                isAdmin) ? (
+              {isTerreiroAdminSectionEnabled && isAdmin ? (
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Gerenciar acesso"

@@ -87,6 +87,7 @@ const config: ExpoConfig = {
     supportsTablet: true,
     bundleIdentifier: IOS_BUNDLE_ID,
     buildNumber: "1",
+    associatedDomains: ["applinks:saravafy.com.br"],
   },
 
   android: {
@@ -99,6 +100,20 @@ const config: ExpoConfig = {
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: false,
+    intentFilters: [
+      {
+        action: "VIEW",
+        autoVerify: true,
+        category: ["BROWSABLE", "DEFAULT"],
+        data: [
+          {
+            scheme: "https",
+            host: "saravafy.com.br",
+            pathPrefix: "/l",
+          },
+        ],
+      },
+    ],
   },
 
   web: {

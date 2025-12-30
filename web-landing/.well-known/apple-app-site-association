@@ -1,0 +1,18 @@
+{
+  "_comment": [
+    "Preencha <IOS_TEAM_ID> e <IOS_BUNDLE_ID>.",
+    "O arquivo precisa ser servido SEM extensao, em /.well-known/apple-app-site-association.",
+    "Content-Type recomendado: application/json."
+  ],
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "<IOS_TEAM_ID>.<IOS_BUNDLE_ID>",
+        "paths": [
+          "/l/*"
+        ]
+      }
+    ]
+  }
+}

@@ -704,7 +704,14 @@ export function useTerreiroMembers(terreiroId: string) {
     load();
   }, [load]);
 
-  return { items, profilesById, identityByUserId, isLoading, error, reload: load };
+  return {
+    items,
+    profilesById,
+    identityByUserId,
+    isLoading,
+    error,
+    reload: load,
+  };
 }
 
 export function useTerreiroInvites(terreiroId: string) {

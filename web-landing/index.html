@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Abrir no Saravafy</title>
+    <link rel="stylesheet" href="./styles.css" />
+    <script src="./config.js"></script>
+  </head>
+  <body>
+    <main class="container">
+      <h1>Abrir no Saravafy</h1>
+      <p id="subtitle" class="meta"></p>
+
+      <div class="card">
+        <div class="row">
+          <button id="installBtn" class="btn-primary" disabled>
+            Instalar app
+          </button>
+          <button id="copyBtn" class="btn-secondary">Copiar link</button>
+        </div>
+
+        <p class="notice">
+          Depois de instalar, volte e abra este link novamente.
+        </p>
+
+        <p id="status" class="small"></p>
+      </div>
+    </main>
+
+    <script>
+      (function () {
+        const subtitleEl = document.getElementById("subtitle");
+        const installBtn = document.getElementById("installBtn");
+        const copyBtn = document.getElementById("copyBtn");
+        const statusEl = document.getElementById("status");
+
+        function setStatus(text, variant) {
+          statusEl.textContent = text;
+          statusEl.className = "small" + (variant === "error" ? " error" : "");
+        }
+
+        function parseLink() {
+          const path = String(window.location.pathname || "");
+          const parts = path.split("/").filter(Boolean);
+          // Expected: /l/<tipo>/<id>
+          if (parts.length >= 3 && parts[0] === "l") {
+            return { tipo: parts[1], id: parts[2] };
+          }
+          return null;
+        }
+
+        function isValidHttpsUrl(url) {
+          try {
+            const u = new URL(url);
+            return u.protocol === "https:";
+          } catch {
+            return false;
+          }
+        }
+
+        async function fetchInstallUrl() {
+          const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
+          const anonKey = String(window.SARAVAFY_SUPABASE_ANON_KEY || "").trim();
+
+          if (!supabaseUrl || !anonKey) {
+            return { url: null, reason: "Config do Supabase ausente na landing." };
+          }
+
+          const endpoint =
+            supabaseUrl.replace(/\/+$/, "") +
+            "/rest/v1/public_app_config?select=value&key=eq.app_install_url&limit=1";
+
+          const res = await fetch(endpoint, {
+            method: "GET",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              Accept: "application/json",
+            },
+          });
+
+          if (!res.ok) {
+            return {
+              url: null,
+              reason: "Falha ao buscar link de instalação (HTTP " + res.status + ")",
+            };
+          }
+
+          const data = await res.json();
+          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          const value = row && typeof row.value === "string" ? row.value.trim() : "";
+
+          if (!value) {
+            return { url: null, reason: "Link de instalação não configurado." };
+          }
+
+          if (!isValidHttpsUrl(value)) {
+            return { url: null, reason: "Link de instalação inválido (esperado https://)." };
+          }
+
+          return { url: value, reason: null };
+        }
+
+        const parsed = parseLink();
+        if (parsed) {
+          subtitleEl.textContent = "Link: /l/" + parsed.tipo + "/" + parsed.id;
+        } else {
+          subtitleEl.textContent = "Link: " + window.location.pathname;
+        }
+
+        copyBtn.addEventListener("click", async function () {
+          const text = window.location.href;
+          try {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+              await navigator.clipboard.writeText(text);
+              setStatus("Link copiado.");
+              return;
+            }
+          } catch {
+            // ignore
+          }
+
+          // Fallback antigo
+          window.prompt("Copie o link:", text);
+        });
+
+        setStatus("Carregando link de instalação…");
+
+        fetchInstallUrl()
+          .then(function (result) {
+            if (result.url) {
+              installBtn.disabled = false;
+              installBtn.addEventListener("click", function () {
+                window.location.href = result.url;
+              });
+              setStatus("Pronto para instalar.");
+              return;
+            }
+
+            installBtn.disabled = true;
+            setStatus(result.reason || "Não foi possível obter o link de instalação.", "error");
+          })
+          .catch(function () {
+            installBtn.disabled = true;
+            setStatus("Erro ao buscar o link de instalação.", "error");
+          });
+      })();
+    </script>
+  </body>
+</html>

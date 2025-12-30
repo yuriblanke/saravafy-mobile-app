@@ -52,7 +52,8 @@ export function InviteRow({
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
   const canOpenMenu =
-    typeof onOpenMenu === "function" || typeof onDisabledMenuPress === "function";
+    typeof onOpenMenu === "function" ||
+    typeof onDisabledMenuPress === "function";
   const isMenuDisabled = !!menuDisabled || isBusy;
   const pressDisabled = isBusy || (menuDisabled && !onDisabledMenuPress);
 
@@ -75,7 +76,9 @@ export function InviteRow({
 
       <View style={styles.meta}>
         <TagChip label={roleLabel(role)} variant={variant} />
-        {status ? <TagChip label={statusLabel(status)} variant={variant} /> : null}
+        {status ? (
+          <TagChip label={statusLabel(status)} variant={variant} />
+        ) : null}
 
         {canOpenMenu ? (
           <Pressable

@@ -95,6 +95,7 @@ export default function AppLayout() {
                   <Stack.Screen name="terreiro" />
                   <Stack.Screen name="player" />
                   <Stack.Screen name="collection/[id]" />
+                  <Stack.Screen name="l/[tipo]/[id]" />
 
                   <Stack.Screen
                     name="terreiro-editor"

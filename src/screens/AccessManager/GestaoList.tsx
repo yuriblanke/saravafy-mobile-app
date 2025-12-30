@@ -43,7 +43,9 @@ export function GestaoList({
       : colors.textSecondaryOnDark;
 
   const borderColor =
-    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
 
   if (isLoading) {
     return (

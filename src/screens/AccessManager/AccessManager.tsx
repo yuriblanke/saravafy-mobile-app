@@ -689,7 +689,12 @@ type MenuTarget =
       email: string;
       role: Exclude<AccessRole, "member">;
     }
-  | { kind: "member"; userId: string; displayName: string | null; email: string }
+  | {
+      kind: "member";
+      userId: string;
+      displayName: string | null;
+      email: string;
+    }
   | { kind: "invite"; id: string; email: string; role: AccessRole };
 
 type RoleChangeTarget = {
@@ -757,7 +762,9 @@ export default function AccessManagerScreen() {
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
   const dividerColor =
-    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder;
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
 
   const { data: membership } = useTerreiroMembershipStatus(terreiroId);
   const canSeeManager =
@@ -1291,9 +1298,7 @@ export default function AccessManagerScreen() {
             </Pressable>
           </View>
 
-          <View
-            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
-          />
+          <View />
 
           <GestaoList
             variant={variant}
@@ -1312,12 +1317,12 @@ export default function AccessManagerScreen() {
             }}
           />
 
-          <View
-            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
-          />
+          <View />
 
           <View style={styles.sectionHeaderRow}>
-            <Text style={[styles.sectionTitle, { color: textMuted }]}>Membros</Text>
+            <Text style={[styles.sectionTitle, { color: textMuted }]}>
+              Membros
+            </Text>
 
             <Pressable
               accessibilityRole="button"
@@ -1335,9 +1340,7 @@ export default function AccessManagerScreen() {
             </Pressable>
           </View>
 
-          <View
-            style={[styles.blockDivider, { backgroundColor: dividerColor }]}
-          />
+          <View />
 
           <MembersList
             variant={variant}
