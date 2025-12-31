@@ -20,7 +20,12 @@ import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import {
+  getAccessRoleInfoProps,
+  type AccessRole,
+} from "@/src/constants/accessRoleCopy";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, radii, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
@@ -903,12 +908,38 @@ export function InviteGate() {
   }, [currentInvite?.terreiro_title]);
 
   const bannerText = useMemo(() => {
-    return `Convite para: ${inviteTerreiroTitle}`;
-  }, [inviteTerreiroTitle]);
+    return "Convite";
+  }, []);
 
   const modalLead = useMemo(() => {
-    return "Você recebeu um convite para ajudar a cuidar dos pontos do terreiro:";
+    return "Você foi convidada(o) para colaborar neste terreiro no Saravafy.";
   }, []);
+
+  const inviteRoleValue = useMemo(() => {
+    const role = currentInvite?.role;
+    if (role === "admin") return "Admin";
+    if (role === "editor") return "Editor";
+    return "Member";
+  }, [currentInvite?.role]);
+
+  const inviteRoleComplement = useMemo(() => {
+    const role = currentInvite?.role;
+    if (role === "admin") {
+      return "Esse convite permite participar do cuidado e da organização do terreiro, ajudando a manter informações, pontos e estrutura sempre atualizados.";
+    }
+    if (role === "editor") {
+      return "Esse convite permite colaborar com o cuidado do conteúdo do terreiro, ajudando a manter pontos e informações organizados e bem apresentados.";
+    }
+    return "Esse convite permite acompanhar e acessar o conteúdo do terreiro, participando do espaço e do que é compartilhado ali.";
+  }, [currentInvite?.role]);
+
+  const inviteAccessRole = useMemo(() => {
+    const role = currentInvite?.role;
+    if (role === "admin" || role === "editor" || role === "member") {
+      return role satisfies AccessRole;
+    }
+    return null;
+  }, [currentInvite?.role]);
 
   useEffect(() => {
     const active =
@@ -974,12 +1005,51 @@ export function InviteGate() {
             />
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
+              <Text style={[styles.modalTitle, { color: textPrimary }]}>
+                Convite
+              </Text>
+
               <Text style={[styles.modalBody, { color: textSecondary }]}>
                 {modalLead}
               </Text>
 
-              <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                {inviteTerreiroTitle}
+              <View style={styles.fieldList}>
+                <View style={styles.fieldRow}>
+                  <Text style={[styles.fieldLabel, { color: textSecondary }]}>
+                    Terreiro
+                  </Text>
+                  <Text
+                    style={[styles.fieldValue, { color: textPrimary }]}
+                    numberOfLines={1}
+                  >
+                    {inviteTerreiroTitle}
+                  </Text>
+                </View>
+
+                <View style={styles.fieldRow}>
+                  <View style={styles.fieldLabelWithInfo}>
+                    <Text
+                      style={[styles.fieldLabel, { color: textSecondary }]}
+                    >
+                      Função
+                    </Text>
+                    {inviteAccessRole ? (
+                      <AccessRoleInfo
+                        variant={variant}
+                        info={getAccessRoleInfoProps(inviteAccessRole)}
+                      />
+                    ) : null}
+                  </View>
+                  <Text style={[styles.fieldValue, { color: textPrimary }]}
+                    numberOfLines={1}
+                  >
+                    {inviteRoleValue}
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={[styles.modalBody, { color: textSecondary }]}>
+                {inviteRoleComplement}
               </Text>
 
               {isProcessing ? (
@@ -1123,6 +1193,32 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: spacing.sm,
     textAlign: "center",
+  },
+  fieldList: {
+    marginTop: spacing.md,
+    gap: 10,
+  },
+  fieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  fieldLabelWithInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  fieldValue: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "800",
+    textAlign: "right",
   },
   modalBody: {
     fontSize: 13,

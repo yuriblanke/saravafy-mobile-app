@@ -539,11 +539,15 @@ export function CuratorInviteGate() {
   }, [openGateNow]);
 
   const bannerText = useMemo(() => {
-    return "Convite para Pessoa Guardiã do Acervo";
+    return "Convite";
   }, []);
 
   const modalLead = useMemo(() => {
-    return "Você recebeu um convite para ajudar a cuidar do acervo do Saravafy.\n\nEsse é um papel de confiança e cuidado.\nSeu olhar atento ajuda a manter as letras bem cuidadas, os pontos organizados e a energia do canto preservada para quem chega.";
+    return "Você foi convidada(o) para cuidar do acervo do Saravafy.";
+  }, []);
+
+  const modalComplement = useMemo(() => {
+    return "É um papel de confiança — seu cuidado ajuda a manter as letras bem cuidadas e a energia do canto bem alinhada.";
   }, []);
 
   if (!userId || !normalizedUserEmail) return null;
@@ -590,11 +594,26 @@ export function CuratorInviteGate() {
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
               <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                Convite para Pessoa Guardiã do Acervo
+                Convite
               </Text>
 
               <Text style={[styles.modalBody, { color: textSecondary }]}>
                 {modalLead}
+              </Text>
+
+              <View style={styles.fieldList}>
+                <View style={styles.fieldRow}>
+                  <Text style={[styles.fieldLabel, { color: textSecondary }]}>
+                    Função
+                  </Text>
+                  <Text style={[styles.fieldValue, { color: textPrimary }]}>
+                    Pessoa Guardiã do Acervo
+                  </Text>
+                </View>
+              </View>
+
+              <Text style={[styles.modalBody, { color: textSecondary }]}>
+                {modalComplement}
               </Text>
 
               {isProcessing ? (
@@ -711,6 +730,27 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     marginBottom: spacing.sm,
     textAlign: "center",
+  },
+  fieldList: {
+    marginTop: spacing.md,
+    gap: 10,
+  },
+  fieldRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  fieldValue: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "800",
+    textAlign: "right",
   },
   modalBody: {
     fontSize: 13,

@@ -209,8 +209,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const [curatorInviteInlineError, setCuratorInviteInlineError] = useState<
     string | null
   >(null);
-  const [isCreatingCuratorInvite, setIsCreatingCuratorInvite] =
-    useState(false);
+  const [isCreatingCuratorInvite, setIsCreatingCuratorInvite] = useState(false);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -872,7 +871,9 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                 ]}
               >
                 <View style={styles.prefActionLeft}>
-                  <Text style={[styles.prefActionTitle, { color: textPrimary }]}>
+                  <Text
+                    style={[styles.prefActionTitle, { color: textPrimary }]}
+                  >
                     Administrar guardiões
                   </Text>
                 </View>
@@ -896,14 +897,13 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                   style={[styles.inviteTitle, { color: textPrimary }]}
                   numberOfLines={2}
                 >
-                  Convite para Pessoa Guardiã do Acervo
+                  Convite
                 </Text>
                 <Text
                   style={[styles.inviteBody, { color: textSecondary }]}
                   numberOfLines={6}
                 >
-                  Você recebeu um convite para ajudar a cuidar do acervo do
-                  Saravafy.
+                  Você foi convidada(o) para cuidar do acervo do Saravafy.
                 </Text>
 
                 <View style={styles.inviteActions}>
@@ -1221,7 +1221,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
         }}
       >
         <View style={styles.menuWrap}>
-          <Text style={[styles.curatorAdminTitle, { color: textPrimary }]}
+          <Text
+            style={[styles.curatorAdminTitle, { color: textPrimary }]}
             numberOfLines={1}
           >
             Administrar guardiões
@@ -1277,7 +1278,9 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                   setCuratorInviteEmail("");
                   setCuratorInviteInlineError(null);
 
-                  void curatorInvitesAdminQuery.refetch().catch(() => undefined);
+                  void curatorInvitesAdminQuery
+                    .refetch()
+                    .catch(() => undefined);
                   showToast("Convite enviado.");
                 } catch (e) {
                   const message = e instanceof Error ? e.message : String(e);
@@ -1297,7 +1300,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
           </View>
 
           {curatorInviteInlineError ? (
-            <Text style={[styles.helperText, { color: colors.brass600 }]}
+            <Text
+              style={[styles.helperText, { color: colors.brass600 }]}
               numberOfLines={3}
             >
               {curatorInviteInlineError}
@@ -1341,7 +1345,10 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                 >
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
-                      style={[styles.curatorInviteEmail, { color: textPrimary }]}
+                      style={[
+                        styles.curatorInviteEmail,
+                        { color: textPrimary },
+                      ]}
                       numberOfLines={1}
                     >
                       {invite.email}
@@ -1396,6 +1403,13 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               ))
             )}
           </View>
+
+          <Image
+            source={require("@/assets/images/filler.png")}
+            style={styles.curatorAdminFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -1638,6 +1652,11 @@ const styles = StyleSheet.create({
     color: colors.brass600,
     fontSize: 13,
     fontWeight: "900",
+  },
+  curatorAdminFiller: {
+    width: "100%",
+    height: 265,
+    marginTop: spacing.lg,
   },
   sectionDesc: {
     marginBottom: spacing.sm,
