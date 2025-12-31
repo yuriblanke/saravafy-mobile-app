@@ -861,9 +861,28 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
             <PreferencesPageItem
               variant={variant}
               title={userDisplayName}
+              afterTitle={
+                <View style={styles.profileTitleRight}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={`Editar ${userDisplayName}`}
+                    onPress={() => {
+                      setIsPreferencesOpen(false);
+                      setIsEditProfileOpen(true);
+                    }}
+                    hitSlop={12}
+                    style={({ pressed }) => [
+                      styles.profileEditBtn,
+                      pressed ? styles.profileEditBtnPressed : null,
+                    ]}
+                  >
+                    <Ionicons name="pencil" size={18} color={textMuted} />
+                  </Pressable>
+                </View>
+              }
               subtitle={
                 shouldShowCurator ? (
-                  <View style={styles.profileBadgeToggleRow}>
+                  <View style={styles.profileBadgeRow}>
                     <Badge
                       label={getGlobalRoleBadgeLabel("curator")}
                       variant={variant}
@@ -871,27 +890,29 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                       style={{ maxWidth: 220 }}
                     />
 
-                    <AccessRoleInfo variant={variant} info={curatorModeInfo} />
+                    <View style={styles.profileBadgeRight}>
+                      <Switch
+                        value={curatorModeEnabled}
+                        onValueChange={(next) => {
+                          void setCuratorModeEnabled(next);
+                        }}
+                        disabled={curatorModeLoading || curatorModeSaving}
+                      />
 
-                    <Switch
-                      value={curatorModeEnabled}
-                      onValueChange={(next) => {
-                        void setCuratorModeEnabled(next);
-                      }}
-                      disabled={curatorModeLoading || curatorModeSaving}
-                    />
+                      <AccessRoleInfo
+                        variant={variant}
+                        info={curatorModeInfo}
+                      />
+                    </View>
                   </View>
                 ) : null
               }
               rightAccessory={null}
-              showEditButton
+              showEditButton={false}
               avatarUrl={userPhotoUrl}
               initials={initials}
               onPress={undefined}
-              onPressEdit={() => {
-                setIsPreferencesOpen(false);
-                setIsEditProfileOpen(true);
-              }}
+              onPressEdit={undefined}
             />
 
             {!userId || !isDevMaster ? null : (
@@ -1717,9 +1738,29 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 8,
   },
-  profileBadgeToggleRow: {
+  profileTitleRight: {
+    marginLeft: "auto",
+  },
+  profileEditBtn: {
+    width: 40,
+    height: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  profileEditBtnPressed: {
+    opacity: 0.75,
+  },
+  profileBadgeRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    width: "100%",
+  },
+  profileBadgeRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
     gap: spacing.sm,
   },
   curatorInvitesCard: {
