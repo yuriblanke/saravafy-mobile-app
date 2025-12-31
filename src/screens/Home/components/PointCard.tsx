@@ -2,6 +2,9 @@ import React, { memo } from "react";
 import { View as RNView, StyleSheet } from "react-native";
 
 import { Text, useThemeColor } from "@/components/Themed";
+import { usePreferences } from "@/contexts/PreferencesContext";
+import { TagChip } from "@/src/components/TagChip";
+import { isMediumTag } from "@/src/utils/mergeTags";
 
 type Props = {
   title: string;
@@ -10,12 +13,13 @@ type Props = {
 };
 
 function PointCardImpl({ title, tags, lyricsPreview }: Props) {
+  const { effectiveTheme } = usePreferences();
+  const variant: "light" | "dark" = effectiveTheme;
+
   const surface = useThemeColor({}, "surface");
   const border = useThemeColor({}, "border");
-  const chipBg = useThemeColor({}, "background");
   const text = useThemeColor({}, "text");
   const mutedText = useThemeColor({}, "mutedText");
-  const primary = useThemeColor({}, "primary");
 
   return (
     <RNView
@@ -25,15 +29,13 @@ function PointCardImpl({ title, tags, lyricsPreview }: Props) {
 
       <RNView style={styles.tagsRow}>
         {tags.map((tag) => (
-          <RNView
+          <TagChip
             key={tag}
-            style={[
-              styles.tagChip,
-              { borderColor: primary, backgroundColor: chipBg },
-            ]}
-          >
-            <Text style={[styles.tagText, { color: primary }]}>{tag}</Text>
-          </RNView>
+            label={tag}
+            variant={variant}
+            tone={isMediumTag(tag) ? "medium" : "default"}
+            kind="ponto"
+          />
         ))}
       </RNView>
 
@@ -66,16 +68,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: 8,
     marginBottom: 12,
-  },
-  tagChip: {
-    borderWidth: StyleSheet.hairlineWidth,
-    borderRadius: 999,
-    overflow: "hidden",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-  },
-  tagText: {
-    fontSize: 12,
   },
   lyricsPreview: {
     fontSize: 13,

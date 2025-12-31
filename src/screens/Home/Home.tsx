@@ -1146,30 +1146,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "600",
   },
-  sheetFilterRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: spacing.xs,
-    marginBottom: spacing.md,
-  },
-  filterChip: {
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.surfaceCardBorder,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    backgroundColor: "transparent",
-  },
-  filterChipActive: {
-    borderColor: colors.brass600,
-  },
-  filterChipPressed: {
-    opacity: 0.85,
-  },
-  filterChipText: {
-    fontSize: 12,
-    fontWeight: "800",
-  },
   createRow: {
     flexDirection: "row",
     alignItems: "center",
