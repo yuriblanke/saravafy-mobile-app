@@ -17,6 +17,13 @@ export type CollectionPlayerItem = {
   ponto: PlayerPonto;
 };
 
+export type PatchablePontoFields = {
+  id: string;
+  title: string;
+  lyrics: string;
+  tags: string[];
+};
+
 type PlayerDataParams =
   | { collectionId: string }
   | { mode: "all"; query?: string };
@@ -229,11 +236,32 @@ export function useCollectionPlayerData(
     load();
   }, [load]);
 
+  const patchPontoById = useCallback((updated: PatchablePontoFields) => {
+    if (!updated?.id) return;
+
+    setItems((prev) =>
+      prev.map((it) =>
+        it.ponto.id === updated.id
+          ? {
+              ...it,
+              ponto: {
+                ...it.ponto,
+                title: updated.title,
+                lyrics: updated.lyrics,
+                tags: updated.tags,
+              },
+            }
+          : it
+      )
+    );
+  }, []);
+
   return {
     items,
     isLoading,
     error,
     isEmpty,
     reload: load,
+    patchPontoById,
   };
 }

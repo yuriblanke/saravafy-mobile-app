@@ -20,7 +20,7 @@ export function useIsCurator(): { isCurator: boolean; isLoading: boolean } {
         .from("curators")
         .select("user_id")
         .eq("user_id", userId)
-        .limit(1);
+        .maybeSingle();
 
       if (res.error) {
         if (__DEV__) {
@@ -29,7 +29,7 @@ export function useIsCurator(): { isCurator: boolean; isLoading: boolean } {
         return false;
       }
 
-      return Array.isArray(res.data) && res.data.length > 0;
+      return !!res.data;
     },
   });
 

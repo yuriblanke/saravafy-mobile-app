@@ -99,9 +99,10 @@ export default function PlayerScreen() {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const { items, isLoading, error, isEmpty, reload } = useCollectionPlayerData(
+  const { items, isLoading, error, isEmpty, reload, patchPontoById } =
+    useCollectionPlayerData(
     source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
-  );
+    );
 
   const membership = useTerreiroMembershipStatus(terreiroId);
   const canSeeCustomTags = !!terreiroId && membership.data.isActiveMember;
@@ -453,8 +454,9 @@ export default function PlayerScreen() {
         mode="edit"
         initialValues={editingInitialValues}
         onCancel={() => setIsEditOpen(false)}
-        onSuccess={() => {
-          reload();
+        onSuccess={(updated) => {
+          if (!updated) return;
+          patchPontoById(updated);
         }}
       />
     </View>
