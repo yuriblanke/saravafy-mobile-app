@@ -1,12 +1,18 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import {
+  PontoUpsertModal,
+  type PontoUpsertInitialValues,
+} from "@/src/components/pontos/PontoUpsertModal";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -85,12 +91,19 @@ export default function Home() {
   const { effectiveTheme } = usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+
+  const { isCurator } = useIsCurator();
+  const { curatorModeEnabled } = useCuratorMode();
+  const canEditPontos = !!userId && isCurator && curatorModeEnabled;
   const router = useRouter();
   const queryClient = useQueryClient();
   const rootPager = useRootPager();
   const { shouldBlockPress } = useGestureBlock();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
+
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [editingPonto, setEditingPonto] = useState<Ponto | null>(null);
   // Estado para modal de adicionar à coleção
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [selectedPonto, setSelectedPonto] = useState<Ponto | null>(null);
@@ -143,6 +156,17 @@ export default function Home() {
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  const editingInitialValues: PontoUpsertInitialValues | undefined =
+    useMemo(() => {
+      if (!editingPonto) return undefined;
+      return {
+        id: editingPonto.id,
+        title: editingPonto.title,
+        lyrics: editingPonto.lyrics,
+        tags: editingPonto.tags,
+      };
+    }, [editingPonto]);
 
   // Fonte ÚNICA do BottomSheet: coleções editáveis (escrita) por regra de produto.
   const editableCollectionsQuery = useEditableCollections(userId);
@@ -525,31 +549,58 @@ export default function Home() {
                       >
                         {item.title}
                       </Text>
-                      {user ? (
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Adicionar à coleção"
-                          style={styles.addToCollectionBtn}
-                          hitSlop={10}
-                          onPress={(e) => {
-                            // Evita abrir o player quando a intenção é adicionar
-                            // à coleção.
-                            e.stopPropagation();
 
-                            openAddToCollectionSheet(item);
-                          }}
-                        >
-                          <Ionicons
-                            name="add"
-                            size={18}
-                            color={
-                              variant === "light"
-                                ? colors.brass500
-                                : colors.brass600
-                            }
-                          />
-                        </Pressable>
-                      ) : null}
+                      <View style={styles.cardHeaderActions}>
+                        {canEditPontos ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Editar ponto"
+                            style={styles.addToCollectionBtn}
+                            hitSlop={10}
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setEditingPonto(item);
+                              setEditModalVisible(true);
+                            }}
+                          >
+                            <Ionicons
+                              name="pencil"
+                              size={18}
+                              color={
+                                variant === "light"
+                                  ? colors.brass500
+                                  : colors.brass600
+                              }
+                            />
+                          </Pressable>
+                        ) : null}
+
+                        {user ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Adicionar à coleção"
+                            style={styles.addToCollectionBtn}
+                            hitSlop={10}
+                            onPress={(e) => {
+                              // Evita abrir o player quando a intenção é adicionar
+                              // à coleção.
+                              e.stopPropagation();
+
+                              openAddToCollectionSheet(item);
+                            }}
+                          >
+                            <Ionicons
+                              name="add"
+                              size={18}
+                              color={
+                                variant === "light"
+                                  ? colors.brass500
+                                  : colors.brass600
+                              }
+                            />
+                          </Pressable>
+                        ) : null}
+                      </View>
                     </View>
                     <View style={styles.tagsRow}>
                       {item.tags.map((tag) => (
@@ -966,6 +1017,32 @@ export default function Home() {
           );
         }}
       />
+
+      <PontoUpsertModal
+        visible={editModalVisible}
+        variant={variant}
+        mode="edit"
+        initialValues={editingInitialValues}
+        onCancel={() => {
+          setEditModalVisible(false);
+          setEditingPonto(null);
+        }}
+        onSuccess={(updated) => {
+          if (!updated) return;
+          setPontos((prev) =>
+            prev.map((p) =>
+              p.id === updated.id
+                ? {
+                    ...p,
+                    title: updated.title,
+                    lyrics: updated.lyrics,
+                    tags: updated.tags,
+                  }
+                : p
+            )
+          );
+        }}
+      />
     </View>
   );
 }
@@ -1123,6 +1200,13 @@ const styles = StyleSheet.create({
     height: 28,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.brass600,
+  },
+
+  cardHeaderActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    marginLeft: spacing.sm,
   },
 
   sheetHeaderRow: {

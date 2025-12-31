@@ -1,8 +1,14 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
+import {
+  PontoUpsertModal,
+  type PontoUpsertInitialValues,
+} from "@/src/components/pontos/PontoUpsertModal";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
+import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -53,6 +59,10 @@ export default function PlayerScreen() {
   const params = useLocalSearchParams();
 
   const { showToast } = useToast();
+
+  const { isCurator } = useIsCurator();
+  const { curatorModeEnabled } = useCuratorMode();
+  const canEditPontos = isCurator && curatorModeEnabled;
 
   const source = typeof params.source === "string" ? params.source : null;
   const searchQuery = typeof params.q === "string" ? params.q : "";
@@ -112,6 +122,7 @@ export default function PlayerScreen() {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
@@ -146,6 +157,16 @@ export default function PlayerScreen() {
   }, [items.length, initialIndex]);
 
   const activePonto = items[activeIndex]?.ponto ?? null;
+
+  const editingInitialValues: PontoUpsertInitialValues | undefined = useMemo(() => {
+    if (!activePonto?.id) return undefined;
+    return {
+      id: activePonto.id,
+      title: activePonto.title,
+      lyrics: activePonto.lyrics,
+      tags: activePonto.tags,
+    };
+  }, [activePonto]);
 
   const openShare = useCallback(async () => {
     const title = activePonto?.title ?? "";
@@ -290,6 +311,18 @@ export default function PlayerScreen() {
         </Pressable>
 
         <View style={styles.headerRight}>
+          {canEditPontos && activePonto ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar ponto"
+              onPress={() => setIsEditOpen(true)}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="pencil" size={18} color={textPrimary} />
+            </Pressable>
+          ) : null}
+
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Compartilhar"
@@ -412,6 +445,17 @@ export default function PlayerScreen() {
         dontShowAgain={curimbaOnboardingDismissed}
         onChangeDontShowAgain={setCurimbaOnboardingDismissed}
         onClose={() => setIsCurimbaExplainerOpen(false)}
+      />
+
+      <PontoUpsertModal
+        visible={isEditOpen}
+        variant={variant}
+        mode="edit"
+        initialValues={editingInitialValues}
+        onCancel={() => setIsEditOpen(false)}
+        onSuccess={() => {
+          reload();
+        }}
       />
     </View>
   );

@@ -1,5 +1,6 @@
 export const queryKeys = {
   me: {
+    profile: (userId: string) => ["me", "profile", userId] as const,
     membership: (userId: string) => ["me", "membership", userId] as const,
     terreiros: (userId: string) => ["me", "terreiros", userId] as const,
     terreiroAccessIds: (userId: string) =>

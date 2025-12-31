@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -14,10 +15,7 @@ import {
   PreferencesSwitchItem,
   type PreferencesRadioOption,
 } from "@/src/components/preferences";
-import {
-  getGlobalRoleBadgeLabel,
-  getGlobalRoleInfoProps,
-} from "@/src/domain/globalRoles";
+import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
@@ -33,6 +31,7 @@ import {
   Image,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -238,9 +237,25 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 
   const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
 
+  const {
+    curatorModeEnabled,
+    isLoading: curatorModeLoading,
+    isSaving: curatorModeSaving,
+    setCuratorModeEnabled,
+  } = useCuratorMode();
+
   const { isDevMaster } = useIsDevMaster();
 
   const shouldShowCurator = !isCuratorLoading && isCurator;
+
+  const curatorModeInfo = useMemo(() => {
+    return {
+      accessibilityLabel: "Ver detalhes do Modo Curator",
+      title: "Modo Curator",
+      body: "Ativa os botões de edição do papel de pessoa guardiã do acervo ao longo de toda a plataforma.",
+      sections: [],
+    };
+  }, []);
 
   const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
   const myEditableTerreiros = useMemo(
@@ -830,22 +845,31 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
             <PreferencesPageItem
               variant={variant}
               title={userDisplayName}
-              afterTitle={
+              subtitle={
+                shouldShowCurator ? (
+                  <Badge
+                    label={getGlobalRoleBadgeLabel("curator")}
+                    variant={variant}
+                    appearance="primary"
+                    style={{ maxWidth: 220 }}
+                  />
+                ) : null
+              }
+              rightAccessory={
                 shouldShowCurator ? (
                   <>
-                    <Badge
-                      label={getGlobalRoleBadgeLabel("curator")}
-                      variant={variant}
-                      appearance="primary"
-                      style={{ maxWidth: 170 }}
+                    <Switch
+                      value={curatorModeEnabled}
+                      onValueChange={(next) => {
+                        void setCuratorModeEnabled(next);
+                      }}
+                      disabled={curatorModeLoading || curatorModeSaving}
                     />
-                    <AccessRoleInfo
-                      variant={variant}
-                      info={getGlobalRoleInfoProps("curator")}
-                    />
+                    <AccessRoleInfo variant={variant} info={curatorModeInfo} />
                   </>
                 ) : null
               }
+              showEditButton={false}
               avatarUrl={userPhotoUrl}
               initials={initials}
               onPress={undefined}

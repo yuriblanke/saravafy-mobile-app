@@ -10,8 +10,11 @@ type Props = {
   avatarUrl?: string;
   initials: string;
   afterTitle?: React.ReactNode;
+  subtitle?: React.ReactNode;
+  rightAccessory?: React.ReactNode;
   onPress?: () => void;
-  onPressEdit: () => void;
+  onPressEdit?: () => void;
+  showEditButton?: boolean;
 };
 
 export function PreferencesPageItem({
@@ -20,8 +23,11 @@ export function PreferencesPageItem({
   avatarUrl,
   initials,
   afterTitle,
+  subtitle,
+  rightAccessory,
   onPress,
   onPressEdit,
+  showEditButton = true,
 }: Props) {
   const [isEditPressed, setIsEditPressed] = React.useState(false);
   const editPressTimeoutRef = React.useRef<ReturnType<
@@ -85,35 +91,43 @@ export function PreferencesPageItem({
               <View style={styles.afterTitle}>{afterTitle}</View>
             ) : null}
           </View>
+
+          {subtitle ? <View style={styles.subtitleRow}>{subtitle}</View> : null}
         </View>
       </View>
 
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Editar ${title}`}
-        onPressIn={() => {
-          if (editPressTimeoutRef.current) {
-            clearTimeout(editPressTimeoutRef.current);
-          }
-          setIsEditPressed(true);
-        }}
-        onPressOut={() => {
-          // Delay para garantir que isEditPressed persiste até o onPress do pai ser avaliado
-          editPressTimeoutRef.current = setTimeout(() => {
-            setIsEditPressed(false);
-          }, 100);
-        }}
-        onPress={() => {
-          onPressEdit();
-        }}
-        hitSlop={12}
-        style={({ pressed }) => [
-          styles.editBtn,
-          pressed ? styles.editBtnPressed : null,
-        ]}
-      >
-        <Ionicons name="pencil" size={18} color={textMuted} />
-      </Pressable>
+      {rightAccessory ? (
+        <View style={styles.rightAccessory} pointerEvents="box-none">
+          {rightAccessory}
+        </View>
+      ) : showEditButton && onPressEdit ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Editar ${title}`}
+          onPressIn={() => {
+            if (editPressTimeoutRef.current) {
+              clearTimeout(editPressTimeoutRef.current);
+            }
+            setIsEditPressed(true);
+          }}
+          onPressOut={() => {
+            // Delay para garantir que isEditPressed persiste até o onPress do pai ser avaliado
+            editPressTimeoutRef.current = setTimeout(() => {
+              setIsEditPressed(false);
+            }, 100);
+          }}
+          onPress={() => {
+            onPressEdit();
+          }}
+          hitSlop={12}
+          style={({ pressed }) => [
+            styles.editBtn,
+            pressed ? styles.editBtnPressed : null,
+          ]}
+        >
+          <Ionicons name="pencil" size={18} color={textMuted} />
+        </Pressable>
+      ) : null}
     </>
   );
 
@@ -180,6 +194,14 @@ const styles = StyleSheet.create({
     fontWeight: "800",
   },
   afterTitle: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  subtitleRow: {
+    marginTop: 6,
+  },
+  rightAccessory: {
     flexDirection: "row",
     alignItems: "center",
     gap: 8,

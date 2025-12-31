@@ -12,6 +12,7 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { CuratorModeProvider } from "@/contexts/CuratorModeContext";
 import { InviteGatesProvider } from "@/contexts/InviteGatesContext";
 import {
   PreferencesProvider,
@@ -84,12 +85,14 @@ export default function RootLayout() {
         <PreferencesProvider>
           <RootPagerProvider>
             <ToastProvider>
-              <InviteGatesProvider>
-                <RootLayoutNav />
-                <TerreirosRealtimeSync />
-                <InviteGate />
-                <CuratorInviteGate />
-              </InviteGatesProvider>
+              <CuratorModeProvider>
+                <InviteGatesProvider>
+                  <RootLayoutNav />
+                  <TerreirosRealtimeSync />
+                  <InviteGate />
+                  <CuratorInviteGate />
+                </InviteGatesProvider>
+              </CuratorModeProvider>
             </ToastProvider>
           </RootPagerProvider>
         </PreferencesProvider>
