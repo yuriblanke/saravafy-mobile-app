@@ -19,6 +19,7 @@ import {
   getGlobalRoleInfoProps,
 } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
@@ -27,7 +28,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 
 function getInitials(value: string | undefined) {
   const fallback = "YB";
@@ -82,6 +91,50 @@ function getInviteRoleLabel(role: InviteRole): string {
   if (role === "editor") return "Editora";
   if (role === "member") return "Membro";
   return "Seguidora";
+}
+
+function normalizeEmail(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function getFriendlyActionError(message: string) {
+  const m = String(message ?? "").toLowerCase();
+  if (!m) {
+    return "Não foi possível concluir agora. Verifique sua conexão e tente novamente.";
+  }
+
+  if (
+    m.includes("failed to fetch") ||
+    m.includes("network") ||
+    m.includes("timeout") ||
+    m.includes("fetch")
+  ) {
+    return "Sem conexão no momento. Verifique sua internet e tente novamente.";
+  }
+
+  if (
+    m.includes("permission") ||
+    m.includes("not authorized") ||
+    m.includes("row-level") ||
+    m.includes("rls")
+  ) {
+    return "Você não tem permissão para concluir esta ação.";
+  }
+
+  return "Não foi possível concluir agora. Verifique sua conexão e tente novamente.";
+}
+
+function formatDateLabel(value: string | null | undefined) {
+  if (!value) return "";
+  const t = new Date(value).getTime();
+  if (!Number.isFinite(t)) return "";
+  try {
+    return new Date(t).toLocaleDateString("pt-BR");
+  } catch {
+    return "";
+  }
 }
 
 type AppHeaderWithPreferencesProps = {
@@ -150,6 +203,14 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
+  const [isCuratorAdminOpen, setIsCuratorAdminOpen] = useState(false);
+
+  const [curatorInviteEmail, setCuratorInviteEmail] = useState("");
+  const [curatorInviteInlineError, setCuratorInviteInlineError] = useState<
+    string | null
+  >(null);
+  const [isCreatingCuratorInvite, setIsCreatingCuratorInvite] =
+    useState(false);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -177,6 +238,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const normalizedUserEmail = userEmail ? userEmail.trim().toLowerCase() : null;
 
   const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
+
+  const { isDevMaster } = useIsDevMaster();
 
   const shouldShowCurator = !isCuratorLoading && isCurator;
 
@@ -312,6 +375,52 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 
   const pendingCuratorInvite = curatorInviteQuery.data ?? null;
   const pendingTerreiroInvites = terreiroInvitesQuery.data ?? [];
+
+  const curatorInvitesAdminQuery = useQuery({
+    queryKey: ["curatorInvites", "adminList"],
+    enabled: !!userId && isDevMaster && isCuratorAdminOpen,
+    staleTime: 0,
+    queryFn: async () => {
+      const res: any = await supabase
+        .from("curator_invites")
+        .select("id, email, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(50);
+
+      if (res.error) {
+        if (__DEV__) {
+          console.warn(
+            "[CuratorInvitesAdmin] curator_invites error",
+            res.error
+          );
+        }
+        throw new Error(
+          typeof res.error.message === "string" ? res.error.message : "Erro"
+        );
+      }
+
+      const rows = Array.isArray(res.data) ? res.data : [];
+      return rows
+        .map((row: any) => {
+          const id = String(row?.id ?? "");
+          if (!id) return null;
+          return {
+            id,
+            email: String(row?.email ?? ""),
+            status: String(row?.status ?? ""),
+            created_at: String(row?.created_at ?? ""),
+          };
+        })
+        .filter(Boolean) as {
+        id: string;
+        email: string;
+        status: string;
+        created_at: string;
+      }[];
+    },
+  });
+
+  const curatorInvitesAdmin = curatorInvitesAdminQuery.data ?? [];
 
   const acceptCuratorInvite = async (inviteId: string) => {
     if (!userId) return;
@@ -747,6 +856,35 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               }}
             />
 
+            {!userId || !isDevMaster ? null : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setIsCuratorAdminOpen(true);
+                }}
+                style={({ pressed }) => [
+                  styles.prefActionRow,
+                  {
+                    borderColor: dividerColor,
+                    backgroundColor: inputBg,
+                  },
+                  pressed ? styles.prefActionRowPressed : null,
+                ]}
+              >
+                <View style={styles.prefActionLeft}>
+                  <Text style={[styles.prefActionTitle, { color: textPrimary }]}>
+                    Administrar guardiões
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={textSecondary}
+                />
+              </Pressable>
+            )}
+
             {!userId || !normalizedUserEmail ? null : pendingCuratorInvite ? (
               <View
                 style={[
@@ -1073,6 +1211,194 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
         </View>
       </BottomSheet>
 
+      <BottomSheet
+        visible={uiEnabled && isCuratorAdminOpen}
+        variant={variant}
+        onClose={() => {
+          setIsCuratorAdminOpen(false);
+          setCuratorInviteEmail("");
+          setCuratorInviteInlineError(null);
+        }}
+      >
+        <View style={styles.menuWrap}>
+          <Text style={[styles.curatorAdminTitle, { color: textPrimary }]}
+            numberOfLines={1}
+          >
+            Administrar guardiões
+          </Text>
+
+          <View style={styles.curatorAdminFormRow}>
+            <TextInput
+              value={curatorInviteEmail}
+              onChangeText={(v) => {
+                setCuratorInviteEmail(v);
+                setCuratorInviteInlineError(null);
+              }}
+              placeholder="E-mail"
+              placeholderTextColor={textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="email-address"
+              style={[
+                styles.curatorAdminInput,
+                {
+                  color: textPrimary,
+                  borderColor: inputBorder,
+                  backgroundColor: inputBg,
+                },
+              ]}
+            />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isCreatingCuratorInvite}
+              onPress={async () => {
+                try {
+                  const email = normalizeEmail(curatorInviteEmail);
+                  if (!email || !email.includes("@")) {
+                    setCuratorInviteInlineError("Informe um e-mail válido.");
+                    return;
+                  }
+
+                  setIsCreatingCuratorInvite(true);
+
+                  const res: any = await supabase.rpc("create_curator_invite", {
+                    p_email: email,
+                  });
+
+                  if (res?.error) {
+                    throw new Error(
+                      typeof res.error.message === "string"
+                        ? res.error.message
+                        : "Erro ao convidar"
+                    );
+                  }
+
+                  setCuratorInviteEmail("");
+                  setCuratorInviteInlineError(null);
+
+                  void curatorInvitesAdminQuery.refetch().catch(() => undefined);
+                  showToast("Convite enviado.");
+                } catch (e) {
+                  const message = e instanceof Error ? e.message : String(e);
+                  setCuratorInviteInlineError(getFriendlyActionError(message));
+                } finally {
+                  setIsCreatingCuratorInvite(false);
+                }
+              }}
+              style={({ pressed }) => [
+                styles.curatorAdminBtn,
+                pressed ? styles.inviteBtnPressed : null,
+                isCreatingCuratorInvite ? styles.inviteBtnDisabled : null,
+              ]}
+            >
+              <Text style={styles.curatorAdminBtnText}>Convidar</Text>
+            </Pressable>
+          </View>
+
+          {curatorInviteInlineError ? (
+            <Text style={[styles.helperText, { color: colors.brass600 }]}
+              numberOfLines={3}
+            >
+              {curatorInviteInlineError}
+            </Text>
+          ) : null}
+
+          <View
+            style={[styles.curatorInvitesCard, { borderColor: dividerColor }]}
+          >
+            {curatorInvitesAdminQuery.isFetching ? (
+              <View style={styles.curatorInviteRow}>
+                <Text style={[styles.helperText, { color: textSecondary }]}>
+                  Carregando convites…
+                </Text>
+              </View>
+            ) : curatorInvitesAdminQuery.isError ? (
+              <View style={styles.curatorInviteRow}>
+                <Text style={[styles.helperText, { color: textSecondary }]}>
+                  Não foi possível carregar os convites.
+                </Text>
+              </View>
+            ) : curatorInvitesAdmin.length === 0 ? (
+              <View style={styles.curatorInviteRow}>
+                <Text style={[styles.helperText, { color: textSecondary }]}>
+                  Nenhum convite encontrado.
+                </Text>
+              </View>
+            ) : (
+              curatorInvitesAdmin.map((invite, idx) => (
+                <View
+                  key={invite.id}
+                  style={[
+                    styles.curatorInviteRow,
+                    idx === 0
+                      ? null
+                      : {
+                          borderTopWidth: StyleSheet.hairlineWidth,
+                          borderTopColor: dividerColor,
+                        },
+                  ]}
+                >
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text
+                      style={[styles.curatorInviteEmail, { color: textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {invite.email}
+                    </Text>
+                    <Text style={[styles.helperText, { color: textSecondary }]}>
+                      {invite.status} · {formatDateLabel(invite.created_at)}
+                    </Text>
+                  </View>
+
+                  <View style={styles.curatorInviteRight}>
+                    {invite.status === "pending" ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={async () => {
+                          try {
+                            const rpc: any = await supabase.rpc(
+                              "cancel_curator_invite",
+                              {
+                                p_invite_id: invite.id,
+                              }
+                            );
+
+                            if (rpc?.error) {
+                              throw new Error(
+                                typeof rpc.error.message === "string"
+                                  ? rpc.error.message
+                                  : "Erro"
+                              );
+                            }
+
+                            void curatorInvitesAdminQuery
+                              .refetch()
+                              .catch(() => undefined);
+                          } catch (e) {
+                            const message =
+                              e instanceof Error ? e.message : String(e);
+                            showToast(getFriendlyActionError(message));
+                          }
+                        }}
+                        style={({ pressed }) => [
+                          styles.curatorInviteCancel,
+                          pressed ? styles.inviteBtnPressed : null,
+                        ]}
+                      >
+                        <Text style={styles.curatorInviteCancelText}>
+                          Cancelar
+                        </Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+                </View>
+              ))
+            )}
+          </View>
+        </View>
+      </BottomSheet>
+
       {/* Modal: editar perfil (placeholder silencioso) */}
       <BottomSheet
         visible={uiEnabled && isEditProfileOpen}
@@ -1280,6 +1606,38 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     color: colors.brass600,
+  },
+  curatorAdminTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  curatorAdminFormRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  curatorAdminInput: {
+    flex: 1,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  curatorAdminBtn: {
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 2,
+    borderColor: colors.brass600,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  curatorAdminBtnText: {
+    color: colors.brass600,
+    fontSize: 13,
+    fontWeight: "900",
   },
   sectionDesc: {
     marginBottom: spacing.sm,

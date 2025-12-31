@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View, type ViewProps } from "react-native";
 
-import { colors, radii, spacing } from "@/src/theme";
+import { colors, spacing } from "@/src/theme";
 
 type Props = ViewProps & {
   label: string;
@@ -116,7 +116,7 @@ export function TagChip({
 
 const styles = StyleSheet.create({
   wrap: {
-    borderRadius: radii.sm,
+    borderRadius: 6,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },

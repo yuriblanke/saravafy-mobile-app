@@ -1,7 +1,7 @@
 import React from "react";
 import { StyleSheet, Text, View, type ViewProps } from "react-native";
 
-import { colors, radii, spacing } from "@/src/theme";
+import { colors, spacing } from "@/src/theme";
 
 type BadgeAppearance = "primary" | "secondary";
 
@@ -47,7 +47,7 @@ export function Badge({
 
 const styles = StyleSheet.create({
   wrap: {
-    borderRadius: radii.sm,
+    borderRadius: 6,
     paddingHorizontal: spacing.sm,
     paddingVertical: spacing.xs,
   },
