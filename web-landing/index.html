@@ -122,8 +122,9 @@
             supabaseUrl.replace(/\/+$/, "") +
             "/rest/v1/rpc/get_app_install_url";
 
-          // Cache-buster to defeat intermediary caches.
-          const endpoint = endpointBase + "?t=" + Date.now();
+          // IMPORTANT: PostgREST RPC endpoints do not accept arbitrary query params.
+          // Keep anti-cache via fetch options + headers (no query-string cache-buster).
+          const endpoint = endpointBase;
 
           const res = await fetch(endpoint, {
             method: "POST",
