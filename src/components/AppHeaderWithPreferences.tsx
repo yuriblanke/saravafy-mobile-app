@@ -871,6 +871,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                       style={{ maxWidth: 220 }}
                     />
 
+                    <AccessRoleInfo variant={variant} info={curatorModeInfo} />
+
                     <Switch
                       value={curatorModeEnabled}
                       onValueChange={(next) => {
@@ -881,14 +883,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                   </View>
                 ) : null
               }
-              rightAccessory={
-                shouldShowCurator ? (
-                  <>
-                    <AccessRoleInfo variant={variant} info={curatorModeInfo} />
-                  </>
-                ) : null
-              }
-              showEditButton={false}
+              rightAccessory={null}
+              showEditButton
               avatarUrl={userPhotoUrl}
               initials={initials}
               onPress={undefined}
@@ -1724,9 +1720,7 @@ const styles = StyleSheet.create({
   profileBadgeToggleRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
     gap: spacing.sm,
-    width: "100%",
   },
   curatorInvitesCard: {
     borderRadius: 14,
