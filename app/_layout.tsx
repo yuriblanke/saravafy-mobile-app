@@ -12,15 +12,12 @@ import "react-native-reanimated";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { InviteGatesProvider } from "@/contexts/InviteGatesContext";
 import {
   PreferencesProvider,
   usePreferences,
 } from "@/contexts/PreferencesContext";
 import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
-import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
-import { InviteGate } from "@/src/components/InviteGate";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
 import { warmRemoteConfig } from "@/src/config/remoteConfig";
 import {
@@ -84,10 +81,8 @@ export default function RootLayout() {
         <PreferencesProvider>
           <RootPagerProvider>
             <ToastProvider>
-              <InviteGatesProvider>
-                <RootLayoutNav />
-                <TerreirosRealtimeSync />
-              </InviteGatesProvider>
+              <RootLayoutNav />
+              <TerreirosRealtimeSync />
             </ToastProvider>
           </RootPagerProvider>
         </PreferencesProvider>
@@ -368,8 +363,6 @@ function RootLayoutNav() {
       value={effectiveScheme === "dark" ? DarkTheme : DefaultTheme}
     >
       {bootComplete ? <Slot /> : null}
-      {bootComplete ? <InviteGate /> : null}
-      {bootComplete ? <CuratorInviteGate /> : null}
     </ThemeProvider>
   );
 }

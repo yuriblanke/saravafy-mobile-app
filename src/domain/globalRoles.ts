@@ -1,6 +1,6 @@
 import type { InfoProps } from "@/src/components/AccessRoleInfo";
 
-export type GlobalRole = "dev_master" | "curator";
+export type GlobalRole = "curator";
 
 type GlobalRoleDef = {
   badgeLabel: string;
@@ -21,12 +21,6 @@ export const GLOBAL_ROLE_DEFS: Record<GlobalRole, GlobalRoleDef> = {
       "Adicionar e remover tags do acervo",
       "Atuar sobre submissions conforme política",
     ],
-  },
-  dev_master: {
-    badgeLabel: "Dev Master",
-    infoTitle: "Dev Master",
-    infoBody: "Esse papel possui acesso total à plataforma.",
-    permissions: [],
   },
 } as const;
 

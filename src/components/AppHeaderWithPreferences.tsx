@@ -16,14 +16,17 @@ import {
   getGlobalRoleInfoProps,
 } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
-import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { supabase } from "@/lib/supabase";
+import { useToast } from "@/contexts/ToastContext";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 function getInitials(value: string | undefined) {
   const fallback = "YB";
@@ -60,6 +63,36 @@ function GlobalRoleBadge({ label }: { label: string }) {
   );
 }
 
+type InviteRole = "admin" | "editor" | "member" | "follower";
+
+type PendingCuratorInvite = {
+  id: string;
+  created_at: string;
+};
+
+type PendingTerreiroInvite = {
+  id: string;
+  terreiro_id: string;
+  role: InviteRole;
+  created_at: string;
+  terreiro_title?: string | null;
+};
+
+function isColumnMissingError(message: string, columnName: string) {
+  const m = String(message ?? "");
+  return (
+    m.includes(columnName) &&
+    (m.includes("does not exist") || m.includes("column"))
+  );
+}
+
+function getInviteRoleLabel(role: InviteRole): string {
+  if (role === "admin") return "Admin";
+  if (role === "editor") return "Editora";
+  if (role === "member") return "Membro";
+  return "Seguidora";
+}
+
 type AppHeaderWithPreferencesProps = {
   suspended?: boolean;
 };
@@ -70,6 +103,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const pathname = usePathname();
   const rootPager = useRootPager();
   const { user, signOut } = useAuth();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
   const {
     themeMode,
     setThemeMode,
@@ -79,6 +114,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
     curimbaOnboardingDismissed,
     setCurimbaOnboardingDismissed,
     startPagePreference,
+    fetchTerreirosQueAdministro,
   } = usePreferences();
 
   const variant = effectiveTheme;
@@ -109,6 +145,11 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
       : colors.textSecondaryOnDark;
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+
+  const inputBg =
+    variant === "light" ? colors.inputBgLight : colors.inputBgDark;
+  const inputBorder =
+    variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
   const dividerColor =
     variant === "light"
@@ -141,13 +182,14 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   );
 
   const userId = user?.id ?? null;
+  const userEmail = typeof user?.email === "string" ? user.email : null;
+  const normalizedUserEmail = userEmail
+    ? userEmail.trim().toLowerCase()
+    : null;
 
-  const { isDevMaster, isLoading: isDevMasterLoading } = useIsDevMaster();
   const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
 
-  const shouldShowDevMaster = !isDevMasterLoading && isDevMaster;
-  const shouldShowCurator =
-    !shouldShowDevMaster && !isCuratorLoading && isCurator;
+  const shouldShowCurator = !isCuratorLoading && isCurator;
 
   const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
   const myEditableTerreiros = useMemo(
@@ -162,6 +204,316 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 
   const contextAvatarUrl = userPhotoUrl;
   const contextInitials = initials;
+
+  const curatorInviteQuery = useQuery({
+    queryKey: normalizedUserEmail
+      ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
+      : (["curatorInvites", "pendingForInvitee", null] as const),
+    enabled: !!userId && !!normalizedUserEmail && isPreferencesOpen && !isCurator,
+    staleTime: 0,
+    queryFn: async () => {
+      if (!normalizedUserEmail) return null;
+
+      const res: any = await supabase
+        .from("curator_invites")
+        .select("id, created_at")
+        .eq("status", "pending")
+        .eq("email", normalizedUserEmail)
+        .order("created_at", { ascending: true })
+        .limit(1);
+
+      if (res.error) {
+        if (__DEV__) {
+          console.warn("[PreferencesInvites] curator_invites error", res.error);
+        }
+        return null;
+      }
+
+      const row =
+        Array.isArray(res.data) && res.data.length ? (res.data[0] as any) : null;
+      if (!row?.id) return null;
+
+      const invite: PendingCuratorInvite = {
+        id: String(row.id),
+        created_at: String(row.created_at ?? new Date().toISOString()),
+      };
+
+      return invite;
+    },
+  });
+
+  const terreiroInvitesQuery = useQuery({
+    queryKey: normalizedUserEmail
+      ? queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail)
+      : (["terreiroInvites", "pendingForInvitee", null] as const),
+    enabled: !!userId && !!normalizedUserEmail && isPreferencesOpen,
+    staleTime: 0,
+    queryFn: async () => {
+      if (!normalizedUserEmail) return [] as PendingTerreiroInvite[];
+
+      const selectWithTitle =
+        "id, terreiro_id, role, created_at, terreiro:terreiros(title)";
+      const selectWithName =
+        "id, terreiro_id, role, created_at, terreiro:terreiros(name)";
+
+      let res: any = await supabase
+        .from("terreiro_invites")
+        .select(selectWithTitle)
+        .eq("status", "pending")
+        .eq("email", normalizedUserEmail)
+        .order("created_at", { ascending: true });
+
+      if (res.error && isColumnMissingError(res.error.message, "title")) {
+        res = await supabase
+          .from("terreiro_invites")
+          .select(selectWithName)
+          .eq("status", "pending")
+          .eq("email", normalizedUserEmail)
+          .order("created_at", { ascending: true });
+      }
+
+      if (res.error) {
+        if (__DEV__) {
+          console.warn(
+            "[PreferencesInvites] terreiro_invites error",
+            res.error
+          );
+        }
+        return [] as PendingTerreiroInvite[];
+      }
+
+      const rows: any[] = Array.isArray(res.data) ? res.data : [];
+      return rows
+        .map((row) => {
+          const role = String(row?.role ?? "");
+          const roleOk =
+            role === "admin" ||
+            role === "editor" ||
+            role === "member" ||
+            role === "follower";
+
+          if (!row?.id || !row?.terreiro_id || !roleOk) return null;
+
+          const terreiroTitle =
+            typeof row?.terreiro?.title === "string"
+              ? row.terreiro.title
+              : typeof row?.terreiro?.name === "string"
+              ? row.terreiro.name
+              : null;
+
+          const invite: PendingTerreiroInvite = {
+            id: String(row.id),
+            terreiro_id: String(row.terreiro_id),
+            role: role as InviteRole,
+            created_at: String(row.created_at ?? new Date().toISOString()),
+            terreiro_title: terreiroTitle,
+          };
+          return invite;
+        })
+        .filter(Boolean) as PendingTerreiroInvite[];
+    },
+  });
+
+  const [inviteProcessingKey, setInviteProcessingKey] = useState<string | null>(
+    null
+  );
+
+  const pendingCuratorInvite = curatorInviteQuery.data ?? null;
+  const pendingTerreiroInvites = terreiroInvitesQuery.data ?? [];
+
+  const acceptCuratorInvite = async (inviteId: string) => {
+    if (!userId) return;
+    setInviteProcessingKey(`curator:${inviteId}`);
+    try {
+      const payload = { p_invite_id: inviteId };
+      const res: any = await supabase.rpc("accept_curator_invite", payload);
+
+      if (res?.error) throw res.error;
+      if (res?.data === false) throw new Error("accept_curator_invite returned false");
+
+      queryClient.setQueryData(
+        normalizedUserEmail
+          ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
+          : (["curatorInvites", "pendingForInvitee", null] as const),
+        null
+      );
+
+      queryClient.invalidateQueries({
+        queryKey: normalizedUserEmail
+          ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
+          : (["curatorInvites", "pendingForInvitee", null] as const),
+        exact: true,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.globalRoles.isCurator(userId),
+      });
+
+      showToast(`Agora você é ${getGlobalRoleBadgeLabel("curator")}.`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (__DEV__) {
+        console.error("[PreferencesInvites] accept curator failed", {
+          inviteId,
+          message,
+          raw: e,
+        });
+      }
+      showToast(
+        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+      );
+    } finally {
+      setInviteProcessingKey(null);
+    }
+  };
+
+  const rejectCuratorInvite = async (inviteId: string) => {
+    if (!userId) return;
+    setInviteProcessingKey(`curator:${inviteId}`);
+    try {
+      const payload = { p_invite_id: inviteId };
+      const res: any = await supabase.rpc("reject_curator_invite", payload);
+
+      if (res?.error) throw res.error;
+      if (res?.data === false) throw new Error("reject_curator_invite returned false");
+
+      queryClient.setQueryData(
+        normalizedUserEmail
+          ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
+          : (["curatorInvites", "pendingForInvitee", null] as const),
+        null
+      );
+      queryClient.invalidateQueries({
+        queryKey: normalizedUserEmail
+          ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
+          : (["curatorInvites", "pendingForInvitee", null] as const),
+        exact: true,
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.globalRoles.isCurator(userId),
+      });
+
+      showToast("Convite recusado.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (__DEV__) {
+        console.error("[PreferencesInvites] reject curator failed", {
+          inviteId,
+          message,
+          raw: e,
+        });
+      }
+      showToast(
+        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+      );
+    } finally {
+      setInviteProcessingKey(null);
+    }
+  };
+
+  const acceptTerreiroInvite = async (invite: PendingTerreiroInvite) => {
+    if (!userId) return;
+    setInviteProcessingKey(`terreiro:${invite.id}`);
+    try {
+      const res: any = await supabase.rpc("accept_terreiro_invite", {
+        p_invite_id: invite.id,
+      });
+
+      if (res?.error) throw res.error;
+      if (res?.data === false) throw new Error("accept_terreiro_invite returned false");
+
+      let warmOk = true;
+      try {
+        await fetchTerreirosQueAdministro(userId);
+      } catch {
+        warmOk = false;
+      }
+
+      if (normalizedUserEmail) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail),
+          exact: true,
+        });
+      }
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.membership(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiroAccessIds(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.editableTerreiros(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.terreiros.editableByUser(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.accountable(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.collections.editableByUserPrefix(userId) });
+
+      if (warmOk) {
+        showToast("Convite aceito.");
+      } else {
+        showToast(
+          "Convite aceito, mas não foi possível atualizar permissões agora. Tente novamente em instantes."
+        );
+      }
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (__DEV__) {
+        console.error("[PreferencesInvites] accept terreiro failed", {
+          inviteId: invite.id,
+          terreiroId: invite.terreiro_id,
+          message,
+          raw: e,
+        });
+      }
+      showToast(
+        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+      );
+    } finally {
+      setInviteProcessingKey(null);
+    }
+  };
+
+  const rejectTerreiroInvite = async (invite: PendingTerreiroInvite) => {
+    if (!userId) return;
+    setInviteProcessingKey(`terreiro:${invite.id}`);
+    try {
+      const res: any = await supabase.rpc("reject_terreiro_invite", {
+        p_invite_id: invite.id,
+      });
+
+      if (res?.error) throw res.error;
+      if (res?.data === false) throw new Error("reject_terreiro_invite returned false");
+
+      if (normalizedUserEmail) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail),
+          exact: true,
+        });
+      }
+
+      if (userId) {
+        queryClient.invalidateQueries({ queryKey: queryKeys.me.membership(userId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiroAccessIds(userId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.me.editableTerreiros(userId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
+        queryClient.invalidateQueries({ queryKey: queryKeys.collections.editableByUserPrefix(userId) });
+      }
+
+      showToast("Convite recusado.");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : String(e);
+      if (__DEV__) {
+        console.error("[PreferencesInvites] reject terreiro failed", {
+          inviteId: invite.id,
+          terreiroId: invite.terreiro_id,
+          message,
+          raw: e,
+        });
+      }
+      showToast(
+        "Não foi possível concluir agora. Verifique sua conexão e tente novamente."
+      );
+    } finally {
+      setInviteProcessingKey(null);
+    }
+  };
 
   const didLogPrefsVisibleRef = React.useRef(false);
 
@@ -345,17 +697,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               variant={variant}
               title={userDisplayName}
               afterTitle={
-                shouldShowDevMaster ? (
-                  <>
-                    <GlobalRoleBadge
-                      label={getGlobalRoleBadgeLabel("dev_master")}
-                    />
-                    <AccessRoleInfo
-                      variant={variant}
-                      info={getGlobalRoleInfoProps("dev_master")}
-                    />
-                  </>
-                ) : shouldShowCurator ? (
+                shouldShowCurator ? (
                   <>
                     <GlobalRoleBadge
                       label={getGlobalRoleBadgeLabel("curator")}
@@ -375,6 +717,139 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                 setIsEditProfileOpen(true);
               }}
             />
+
+            {!userId || !normalizedUserEmail ? null : pendingCuratorInvite ? (
+              <View
+                style={[
+                  styles.inviteCard,
+                  { borderColor: dividerColor, backgroundColor: inputBg },
+                ]}
+              >
+                <Text style={[styles.inviteTitle, { color: textPrimary }]}
+                  numberOfLines={2}
+                >
+                  Convite para Pessoa Guardiã do Acervo
+                </Text>
+                <Text style={[styles.inviteBody, { color: textSecondary }]}
+                  numberOfLines={6}
+                >
+                  Você recebeu um convite para ajudar a cuidar do acervo do Saravafy.
+                </Text>
+
+                <View style={styles.inviteActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Aceitar convite"
+                    disabled={inviteProcessingKey === `curator:${pendingCuratorInvite.id}`}
+                    onPress={() => void acceptCuratorInvite(pendingCuratorInvite.id)}
+                    style={({ pressed }) => [
+                      styles.invitePrimaryBtn,
+                      { borderColor: colors.brass600 },
+                      pressed ? styles.inviteBtnPressed : null,
+                      inviteProcessingKey === `curator:${pendingCuratorInvite.id}`
+                        ? styles.inviteBtnDisabled
+                        : null,
+                    ]}
+                  >
+                    <Text style={styles.invitePrimaryBtnText}>Aceitar convite</Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Recusar convite"
+                    disabled={inviteProcessingKey === `curator:${pendingCuratorInvite.id}`}
+                    onPress={() => void rejectCuratorInvite(pendingCuratorInvite.id)}
+                    style={({ pressed }) => [
+                      styles.inviteSecondaryBtn,
+                      { borderColor: inputBorder },
+                      pressed ? styles.inviteBtnPressed : null,
+                      inviteProcessingKey === `curator:${pendingCuratorInvite.id}`
+                        ? styles.inviteBtnDisabled
+                        : null,
+                    ]}
+                  >
+                    <Text style={[styles.inviteSecondaryBtnText, { color: textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      Recusar convite
+                    </Text>
+                  </Pressable>
+                </View>
+              </View>
+            ) : null}
+
+            {!userId || !normalizedUserEmail ? null :
+            pendingTerreiroInvites.length ? (
+              <View style={styles.invitesList}>
+                {pendingTerreiroInvites.map((invite) => {
+                  const terreiroTitle =
+                    typeof invite.terreiro_title === "string" && invite.terreiro_title.trim()
+                      ? invite.terreiro_title.trim()
+                      : "Terreiro";
+                  const processing = inviteProcessingKey === `terreiro:${invite.id}`;
+
+                  return (
+                    <View
+                      key={invite.id}
+                      style={[
+                        styles.inviteCard,
+                        { borderColor: dividerColor, backgroundColor: inputBg },
+                      ]}
+                    >
+                      <Text style={[styles.inviteTitle, { color: textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        Convite para: {terreiroTitle}
+                      </Text>
+                      <Text style={[styles.inviteBody, { color: textSecondary }]}
+                        numberOfLines={3}
+                      >
+                        Função: {getInviteRoleLabel(invite.role)}
+                      </Text>
+
+                      <View style={styles.inviteActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Aceitar convite"
+                          disabled={processing}
+                          onPress={() => void acceptTerreiroInvite(invite)}
+                          style={({ pressed }) => [
+                            styles.invitePrimaryBtn,
+                            { borderColor: colors.brass600 },
+                            pressed ? styles.inviteBtnPressed : null,
+                            processing ? styles.inviteBtnDisabled : null,
+                          ]}
+                        >
+                          <Text style={styles.invitePrimaryBtnText}>
+                            Aceitar convite
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Recusar convite"
+                          disabled={processing}
+                          onPress={() => void rejectTerreiroInvite(invite)}
+                          style={({ pressed }) => [
+                            styles.inviteSecondaryBtn,
+                            { borderColor: inputBorder },
+                            pressed ? styles.inviteBtnPressed : null,
+                            processing ? styles.inviteBtnDisabled : null,
+                          ]}
+                        >
+                          <Text
+                            style={[styles.inviteSecondaryBtnText, { color: textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            Recusar convite
+                          </Text>
+                        </Pressable>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : null}
           </View>
 
           <View
@@ -787,5 +1262,65 @@ const styles = StyleSheet.create({
   startPageValue: {
     fontSize: 15,
     fontWeight: "800",
+  },
+
+  invitesList: {
+    gap: spacing.sm,
+  },
+  inviteCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  inviteTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  inviteBody: {
+    fontSize: 13,
+    fontWeight: "600",
+    opacity: 0.9,
+  },
+  inviteActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 2,
+  },
+  invitePrimaryBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  invitePrimaryBtnText: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  inviteSecondaryBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  inviteSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  inviteBtnPressed: {
+    opacity: 0.82,
+  },
+  inviteBtnDisabled: {
+    opacity: 0.6,
   },
 });

@@ -56,12 +56,14 @@ export const queryKeys = {
     byId: (id: string) => ["collection", { id }] as const,
   },
   globalRoles: {
-    isDevMaster: (userId: string) =>
-      ["globalRoles", "dev_master", userId] as const,
     isCurator: (userId: string) => ["globalRoles", "curator", userId] as const,
   },
   curatorInvites: {
     pendingForInvitee: (normalizedEmail: string) =>
       ["curatorInvites", "pendingForInvitee", normalizedEmail] as const,
+  },
+  terreiroInvites: {
+    pendingForInvitee: (normalizedEmail: string) =>
+      ["terreiroInvites", "pendingForInvitee", normalizedEmail] as const,
   },
 } as const;
