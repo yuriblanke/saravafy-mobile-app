@@ -1,7 +1,6 @@
 import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
 import { isMediumTag, mergeCustomAndPointTags } from "@/src/utils/mergeTags";
-import { pontoIdToCode } from "@/src/utils/pontoCode";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
@@ -26,25 +25,11 @@ export function PlayerContent(props: {
   const hasAnyTags =
     mergedTags.custom.length > 0 || mergedTags.point.length > 0;
 
-  const shortCode = ponto?.id ? pontoIdToCode(ponto.id) : null;
-
   return (
     <View style={styles.page}>
       <Text style={[styles.title, { color: textPrimary }]} numberOfLines={2}>
         {ponto.title}
       </Text>
-
-      {ponto.artist ? (
-        <Text style={[styles.author, { color: textSecondary }]} numberOfLines={1}>
-          {ponto.artist}
-        </Text>
-      ) : null}
-
-      {shortCode ? (
-        <Text style={[styles.shortCode, { color: textSecondary }]}>
-          Código: {shortCode}
-        </Text>
-      ) : null}
 
       {hasAnyTags ? (
         <View style={styles.tagsWrap}>
@@ -88,15 +73,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 22,
-  },
-  author: {
-    paddingTop: spacing.xs,
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  shortCode: {
-    paddingTop: spacing.xs,
-    fontSize: 12,
   },
   tagsWrap: {
     flexDirection: "row",
