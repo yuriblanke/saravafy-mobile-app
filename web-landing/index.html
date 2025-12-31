@@ -43,6 +43,12 @@
         const anonKey = String(window.SARAVAFY_SUPABASE_ANON_KEY || "").trim();
         const hasSupabaseConfig = !!supabaseUrl && !!anonKey;
 
+        const rawAppScheme = String(
+          window.SARAVAFY_APP_SCHEME || "saravafy://"
+        ).trim();
+
+        const appScheme = rawAppScheme ? rawAppScheme : "saravafy://";
+
         const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
         function isUuid(value) {
@@ -235,7 +241,6 @@
         }
 
         const parsed = parseLink();
-        const href = window.location.href;
 
         if (!parsed || !isUuid(parsed.id)) {
           subtitleEl.textContent = "Link inválido.";
@@ -245,6 +250,32 @@
           openBtn.disabled = true;
           return;
         }
+
+        function buildOpenUrl(scheme, pontoId) {
+          const raw = String(scheme || "").trim() || "saravafy://";
+
+          let base = raw;
+          if (base.includes("://")) {
+            const idx = base.indexOf("://");
+            const prefix = base.slice(0, idx + 3); // includes ://
+            const after = base
+              .slice(idx + 3)
+              .replace(/^\/+/, "")
+              .replace(/\/+$/, "");
+            base = prefix + after;
+          } else if (base.endsWith(":")) {
+            base = base + "//";
+          } else {
+            base = base.replace(/\/+$/, "") + "://";
+          }
+
+          const path = "l/ponto/" + pontoId;
+
+          if (base.endsWith("://")) return base + path;
+          return base.replace(/\/+$/, "") + "/" + path;
+        }
+
+        const openUrl = buildOpenUrl(appScheme, parsed.id);
 
         subtitleEl.textContent = "UUID: " + parsed.id;
         openBtn.disabled = false;
@@ -256,7 +287,7 @@
           if (hasSupabaseConfig) {
             setStatus("Abrindo…");
           }
-          window.location.href = href;
+          window.location.href = openUrl;
         });
 
         installBtn.addEventListener("click", async function () {
