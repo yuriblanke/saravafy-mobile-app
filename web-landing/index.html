@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Abrir no Saravafy</title>
-    <link rel="stylesheet" href="./styles.css" />
-    <script src="./config.js"></script>
+    <link rel="stylesheet" href="/styles.css" />
+    <script src="/config.js"></script>
   </head>
   <body>
     <main class="container">
-      <h1>Abrir no Saravafy</h1>
+      <h1 id="pontoTitle">Carregando ponto…</h1>
       <p id="subtitle" class="meta"></p>
 
       <div class="card">
@@ -17,12 +17,16 @@
           <button id="installBtn" class="btn-primary" disabled>
             Instalar app
           </button>
-          <button id="copyBtn" class="btn-secondary">Copiar link</button>
+          <button id="openBtn" class="btn-secondary" disabled>
+            Abrir no app
+          </button>
         </div>
 
         <p class="notice">
-          Depois de instalar, volte e abra este link novamente.
+          Se o app já estiver instalado, use “Abrir no app”.
         </p>
+
+        <p id="shortCode" class="meta"></p>
 
         <p id="status" class="small"></p>
       </div>
@@ -30,10 +34,53 @@
 
     <script>
       (function () {
+        const titleEl = document.getElementById("pontoTitle");
         const subtitleEl = document.getElementById("subtitle");
         const installBtn = document.getElementById("installBtn");
-        const copyBtn = document.getElementById("copyBtn");
+        const openBtn = document.getElementById("openBtn");
+        const shortCodeEl = document.getElementById("shortCode");
         const statusEl = document.getElementById("status");
+
+        const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
+
+        function isUuid(value) {
+          return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
+            String(value || "").trim()
+          );
+        }
+
+        function uuidToBytes(uuid) {
+          const hex = String(uuid).replace(/-/g, "");
+          const out = new Uint8Array(16);
+          for (let i = 0; i < 16; i++) {
+            out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+          }
+          return out;
+        }
+
+        function base32CrockfordEncode(bytes) {
+          let bits = 0;
+          let value = 0;
+          let out = "";
+
+          for (let i = 0; i < bytes.length; i++) {
+            value = (value << 8) | bytes[i];
+            bits += 8;
+
+            while (bits >= 5) {
+              const idx = (value >>> (bits - 5)) & 31;
+              out += CROCKFORD_ALPHABET[idx];
+              bits -= 5;
+            }
+          }
+
+          if (bits > 0) {
+            const idx = (value << (5 - bits)) & 31;
+            out += CROCKFORD_ALPHABET[idx];
+          }
+
+          return out;
+        }
 
         function setStatus(text, variant) {
           statusEl.textContent = text;
@@ -43,9 +90,9 @@
         function parseLink() {
           const path = String(window.location.pathname || "");
           const parts = path.split("/").filter(Boolean);
-          // Expected: /l/<tipo>/<id>
-          if (parts.length >= 3 && parts[0] === "l") {
-            return { tipo: parts[1], id: parts[2] };
+          // Expected: /l/ponto/<uuid>
+          if (parts.length >= 3 && parts[0] === "l" && parts[1] === "ponto") {
+            return { tipo: "ponto", id: parts[2] };
           }
           return null;
         }
@@ -118,6 +165,52 @@
           return { url: value, reason: null };
         }
 
+        async function fetchPontoTitle(pontoId) {
+          const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
+          const anonKey = String(
+            window.SARAVAFY_SUPABASE_ANON_KEY || ""
+          ).trim();
+
+          if (!supabaseUrl || !anonKey) {
+            return { title: null, reason: "Config do Supabase ausente na landing." };
+          }
+
+          const endpointBase =
+            supabaseUrl.replace(/\/+$/, "") +
+            "/rest/v1/pontos?select=title,artist&id=eq." +
+            encodeURIComponent(pontoId) +
+            "&is_active=eq.true&restricted=eq.false&limit=1";
+
+          const endpoint = endpointBase + "&t=" + Date.now();
+
+          const res = await fetch(endpoint, {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Accept: "application/json",
+            },
+          });
+
+          if (!res.ok) {
+            return {
+              title: null,
+              reason:
+                "Falha ao buscar o ponto (HTTP " + res.status + ")",
+            };
+          }
+
+          const data = await res.json();
+          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          const title = row && typeof row.title === "string" ? row.title.trim() : "";
+          const artist = row && typeof row.artist === "string" ? row.artist.trim() : "";
+          const fullTitle = [title, artist].filter(Boolean).join(" — ");
+          return { title: fullTitle || null, reason: null };
+        }
+
         const installDefaultLabel = installBtn.textContent || "Instalar app";
         let installBusy = false;
 
@@ -158,26 +251,26 @@
         }
 
         const parsed = parseLink();
-        if (parsed) {
-          subtitleEl.textContent = "Link: /l/" + parsed.tipo + "/" + parsed.id;
-        } else {
-          subtitleEl.textContent = "Link: " + window.location.pathname;
+        const href = window.location.href;
+
+        if (!parsed || !isUuid(parsed.id)) {
+          subtitleEl.textContent = "Link inválido.";
+          titleEl.textContent = "Não foi possível abrir este ponto.";
+          setStatus("Link inválido.", "error");
+          installBtn.disabled = true;
+          openBtn.disabled = true;
+          return;
         }
 
-        copyBtn.addEventListener("click", async function () {
-          const text = window.location.href;
-          try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-              await navigator.clipboard.writeText(text);
-              setStatus("Link copiado.");
-              return;
-            }
-          } catch {
-            // ignore
-          }
+        subtitleEl.textContent = "Link: /l/ponto/" + parsed.id;
+        openBtn.disabled = false;
 
-          // Fallback antigo
-          window.prompt("Copie o link:", text);
+        const shortCode = base32CrockfordEncode(uuidToBytes(parsed.id));
+        shortCodeEl.textContent = "Código: " + shortCode;
+
+        openBtn.addEventListener("click", function () {
+          setStatus("Abrindo…");
+          window.location.href = href;
         });
 
         installBtn.addEventListener("click", async function () {
@@ -207,6 +300,22 @@
         });
 
         void refreshInstallAvailability();
+
+        void (async function () {
+          try {
+            const result = await fetchPontoTitle(parsed.id);
+            if (result.title) {
+              titleEl.textContent = result.title;
+              return;
+            }
+            titleEl.textContent = "Abrir ponto";
+            if (result.reason) {
+              setStatus(result.reason, "error");
+            }
+          } catch {
+            titleEl.textContent = "Abrir ponto";
+          }
+        })();
       })();
     </script>
   </body>

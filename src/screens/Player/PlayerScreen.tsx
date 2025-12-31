@@ -171,25 +171,20 @@ export default function PlayerScreen() {
       };
     }, [activePonto]);
 
-  const openShare = useCallback(async () => {
-    const title = activePonto?.title ?? "";
-
-    try {
-      const message = await buildShareMessageForPonto(title);
-      setShareMessage(message);
-    } catch (e) {
-      if (__DEV__) {
-        console.info("[Player] erro ao gerar mensagem de share", {
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-
-      const safeTitle = title?.trim() || "Ponto";
-      setShareMessage(`Olha esse ponto “${safeTitle}” no Saravafy.`);
+  const openShare = useCallback(() => {
+    if (!activePonto?.id) {
+      showToast("Não foi possível compartilhar este ponto.");
+      return;
     }
 
+    const message = buildShareMessageForPonto({
+      pontoId: activePonto.id,
+      pontoTitle: activePonto.title ?? "Ponto",
+    });
+
+    setShareMessage(message);
     setIsShareOpen(true);
-  }, [activePonto?.title]);
+  }, [activePonto?.id, activePonto?.title, showToast]);
 
   const onDecreaseFont = useCallback(() => {
     setLyricsFontSize((prev) => Math.max(LYRICS_FONT_MIN, prev - 2));
