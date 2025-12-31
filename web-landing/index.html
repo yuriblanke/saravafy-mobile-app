@@ -205,7 +205,9 @@
         function setListTitle(title) {
           if (!listTitleEl) return;
           listTitleEl.textContent = String(title || "").trim();
-          listTitleEl.style.display = listTitleEl.textContent ? "block" : "none";
+          listTitleEl.style.display = listTitleEl.textContent
+            ? "block"
+            : "none";
         }
 
         function clearList() {
@@ -225,9 +227,11 @@
 
             const href = typeof item.href === "string" ? item.href : "";
             const title = typeof item.title === "string" ? item.title : "";
-            const subtitle = typeof item.subtitle === "string" ? item.subtitle : "";
+            const subtitle =
+              typeof item.subtitle === "string" ? item.subtitle : "";
             const tags = Array.isArray(item.tags) ? item.tags : [];
-            const preview = typeof item.preview === "string" ? item.preview : "";
+            const preview =
+              typeof item.preview === "string" ? item.preview : "";
 
             if (!href || !title) continue;
 
@@ -394,7 +398,10 @@
 
         async function fetchTerreiroData(terreiroId) {
           if (!supabaseUrl || !anonKey) {
-            return { title: null, reason: "Config do Supabase ausente na landing." };
+            return {
+              title: null,
+              reason: "Config do Supabase ausente na landing.",
+            };
           }
 
           const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/terreiros";
@@ -433,7 +440,10 @@
 
         async function fetchColecaoData(collectionId) {
           if (!supabaseUrl || !anonKey) {
-            return { title: null, reason: "Config do Supabase ausente na landing." };
+            return {
+              title: null,
+              reason: "Config do Supabase ausente na landing.",
+            };
           }
 
           const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections";
@@ -473,7 +483,10 @@
 
         async function fetchColecoesByTerreiro(terreiroId) {
           if (!supabaseUrl || !anonKey) {
-            return { items: [], reason: "Config do Supabase ausente na landing." };
+            return {
+              items: [],
+              reason: "Config do Supabase ausente na landing.",
+            };
           }
 
           const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections";
@@ -519,10 +532,14 @@
 
         async function fetchPontosByColecao(collectionId) {
           if (!supabaseUrl || !anonKey) {
-            return { items: [], reason: "Config do Supabase ausente na landing." };
+            return {
+              items: [],
+              reason: "Config do Supabase ausente na landing.",
+            };
           }
 
-          const baseCp = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections_pontos";
+          const baseCp =
+            supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections_pontos";
           const urlCp = new URL(baseCp);
           urlCp.search = new URLSearchParams({
             select: "ponto_id,position",
@@ -583,7 +600,8 @@
           if (!resP.ok) {
             return {
               items: [],
-              reason: "Falha ao buscar dados dos pontos (HTTP " + resP.status + ")",
+              reason:
+                "Falha ao buscar dados dos pontos (HTTP " + resP.status + ")",
             };
           }
 
@@ -602,9 +620,7 @@
             });
           }
 
-          const items = pontoIds
-            .map((id) => byId.get(id))
-            .filter(Boolean);
+          const items = pontoIds.map((id) => byId.get(id)).filter(Boolean);
 
           return { items, reason: null };
         }
