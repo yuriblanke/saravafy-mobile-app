@@ -3,15 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Saravafy</title>
-    <link rel="stylesheet" href="/styles.css" />
+    <title>Abrir no Saravafy</title>
+    <link rel="stylesheet" href="/styles.css?v=2025-12-31" />
     <script src="/config.js"></script>
   </head>
   <body>
     <main class="container">
       <!-- 1) Card do ponto (conteúdo) -->
       <div class="card">
-        <h1 id="pageTitle" class="ponto-title">Carregando…</h1>
+        <h1 id="pageTitle" class="ponto-title">Carregando ponto…</h1>
         <div id="tagsRow" class="tags-row" aria-label="Tags do ponto"></div>
         <p id="lyricsPreview" class="lyrics-preview"></p>
 
@@ -23,13 +23,16 @@
 
       <!-- 2) Card “Use no app Saravafy” -->
       <div class="card">
-        <h2 class="use-app-title">Use no app Saravafy</h2>
+        <h2 id="useAppTitle" class="use-app-title">Use no app Saravafy</h2>
 
         <p class="use-app-copy">
           O Saravafy ainda não está disponível na Play Store porque é um projeto
-          cultural independente, mantido pela própria comunidade. Por isso, a
-          instalação acontece diretamente por aqui. O Android pode pedir uma
-          confirmação extra — é normal e acontece apenas uma vez.
+          cultural independente, mantido pela própria comunidade.
+          <br />
+          Por isso, a instalação acontece diretamente por aqui.
+          <br />
+          O Android pode pedir uma confirmação extra — é normal e acontece apenas
+          uma vez.
         </p>
 
         <div class="actions">
@@ -51,6 +54,7 @@
     <script>
       (function () {
         const titleEl = document.getElementById("pageTitle");
+        const useAppTitleEl = document.getElementById("useAppTitle");
         const tagsRowEl = document.getElementById("tagsRow");
         const lyricsPreviewEl = document.getElementById("lyricsPreview");
         const listSectionEl = document.getElementById("listSection");
@@ -661,12 +665,16 @@
         const parsed = parseLink();
 
         if (!parsed || !isUuid(parsed.id)) {
-          titleEl.textContent = "Não foi possível abrir este link.";
+          titleEl.textContent = "Não foi possível abrir este ponto.";
           clearPointContent();
           clearList();
           installBtn.disabled = true;
           openBtn.disabled = true;
           return;
+        }
+
+        if (parsed.tipo === "ponto" && useAppTitleEl) {
+          useAppTitleEl.textContent = "Use este ponto no app Saravafy";
         }
 
         function buildOpenUrl(scheme, tipo, id) {
