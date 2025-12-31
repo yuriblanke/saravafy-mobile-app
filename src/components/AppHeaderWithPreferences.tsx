@@ -883,12 +883,15 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               subtitle={
                 shouldShowCurator ? (
                   <View style={styles.profileBadgeRow}>
-                    <Badge
-                      label={getGlobalRoleBadgeLabel("curator")}
-                      variant={variant}
-                      appearance="primary"
-                      style={{ maxWidth: 220 }}
-                    />
+                    <View style={styles.profileBadgeLeft}>
+                      <Badge
+                        label={getGlobalRoleBadgeLabel("curator")}
+                        variant={variant}
+                        appearance="primary"
+                        style={{ maxWidth: 220 }}
+                      />
+                      <AccessRoleInfo variant={variant} info={curatorModeInfo} />
+                    </View>
 
                     <View style={styles.profileBadgeRight}>
                       <Switch
@@ -897,11 +900,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                           void setCuratorModeEnabled(next);
                         }}
                         disabled={curatorModeLoading || curatorModeSaving}
-                      />
-
-                      <AccessRoleInfo
-                        variant={variant}
-                        info={curatorModeInfo}
                       />
                     </View>
                   </View>
@@ -1756,6 +1754,13 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: spacing.sm,
     width: "100%",
+  },
+  profileBadgeLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    flex: 1,
+    minWidth: 0,
   },
   profileBadgeRight: {
     flexDirection: "row",
