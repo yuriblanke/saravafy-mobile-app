@@ -10,10 +10,12 @@
   <body>
     <main class="container">
       <!-- 1) Card do ponto (conteúdo) -->
-      <div class="card">
+      <div id="pontoCard" class="card">
         <h1 id="pageTitle" class="ponto-title">Carregando ponto…</h1>
         <div id="tagsRow" class="tags-row" aria-label="Tags do ponto"></div>
-        <p id="lyricsPreview" class="lyrics-preview"></p>
+        <div id="lyricsScroll" class="lyrics-scroll">
+          <p id="lyricsFull" class="lyrics-full"></p>
+        </div>
 
         <div id="listSection" class="list-section" style="display: none">
           <h2 id="listTitle" class="list-title"></h2>
@@ -21,9 +23,10 @@
         </div>
       </div>
 
-      <!-- 2) Card “Use no app Saravafy” -->
-      <div class="card">
-        <h2 id="useAppTitle" class="use-app-title">Use no app Saravafy</h2>
+      <!-- 2) CTA sticky (ponto) / card normal (outros) -->
+      <div id="ctaDock" class="cta-dock">
+        <div id="ctaCard" class="card cta-card">
+          <h2 id="useAppTitle" class="use-app-title">Use no app Saravafy</h2>
 
         <p class="use-app-copy">
           O Saravafy ainda não está disponível na Play Store porque é um projeto
@@ -35,18 +38,19 @@
           apenas uma vez.
         </p>
 
-        <div class="actions">
-          <button id="installBtn" class="btn-primary" disabled>
-            Instalar app
-          </button>
+          <div class="actions">
+            <button id="installBtn" class="btn-primary" disabled>
+              Instalar app
+            </button>
 
-          <p class="notice">
-            Após instalar, volte aqui e toque em “Abrir no app”.
-          </p>
+            <p class="notice">
+              Após instalar, volte aqui e toque em “Abrir no app”.
+            </p>
 
-          <button id="openBtn" class="btn-secondary" disabled>
-            Abrir no app
-          </button>
+            <button id="openBtn" class="btn-secondary" disabled>
+              Abrir no app
+            </button>
+          </div>
         </div>
       </div>
     </main>
@@ -56,7 +60,9 @@
         const titleEl = document.getElementById("pageTitle");
         const useAppTitleEl = document.getElementById("useAppTitle");
         const tagsRowEl = document.getElementById("tagsRow");
-        const lyricsPreviewEl = document.getElementById("lyricsPreview");
+        const lyricsFullEl = document.getElementById("lyricsFull");
+        const lyricsScrollEl = document.getElementById("lyricsScroll");
+        const ctaDockEl = document.getElementById("ctaDock");
         const listSectionEl = document.getElementById("listSection");
         const listTitleEl = document.getElementById("listTitle");
         const listItemsEl = document.getElementById("listItems");
@@ -165,10 +171,8 @@
 
         function clearPointContent() {
           if (tagsRowEl) tagsRowEl.innerHTML = "";
-          if (lyricsPreviewEl) {
-            lyricsPreviewEl.textContent = "";
-            lyricsPreviewEl.style.display = "none";
-          }
+          if (lyricsFullEl) lyricsFullEl.textContent = "";
+          if (lyricsScrollEl) lyricsScrollEl.style.display = "none";
         }
 
         function renderTags(tags) {
@@ -189,16 +193,16 @@
           }
         }
 
-        function renderLyricsPreview(lyrics) {
-          if (!lyricsPreviewEl) return;
-          const preview = getLyricsPreview(lyrics, 6);
-          if (!preview) {
-            lyricsPreviewEl.textContent = "";
-            lyricsPreviewEl.style.display = "none";
+        function renderLyricsFull(lyrics) {
+          if (!lyricsFullEl || !lyricsScrollEl) return;
+          const value = String(lyrics || "");
+          if (!value.trim()) {
+            lyricsFullEl.textContent = "";
+            lyricsScrollEl.style.display = "none";
             return;
           }
-          lyricsPreviewEl.textContent = preview;
-          lyricsPreviewEl.style.display = "block";
+          lyricsFullEl.textContent = value;
+          lyricsScrollEl.style.display = "block";
         }
 
         function setListVisible(isVisible) {
@@ -677,6 +681,23 @@
           useAppTitleEl.textContent = "Use este ponto no app Saravafy";
         }
 
+        if (parsed.tipo === "ponto") {
+          document.body.classList.add("is-ponto");
+
+          const syncCtaDockHeight = () => {
+            if (!ctaDockEl) return;
+            const h = ctaDockEl.getBoundingClientRect().height;
+            if (!Number.isFinite(h) || h <= 0) return;
+            document.documentElement.style.setProperty(
+              "--cta-dock-height",
+              Math.ceil(h) + "px"
+            );
+          };
+
+          requestAnimationFrame(syncCtaDockHeight);
+          window.addEventListener("resize", syncCtaDockHeight);
+        }
+
         function buildOpenUrl(scheme, tipo, id) {
           const raw = String(scheme || "").trim() || "saravafy://";
 
@@ -764,7 +785,7 @@
 
               titleEl.textContent = result.title ? result.title : "Abrir ponto";
               renderTags(result.tags);
-              renderLyricsPreview(result.lyrics);
+              renderLyricsFull(result.lyrics);
               return;
             }
 

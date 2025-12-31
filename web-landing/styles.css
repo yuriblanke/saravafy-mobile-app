@@ -220,6 +220,29 @@ p {
   white-space: pre-line;
 }
 
+.lyrics-scroll {
+  display: none;
+  margin-top: 10px;
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: rgba(243, 239, 233, 0.42);
+  padding: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .lyrics-scroll {
+    background: rgba(18, 51, 45, 0.36);
+  }
+}
+
+.lyrics-full {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
+
 .use-app-title {
   margin-bottom: 8px;
 }
@@ -238,6 +261,53 @@ p {
 
 .actions button {
   width: 100%;
+}
+
+/* PONTO: apenas a letra rola; CTA fica sempre visível */
+body.is-ponto {
+  overflow: hidden;
+}
+
+body.is-ponto .container {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: calc(var(--cta-dock-height, 180px) + 16px);
+}
+
+body.is-ponto #pontoCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+body.is-ponto .lyrics-scroll {
+  display: block;
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+body.is-ponto .cta-dock {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 10px 16px 16px;
+  z-index: 50;
+  background: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(10px);
+}
+
+body.is-ponto .cta-card {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+body.is-ponto .cta-card.card {
+  margin-top: 0;
 }
 
 .list-section {
