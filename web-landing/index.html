@@ -22,9 +22,7 @@
           </button>
         </div>
 
-        <p class="notice">
-          Se o app já estiver instalado, use “Abrir no app”.
-        </p>
+        <p class="notice">Se o app já estiver instalado, use “Abrir no app”.</p>
 
         <p id="shortCode" class="meta"></p>
 
@@ -40,6 +38,10 @@
         const openBtn = document.getElementById("openBtn");
         const shortCodeEl = document.getElementById("shortCode");
         const statusEl = document.getElementById("status");
+
+        const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
+        const anonKey = String(window.SARAVAFY_SUPABASE_ANON_KEY || "").trim();
+        const hasSupabaseConfig = !!supabaseUrl && !!anonKey;
 
         const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
 
@@ -107,11 +109,6 @@
         }
 
         async function fetchInstallUrl() {
-          const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
-          const anonKey = String(
-            window.SARAVAFY_SUPABASE_ANON_KEY || ""
-          ).trim();
-
           if (!supabaseUrl || !anonKey) {
             return {
               url: null,
@@ -166,13 +163,11 @@
         }
 
         async function fetchPontoTitle(pontoId) {
-          const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
-          const anonKey = String(
-            window.SARAVAFY_SUPABASE_ANON_KEY || ""
-          ).trim();
-
           if (!supabaseUrl || !anonKey) {
-            return { title: null, reason: "Config do Supabase ausente na landing." };
+            return {
+              title: null,
+              reason: "Config do Supabase ausente na landing.",
+            };
           }
 
           const endpointBase =
@@ -198,15 +193,16 @@
           if (!res.ok) {
             return {
               title: null,
-              reason:
-                "Falha ao buscar o ponto (HTTP " + res.status + ")",
+              reason: "Falha ao buscar o ponto (HTTP " + res.status + ")",
             };
           }
 
           const data = await res.json();
           const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          const title = row && typeof row.title === "string" ? row.title.trim() : "";
-          const artist = row && typeof row.artist === "string" ? row.artist.trim() : "";
+          const title =
+            row && typeof row.title === "string" ? row.title.trim() : "";
+          const artist =
+            row && typeof row.artist === "string" ? row.artist.trim() : "";
           const fullTitle = [title, artist].filter(Boolean).join(" — ");
           return { title: fullTitle || null, reason: null };
         }
@@ -262,19 +258,26 @@
           return;
         }
 
-        subtitleEl.textContent = "Link: /l/ponto/" + parsed.id;
+        subtitleEl.textContent = "UUID: " + parsed.id;
         openBtn.disabled = false;
 
         const shortCode = base32CrockfordEncode(uuidToBytes(parsed.id));
         shortCodeEl.textContent = "Código: " + shortCode;
 
         openBtn.addEventListener("click", function () {
-          setStatus("Abrindo…");
+          if (hasSupabaseConfig) {
+            setStatus("Abrindo…");
+          }
           window.location.href = href;
         });
 
         installBtn.addEventListener("click", async function () {
           if (installBusy) return;
+
+          if (!hasSupabaseConfig) {
+            // Fallback de dev mode: mantém UI útil sem depender de fetch.
+            return;
+          }
 
           // Always refetch on click to ensure the freshest install URL.
           setInstallBusy(true);
@@ -298,6 +301,15 @@
             setInstallBusy(false);
           }
         });
+
+        if (!hasSupabaseConfig) {
+          // Dev fallback (opção C): não inicializa/faz fetch no Supabase.
+          titleEl.textContent = "Ponto do Saravafy";
+          installBtn.disabled = true;
+          statusEl.textContent = "";
+          statusEl.style.display = "none";
+          return;
+        }
 
         void refreshInstallAvailability();
 
