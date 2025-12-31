@@ -142,6 +142,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const lastRefreshAtRef = useRef<number>(0);
+
   useEffect(() => {
     fetchAllPontos()
       .then(setPontos)
@@ -161,6 +163,18 @@ export default function Home() {
   useFocusEffect(
     useCallback(() => {
       void refetchIsCurator();
+
+      // Mantém a lista consistente ao voltar de telas que podem criar/aprovar pontos
+      // (ex.: fila de revisão). Throttle simples para evitar refetch em excesso.
+      const now = Date.now();
+      if (now - lastRefreshAtRef.current < 8_000) return;
+      lastRefreshAtRef.current = now;
+
+      fetchAllPontos()
+        .then(setPontos)
+        .catch(() => {
+          // Silencioso: não quebra a tela se falhar em background.
+        });
     }, [refetchIsCurator])
   );
 

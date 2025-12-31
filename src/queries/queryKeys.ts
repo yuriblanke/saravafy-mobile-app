@@ -67,4 +67,9 @@ export const queryKeys = {
     pendingForInvitee: (normalizedEmail: string) =>
       ["terreiroInvites", "pendingForInvitee", normalizedEmail] as const,
   },
+  pontosSubmissions: {
+    pending: () => ["pontosSubmissions", "pending"] as const,
+    byId: (submissionId: string) =>
+      ["pontosSubmissions", "byId", submissionId] as const,
+  },
 } as const;

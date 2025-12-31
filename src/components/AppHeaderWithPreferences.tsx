@@ -923,6 +923,38 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               </Pressable>
             )}
 
+            {!shouldShowCurator ? null : (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setIsPreferencesOpen(false);
+                  router.push("/review-submissions" as any);
+                }}
+                style={({ pressed }) => [
+                  styles.prefActionRow,
+                  {
+                    borderColor: dividerColor,
+                    backgroundColor: inputBg,
+                  },
+                  pressed ? styles.prefActionRowPressed : null,
+                ]}
+              >
+                <View style={styles.prefActionLeft}>
+                  <Text
+                    style={[styles.prefActionTitle, { color: textPrimary }]}
+                  >
+                    Revisar envios
+                  </Text>
+                </View>
+
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={textSecondary}
+                />
+              </Pressable>
+            )}
+
             {!userId || !normalizedUserEmail ? null : pendingCuratorInvite ? (
               <View
                 style={[
