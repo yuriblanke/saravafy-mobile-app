@@ -863,17 +863,14 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               title={userDisplayName}
               subtitle={
                 shouldShowCurator ? (
-                  <Badge
-                    label={getGlobalRoleBadgeLabel("curator")}
-                    variant={variant}
-                    appearance="primary"
-                    style={{ maxWidth: 220 }}
-                  />
-                ) : null
-              }
-              rightAccessory={
-                shouldShowCurator ? (
-                  <>
+                  <View style={styles.profileBadgeToggleRow}>
+                    <Badge
+                      label={getGlobalRoleBadgeLabel("curator")}
+                      variant={variant}
+                      appearance="primary"
+                      style={{ maxWidth: 220 }}
+                    />
+
                     <Switch
                       value={curatorModeEnabled}
                       onValueChange={(next) => {
@@ -881,6 +878,12 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                       }}
                       disabled={curatorModeLoading || curatorModeSaving}
                     />
+                  </View>
+                ) : null
+              }
+              rightAccessory={
+                shouldShowCurator ? (
+                  <>
                     <AccessRoleInfo variant={variant} info={curatorModeInfo} />
                   </>
                 ) : null
@@ -1717,6 +1720,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  profileBadgeToggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+    width: "100%",
   },
   curatorInvitesCard: {
     borderRadius: 14,
