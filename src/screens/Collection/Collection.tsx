@@ -227,7 +227,10 @@ export default function Collection() {
 
   const openShare = useCallback(async () => {
     try {
-      const message = await buildShareMessageForColecao(title);
+      const message = await buildShareMessageForColecao({
+        collectionId,
+        collectionTitle: title,
+      });
       setShareMessage(message);
     } catch (e) {
       if (__DEV__) {
@@ -240,7 +243,7 @@ export default function Collection() {
     }
 
     setIsShareOpen(true);
-  }, [title]);
+  }, [collectionId, title]);
 
   const isLoading = collectionLoading || pontosLoading;
   const error = collectionError || pontosError;

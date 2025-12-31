@@ -3,41 +3,61 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Abrir no Saravafy</title>
+    <title>Saravafy</title>
     <link rel="stylesheet" href="/styles.css" />
     <script src="/config.js"></script>
   </head>
   <body>
     <main class="container">
-      <h1 id="pontoTitle">Carregando ponto…</h1>
-      <p id="subtitle" class="meta"></p>
-
+      <!-- 1) Card do ponto (conteúdo) -->
       <div class="card">
-        <div class="row">
+        <h1 id="pageTitle" class="ponto-title">Carregando…</h1>
+        <div id="tagsRow" class="tags-row" aria-label="Tags do ponto"></div>
+        <p id="lyricsPreview" class="lyrics-preview"></p>
+
+        <div id="listSection" class="list-section" style="display: none">
+          <h2 id="listTitle" class="list-title"></h2>
+          <div id="listItems" class="list-items"></div>
+        </div>
+      </div>
+
+      <!-- 2) Card “Use no app Saravafy” -->
+      <div class="card">
+        <h2 class="use-app-title">Use no app Saravafy</h2>
+
+        <p class="use-app-copy">
+          O Saravafy ainda não está disponível na Play Store porque é um projeto
+          cultural independente, mantido pela própria comunidade. Por isso, a
+          instalação acontece diretamente por aqui. O Android pode pedir uma
+          confirmação extra — é normal e acontece apenas uma vez.
+        </p>
+
+        <div class="actions">
           <button id="installBtn" class="btn-primary" disabled>
             Instalar app
           </button>
+
+          <p class="notice">
+            Após instalar, volte aqui e toque em “Abrir no app”.
+          </p>
+
           <button id="openBtn" class="btn-secondary" disabled>
             Abrir no app
           </button>
         </div>
-
-        <p class="notice">Se o app já estiver instalado, use “Abrir no app”.</p>
-
-        <p id="shortCode" class="meta"></p>
-
-        <p id="status" class="small"></p>
       </div>
     </main>
 
     <script>
       (function () {
-        const titleEl = document.getElementById("pontoTitle");
-        const subtitleEl = document.getElementById("subtitle");
+        const titleEl = document.getElementById("pageTitle");
+        const tagsRowEl = document.getElementById("tagsRow");
+        const lyricsPreviewEl = document.getElementById("lyricsPreview");
+        const listSectionEl = document.getElementById("listSection");
+        const listTitleEl = document.getElementById("listTitle");
+        const listItemsEl = document.getElementById("listItems");
         const installBtn = document.getElementById("installBtn");
         const openBtn = document.getElementById("openBtn");
-        const shortCodeEl = document.getElementById("shortCode");
-        const statusEl = document.getElementById("status");
 
         const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
         const anonKey = String(window.SARAVAFY_SUPABASE_ANON_KEY || "").trim();
@@ -90,17 +110,182 @@
           return out;
         }
 
-        function setStatus(text, variant) {
-          statusEl.textContent = text;
-          statusEl.className = "small" + (variant === "error" ? " error" : "");
+        function normalizeTag(value) {
+          try {
+            return String(value || "")
+              .trim()
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/\s+/g, " ");
+          } catch {
+            return String(value || "")
+              .trim()
+              .toLowerCase();
+          }
+        }
+
+        function isMediumTag(label) {
+          const n = normalizeTag(label);
+          return n.startsWith("medium:") || n.startsWith("medium ");
+        }
+
+        function coerceTags(value) {
+          if (Array.isArray(value)) {
+            return value.filter((v) => typeof v === "string" && v.trim());
+          }
+
+          if (typeof value === "string") {
+            return value
+              .split(/[,|]/g)
+              .map((t) => t.trim())
+              .filter(Boolean);
+          }
+
+          return [];
+        }
+
+        function getLyricsPreview(lyrics, maxLines) {
+          const max = typeof maxLines === "number" ? maxLines : 6;
+          const lines = String(lyrics || "")
+            .split("\n")
+            .map((l) => l.trim())
+            .filter(Boolean);
+          const previewLines = lines.slice(0, max);
+          const preview = previewLines.join("\n");
+          if (lines.length > max) {
+            return preview ? preview + "\n…" : "…";
+          }
+          return preview;
+        }
+
+        function clearPointContent() {
+          if (tagsRowEl) tagsRowEl.innerHTML = "";
+          if (lyricsPreviewEl) {
+            lyricsPreviewEl.textContent = "";
+            lyricsPreviewEl.style.display = "none";
+          }
+        }
+
+        function renderTags(tags) {
+          if (!tagsRowEl) return;
+          const arr = Array.isArray(tags) ? tags : [];
+          tagsRowEl.innerHTML = "";
+          if (arr.length === 0) return;
+
+          for (const tag of arr) {
+            const label = typeof tag === "string" ? tag.trim() : "";
+            if (!label) continue;
+
+            const chip = document.createElement("span");
+            chip.className =
+              "tag-chip" + (isMediumTag(label) ? " tag-chip--medium" : "");
+            chip.textContent = label;
+            tagsRowEl.appendChild(chip);
+          }
+        }
+
+        function renderLyricsPreview(lyrics) {
+          if (!lyricsPreviewEl) return;
+          const preview = getLyricsPreview(lyrics, 6);
+          if (!preview) {
+            lyricsPreviewEl.textContent = "";
+            lyricsPreviewEl.style.display = "none";
+            return;
+          }
+          lyricsPreviewEl.textContent = preview;
+          lyricsPreviewEl.style.display = "block";
+        }
+
+        function setListVisible(isVisible) {
+          if (!listSectionEl) return;
+          listSectionEl.style.display = isVisible ? "block" : "none";
+        }
+
+        function setListTitle(title) {
+          if (!listTitleEl) return;
+          listTitleEl.textContent = String(title || "").trim();
+          listTitleEl.style.display = listTitleEl.textContent ? "block" : "none";
+        }
+
+        function clearList() {
+          if (listItemsEl) listItemsEl.innerHTML = "";
+          setListVisible(false);
+          setListTitle("");
+        }
+
+        function renderSimpleList(items) {
+          if (!listItemsEl) return;
+          const arr = Array.isArray(items) ? items : [];
+          listItemsEl.innerHTML = "";
+          if (arr.length === 0) return;
+
+          for (const item of arr) {
+            if (!item || typeof item !== "object") continue;
+
+            const href = typeof item.href === "string" ? item.href : "";
+            const title = typeof item.title === "string" ? item.title : "";
+            const subtitle = typeof item.subtitle === "string" ? item.subtitle : "";
+            const tags = Array.isArray(item.tags) ? item.tags : [];
+            const preview = typeof item.preview === "string" ? item.preview : "";
+
+            if (!href || !title) continue;
+
+            const link = document.createElement("a");
+            link.className = "list-item";
+            link.href = href;
+
+            const t = document.createElement("div");
+            t.className = "list-item__title";
+            t.textContent = title;
+            link.appendChild(t);
+
+            if (subtitle) {
+              const s = document.createElement("div");
+              s.className = "list-item__subtitle";
+              s.textContent = subtitle;
+              link.appendChild(s);
+            }
+
+            if (Array.isArray(tags) && tags.length > 0) {
+              const tr = document.createElement("div");
+              tr.className = "tags-row";
+
+              for (const tag of tags) {
+                const label = typeof tag === "string" ? tag.trim() : "";
+                if (!label) continue;
+
+                const chip = document.createElement("span");
+                chip.className =
+                  "tag-chip" + (isMediumTag(label) ? " tag-chip--medium" : "");
+                chip.textContent = label;
+                tr.appendChild(chip);
+              }
+
+              link.appendChild(tr);
+            }
+
+            if (preview) {
+              const p = document.createElement("div");
+              p.className = "list-item__preview";
+              p.textContent = preview;
+              link.appendChild(p);
+            }
+
+            listItemsEl.appendChild(link);
+          }
         }
 
         function parseLink() {
           const path = String(window.location.pathname || "");
           const parts = path.split("/").filter(Boolean);
-          // Expected: /l/ponto/<uuid>
-          if (parts.length >= 3 && parts[0] === "l" && parts[1] === "ponto") {
-            return { tipo: "ponto", id: parts[2] };
+          // Expected: /l/<tipo>/<uuid>
+          if (parts.length >= 3 && parts[0] === "l") {
+            const tipo = parts[1];
+            const id = parts[2];
+            if (tipo === "ponto" || tipo === "colecao" || tipo === "terreiro") {
+              return { tipo, id };
+            }
           }
           return null;
         }
@@ -151,10 +336,12 @@
           return value;
         }
 
-        async function fetchPontoTitle(pontoId) {
+        async function fetchPontoData(pontoId) {
           if (!supabaseUrl || !anonKey) {
             return {
               title: null,
+              tags: [],
+              lyrics: "",
               reason: "Config do Supabase ausente na landing.",
             };
           }
@@ -165,7 +352,7 @@
           // Important: PostgREST interpreta query params como filtros.
           // Evite cache-buster como `&<timestamp>` ou `&t=<timestamp>` (gera PGRST100).
           url.search = new URLSearchParams({
-            select: "title,artist",
+            select: "title,artist,lyrics,tags",
             id: `eq.${pontoId}`,
             is_active: "eq.true",
             restricted: "eq.false",
@@ -189,6 +376,8 @@
           if (!res.ok) {
             return {
               title: null,
+              tags: [],
+              lyrics: "",
               reason: "Falha ao buscar o ponto (HTTP " + res.status + ")",
             };
           }
@@ -197,10 +386,227 @@
           const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
           const title =
             row && typeof row.title === "string" ? row.title.trim() : "";
-          const artist =
-            row && typeof row.artist === "string" ? row.artist.trim() : "";
-          const fullTitle = [title, artist].filter(Boolean).join(" — ");
-          return { title: fullTitle || null, reason: null };
+          const tags = row ? coerceTags(row.tags) : [];
+          const lyrics =
+            row && typeof row.lyrics === "string" ? row.lyrics : "";
+          return { title: title || null, tags, lyrics, reason: null };
+        }
+
+        async function fetchTerreiroData(terreiroId) {
+          if (!supabaseUrl || !anonKey) {
+            return { title: null, reason: "Config do Supabase ausente na landing." };
+          }
+
+          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/terreiros";
+          const url = new URL(base);
+          url.search = new URLSearchParams({
+            select: "title",
+            id: `eq.${terreiroId}`,
+            limit: "1",
+          }).toString();
+
+          const res = await fetch(url.toString(), {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Accept: "application/json",
+            },
+          });
+
+          if (!res.ok) {
+            return {
+              title: null,
+              reason: "Falha ao buscar o terreiro (HTTP " + res.status + ")",
+            };
+          }
+
+          const data = await res.json();
+          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          const title =
+            row && typeof row.title === "string" ? row.title.trim() : "";
+          return { title: title || null, reason: null };
+        }
+
+        async function fetchColecaoData(collectionId) {
+          if (!supabaseUrl || !anonKey) {
+            return { title: null, reason: "Config do Supabase ausente na landing." };
+          }
+
+          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections";
+          const url = new URL(base);
+          url.search = new URLSearchParams({
+            select: "title",
+            id: `eq.${collectionId}`,
+            visibility: "eq.public",
+            limit: "1",
+          }).toString();
+
+          const res = await fetch(url.toString(), {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Accept: "application/json",
+            },
+          });
+
+          if (!res.ok) {
+            return {
+              title: null,
+              reason: "Falha ao buscar a coleção (HTTP " + res.status + ")",
+            };
+          }
+
+          const data = await res.json();
+          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+          const title =
+            row && typeof row.title === "string" ? row.title.trim() : "";
+          return { title: title || null, reason: null };
+        }
+
+        async function fetchColecoesByTerreiro(terreiroId) {
+          if (!supabaseUrl || !anonKey) {
+            return { items: [], reason: "Config do Supabase ausente na landing." };
+          }
+
+          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections";
+          const url = new URL(base);
+          url.search = new URLSearchParams({
+            select: "id,title",
+            owner_terreiro_id: `eq.${terreiroId}`,
+            visibility: "eq.public",
+            order: "title.asc",
+          }).toString();
+
+          const res = await fetch(url.toString(), {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Accept: "application/json",
+            },
+          });
+
+          if (!res.ok) {
+            return {
+              items: [],
+              reason: "Falha ao buscar coleções (HTTP " + res.status + ")",
+            };
+          }
+
+          const data = await res.json();
+          const rows = Array.isArray(data) ? data : [];
+
+          const items = rows
+            .map((r) => ({
+              id: r && typeof r.id === "string" ? r.id : "",
+              title: r && typeof r.title === "string" ? r.title : "",
+            }))
+            .filter((r) => isUuid(r.id));
+
+          return { items, reason: null };
+        }
+
+        async function fetchPontosByColecao(collectionId) {
+          if (!supabaseUrl || !anonKey) {
+            return { items: [], reason: "Config do Supabase ausente na landing." };
+          }
+
+          const baseCp = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections_pontos";
+          const urlCp = new URL(baseCp);
+          urlCp.search = new URLSearchParams({
+            select: "ponto_id,position",
+            collection_id: `eq.${collectionId}`,
+            order: "position.asc",
+          }).toString();
+
+          const resCp = await fetch(urlCp.toString(), {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Accept: "application/json",
+            },
+          });
+
+          if (!resCp.ok) {
+            return {
+              items: [],
+              reason: "Falha ao buscar pontos (HTTP " + resCp.status + ")",
+            };
+          }
+
+          const dataCp = await resCp.json();
+          const links = Array.isArray(dataCp) ? dataCp : [];
+          const pontoIds = links
+            .map((r) => (r && typeof r.ponto_id === "string" ? r.ponto_id : ""))
+            .filter((id) => isUuid(id));
+
+          if (pontoIds.length === 0) {
+            return { items: [], reason: null };
+          }
+
+          const baseP = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/pontos";
+          const urlP = new URL(baseP);
+          urlP.search = new URLSearchParams({
+            select: "id,title,lyrics,tags",
+            id: `in.(${pontoIds.join(",")})`,
+            is_active: "eq.true",
+            restricted: "eq.false",
+          }).toString();
+
+          const resP = await fetch(urlP.toString(), {
+            method: "GET",
+            cache: "no-store",
+            headers: {
+              apikey: anonKey,
+              Authorization: "Bearer " + anonKey,
+              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+              Pragma: "no-cache",
+              Accept: "application/json",
+            },
+          });
+
+          if (!resP.ok) {
+            return {
+              items: [],
+              reason: "Falha ao buscar dados dos pontos (HTTP " + resP.status + ")",
+            };
+          }
+
+          const dataP = await resP.json();
+          const rows = Array.isArray(dataP) ? dataP : [];
+
+          const byId = new Map();
+          for (const r of rows) {
+            const id = r && typeof r.id === "string" ? r.id : "";
+            if (!isUuid(id)) continue;
+            byId.set(id, {
+              id,
+              title: typeof r.title === "string" ? r.title : "",
+              tags: coerceTags(r.tags),
+              lyrics: typeof r.lyrics === "string" ? r.lyrics : "",
+            });
+          }
+
+          const items = pontoIds
+            .map((id) => byId.get(id))
+            .filter(Boolean);
+
+          return { items, reason: null };
         }
 
         const installDefaultLabel = installBtn.textContent || "Instalar app";
@@ -221,38 +627,33 @@
         }
 
         async function refreshInstallAvailability() {
-          setStatus("Carregando link de instalação…");
-
           try {
             const installUrl = await getInstallUrl();
             if (installUrl) {
               setInstallEnabled(true);
-              setStatus("Pronto para instalar.");
               return;
             }
 
             setInstallEnabled(false);
             installBtn.textContent = "Disponível em breve";
-            setStatus("Link de instalação indisponível.", "error");
           } catch {
             setInstallEnabled(false);
             installBtn.textContent = "Disponível em breve";
-            setStatus("Erro ao buscar o link de instalação.", "error");
           }
         }
 
         const parsed = parseLink();
 
         if (!parsed || !isUuid(parsed.id)) {
-          subtitleEl.textContent = "Link inválido.";
-          titleEl.textContent = "Não foi possível abrir este ponto.";
-          setStatus("Link inválido.", "error");
+          titleEl.textContent = "Não foi possível abrir este link.";
+          clearPointContent();
+          clearList();
           installBtn.disabled = true;
           openBtn.disabled = true;
           return;
         }
 
-        function buildOpenUrl(scheme, pontoId) {
+        function buildOpenUrl(scheme, tipo, id) {
           const raw = String(scheme || "").trim() || "saravafy://";
 
           let base = raw;
@@ -270,24 +671,20 @@
             base = base.replace(/\/+$/, "") + "://";
           }
 
-          const path = "l/ponto/" + pontoId;
+          const path = "l/" + String(tipo || "").trim() + "/" + id;
 
           if (base.endsWith("://")) return base + path;
           return base.replace(/\/+$/, "") + "/" + path;
         }
 
-        const openUrl = buildOpenUrl(appScheme, parsed.id);
-
-        subtitleEl.textContent = "UUID: " + parsed.id;
+        const openUrl = buildOpenUrl(appScheme, parsed.tipo, parsed.id);
         openBtn.disabled = false;
 
-        const shortCode = base32CrockfordEncode(uuidToBytes(parsed.id));
-        shortCodeEl.textContent = "Código: " + shortCode;
+        // Mantém o código curto calculado internamente (não exibido na UI pública).
+        const _shortCode = base32CrockfordEncode(uuidToBytes(parsed.id));
+        void _shortCode;
 
         openBtn.addEventListener("click", function () {
-          if (hasSupabaseConfig) {
-            setStatus("Abrindo…");
-          }
           window.location.href = openUrl;
         });
 
@@ -301,20 +698,17 @@
 
           // Always refetch on click to ensure the freshest install URL.
           setInstallBusy(true);
-          setStatus("Buscando link de instalação…");
 
           try {
             const installUrl = await getInstallUrl();
             if (installUrl) {
-              setStatus("Redirecionando…");
               window.location.href = installUrl;
               return;
             }
 
             installBtn.textContent = "Disponível em breve";
-            setStatus("Link de instalação indisponível.", "error");
           } catch {
-            setStatus("Erro ao buscar o link de instalação.", "error");
+            installBtn.textContent = "Disponível em breve";
           } finally {
             setInstallBusy(false);
           }
@@ -322,10 +716,10 @@
 
         if (!hasSupabaseConfig) {
           // Dev fallback (opção C): não inicializa/faz fetch no Supabase.
-          titleEl.textContent = "Ponto do Saravafy";
+          titleEl.textContent = "Saravafy";
           installBtn.disabled = true;
-          statusEl.textContent = "";
-          statusEl.style.display = "none";
+          clearPointContent();
+          clearList();
           return;
         }
 
@@ -333,17 +727,66 @@
 
         void (async function () {
           try {
-            const result = await fetchPontoTitle(parsed.id);
-            if (result.title) {
-              titleEl.textContent = result.title;
+            clearPointContent();
+            clearList();
+
+            if (parsed.tipo === "ponto") {
+              const result = await fetchPontoData(parsed.id);
+              if (!result || typeof result !== "object") {
+                titleEl.textContent = "Abrir ponto";
+                clearPointContent();
+                return;
+              }
+
+              titleEl.textContent = result.title ? result.title : "Abrir ponto";
+              renderTags(result.tags);
+              renderLyricsPreview(result.lyrics);
               return;
             }
-            titleEl.textContent = "Abrir ponto";
-            if (result.reason) {
-              setStatus(result.reason, "error");
+
+            if (parsed.tipo === "terreiro") {
+              titleEl.textContent = "Abrir terreiro";
+              const t = await fetchTerreiroData(parsed.id);
+              if (t && t.title) {
+                titleEl.textContent = t.title;
+              }
+
+              const collections = await fetchColecoesByTerreiro(parsed.id);
+              setListVisible(true);
+              setListTitle("Coleções");
+              renderSimpleList(
+                (collections.items || []).map((c) => ({
+                  href: "/l/colecao/" + c.id,
+                  title: c.title || "Coleção",
+                }))
+              );
+              return;
+            }
+
+            if (parsed.tipo === "colecao") {
+              titleEl.textContent = "Abrir coleção";
+              const c = await fetchColecaoData(parsed.id);
+              if (c && c.title) {
+                titleEl.textContent = c.title;
+              }
+
+              const pontos = await fetchPontosByColecao(parsed.id);
+              setListVisible(true);
+              setListTitle("Pontos");
+              renderSimpleList(
+                (pontos.items || []).map((p) => ({
+                  href: "/l/ponto/" + p.id,
+                  title: p.title || "Ponto",
+                  tags: p.tags,
+                  preview: getLyricsPreview(p.lyrics, 3),
+                }))
+              );
+              return;
             }
           } catch {
-            titleEl.textContent = "Abrir ponto";
+            titleEl.textContent = "Saravafy";
+            clearPointContent();
+            clearList();
           }
         })();
       })();

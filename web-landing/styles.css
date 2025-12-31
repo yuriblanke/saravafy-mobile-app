@@ -148,6 +148,15 @@ h1 {
   font-weight: 900;
 }
 
+h2 {
+  font-size: 16px;
+  margin: 0 0 8px;
+  line-height: 1.2;
+  letter-spacing: 0.1px;
+  font-weight: 900;
+  color: var(--text-primary);
+}
+
 p {
   margin: 8px 0;
   color: var(--text-secondary);
@@ -167,6 +176,126 @@ p {
   padding: 16px;
   margin-top: 16px;
   box-shadow: var(--card-shadow);
+}
+
+.ponto-title {
+  font-size: 17px;
+  font-weight: 800;
+  margin: 0 0 10px;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+}
+
+.tags-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1px;
+  border: 1px solid var(--btn-border);
+  background: var(--btn-secondary-bg);
+  color: var(--text-primary);
+}
+
+.tag-chip--medium {
+  background: var(--brass600);
+  border-color: var(--brass600);
+  color: var(--paper50);
+}
+
+.lyrics-preview {
+  margin: 0;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--text-secondary);
+  white-space: pre-line;
+}
+
+.use-app-title {
+  margin-bottom: 8px;
+}
+
+.use-app-copy {
+  margin-top: 0;
+  color: var(--text-secondary);
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.actions button {
+  width: 100%;
+}
+
+.list-section {
+  margin-top: 14px;
+}
+
+.list-title {
+  margin: 0 0 10px;
+}
+
+.list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.list-item {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  border-radius: 16px;
+  border: 1px solid var(--btn-border);
+  background: rgba(243, 239, 233, 0.55);
+  padding: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .list-item {
+    background: rgba(18, 51, 45, 0.52);
+  }
+}
+
+.list-item:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.list-item__title {
+  font-size: 15px;
+  font-weight: 900;
+  color: var(--text-primary);
+  line-height: 1.25;
+  letter-spacing: 0.1px;
+}
+
+.list-item__subtitle {
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.list-item__preview {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  white-space: pre-line;
 }
 
 .row {

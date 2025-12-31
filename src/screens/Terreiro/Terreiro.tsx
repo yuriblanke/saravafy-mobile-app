@@ -70,7 +70,10 @@ export default function Terreiro() {
     setIsTerreiroMenuOpen(false);
 
     try {
-      const message = await buildShareMessageForTerreiro(terreiroName);
+      const message = await buildShareMessageForTerreiro({
+        terreiroId: resolvedTerreiroId,
+        terreiroName,
+      });
       setShareMessage(message);
     } catch (e) {
       if (__DEV__) {
@@ -83,7 +86,7 @@ export default function Terreiro() {
     }
 
     setIsShareOpen(true);
-  }, [terreiroName]);
+  }, [resolvedTerreiroId, terreiroName]);
 
   const terreiroId = resolvedTerreiroId;
   const membershipQuery = useTerreiroMembershipStatus(terreiroId);

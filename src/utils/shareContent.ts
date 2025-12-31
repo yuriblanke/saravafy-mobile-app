@@ -1,8 +1,11 @@
 import * as Clipboard from "expo-clipboard";
 import { Share } from "react-native";
 
-import { buildPublicPontoUrl } from "@/src/config/links";
-import { pontoIdToCode } from "@/src/utils/pontoCode";
+import {
+  buildPublicColecaoUrl,
+  buildPublicPontoUrl,
+  buildPublicTerreiroUrl,
+} from "@/src/config/links";
 
 function sanitizeTitle(value: string, fallback: string) {
   const trimmed = (value ?? "").trim();
@@ -15,23 +18,26 @@ export function buildShareMessageForPonto(params: {
 }) {
   const safeTitle = sanitizeTitle(params.pontoTitle, "Ponto");
   const url = buildPublicPontoUrl(params.pontoId);
-  const code = pontoIdToCode(params.pontoId);
 
-  return (
-    `Olha esse ponto “${safeTitle}” no Saravafy.\n\n` +
-    `${url}\n\n` +
-    `Código: ${code}`
-  );
+  return `Olha esse ponto “${safeTitle}” no Saravafy.\n\n${url}`;
 }
 
-export async function buildShareMessageForColecao(collectionTitle: string) {
-  const safeTitle = sanitizeTitle(collectionTitle, "Coleção");
-  return `Olha essa coleção “${safeTitle}” no Saravafy.`;
+export async function buildShareMessageForColecao(params: {
+  collectionId: string;
+  collectionTitle: string;
+}) {
+  const safeTitle = sanitizeTitle(params.collectionTitle, "Coleção");
+  const url = buildPublicColecaoUrl(params.collectionId);
+  return `Olha essa coleção “${safeTitle}” no Saravafy.\n\n${url}`;
 }
 
-export async function buildShareMessageForTerreiro(terreiroName: string) {
-  const safeName = sanitizeTitle(terreiroName, "Terreiro");
-  return `Olha o terreiro “${safeName}” no Saravafy.`;
+export async function buildShareMessageForTerreiro(params: {
+  terreiroId: string;
+  terreiroName: string;
+}) {
+  const safeName = sanitizeTitle(params.terreiroName, "Terreiro");
+  const url = buildPublicTerreiroUrl(params.terreiroId);
+  return `Olha o terreiro “${safeName}” no Saravafy.\n\n${url}`;
 }
 
 export async function copyMessage(
