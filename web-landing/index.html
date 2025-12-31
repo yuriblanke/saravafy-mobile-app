@@ -113,7 +113,8 @@
           if (!supabaseUrl || !anonKey) return null;
 
           const endpointBase =
-            supabaseUrl.replace(/\/+$/, "") + "/rest/v1/rpc/get_app_install_url";
+            supabaseUrl.replace(/\/+$/, "") +
+            "/rest/v1/rpc/get_app_install_url";
 
           // Cache-buster to defeat intermediary caches.
           const endpoint = endpointBase + "?t=" + Date.now();

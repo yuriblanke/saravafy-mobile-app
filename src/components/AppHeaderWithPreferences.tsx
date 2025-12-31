@@ -890,7 +890,10 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                         appearance="primary"
                         style={{ maxWidth: 220 }}
                       />
-                      <AccessRoleInfo variant={variant} info={curatorModeInfo} />
+                      <AccessRoleInfo
+                        variant={variant}
+                        info={curatorModeInfo}
+                      />
                     </View>
 
                     <View style={styles.profileBadgeRight}>
