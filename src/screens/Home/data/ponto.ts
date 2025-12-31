@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 export type Ponto = {
   id: string;
   title: string;
+  artist?: string | null;
   tags: string[];
   lyrics: string;
 };
@@ -28,7 +29,7 @@ function coerceTags(value: unknown): string[] {
 export async function fetchAllPontos(): Promise<Ponto[]> {
   const { data, error } = await supabase
     .from(PONTOS_TABLE)
-    .select("id, title, lyrics, tags")
+    .select("id, title, artist, lyrics, tags")
     .eq("is_active", true)
     .eq("restricted", false)
     .order("title", { ascending: true });
@@ -48,6 +49,7 @@ export async function fetchAllPontos(): Promise<Ponto[]> {
   return (data ?? []).map((row: any) => ({
     id: row.id,
     title: row.title,
+    artist: typeof row.artist === "string" ? row.artist : null,
     tags: coerceTags(row.tags),
     lyrics: row.lyrics,
   }));

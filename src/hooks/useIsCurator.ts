@@ -3,7 +3,11 @@ import { supabase } from "@/lib/supabase";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { useQuery } from "@tanstack/react-query";
 
-export function useIsCurator(): { isCurator: boolean; isLoading: boolean } {
+export function useIsCurator(): {
+  isCurator: boolean;
+  isLoading: boolean;
+  refetch: () => Promise<unknown>;
+} {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
@@ -12,7 +16,11 @@ export function useIsCurator(): { isCurator: boolean; isLoading: boolean } {
       ? queryKeys.globalRoles.isCurator(userId)
       : ["globalRoles", "curator", null],
     enabled: !!userId,
-    staleTime: 60_000,
+    staleTime: 0,
+    gcTime: 30_000,
+    refetchOnMount: "always",
+    refetchOnReconnect: true,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       if (!userId) return false;
 
@@ -34,7 +42,11 @@ export function useIsCurator(): { isCurator: boolean; isLoading: boolean } {
   });
 
   return {
-    isCurator: !!q.data,
+    isCurator: q.isError ? false : !!q.data,
     isLoading: q.isLoading,
+    refetch: async () => {
+      const res = await q.refetch();
+      return res;
+    },
   };
 }

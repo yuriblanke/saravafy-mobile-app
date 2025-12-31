@@ -15,6 +15,7 @@ import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, {
@@ -92,9 +93,9 @@ export default function Home() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const { isCurator } = useIsCurator();
+  const { isCurator, refetch: refetchIsCurator } = useIsCurator();
   const { curatorModeEnabled } = useCuratorMode();
-  const canEditPontos = !!userId && isCurator && curatorModeEnabled;
+  const canEditPontos = !!userId && isCurator && curatorModeEnabled === true;
   const router = useRouter();
   const queryClient = useQueryClient();
   const rootPager = useRootPager();
@@ -157,12 +158,19 @@ export default function Home() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      void refetchIsCurator();
+    }, [refetchIsCurator])
+  );
+
   const editingInitialValues: PontoUpsertInitialValues | undefined =
     useMemo(() => {
       if (!editingPonto) return undefined;
       return {
         id: editingPonto.id,
         title: editingPonto.title,
+        artist: editingPonto.artist ?? null,
         lyrics: editingPonto.lyrics,
         tags: editingPonto.tags,
       };
@@ -602,6 +610,17 @@ export default function Home() {
                         ) : null}
                       </View>
                     </View>
+
+                    {item.artist ? (
+                      <Text
+                        style={[styles.cardAuthor, { color: textSecondary }]}
+                        numberOfLines={1}
+                        ellipsizeMode="tail"
+                      >
+                        {item.artist}
+                      </Text>
+                    ) : null}
+
                     <View style={styles.tagsRow}>
                       {item.tags.map((tag) => (
                         <TagChip key={tag} label={tag} variant={variant} />
@@ -1035,6 +1054,7 @@ export default function Home() {
                 ? {
                     ...p,
                     title: updated.title,
+                    artist: updated.artist ?? null,
                     lyrics: updated.lyrics,
                     tags: updated.tags,
                   }
@@ -1177,6 +1197,11 @@ const styles = StyleSheet.create({
     color: colors.textPrimaryOnLight,
     marginBottom: spacing.sm,
     letterSpacing: 0.2,
+  },
+  cardAuthor: {
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: spacing.sm,
   },
   tagsRow: {
     flexDirection: "row",

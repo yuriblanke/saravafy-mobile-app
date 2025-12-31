@@ -1,6 +1,6 @@
+import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import {
@@ -62,7 +62,7 @@ export default function PlayerScreen() {
 
   const { isCurator } = useIsCurator();
   const { curatorModeEnabled } = useCuratorMode();
-  const canEditPontos = isCurator && curatorModeEnabled;
+  const canEditPontos = isCurator && curatorModeEnabled === true;
 
   const source = typeof params.source === "string" ? params.source : null;
   const searchQuery = typeof params.q === "string" ? params.q : "";
@@ -101,7 +101,7 @@ export default function PlayerScreen() {
 
   const { items, isLoading, error, isEmpty, reload, patchPontoById } =
     useCollectionPlayerData(
-    source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
+      source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
     );
 
   const membership = useTerreiroMembershipStatus(terreiroId);
@@ -159,15 +159,17 @@ export default function PlayerScreen() {
 
   const activePonto = items[activeIndex]?.ponto ?? null;
 
-  const editingInitialValues: PontoUpsertInitialValues | undefined = useMemo(() => {
-    if (!activePonto?.id) return undefined;
-    return {
-      id: activePonto.id,
-      title: activePonto.title,
-      lyrics: activePonto.lyrics,
-      tags: activePonto.tags,
-    };
-  }, [activePonto]);
+  const editingInitialValues: PontoUpsertInitialValues | undefined =
+    useMemo(() => {
+      if (!activePonto?.id) return undefined;
+      return {
+        id: activePonto.id,
+        title: activePonto.title,
+        artist: activePonto.artist ?? null,
+        lyrics: activePonto.lyrics,
+        tags: activePonto.tags,
+      };
+    }, [activePonto]);
 
   const openShare = useCallback(async () => {
     const title = activePonto?.title ?? "";

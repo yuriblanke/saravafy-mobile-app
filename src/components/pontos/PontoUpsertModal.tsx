@@ -20,6 +20,7 @@ export type PontoUpsertMode = "create" | "edit";
 export type PontoUpsertInitialValues = {
   id: string;
   title: string;
+  artist?: string | null;
   lyrics: string;
   tags: readonly string[];
 };
@@ -33,6 +34,7 @@ type Props = {
   onSuccess?: (result?: {
     id: string;
     title: string;
+    artist?: string | null;
     lyrics: string;
     tags: string[];
   }) => void;
@@ -69,6 +71,7 @@ export function PontoUpsertModal({
   const { showToast } = useToast();
 
   const [title, setTitle] = useState("");
+  const [artist, setArtist] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [tagsText, setTagsText] = useState("");
 
@@ -101,6 +104,9 @@ export function PontoUpsertModal({
 
     if (mode === "edit" && initialValues) {
       setTitle(initialValues.title ?? "");
+      setArtist(
+        typeof initialValues.artist === "string" ? initialValues.artist : ""
+      );
       setLyrics(initialValues.lyrics ?? "");
       setTagsText((initialValues.tags ?? []).join(", "));
       return;
@@ -108,6 +114,7 @@ export function PontoUpsertModal({
 
     if (mode === "create") {
       setTitle("");
+      setArtist("");
       setLyrics("");
       setTagsText("");
     }
@@ -129,6 +136,7 @@ export function PontoUpsertModal({
     setIsSubmitting(true);
     try {
       const tags = tagsText.trim() ? parseTagsInput(tagsText) : [];
+      const artistValue = artist.trim() ? artist.trim() : null;
 
       if (mode === "create") {
         await createPontoSubmission({
@@ -148,11 +156,12 @@ export function PontoUpsertModal({
         .from("pontos")
         .update({
           title: title.trim(),
+          artist: artistValue,
           lyrics: lyrics.trim(),
           tags,
         })
         .eq("id", pontoId)
-        .select("id, title, lyrics, tags")
+        .select("id, title, artist, lyrics, tags")
         .single();
 
       if (res.error) {
@@ -167,6 +176,7 @@ export function PontoUpsertModal({
       const updated = {
         id: String(row.id ?? pontoId),
         title: typeof row.title === "string" ? row.title : title.trim(),
+        artist: typeof row.artist === "string" ? row.artist : artistValue,
         lyrics: typeof row.lyrics === "string" ? row.lyrics : lyrics.trim(),
         tags: Array.isArray(row.tags)
           ? row.tags.filter((v: any) => typeof v === "string")
@@ -223,6 +233,26 @@ export function PontoUpsertModal({
               value={title}
               onChangeText={setTitle}
               placeholder="Ex: Ponto de Ogum"
+              placeholderTextColor={textSecondary}
+              style={[
+                styles.input,
+                {
+                  backgroundColor: inputBg,
+                  borderColor: inputBorder,
+                  color: textPrimary,
+                },
+              ]}
+              autoCapitalize="sentences"
+              autoCorrect
+              editable={!isSubmitting}
+              returnKeyType="next"
+            />
+
+            <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
+            <TextInput
+              value={artist}
+              onChangeText={setArtist}
+              placeholder=""
               placeholderTextColor={textSecondary}
               style={[
                 styles.input,

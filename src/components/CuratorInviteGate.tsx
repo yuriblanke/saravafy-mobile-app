@@ -82,7 +82,7 @@ export function CuratorInviteGate() {
   const userEmail = typeof user?.email === "string" ? user.email : null;
   const normalizedUserEmail = userEmail ? normalizeEmail(userEmail) : null;
 
-  const { isCurator } = useIsCurator();
+  const { isCurator, refetch: refetchIsCurator } = useIsCurator();
 
   const [currentInvite, setCurrentInvite] = useState<CuratorInvite | null>(
     null
@@ -429,6 +429,8 @@ export function CuratorInviteGate() {
         });
       }
 
+      void refetchIsCurator();
+
       showToast(`Agora você é ${roleLabel}.`);
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
@@ -513,6 +515,8 @@ export function CuratorInviteGate() {
           queryKey: queryKeys.globalRoles.isCurator(userId),
         });
       }
+
+      void refetchIsCurator();
 
       showToast("Convite recusado.");
     } catch (e) {

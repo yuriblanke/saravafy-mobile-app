@@ -235,7 +235,11 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const userEmail = typeof user?.email === "string" ? user.email : null;
   const normalizedUserEmail = userEmail ? userEmail.trim().toLowerCase() : null;
 
-  const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
+  const {
+    isCurator,
+    isLoading: isCuratorLoading,
+    refetch: refetchIsCurator,
+  } = useIsCurator();
 
   const {
     curatorModeEnabled,
@@ -247,6 +251,11 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const { isDevMaster } = useIsDevMaster();
 
   const shouldShowCurator = !isCuratorLoading && isCurator;
+
+  useEffect(() => {
+    if (!isPreferencesOpen) return;
+    void refetchIsCurator();
+  }, [isPreferencesOpen, refetchIsCurator]);
 
   const curatorModeInfo = useMemo(() => {
     return {
@@ -464,6 +473,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
         queryKey: queryKeys.globalRoles.isCurator(userId),
       });
 
+      void refetchIsCurator();
+
       showToast(`Agora você é ${getGlobalRoleBadgeLabel("curator")}.`);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
@@ -508,6 +519,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
       queryClient.invalidateQueries({
         queryKey: queryKeys.globalRoles.isCurator(userId),
       });
+
+      void refetchIsCurator();
 
       showToast("Convite recusado.");
     } catch (e) {

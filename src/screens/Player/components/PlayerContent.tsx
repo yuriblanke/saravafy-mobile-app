@@ -31,6 +31,12 @@ export function PlayerContent(props: {
         {ponto.title}
       </Text>
 
+      {ponto.artist ? (
+        <Text style={[styles.author, { color: textSecondary }]} numberOfLines={1}>
+          {ponto.artist}
+        </Text>
+      ) : null}
+
       {hasAnyTags ? (
         <View style={styles.tagsWrap}>
           {mergedTags.custom.map((t) => (
@@ -73,6 +79,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 22,
+  },
+  author: {
+    paddingTop: spacing.xs,
+    fontSize: 12,
+    fontWeight: "600",
   },
   tagsWrap: {
     flexDirection: "row",

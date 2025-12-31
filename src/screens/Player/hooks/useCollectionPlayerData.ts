@@ -20,6 +20,7 @@ export type CollectionPlayerItem = {
 export type PatchablePontoFields = {
   id: string;
   title: string;
+  artist?: string | null;
   lyrics: string;
   tags: string[];
 };
@@ -247,6 +248,10 @@ export function useCollectionPlayerData(
               ponto: {
                 ...it.ponto,
                 title: updated.title,
+                artist:
+                  typeof updated.artist === "string" || updated.artist === null
+                    ? updated.artist
+                    : it.ponto.artist ?? null,
                 lyrics: updated.lyrics,
                 tags: updated.tags,
               },
