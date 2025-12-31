@@ -361,7 +361,7 @@ export default function Home() {
             accessibilityLabel="Enviar ponto"
             onPress={() => {
               if (!user) {
-                router.push("/login");
+                router.replace("/login");
                 return;
               }
               setSubmitModalVisible(true);

@@ -112,7 +112,10 @@ export function AppTabSwipeOverlay() {
   // Desabilita overlay no player (swipe de música tem prioridade)
   // e quando algum bottom sheet está aberto (o TabView já bloqueia swipe nesse estado).
   const isPlayerActive = pathname === "/player";
-  const isOverlayDisabled = isPlayerActive || !!rootPager?.isBottomSheetOpen;
+  const isModalActive =
+    pathname === "/terreiro-editor" || pathname === "/access-manager";
+  const isOverlayDisabled =
+    isPlayerActive || isModalActive || !!rootPager?.isBottomSheetOpen;
 
   const activeTab: TabKey =
     pathname === "/" ? rootPager.activeKey : inferTabFromPathname(pathname);

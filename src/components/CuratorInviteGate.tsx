@@ -105,10 +105,6 @@ export function CuratorInviteGate() {
       : (["curatorInvites", "pendingForInvitee", null] as const);
   }, [normalizedUserEmail]);
 
-  const devMasterPendingPrefixKey = useMemo(() => {
-    return queryKeys.curatorInvites.pendingPrefix();
-  }, []);
-
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
@@ -333,7 +329,9 @@ export function CuratorInviteGate() {
       if (inviteId && createdAt) {
         const prev = currentInviteRef.current;
         const shouldSet =
-          !prev || prev.id !== inviteId || prev.status !== (statusRaw || "pending");
+          !prev ||
+          prev.id !== inviteId ||
+          prev.status !== (statusRaw || "pending");
 
         if (shouldSet) {
           setCurrentInvite({
@@ -378,12 +376,40 @@ export function CuratorInviteGate() {
 
     setIsProcessing(true);
     try {
-      const res: any = await supabase.rpc("accept_curator_invite", {
-        invite_id: currentInvite.id,
-      });
+      const payload = { p_invite_id: currentInvite.id };
+      const res: any = await supabase.rpc("accept_curator_invite", payload);
 
-      if (res.error) {
-        throw new Error(res.error.message);
+      if (__DEV__) {
+        console.info("[CuratorInviteGate] accept rpc", {
+          inviteId: currentInvite.id,
+          payload,
+          data: res?.data,
+          dataType: typeof res?.data,
+          hasError: !!res?.error,
+        });
+      }
+
+      if (res?.error) {
+        if (__DEV__) {
+          console.error("[CuratorInviteGate] accept rpc error", {
+            inviteId: currentInvite.id,
+            message: res.error?.message,
+            details: res.error?.details,
+            hint: res.error?.hint,
+            code: res.error?.code,
+          });
+        }
+        throw res.error;
+      }
+
+      if (res?.data === false) {
+        if (__DEV__) {
+          console.warn("[CuratorInviteGate] accept rpc returned false", {
+            inviteId: currentInvite.id,
+            data: res.data,
+          });
+        }
+        throw new Error("accept_curator_invite returned false");
       }
 
       setIsModalVisible(false);
@@ -392,10 +418,9 @@ export function CuratorInviteGate() {
       setShouldOpenModalWhenReady(false);
 
       // Explicit invalidations (avoid waiting for realtime)
-      queryClient.invalidateQueries({ queryKey: pendingInviteQueryKey, exact: true });
       queryClient.invalidateQueries({
-        queryKey: devMasterPendingPrefixKey,
-        exact: false,
+        queryKey: pendingInviteQueryKey,
+        exact: true,
       });
 
       if (userId) {
@@ -407,6 +432,16 @@ export function CuratorInviteGate() {
       showToast(`Agora você é ${roleLabel}.`);
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
+      if (__DEV__) {
+        console.error("[CuratorInviteGate] accept failed", {
+          inviteId: currentInvite?.id,
+          message,
+          details: (e as any)?.details,
+          hint: (e as any)?.hint,
+          code: (e as any)?.code,
+          raw: e,
+        });
+      }
       const friendly = getFriendlyActionError(message);
       showToast(friendly);
     } finally {
@@ -414,7 +449,6 @@ export function CuratorInviteGate() {
     }
   }, [
     currentInvite,
-    devMasterPendingPrefixKey,
     pendingInviteQueryKey,
     queryClient,
     roleLabel,
@@ -427,12 +461,40 @@ export function CuratorInviteGate() {
 
     setIsProcessing(true);
     try {
-      const res: any = await supabase.rpc("reject_curator_invite", {
-        invite_id: currentInvite.id,
-      });
+      const payload = { p_invite_id: currentInvite.id };
+      const res: any = await supabase.rpc("reject_curator_invite", payload);
 
-      if (res.error) {
-        throw new Error(res.error.message);
+      if (__DEV__) {
+        console.info("[CuratorInviteGate] reject rpc", {
+          inviteId: currentInvite.id,
+          payload,
+          data: res?.data,
+          dataType: typeof res?.data,
+          hasError: !!res?.error,
+        });
+      }
+
+      if (res?.error) {
+        if (__DEV__) {
+          console.error("[CuratorInviteGate] reject rpc error", {
+            inviteId: currentInvite.id,
+            message: res.error?.message,
+            details: res.error?.details,
+            hint: res.error?.hint,
+            code: res.error?.code,
+          });
+        }
+        throw res.error;
+      }
+
+      if (res?.data === false) {
+        if (__DEV__) {
+          console.warn("[CuratorInviteGate] reject rpc returned false", {
+            inviteId: currentInvite.id,
+            data: res.data,
+          });
+        }
+        throw new Error("reject_curator_invite returned false");
       }
 
       setIsModalVisible(false);
@@ -441,10 +503,9 @@ export function CuratorInviteGate() {
       setShouldOpenModalWhenReady(false);
 
       // Explicit invalidations
-      queryClient.invalidateQueries({ queryKey: pendingInviteQueryKey, exact: true });
       queryClient.invalidateQueries({
-        queryKey: devMasterPendingPrefixKey,
-        exact: false,
+        queryKey: pendingInviteQueryKey,
+        exact: true,
       });
 
       if (userId) {
@@ -456,30 +517,33 @@ export function CuratorInviteGate() {
       showToast("Convite recusado.");
     } catch (e) {
       const message = e instanceof Error ? e.message : "";
+      if (__DEV__) {
+        console.error("[CuratorInviteGate] reject failed", {
+          inviteId: currentInvite?.id,
+          message,
+          details: (e as any)?.details,
+          hint: (e as any)?.hint,
+          code: (e as any)?.code,
+          raw: e,
+        });
+      }
       const friendly = getFriendlyActionError(message);
       showToast(friendly);
     } finally {
       setIsProcessing(false);
     }
-  }, [
-    currentInvite,
-    devMasterPendingPrefixKey,
-    pendingInviteQueryKey,
-    queryClient,
-    showToast,
-    userId,
-  ]);
+  }, [currentInvite, pendingInviteQueryKey, queryClient, showToast, userId]);
 
   const onPressBannerCta = useCallback(() => {
     void openGateNow();
   }, [openGateNow]);
 
   const bannerText = useMemo(() => {
-    return `Convite para: ${roleLabel}`;
-  }, [roleLabel]);
+    return "Convite para Pessoa Guardiã do Acervo";
+  }, []);
 
   const modalLead = useMemo(() => {
-    return "Você recebeu um convite para ajudar a manter a qualidade do acervo:";
+    return "Você recebeu um convite para ajudar a cuidar do acervo do Saravafy.\n\nEsse é um papel de confiança e cuidado.\nSeu olhar atento ajuda a manter as letras bem cuidadas, os pontos organizados e a energia do canto preservada para quem chega.";
   }, []);
 
   if (!userId || !normalizedUserEmail) return null;
@@ -525,12 +589,12 @@ export function CuratorInviteGate() {
             />
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
-              <Text style={[styles.modalBody, { color: textSecondary }]}>
-                {modalLead}
+              <Text style={[styles.modalTitle, { color: textPrimary }]}>
+                Convite para Pessoa Guardiã do Acervo
               </Text>
 
-              <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                {roleLabel}
+              <Text style={[styles.modalBody, { color: textSecondary }]}>
+                {modalLead}
               </Text>
 
               {isProcessing ? (

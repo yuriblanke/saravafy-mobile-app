@@ -11,10 +11,10 @@ type GlobalRoleDef = {
 
 export const GLOBAL_ROLE_DEFS: Record<GlobalRole, GlobalRoleDef> = {
   curator: {
-    badgeLabel: "Guardiã do Acervo",
-    infoTitle: "Guardiã do Acervo",
+    badgeLabel: "Pessoa Guardiã do Acervo",
+    infoTitle: "Pessoa Guardiã do Acervo",
     infoBody:
-      "Esse papel existe para manter a qualidade do acervo, corrigindo letras, títulos e tags.",
+      "Esse papel existe para manter a qualidade do acervo do Saravafy, corrigindo letras, títulos e tags.",
     permissions: [
       "Editar qualquer ponto do acervo",
       "Corrigir letras e títulos",

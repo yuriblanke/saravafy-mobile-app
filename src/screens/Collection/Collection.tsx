@@ -389,7 +389,7 @@ export default function Collection() {
               {!isLoggedIn ? (
                 <Pressable
                   accessibilityRole="button"
-                  onPress={() => router.push("/login")}
+                  onPress={() => router.replace("/login")}
                   style={({ pressed }) => [
                     styles.gatePrimaryBtn,
                     pressed ? styles.gateBtnPressed : null,
@@ -441,7 +441,7 @@ export default function Collection() {
                   }
                   onPress={async () => {
                     if (!user?.id) {
-                      router.push("/login");
+                      router.replace("/login");
                       return;
                     }
 

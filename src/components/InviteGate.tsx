@@ -600,7 +600,40 @@ export function InviteGate() {
         p_invite_id: currentInvite.id,
       });
 
-      if (rpc.error) throw rpc.error;
+      if (__DEV__) {
+        console.info("[InviteGate] accept rpc", {
+          inviteId: currentInvite.id,
+          terreiroId: currentInvite.terreiro_id,
+          data: (rpc as any)?.data,
+          dataType: typeof (rpc as any)?.data,
+          hasError: !!(rpc as any)?.error,
+        });
+      }
+
+      if (rpc.error) {
+        if (__DEV__) {
+          console.error("[InviteGate] accept rpc error", {
+            inviteId: currentInvite.id,
+            terreiroId: currentInvite.terreiro_id,
+            message: rpc.error?.message,
+            details: (rpc.error as any)?.details,
+            hint: (rpc.error as any)?.hint,
+            code: (rpc.error as any)?.code,
+          });
+        }
+        throw rpc.error;
+      }
+
+      if ((rpc as any)?.data === false) {
+        if (__DEV__) {
+          console.warn("[InviteGate] accept rpc returned false", {
+            inviteId: currentInvite.id,
+            terreiroId: currentInvite.terreiro_id,
+            data: (rpc as any)?.data,
+          });
+        }
+        throw new Error("accept_terreiro_invite returned false");
+      }
 
       // 1) Atualiza o estado local imediatamente para fechar o modal/banner.
       resolveInviteLocally(currentInvite.id);
@@ -680,6 +713,18 @@ export function InviteGate() {
           ? (e as any).message
           : String(e);
 
+      if (__DEV__) {
+        console.error("[InviteGate] accept error details", {
+          inviteId: currentInvite?.id,
+          terreiroId: currentInvite?.terreiro_id,
+          message,
+          details: (e as any)?.details,
+          hint: (e as any)?.hint,
+          code: (e as any)?.code,
+          raw: e,
+        });
+      }
+
       const info = toDebugFromUnknown({
         step: "accept:rpc",
         inviteId: currentInvite.id,
@@ -724,10 +769,43 @@ export function InviteGate() {
       // NOTE: Não usar `decline_terreiro_invite` enquanto o banco estiver com
       // CHECK status=('pending'|'accepted'|'rejected') e activated_consistency.
       const rpc = await supabase.rpc("reject_terreiro_invite", {
-        invite_id: currentInvite.id,
+        p_invite_id: currentInvite.id,
       });
 
-      if (rpc.error) throw rpc.error;
+      if (__DEV__) {
+        console.info("[InviteGate] reject rpc", {
+          inviteId: currentInvite.id,
+          terreiroId: currentInvite.terreiro_id,
+          data: (rpc as any)?.data,
+          dataType: typeof (rpc as any)?.data,
+          hasError: !!(rpc as any)?.error,
+        });
+      }
+
+      if (rpc.error) {
+        if (__DEV__) {
+          console.error("[InviteGate] reject rpc error", {
+            inviteId: currentInvite.id,
+            terreiroId: currentInvite.terreiro_id,
+            message: rpc.error?.message,
+            details: (rpc.error as any)?.details,
+            hint: (rpc.error as any)?.hint,
+            code: (rpc.error as any)?.code,
+          });
+        }
+        throw rpc.error;
+      }
+
+      if ((rpc as any)?.data === false) {
+        if (__DEV__) {
+          console.warn("[InviteGate] reject rpc returned false", {
+            inviteId: currentInvite.id,
+            terreiroId: currentInvite.terreiro_id,
+            data: (rpc as any)?.data,
+          });
+        }
+        throw new Error("reject_terreiro_invite returned false");
+      }
 
       showToast("Convite recusado.");
 
@@ -773,6 +851,18 @@ export function InviteGate() {
           : typeof (e as any)?.message === "string"
           ? (e as any).message
           : String(e);
+
+      if (__DEV__) {
+        console.error("[InviteGate] reject error details", {
+          inviteId: currentInvite?.id,
+          terreiroId: currentInvite?.terreiro_id,
+          message,
+          details: (e as any)?.details,
+          hint: (e as any)?.hint,
+          code: (e as any)?.code,
+          raw: e,
+        });
+      }
 
       const info = toDebugFromUnknown({
         step: "reject:rpc",

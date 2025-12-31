@@ -2,17 +2,54 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GestureBlockProvider } from "@/contexts/GestureBlockContext";
 import { GestureGateProvider } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { RootPagerProvider } from "@/contexts/RootPagerContext";
-import { TabControllerProvider } from "@/contexts/TabControllerContext";
+import { RootPagerProvider, useRootPager } from "@/contexts/RootPagerContext";
+import {
+  TabControllerProvider,
+  useTabController,
+} from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { AppTabSwipeOverlay } from "@/src/components/AppTabSwipeOverlay";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
 import { colors } from "@/src/theme";
-import { Stack, useGlobalSearchParams, useSegments } from "expo-router";
+import {
+  Stack,
+  useGlobalSearchParams,
+  usePathname,
+  useSegments,
+} from "expo-router";
 import React, { useMemo } from "react";
-import { View } from "react-native";
+import { BackHandler, Platform, View } from "react-native";
+
+function AndroidBackBehavior() {
+  const pathname = usePathname();
+  const rootPager = useRootPager();
+  const tabController = useTabController();
+
+  React.useEffect(() => {
+    if (Platform.OS !== "android") return;
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      // Determinístico: no RootPager, se estiver em Terreiros,
+      // o back físico volta para Pontos (Home).
+      if (pathname === "/" && rootPager.activeKey === "terreiros") {
+        if (__DEV__) {
+          console.log("[AndroidBack] RootPager terreiros -> pontos");
+        }
+        tabController.goToTab("pontos");
+        return true;
+      }
+
+      // Default: deixa o React Navigation/Expo Router lidar.
+      return false;
+    });
+
+    return () => sub.remove();
+  }, [pathname, rootPager.activeKey, tabController]);
+
+  return null;
+}
 
 /**
  * AppLayout - Layout principal do grupo (app)
@@ -54,18 +91,14 @@ export default function AppLayout() {
     myUserId,
   });
 
-  const showGlobalHeader = useMemo(() => {
-    // segments: ["(app)", "index" | "terreiro" | "player" | "collection" | ...]
-    // Mostrar header APENAS em rotas principais (index, terreiro, collection)
-    // OCULTAR em:
-    // - player (modo imersivo)
-    // - terreiro-editor (modal full-screen)
-    // - access-manager (modal full-screen)
+  const isHeaderSuspended = useMemo(() => {
+    // Mantém o componente montado para preservar o estado das Preferências,
+    // mas suspende a UI (header + sheets) em telas full-screen/imersivas.
     const leaf = segments[1];
     return (
-      leaf !== "player" &&
-      leaf !== "terreiro-editor" &&
-      leaf !== "access-manager"
+      leaf === "player" ||
+      leaf === "terreiro-editor" ||
+      leaf === "access-manager"
     );
   }, [segments]);
 
@@ -75,7 +108,8 @@ export default function AppLayout() {
         <GestureBlockProvider>
           <RootPagerProvider>
             <TabControllerProvider>
-              {showGlobalHeader ? <AppHeaderWithPreferences /> : null}
+              <AndroidBackBehavior />
+              <AppHeaderWithPreferences suspended={isHeaderSuspended} />
 
               <View style={{ flex: 1 }}>
                 <Stack

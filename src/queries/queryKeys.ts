@@ -63,8 +63,5 @@ export const queryKeys = {
   curatorInvites: {
     pendingForInvitee: (normalizedEmail: string) =>
       ["curatorInvites", "pendingForInvitee", normalizedEmail] as const,
-    pendingForDevMaster: (userId: string) =>
-      ["curatorInvites", "pending", userId] as const,
-    pendingPrefix: () => ["curatorInvites", "pending"] as const,
   },
 } as const;

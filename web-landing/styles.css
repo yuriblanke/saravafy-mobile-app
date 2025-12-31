@@ -99,8 +99,7 @@ body::before {
   position: fixed;
   inset: 0;
   z-index: -2;
-  background:
-    radial-gradient(
+  background: radial-gradient(
       circle at 88% -10%,
       rgba(176, 141, 87, var(--light-brass-opacity)) 0%,
       rgba(176, 141, 87, 0) 62%
