@@ -152,13 +152,20 @@
             };
           }
 
-          const endpointBase =
-            supabaseUrl.replace(/\/+$/, "") +
-            "/rest/v1/pontos?select=title,artist&id=eq." +
-            encodeURIComponent(pontoId) +
-            "&is_active=eq.true&restricted=eq.false&limit=1";
+          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/pontos";
+          const url = new URL(base);
 
-          const endpoint = endpointBase + "&t=" + Date.now();
+          // Important: PostgREST interpreta query params como filtros.
+          // Evite cache-buster como `&<timestamp>` ou `&t=<timestamp>` (gera PGRST100).
+          url.search = new URLSearchParams({
+            select: "title,artist",
+            id: `eq.${pontoId}`,
+            is_active: "eq.true",
+            restricted: "eq.false",
+            limit: "1",
+          }).toString();
+
+          const endpoint = url.toString();
 
           const res = await fetch(endpoint, {
             method: "GET",
