@@ -114,9 +114,20 @@ export default function ReviewQueueScreen() {
           {items.map((s) => {
             const dateLabel = formatDateLabel(s.created_at ?? null);
             const title = s.title?.trim() || "(Sem título)";
-            const artist = (typeof s.artist === "string" ? s.artist : "")
-              .trim()
-              .slice(0, 80);
+            const authorName =
+              (typeof s.author_name === "string" ? s.author_name : "")
+                .trim()
+                .slice(0, 80);
+            const interpreterName =
+              (typeof s.interpreter_name === "string"
+                ? s.interpreter_name
+                : "")
+                .trim()
+                .slice(0, 80);
+
+            const peopleLine = [authorName, interpreterName]
+              .filter(Boolean)
+              .join(" — ");
 
             return (
               <Pressable
@@ -137,12 +148,12 @@ export default function ReviewQueueScreen() {
                     {title}
                   </Text>
 
-                  {artist ? (
+                  {peopleLine ? (
                     <Text
                       style={[styles.cardMeta, { color: textSecondary }]}
                       numberOfLines={1}
                     >
-                      {artist}
+                      {peopleLine}
                     </Text>
                   ) : null}
 

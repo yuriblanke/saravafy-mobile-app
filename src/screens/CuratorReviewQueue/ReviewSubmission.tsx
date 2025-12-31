@@ -48,7 +48,6 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
   if (has("submission_not_pending")) return "Este envio já foi revisado.";
   if (has("missing_title")) return "Informe um título antes de aprovar.";
   if (has("missing_lyrics")) return "Informe a letra antes de aprovar.";
-  if (has("missing_artist")) return "Informe o autor antes de aprovar.";
   if (has("invalid_decision")) return "Ação inválida.";
 
   return "Não foi possível concluir agora. Tente novamente.";
@@ -62,6 +61,10 @@ type RpcPayload = {
   p_lyrics?: string | null;
   p_tags?: string[] | null;
   p_artist?: string | null;
+  p_author_name?: string | null;
+  p_interpreter_name?: string | null;
+  p_has_author_consent?: boolean | null;
+  p_author_contact?: string | null;
 };
 
 export default function ReviewSubmissionScreen() {
@@ -84,7 +87,8 @@ export default function ReviewSubmissionScreen() {
   const submission = submissionQuery.data;
 
   const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [interpreterName, setInterpreterName] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [tagsText, setTagsText] = useState("");
   const [reviewNote, setReviewNote] = useState("");
@@ -98,7 +102,14 @@ export default function ReviewSubmissionScreen() {
 
     hydratedRef.current = true;
     setTitle(submission.title ?? "");
-    setArtist(typeof submission.artist === "string" ? submission.artist : "");
+    setAuthorName(
+      typeof submission.author_name === "string" ? submission.author_name : ""
+    );
+    setInterpreterName(
+      typeof submission.interpreter_name === "string"
+        ? submission.interpreter_name
+        : ""
+    );
     setLyrics(submission.lyrics ?? "");
     setTagsText((submission.tags ?? []).join(", "));
     setReviewNote("");
@@ -164,7 +175,6 @@ export default function ReviewSubmissionScreen() {
 
     const finalTitle = sanitizeRequiredText(title);
     const finalLyrics = sanitizeRequiredText(lyrics);
-    const finalArtist = sanitizeRequiredText(artist);
 
     if (!finalTitle) {
       setInlineError("Informe um título antes de aprovar.");
@@ -176,10 +186,8 @@ export default function ReviewSubmissionScreen() {
       return;
     }
 
-    if (!finalArtist) {
-      setInlineError("Informe o autor antes de aprovar.");
-      return;
-    }
+    const finalAuthorName = sanitizeOptionalText(authorName);
+    const finalInterpreterName = sanitizeOptionalText(interpreterName);
 
     const payload: RpcPayload = {
       p_submission_id: submissionId,
@@ -188,7 +196,11 @@ export default function ReviewSubmissionScreen() {
       p_title: finalTitle,
       p_lyrics: finalLyrics,
       p_tags: normalizedTags,
-      p_artist: finalArtist,
+      p_artist: null, // compat: não é mais obrigatório
+      p_author_name: finalAuthorName,
+      p_interpreter_name: finalInterpreterName,
+      p_has_author_consent: null,
+      p_author_contact: null,
     };
 
     try {
@@ -240,6 +252,10 @@ export default function ReviewSubmissionScreen() {
               p_lyrics: null,
               p_tags: null,
               p_artist: null,
+              p_author_name: null,
+              p_interpreter_name: null,
+              p_has_author_consent: null,
+              p_author_contact: null,
             };
 
             try {
@@ -359,10 +375,29 @@ export default function ReviewSubmissionScreen() {
 
         <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
         <TextInput
-          value={artist}
-          onChangeText={setArtist}
+          value={authorName}
+          onChangeText={setAuthorName}
           editable={!mutation.isPending}
           placeholder="Autor"
+          placeholderTextColor={
+            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
+          }
+          style={[
+            styles.input,
+            {
+              backgroundColor: inputBg,
+              borderColor: inputBorder,
+              color: textPrimary,
+            },
+          ]}
+        />
+
+        <Text style={[styles.label, { color: textSecondary }]}>Intérprete</Text>
+        <TextInput
+          value={interpreterName}
+          onChangeText={setInterpreterName}
+          editable={!mutation.isPending}
+          placeholder="Intérprete"
           placeholderTextColor={
             variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
           }

@@ -4,6 +4,8 @@ export type CreatePontoSubmissionInput = {
   title: string;
   lyrics: string;
   tags?: string[];
+  author_name?: string | null;
+  interpreter_name?: string | null;
 };
 
 export type PontoSubmissionRow = {
@@ -16,6 +18,30 @@ export type PontoSubmissionRow = {
   status?: string;
 };
 
+function toNullIfEmpty(value: unknown): string | null {
+  const v = typeof value === "string" ? value.trim() : "";
+  return v ? v : null;
+}
+
+function normalizeTags(tags: unknown): string[] {
+  const arr = Array.isArray(tags) ? tags : [];
+  const parts = arr
+    .map((t) => (typeof t === "string" ? t.trim() : ""))
+    .filter(Boolean);
+
+  const seen = new Set<string>();
+  const out: string[] = [];
+
+  for (const tag of parts) {
+    const key = tag.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(tag);
+  }
+
+  return out;
+}
+
 export function parseTagsInput(value: string): string[] {
   return value
     .split(",")
@@ -25,9 +51,11 @@ export function parseTagsInput(value: string): string[] {
 
 export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
   const payload = {
-    title: input.title,
-    lyrics: input.lyrics,
-    tags: input.tags ?? [],
+    title: typeof input.title === "string" ? input.title.trim() : "",
+    lyrics: typeof input.lyrics === "string" ? input.lyrics.trim() : "",
+    tags: normalizeTags(input.tags ?? []),
+    author_name: toNullIfEmpty(input.author_name),
+    interpreter_name: toNullIfEmpty(input.interpreter_name),
   };
 
   const { data, error } = await supabase

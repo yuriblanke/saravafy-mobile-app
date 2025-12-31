@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
+  Switch,
   StyleSheet,
   Text,
   TextInput,
@@ -75,6 +76,11 @@ export function PontoUpsertModal({
   const [lyrics, setLyrics] = useState("");
   const [tagsText, setTagsText] = useState("");
 
+  // Submission-only fields (create mode)
+  const [isTraditional, setIsTraditional] = useState(true);
+  const [authorName, setAuthorName] = useState("");
+  const [interpreterName, setInterpreterName] = useState("");
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -117,6 +123,9 @@ export function PontoUpsertModal({
       setArtist("");
       setLyrics("");
       setTagsText("");
+      setIsTraditional(true);
+      setAuthorName("");
+      setInterpreterName("");
     }
   }, [initialValues, mode, visible]);
 
@@ -138,11 +147,21 @@ export function PontoUpsertModal({
       const tags = tagsText.trim() ? parseTagsInput(tagsText) : [];
       const artistValue = artist.trim() ? artist.trim() : null;
 
+      const authorValue = authorName.trim();
+      const interpreterValue = interpreterName.trim();
+
+      if (mode === "create" && isTraditional === false && !authorValue) {
+        setErrorMessage("Informe o autor para ponto livre.");
+        return;
+      }
+
       if (mode === "create") {
         await createPontoSubmission({
           title: title.trim(),
           lyrics: lyrics.trim(),
           tags,
+          author_name: authorValue ? authorValue : null,
+          interpreter_name: interpreterValue ? interpreterValue : null,
         });
 
         onCancel();
@@ -226,6 +245,33 @@ export function PontoUpsertModal({
           </View>
 
           <View style={styles.form}>
+            {mode === "create" ? (
+              <View style={styles.toggleRow}>
+                <View style={styles.toggleTextCol}>
+                  <Text style={[styles.toggleTitle, { color: textPrimary }]}>
+                    Ponto tradicional / livre
+                  </Text>
+                  <Text
+                    style={[styles.toggleDesc, { color: textSecondary }]}
+                    numberOfLines={1}
+                  >
+                    Se marcado, autor e intérprete são opcionais.
+                  </Text>
+                </View>
+
+                <Switch
+                  accessibilityLabel="Ponto tradicional / livre"
+                  value={isTraditional}
+                  onValueChange={setIsTraditional}
+                  trackColor={{
+                    false: colors.surfaceCardBorder,
+                    true: colors.brass600,
+                  }}
+                  thumbColor={colors.paper50}
+                />
+              </View>
+            ) : null}
+
             <Text style={[styles.label, { color: textSecondary }]}>
               Título *
             </Text>
@@ -248,25 +294,75 @@ export function PontoUpsertModal({
               returnKeyType="next"
             />
 
-            <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
-            <TextInput
-              value={artist}
-              onChangeText={setArtist}
-              placeholder=""
-              placeholderTextColor={textSecondary}
-              style={[
-                styles.input,
-                {
-                  backgroundColor: inputBg,
-                  borderColor: inputBorder,
-                  color: textPrimary,
-                },
-              ]}
-              autoCapitalize="sentences"
-              autoCorrect
-              editable={!isSubmitting}
-              returnKeyType="next"
-            />
+            {mode === "create" ? (
+              <>
+                <Text style={[styles.label, { color: textSecondary }]}>
+                  Autor{isTraditional ? "" : " *"}
+                </Text>
+                <TextInput
+                  value={authorName}
+                  onChangeText={setAuthorName}
+                  placeholder=""
+                  placeholderTextColor={textSecondary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: inputBorder,
+                      color: textPrimary,
+                    },
+                  ]}
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  editable={!isSubmitting}
+                  returnKeyType="next"
+                />
+
+                <Text style={[styles.label, { color: textSecondary }]}>
+                  Intérprete
+                </Text>
+                <TextInput
+                  value={interpreterName}
+                  onChangeText={setInterpreterName}
+                  placeholder=""
+                  placeholderTextColor={textSecondary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: inputBorder,
+                      color: textPrimary,
+                    },
+                  ]}
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  editable={!isSubmitting}
+                  returnKeyType="next"
+                />
+              </>
+            ) : (
+              <>
+                <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
+                <TextInput
+                  value={artist}
+                  onChangeText={setArtist}
+                  placeholder=""
+                  placeholderTextColor={textSecondary}
+                  style={[
+                    styles.input,
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: inputBorder,
+                      color: textPrimary,
+                    },
+                  ]}
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  editable={!isSubmitting}
+                  returnKeyType="next"
+                />
+              </>
+            )}
 
             <Text style={[styles.label, { color: textSecondary }]}>
               Letra *
@@ -383,6 +479,29 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
+  },
+  toggleRow: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    paddingVertical: 8,
+    marginTop: spacing.sm,
+  },
+  toggleTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  toggleTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  toggleDesc: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    opacity: 0.9,
   },
   label: {
     fontSize: 12,

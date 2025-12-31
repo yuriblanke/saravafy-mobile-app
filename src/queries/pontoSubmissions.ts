@@ -9,6 +9,8 @@ export type PendingPontoSubmission = {
   lyrics: string;
   tags: string[];
   artist?: string | null;
+  author_name?: string | null;
+  interpreter_name?: string | null;
   created_at?: string | null;
   created_by?: string | null;
 };
@@ -41,7 +43,9 @@ export async function fetchPendingPontoSubmissions(): Promise<
 > {
   const res = await supabase
     .from("pontos_submissions")
-    .select("id, title, artist, lyrics, tags, status, created_at, created_by")
+    .select(
+      "id, title, artist, author_name, interpreter_name, lyrics, tags, status, created_at, created_by"
+    )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
 
@@ -55,6 +59,9 @@ export async function fetchPendingPontoSubmissions(): Promise<
     lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
     tags: coerceTags(row.tags),
     artist: typeof row.artist === "string" ? row.artist : null,
+    author_name: typeof row.author_name === "string" ? row.author_name : null,
+    interpreter_name:
+      typeof row.interpreter_name === "string" ? row.interpreter_name : null,
     created_at: typeof row.created_at === "string" ? row.created_at : null,
     created_by: typeof row.created_by === "string" ? row.created_by : null,
   }));
@@ -67,7 +74,9 @@ export async function fetchPontoSubmissionById(
 
   const res = await supabase
     .from("pontos_submissions")
-    .select("id, title, artist, lyrics, tags, status, created_at, created_by")
+    .select(
+      "id, title, artist, author_name, interpreter_name, lyrics, tags, status, created_at, created_by"
+    )
     .eq("id", submissionId)
     .maybeSingle();
 
@@ -84,6 +93,9 @@ export async function fetchPontoSubmissionById(
     lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
     tags: coerceTags(row.tags),
     artist: typeof row.artist === "string" ? row.artist : null,
+    author_name: typeof row.author_name === "string" ? row.author_name : null,
+    interpreter_name:
+      typeof row.interpreter_name === "string" ? row.interpreter_name : null,
     created_at: typeof row.created_at === "string" ? row.created_at : null,
     created_by: typeof row.created_by === "string" ? row.created_by : null,
   };
