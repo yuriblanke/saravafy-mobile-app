@@ -270,6 +270,7 @@ body.is-ponto {
 
 body.is-ponto .container {
   height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -288,6 +289,10 @@ body.is-ponto .lyrics-scroll {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  /* Evita que o fim da letra fique "atrás" do CTA fixo */
+  padding-bottom: calc(
+    var(--cta-dock-height, 180px) + 16px + env(safe-area-inset-bottom, 0px)
+  );
 }
 
 body.is-ponto .cta-dock {
@@ -295,7 +300,7 @@ body.is-ponto .cta-dock {
   left: 0;
   right: 0;
   bottom: 0;
-  padding: 10px 16px 16px;
+  padding: 10px 16px calc(16px + env(safe-area-inset-bottom, 0px));
   z-index: 50;
   background: rgba(0, 0, 0, 0);
   backdrop-filter: blur(10px);
