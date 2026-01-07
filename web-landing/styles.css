@@ -140,6 +140,25 @@ body::after {
   padding: 28px 16px 32px;
 }
 
+.landing-footer {
+  margin-top: 18px;
+  text-align: center;
+}
+
+.landing-footer__link {
+  display: inline-block;
+  font-size: 13px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  padding: 10px 12px;
+}
+
+.landing-footer__link:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+  border-radius: 10px;
+}
+
 h1 {
   font-size: 22px;
   margin: 0 0 8px;
