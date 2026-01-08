@@ -43,6 +43,16 @@ type Props = {
   children: React.ReactNode;
   enableSwipeToClose?: boolean;
   /**
+   * When false, disables ScrollView scrolling (no scroll / no bounce).
+   * Useful for sheets that rely on static layout + filler spacing.
+   */
+  scrollEnabled?: boolean;
+  /**
+   * Controls ScrollView bounce behavior.
+   * Defaults to true to keep the current UX.
+   */
+  bounces?: boolean;
+  /**
    * Optional fixed snap point for the sheet height.
    * Use a single value like ["75%"] to keep the sheet height stable.
    */
@@ -86,6 +96,8 @@ export function BottomSheet({
   variant,
   children,
   enableSwipeToClose = true,
+  scrollEnabled = true,
+  bounces = true,
   snapPoints,
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
@@ -400,6 +412,7 @@ export function BottomSheet({
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
             showsVerticalScrollIndicator={false}
+            scrollEnabled={scrollEnabled}
             scrollEventThrottle={16}
             onScrollBeginDrag={() => {
               dismissAllTooltips();
@@ -409,7 +422,7 @@ export function BottomSheet({
               scrollYRef.current = nextY > 0 ? nextY : 0;
             }}
             // Permite scroll bouncing no topo para melhor UX
-            bounces={true}
+            bounces={bounces}
           >
             {children}
           </ScrollView>

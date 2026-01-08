@@ -3,7 +3,14 @@ import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Image,
@@ -15,6 +22,30 @@ import {
 } from "react-native";
 
 const fillerPng = require("@/assets/images/filler.png");
+
+const HINT_STORAGE_KEY = "hint_medium_tag_long_press_remove_shown_v1";
+const HINT_TEXT = "Dica: segure a tag para remover";
+
+function sleep(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+async function wasHintShown(): Promise<boolean> {
+  try {
+    const raw = await AsyncStorage.getItem(HINT_STORAGE_KEY);
+    return raw === "1";
+  } catch {
+    return false;
+  }
+}
+
+async function markHintShown(): Promise<void> {
+  try {
+    await AsyncStorage.setItem(HINT_STORAGE_KEY, "1");
+  } catch {
+    // Best effort: if this fails, the hint might reappear.
+  }
+}
 
 function normalizeInput(value: string) {
   return String(value ?? "")
@@ -49,9 +80,18 @@ export function AddMediumTagSheet(props: {
   variant: "light" | "dark";
   terreiroId: string;
   pontoId: string;
+  canShowRemoveHint?: boolean;
   onSuccess?: (tagLabel: string) => void;
 }) {
-  const { visible, onClose, variant, terreiroId, pontoId, onSuccess } = props;
+  const {
+    visible,
+    onClose,
+    variant,
+    terreiroId,
+    pontoId,
+    canShowRemoveHint = false,
+    onSuccess,
+  } = props;
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 
@@ -201,13 +241,24 @@ export function AddMediumTagSheet(props: {
         }
       );
 
+      const shouldShowHint =
+        canShowRemoveHint && !(await wasHintShown());
+
       onSuccess?.(tag_text);
       closeAndReset();
+
+      if (shouldShowHint) {
+        // O sheet fecha primeiro; um micro-delay evita o toast sumir atrás.
+        await sleep(100);
+        showToast(HINT_TEXT);
+        await markHintShown();
+      }
     } catch (e) {
       showToast(getErrorMessage(e));
       setIsSaving(false);
     }
   }, [
+    canShowRemoveHint,
     closeAndReset,
     onSuccess,
     pontoId,
@@ -225,7 +276,8 @@ export function AddMediumTagSheet(props: {
         onClose();
       }}
       variant={variant}
-      snapPoints={["55%"]}
+      scrollEnabled={false}
+      bounces={false}
     >
       <View style={{ paddingBottom: 16 }}>
         <View style={styles.sheetHeaderRow}>
@@ -241,7 +293,9 @@ export function AddMediumTagSheet(props: {
             hitSlop={10}
             style={styles.sheetCloseBtn}
           >
-            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>×</Text>
+            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
+              ×
+            </Text>
           </Pressable>
         </View>
 
@@ -261,8 +315,12 @@ export function AddMediumTagSheet(props: {
             styles.input,
             {
               color: textPrimary,
-              borderColor: isLight ? colors.inputBorderLight : colors.inputBorderDark,
-              backgroundColor: isLight ? colors.inputBgLight : colors.inputBgDark,
+              borderColor: isLight
+                ? colors.inputBorderLight
+                : colors.inputBorderDark,
+              backgroundColor: isLight
+                ? colors.inputBgLight
+                : colors.inputBgDark,
             },
           ]}
           autoCapitalize="words"
@@ -287,8 +345,12 @@ export function AddMediumTagSheet(props: {
             style={({ pressed }) => [
               styles.secondaryActionBtn,
               {
-                borderColor: isLight ? colors.inputBorderLight : colors.inputBorderDark,
-                backgroundColor: isLight ? colors.inputBgLight : colors.inputBgDark,
+                borderColor: isLight
+                  ? colors.inputBorderLight
+                  : colors.inputBorderDark,
+                backgroundColor: isLight
+                  ? colors.inputBgLight
+                  : colors.inputBgDark,
               },
               pressed ? styles.pressed : null,
               isSaving ? styles.disabled : null,

@@ -131,7 +131,8 @@ export function RemoveMediumTagSheet(props: {
       visible={visible}
       onClose={close}
       variant={variant}
-      snapPoints={["55%"]}
+      scrollEnabled={false}
+      bounces={false}
     >
       <View style={{ paddingBottom: 16 }}>
         <View style={styles.sheetHeaderRow}>
@@ -143,7 +144,9 @@ export function RemoveMediumTagSheet(props: {
             hitSlop={10}
             style={styles.sheetCloseBtn}
           >
-            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>×</Text>
+            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
+              ×
+            </Text>
           </Pressable>
         </View>
 

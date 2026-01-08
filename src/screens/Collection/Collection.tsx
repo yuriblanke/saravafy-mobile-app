@@ -307,6 +307,7 @@ export default function Collection() {
         variant={variant}
         terreiroId={terreiroId}
         pontoId={mediumTargetPontoId ?? ""}
+        canShowRemoveHint={canEditCustomTags}
         onClose={() => setMediumTargetPontoId(null)}
       />
 

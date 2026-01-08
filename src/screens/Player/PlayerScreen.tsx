@@ -473,6 +473,7 @@ export default function PlayerScreen() {
         variant={variant}
         terreiroId={terreiroId}
         pontoId={mediumTargetPontoId ?? ""}
+        canShowRemoveHint={canEditCustomTags}
         onClose={() => setMediumTargetPontoId(null)}
       />
 
