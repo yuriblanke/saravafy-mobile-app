@@ -1,8 +1,6 @@
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import { normalizeTag, isMediumTag } from "@/src/utils/mergeTags";
 import { colors, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useMemo, useState } from "react";
@@ -19,6 +17,10 @@ function normalizeInput(value: string) {
   return String(value ?? "")
     .trim()
     .replace(/\s+/g, " ");
+}
+
+function normalizeMediumText(value: string) {
+  return String(value ?? "").trim().toLowerCase();
 }
 
 function getErrorMessage(e: unknown): string {
@@ -45,7 +47,6 @@ export function AddMediumTagSheet(props: {
   onSuccess?: (tagLabel: string) => void;
 }) {
   const { visible, onClose, variant, terreiroId, pontoId, onSuccess } = props;
-  const { user } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 
@@ -53,9 +54,12 @@ export function AddMediumTagSheet(props: {
   const [isSaving, setIsSaving] = useState(false);
 
   const isLight = variant === "light";
-  const textPrimary = isLight ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
-  const textSecondary =
-    isLight ? colors.textSecondaryOnLight : colors.textSecondaryOnDark;
+  const textPrimary = isLight
+    ? colors.textPrimaryOnLight
+    : colors.textPrimaryOnDark;
+  const textSecondary = isLight
+    ? colors.textSecondaryOnLight
+    : colors.textSecondaryOnDark;
 
   const canSubmit = useMemo(() => {
     const v = normalizeInput(value);
@@ -81,32 +85,40 @@ export function AddMediumTagSheet(props: {
     }
 
     if (raw.length > 60) {
-      showToast("Nome muito longo (máx. 60)." );
+      showToast("Nome muito longo (máx. 60).");
       return;
     }
 
-    const label = isMediumTag(raw) ? raw : `Médium: ${raw}`;
-    const tag_text = label;
-    const tag_text_normalized = normalizeTag(label);
+    const tag_text = raw;
+    const tag_text_normalized = normalizeMediumText(raw);
 
     setIsSaving(true);
 
     try {
-      const res = await supabase.from("terreiro_ponto_custom_tags").insert({
-        terreiro_id: terreiroId,
-        ponto_id: pontoId,
-        tag_text,
-        tag_text_normalized,
-        source: "manual",
-        template_key: "medium_tag",
-        created_by: user?.id ?? null,
-      });
+      const res = await supabase
+        .from("terreiro_ponto_custom_tags")
+        .insert({
+          terreiro_id: terreiroId,
+          ponto_id: pontoId,
+          source: "medium",
+          template_key: "medium",
+          tag_text,
+          tag_text_normalized,
+        })
+        .select("id, ponto_id, tag_text, tag_text_normalized, created_at")
+        .single();
 
       if (res.error) {
         const msg =
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
             : "Erro ao salvar médium.";
+
+        if (String((res.error as any)?.code ?? "") === "23505") {
+          throw new Error(
+            "Esse médium já está cadastrado para este ponto neste terreiro."
+          );
+        }
 
         // Mensagem amigável para RLS (quando a pessoa não é admin/editor)
         const lower = msg.toLowerCase();
@@ -115,11 +127,18 @@ export function AddMediumTagSheet(props: {
           lower.includes("rls") ||
           lower.includes("permission")
         ) {
-          throw new Error("Sem permissão para editar tags deste terreiro.");
+          throw new Error(
+            "Você não tem permissão para editar os médiums deste terreiro."
+          );
         }
 
         throw new Error(msg);
       }
+
+      const inserted = res.data as any;
+      const insertedId = typeof inserted?.id === "string" ? inserted.id : "";
+      const insertedCreatedAt =
+        typeof inserted?.created_at === "string" ? inserted.created_at : "";
 
       // Optimistic update: atualiza qualquer query do map desse terreiro.
       queryClient.setQueriesData(
@@ -136,12 +155,32 @@ export function AddMediumTagSheet(props: {
           },
         },
         (old) => {
-          const prev = (old ?? {}) as Record<string, string[]>;
+          const prev = (old ?? {}) as Record<
+            string,
+            {
+              id: string;
+              tagText: string;
+              tagTextNormalized: string;
+              createdAt: string;
+            }[]
+          >;
+
           const existing = Array.isArray(prev[pontoId]) ? prev[pontoId] : [];
-          if (existing.includes(tag_text)) return prev;
+          if (existing.some((t) => t.tagTextNormalized === tag_text_normalized)) {
+            return prev;
+          }
+
           return {
             ...prev,
-            [pontoId]: [...existing, tag_text],
+            [pontoId]: [
+              ...existing,
+              {
+                id: insertedId || `tmp_${Date.now().toString(36)}`,
+                tagText: tag_text,
+                tagTextNormalized: tag_text_normalized,
+                createdAt: insertedCreatedAt || new Date().toISOString(),
+              },
+            ],
           };
         }
       );
@@ -152,7 +191,15 @@ export function AddMediumTagSheet(props: {
       showToast(getErrorMessage(e));
       setIsSaving(false);
     }
-  }, [closeAndReset, onSuccess, pontoId, queryClient, showToast, terreiroId, user?.id, value]);
+  }, [
+    closeAndReset,
+    onSuccess,
+    pontoId,
+    queryClient,
+    showToast,
+    terreiroId,
+    value,
+  ]);
 
   return (
     <BottomSheet
@@ -165,8 +212,12 @@ export function AddMediumTagSheet(props: {
       snapPoints={["55%"]}
     >
       <View style={styles.content}>
-        <Text style={[styles.title, { color: textPrimary }]}>Adicionar médium</Text>
-        <Text style={[styles.subtitle, { color: textSecondary }]}>Quem trouxe a entidade nesse terreiro</Text>
+        <Text style={[styles.title, { color: textPrimary }]}>
+          Adicionar médium
+        </Text>
+        <Text style={[styles.subtitle, { color: textSecondary }]}>
+          Quem trouxe a entidade nesse terreiro
+        </Text>
 
         <View
           style={[
@@ -199,12 +250,14 @@ export function AddMediumTagSheet(props: {
           style={({ pressed }) => [
             styles.confirmBtn,
             isLight ? styles.confirmBtnLight : styles.confirmBtnDark,
-            (!canSubmit || isSaving) ? styles.confirmBtnDisabled : null,
+            !canSubmit || isSaving ? styles.confirmBtnDisabled : null,
             pressed ? styles.confirmBtnPressed : null,
           ]}
         >
           {isSaving ? (
-            <ActivityIndicator color={isLight ? colors.brass500 : colors.brass600} />
+            <ActivityIndicator
+              color={isLight ? colors.brass500 : colors.brass600}
+            />
           ) : (
             <Text
               style={[

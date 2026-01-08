@@ -1,27 +1,31 @@
 import { TagChip } from "@/src/components/TagChip";
+import type { TerreiroPontoMediumTag } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
-import { isMediumTag, mergeCustomAndPointTags } from "@/src/utils/mergeTags";
+import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
 import { LyricsScroll } from "./LyricsScroll";
-import { Ionicons } from "@expo/vector-icons";
 
 export function PlayerContent(props: {
   ponto: PlayerPonto;
   variant: "light" | "dark";
   lyricsFontSize: number;
-  customTags?: readonly string[];
+  mediumTags?: readonly TerreiroPontoMediumTag[];
   canAddMediumTag?: boolean;
   onPressAddMediumTag?: () => void;
+  canDeleteMediumTag?: boolean;
+  onLongPressMediumTag?: (tag: TerreiroPontoMediumTag) => void;
 }) {
   const {
     ponto,
     variant,
     lyricsFontSize,
-    customTags,
+    mediumTags,
     canAddMediumTag,
     onPressAddMediumTag,
+    canDeleteMediumTag,
+    onLongPressMediumTag,
   } = props;
 
   const textPrimary =
@@ -31,9 +35,9 @@ export function PlayerContent(props: {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const mergedTags = mergeCustomAndPointTags(customTags ?? [], ponto.tags);
-  const hasAnyTags =
-    mergedTags.custom.length > 0 || mergedTags.point.length > 0;
+  const resolvedMediumTags = Array.isArray(mediumTags) ? mediumTags : [];
+  const pointTags = Array.isArray(ponto.tags) ? ponto.tags : [];
+  const hasAnyTags = resolvedMediumTags.length > 0 || pointTags.length > 0;
 
   return (
     <View style={styles.page}>
@@ -65,16 +69,31 @@ export function PlayerContent(props: {
               />
             </Pressable>
           ) : null}
-          {mergedTags.custom.map((t) => (
-            <TagChip
-              key={`custom-${ponto.id}-${t}`}
-              label={t}
-              variant={variant}
-              kind="custom"
-              tone={isMediumTag(t) ? "medium" : "default"}
-            />
+          {resolvedMediumTags.map((t) => (
+            <Pressable
+              key={`medium-${ponto.id}-${t.id}`}
+              accessibilityRole={
+                canDeleteMediumTag ? "button" : undefined
+              }
+              accessibilityLabel={
+                canDeleteMediumTag ? `Remover médium ${t.tagText}` : undefined
+              }
+              onLongPress={() => onLongPressMediumTag?.(t)}
+              delayLongPress={350}
+              disabled={!canDeleteMediumTag || !onLongPressMediumTag}
+              style={({ pressed }) => [
+                pressed && canDeleteMediumTag ? { opacity: 0.75 } : null,
+              ]}
+            >
+              <TagChip
+                label={t.tagText}
+                variant={variant}
+                kind="custom"
+                tone="medium"
+              />
+            </Pressable>
           ))}
-          {mergedTags.point.map((t) => (
+          {pointTags.map((t) => (
             <TagChip
               key={`ponto-${ponto.id}-${t}`}
               label={t}

@@ -1,10 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { supabase } from "@/lib/supabase";
+import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
-import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
@@ -12,8 +12,8 @@ import {
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
-import { isMediumTag, mergeCustomAndPointTags } from "@/src/utils/mergeTags";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
+import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -25,6 +25,7 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -165,10 +166,13 @@ export default function Collection() {
       .filter(Boolean);
   }, [orderedItems]);
 
-  const canSeeCustomTags = !!terreiroId && membership.data.isActiveMember;
+  const queryClient = useQueryClient();
+
+  // Leituras são públicas em contexto de terreiro (sem gate de role/membership).
+  const canSeeMediumTags = !!terreiroId;
   const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
     { terreiroId, pontoIds },
-    { enabled: canSeeCustomTags && pontoIds.length > 0 }
+    { enabled: canSeeMediumTags && pontoIds.length > 0 }
   );
   const customTagsMap = customTagsMapQuery.data ?? {};
 
@@ -176,6 +180,91 @@ export default function Collection() {
     null
   );
 
+  const deleteMediumTag = useCallback(
+    async (params: { pontoId: string; tagId: string; tagLabel: string }) => {
+      if (!canEditCustomTags) return;
+      if (!terreiroId) return;
+
+      Alert.alert(
+        "Remover médium",
+        `Remover “${params.tagLabel}” deste ponto neste terreiro?`,
+        [
+          { text: "Cancelar", style: "cancel" },
+          {
+            text: "Remover",
+            style: "destructive",
+            onPress: async () => {
+              const res = await supabase
+                .from("terreiro_ponto_custom_tags")
+                .delete()
+                .eq("id", params.tagId)
+                .eq("terreiro_id", terreiroId);
+
+              if (res.error) {
+                const msg =
+                  typeof res.error.message === "string" &&
+                  res.error.message.trim()
+                    ? res.error.message
+                    : "Erro ao remover médium.";
+
+                const lower = msg.toLowerCase();
+                if (
+                  lower.includes("row-level security") ||
+                  lower.includes("rls") ||
+                  lower.includes("permission")
+                ) {
+                  showToast(
+                    "Você não tem permissão para editar os médiums deste terreiro."
+                  );
+                  return;
+                }
+
+                showToast(msg);
+                return;
+              }
+
+              // Optimistic update: remove de qualquer query do map desse terreiro.
+              queryClient.setQueriesData(
+                {
+                  predicate: (q) => {
+                    const key = q.queryKey;
+                    return (
+                      Array.isArray(key) &&
+                      key.length >= 3 &&
+                      key[0] === "pontos" &&
+                      key[1] === "customTags" &&
+                      key[2] === terreiroId
+                    );
+                  },
+                },
+                (old) => {
+                  const prev = (old ?? {}) as Record<
+                    string,
+                    {
+                      id: string;
+                      tagText: string;
+                      tagTextNormalized: string;
+                      createdAt: string;
+                    }[]
+                  >;
+
+                  const existing = Array.isArray(prev[params.pontoId])
+                    ? prev[params.pontoId]
+                    : [];
+
+                  return {
+                    ...prev,
+                    [params.pontoId]: existing.filter((t) => t.id !== params.tagId),
+                  };
+                }
+              );
+            },
+          },
+        ]
+      );
+    },
+    [canEditCustomTags, queryClient, showToast, terreiroId]
+  );
   const loadCollection = useCallback(async () => {
     if (!collectionId) {
       setCollection(null);
@@ -581,21 +670,20 @@ export default function Collection() {
                     </Text>
 
                     {(() => {
-                      const custom = canSeeCustomTags
+                      const mediumTags = canSeeMediumTags
                         ? customTagsMap[item.ponto.id] ?? []
                         : [];
-                      const merged = mergeCustomAndPointTags(
-                        custom,
-                        item.ponto.tags
-                      );
+                      const pointTags = Array.isArray(item.ponto.tags)
+                        ? item.ponto.tags
+                        : [];
 
                       const hasAnyTags =
-                        merged.custom.length > 0 || merged.point.length > 0;
+                        mediumTags.length > 0 || pointTags.length > 0;
                       if (!hasAnyTags) return null;
 
                       return (
                         <View style={styles.tagsWrap}>
-                          {canEditCustomTags ? (
+                          {canEditCustomTags && !!terreiroId ? (
                             <Pressable
                               accessibilityRole="button"
                               accessibilityLabel="Adicionar médium"
@@ -625,16 +713,41 @@ export default function Collection() {
                               />
                             </Pressable>
                           ) : null}
-                          {merged.custom.map((t) => (
-                            <TagChip
-                              key={`custom-${item.ponto.id}-${t}`}
-                              label={t}
-                              variant={variant}
-                              kind="custom"
-                              tone={isMediumTag(t) ? "medium" : "default"}
-                            />
+                          {mediumTags.map((t) => (
+                            <Pressable
+                              key={`medium-${item.ponto.id}-${t.id}`}
+                              accessibilityRole={
+                                canEditCustomTags ? "button" : undefined
+                              }
+                              accessibilityLabel={
+                                canEditCustomTags
+                                  ? `Remover médium ${t.tagText}`
+                                  : undefined
+                              }
+                              onLongPress={() =>
+                                deleteMediumTag({
+                                  pontoId: item.ponto.id,
+                                  tagId: t.id,
+                                  tagLabel: t.tagText,
+                                })
+                              }
+                              delayLongPress={350}
+                              disabled={!canEditCustomTags}
+                              style={({ pressed }) => [
+                                pressed && canEditCustomTags
+                                  ? { opacity: 0.75 }
+                                  : null,
+                              ]}
+                            >
+                              <TagChip
+                                label={t.tagText}
+                                variant={variant}
+                                kind="custom"
+                                tone="medium"
+                              />
+                            </Pressable>
                           ))}
-                          {merged.point.map((t) => (
+                          {pointTags.map((t) => (
                             <TagChip
                               key={`ponto-${item.ponto.id}-${t}`}
                               label={t}

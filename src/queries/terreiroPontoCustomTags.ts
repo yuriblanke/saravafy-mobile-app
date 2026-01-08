@@ -3,10 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { queryKeys } from "./queryKeys";
 
 type TerreiroPontoCustomTagRow = {
+  id: string;
   terreiro_id: string;
   ponto_id: string;
   tag_text: string;
+  tag_text_normalized: string;
   created_at: string;
+  source?: string | null;
+  template_key?: string | null;
 };
 
 function hashIds(ids: readonly string[]): string {
@@ -22,7 +26,14 @@ function hashIds(ids: readonly string[]): string {
   return (hash >>> 0).toString(36);
 }
 
-export type TerreiroPontosCustomTagsMap = Record<string, string[]>;
+export type TerreiroPontoMediumTag = {
+  id: string;
+  tagText: string;
+  tagTextNormalized: string;
+  createdAt: string;
+};
+
+export type TerreiroPontosCustomTagsMap = Record<string, TerreiroPontoMediumTag[]>;
 
 export async function fetchTerreiroPontosCustomTagsMap(params: {
   terreiroId: string;
@@ -36,9 +47,13 @@ export async function fetchTerreiroPontosCustomTagsMap(params: {
 
   const res = await supabase
     .from("terreiro_ponto_custom_tags")
-    .select("terreiro_id, ponto_id, tag_text, created_at")
+    .select(
+      "id, terreiro_id, ponto_id, source, template_key, tag_text, tag_text_normalized, created_at"
+    )
     .eq("terreiro_id", terreiroId)
     .in("ponto_id", ids)
+    .eq("source", "medium")
+    .eq("template_key", "medium")
     .order("ponto_id", { ascending: true })
     .order("created_at", { ascending: true });
 
@@ -54,12 +69,16 @@ export async function fetchTerreiroPontosCustomTagsMap(params: {
   const map: TerreiroPontosCustomTagsMap = {};
 
   for (const r of rows) {
+    const id = typeof r.id === "string" ? r.id : "";
     const pontoId = typeof r.ponto_id === "string" ? r.ponto_id : "";
-    const tag = typeof r.tag_text === "string" ? r.tag_text : "";
-    if (!pontoId || !tag) continue;
+    const tagText = typeof r.tag_text === "string" ? r.tag_text : "";
+    const tagTextNormalized =
+      typeof r.tag_text_normalized === "string" ? r.tag_text_normalized : "";
+    const createdAt = typeof r.created_at === "string" ? r.created_at : "";
+    if (!id || !pontoId || !tagText || !tagTextNormalized) continue;
 
     if (!map[pontoId]) map[pontoId] = [];
-    map[pontoId].push(tag);
+    map[pontoId].push({ id, tagText, tagTextNormalized, createdAt });
   }
 
   return map;
