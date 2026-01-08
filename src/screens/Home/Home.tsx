@@ -3,6 +3,7 @@ import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
+import { useToast } from "@/contexts/ToastContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import {
   PontoUpsertModal,
@@ -92,6 +93,8 @@ export default function Home() {
   const { effectiveTheme } = usePreferences();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+
+  const { showToast } = useToast();
 
   const { isCurator, refetch: refetchIsCurator } = useIsCurator();
   const { curatorModeEnabled } = useCuratorMode();
@@ -854,7 +857,7 @@ export default function Home() {
                             });
 
                             setAddSuccess(true);
-                            Alert.alert("Ponto adicionado à coleção");
+                            showToast("Ponto adicionado à coleção");
                             setAddModalVisible(false);
                           }}
                           style={({ pressed }) => [
