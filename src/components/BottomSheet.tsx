@@ -30,6 +30,11 @@ const HORIZONTAL_SLOP = 8;
 const MIN_FLICK_AVG_PX_PER_S = 700;
 const SCROLL_TOP_TOLERANCE_PX = 1;
 
+// FAST FLICK: intenção do usuário é "fechar rápido" mesmo com dy pequeno.
+// `vy` do PanResponder costuma variar em torno de ~0.5–2.0 em gestos reais.
+const FAST_FLICK_VELOCITY = 1.2;
+const CLOSE_DISTANCE_RATIO = 0.3;
+
 type Props = {
   visible: boolean;
   onClose: () => void;
@@ -84,6 +89,7 @@ export function BottomSheet({
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
   const rootPager = useRootPagerOptional();
+  const setBottomSheetOpen = rootPager?.setIsBottomSheetOpen;
   const translateY = useRef(new Animated.Value(0)).current;
   const [sheetHeight, setSheetHeight] = useState(0);
   const scrollYRef = useRef(0);
@@ -115,13 +121,15 @@ export function BottomSheet({
     // Quando o sheet está visível, bloqueia swipe horizontal global (tabs).
     // Home já faz isso manualmente, mas manter aqui garante consistência
     // para qualquer tela que use BottomSheet.
-    if (!rootPager) return;
-    rootPager.setIsBottomSheetOpen(visible);
+    if (!setBottomSheetOpen) return;
+    setBottomSheetOpen(visible);
     return () => {
       // Cleanup no unmount (ou troca de rootPager) para não ficar preso em true.
-      rootPager.setIsBottomSheetOpen(false);
+      // IMPORTANTE: dependemos do setter (função), e não do objeto do context,
+      // para evitar um "pisca" de false/true quando o provider recria o value.
+      setBottomSheetOpen(false);
     };
-  }, [rootPager, visible]);
+  }, [setBottomSheetOpen, visible]);
 
   const maxSheetHeight = Math.round(screenHeight * 0.85);
   const fixedHeight = resolveSnapHeight(
@@ -147,7 +155,15 @@ export function BottomSheet({
   }, [fixedHeight, visible]);
 
   const requestClose = useCallback(
-    (reason?: "swipe" | "backdrop" | "button" | "programmatic") => {
+    (
+      reason?:
+        | "swipe"
+        | "swipe-fast"
+        | "swipe-distance"
+        | "backdrop"
+        | "button"
+        | "programmatic"
+    ) => {
       // `onClose` aqui é tratado como `onRequestClose`: o parent é a fonte de verdade
       // (ele deve setar `visible=false`).
       // Guard idempotente: evita múltiplos `onClose` por swipe/backdrop/spam.
@@ -192,7 +208,12 @@ export function BottomSheet({
   const shouldCloseFromRelease = useCallback((dy: number, vy: number) => {
     if (!(dy > 0)) return false;
 
-    const dragClose = dy > MIN_DRAG_TO_CLOSE;
+    // Distância: exige um arrasto mais "consciente" (proporcional à altura do sheet).
+    const distanceThreshold = Math.max(
+      MIN_DRAG_TO_CLOSE,
+      Math.round(effectiveSheetHeight * CLOSE_DISTANCE_RATIO)
+    );
+    const dragClose = dy > distanceThreshold;
 
     const dt = (Date.now() - gestureStartTsRef.current) / 1000;
     const vAvg = dt > 0 ? dy / dt : 0;
@@ -202,7 +223,7 @@ export function BottomSheet({
       (vy > MIN_FLICK_VELOCITY || vAvg > MIN_FLICK_AVG_PX_PER_S);
 
     return dragClose || flickClose;
-  }, []);
+  }, [effectiveSheetHeight]);
 
   const createPanResponder = useCallback(
     (opts: { canCapture: () => boolean }) => {
@@ -249,12 +270,30 @@ export function BottomSheet({
         onPanResponderRelease: (_evt, gesture) => {
           const dy = lastDyRef.current || gesture.dy;
           const vy = gesture.vy;
+          const vx = gesture.vx;
 
+          // 1) FAST FLICK (prioridade máxima)
+          // - fecha com pouco dy, se a intenção é claramente vertical para baixo.
+          // - só avaliamos quando o conteúdo está no topo (ou quando o handle captura).
+          const canSwipeCloseNow = opts.canCapture();
+          const isPredominantlyVertical = Math.abs(vy) > Math.abs(vx);
+          if (
+            canSwipeCloseNow &&
+            dy > MIN_DIRECTIONAL_DY &&
+            vy > FAST_FLICK_VELOCITY &&
+            isPredominantlyVertical
+          ) {
+            closeBySwipe();
+            return;
+          }
+
+          // 2) ARRASTO CONSCIENTE (distância)
           if (shouldCloseFromRelease(dy, vy)) {
             closeBySwipe();
             return;
           }
 
+          // 3) Caso contrário: snap back
           Animated.spring(translateY, {
             toValue: 0,
             useNativeDriver: true,

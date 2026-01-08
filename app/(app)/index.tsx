@@ -57,6 +57,8 @@ import { TabView } from "react-native-tab-view";
         navigationState={{ index: ctx?.index ?? 0, routes: routes as any }}
         onIndexChange={(next) => ctx?.setIndex(next)}
         initialLayout={{ width }}
+        // Bloqueia swipe horizontal quando há BottomSheet aberto para evitar
+        // conflito de gestos (overlay vs pager).
         swipeEnabled={!ctx?.isBottomSheetOpen}
         renderTabBar={() => null}
         renderScene={renderScene as any}
