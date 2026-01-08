@@ -6,8 +6,15 @@ import React, {
   useMemo,
   useReducer,
   useRef,
+  useState,
 } from "react";
-import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import {
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
@@ -42,12 +49,18 @@ const ToastContext = createContext<ToastContextValue | undefined>(undefined);
 const DEFAULT_DURATION_MS = 2200;
 const MAX_VISIBLE = 3;
 
-const TOAST_HEIGHT = 72;
 const STACK_OVERLAP = 0.85;
-const STACK_STEP = Math.round(TOAST_HEIGHT * (1 - STACK_OVERLAP));
+const MIN_TOAST_HEIGHT = 48;
+const MAX_TOAST_HEIGHT_RATIO = 0.33;
 const ENTER_FROM_Y = 18;
 const ENTER_FROM_X = 6;
 const EXIT_TO_Y = 8;
+
+function getToastStackStep(measuredHeight?: number) {
+  const height = measuredHeight ?? MIN_TOAST_HEIGHT;
+  // 85% overlap => cada card sobe ~15% da altura do anterior.
+  return Math.max(4, Math.round(height * (1 - STACK_OVERLAP)));
+}
 
 function createToastId() {
   return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
@@ -140,13 +153,24 @@ type ToastCardProps = {
   toast: ToastModel;
   index: number;
   bottomOffset: number;
+  offsetY: number;
+  maxHeight: number;
   onExited: (id: string) => void;
+  onMeasuredHeight: (id: string, height: number) => void;
 };
 
-function ToastCard({ toast, index, bottomOffset, onExited }: ToastCardProps) {
+function ToastCard({
+  toast,
+  index,
+  bottomOffset,
+  offsetY,
+  maxHeight,
+  onExited,
+  onMeasuredHeight,
+}: ToastCardProps) {
   const enter = useSharedValue(0);
   const exit = useSharedValue(0);
-  const stackY = useSharedValue(-index * STACK_STEP);
+  const stackY = useSharedValue(offsetY);
   const stackX = useSharedValue(getStackOffsetX(index));
 
   useEffect(() => {
@@ -157,7 +181,7 @@ function ToastCard({ toast, index, bottomOffset, onExited }: ToastCardProps) {
   }, [enter]);
 
   useEffect(() => {
-    stackY.value = withTiming(-index * STACK_STEP, {
+    stackY.value = withTiming(offsetY, {
       duration: 220,
       easing: Easing.out(Easing.cubic),
     });
@@ -165,7 +189,7 @@ function ToastCard({ toast, index, bottomOffset, onExited }: ToastCardProps) {
       duration: 220,
       easing: Easing.out(Easing.cubic),
     });
-  }, [index, stackY, stackX]);
+  }, [index, offsetY, stackY, stackX]);
 
   useEffect(() => {
     if (toast.phase !== "exiting") return;
@@ -192,19 +216,28 @@ function ToastCard({ toast, index, bottomOffset, onExited }: ToastCardProps) {
 
   return (
     <Animated.View
-      pointerEvents="none"
+      onLayout={(e) => {
+        onMeasuredHeight(toast.id, e.nativeEvent.layout.height);
+      }}
+      pointerEvents="box-none"
       style={[
         styles.toast,
         {
           bottom: bottomOffset,
           zIndex: 100 - index,
+          maxHeight,
         },
         animatedStyle,
       ]}
     >
-      <Text numberOfLines={2} style={styles.toastText}>
-        {toast.message}
-      </Text>
+      <ScrollView
+        bounces={false}
+        showsVerticalScrollIndicator={false}
+        style={styles.toastScroll}
+        contentContainerStyle={styles.toastScrollContent}
+      >
+        <Text style={styles.toastText}>{toast.message}</Text>
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -219,16 +252,41 @@ function ToastStack({
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
 
+  const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>(
+    {}
+  );
+
+  const onMeasuredHeight = useCallback((id: string, h: number) => {
+    // Evita re-render em loop por flutuação mínima.
+    setMeasuredHeights((prev) => {
+      const current = prev[id];
+      if (current != null && Math.abs(current - h) < 1) return prev;
+      return { ...prev, [id]: h };
+    });
+  }, []);
+
   // Slot inferior: 12% por padrão (fica naturalmente entre 5% e 15%)
   const slotHeight = Math.round(height * 0.12);
   const bottomOffset = insets.bottom + spacing.sm;
   const containerHeight = slotHeight + bottomOffset;
+  const maxToastHeight = Math.round(height * MAX_TOAST_HEIGHT_RATIO);
 
   if (toasts.length === 0) return null;
 
   // Renderiza de trás para frente para manter o topo por cima.
   const stack = toasts.slice(0, MAX_VISIBLE);
   const renderList = [...stack].reverse();
+
+  const offsetsById = useMemo(() => {
+    const offsets: Record<string, number> = {};
+    let acc = 0;
+    for (let i = 0; i < stack.length; i++) {
+      const toast = stack[i];
+      offsets[toast.id] = -acc;
+      acc += getToastStackStep(measuredHeights[toast.id]);
+    }
+    return offsets;
+  }, [measuredHeights, stack]);
 
   return (
     <View
@@ -243,7 +301,10 @@ function ToastStack({
             toast={toast}
             index={index}
             bottomOffset={bottomOffset}
+            offsetY={offsetsById[toast.id] ?? 0}
+            maxHeight={maxToastHeight}
             onExited={onToastExited}
+            onMeasuredHeight={onMeasuredHeight}
           />
         );
       })}
@@ -363,7 +424,7 @@ const styles = StyleSheet.create({
     position: "absolute",
     left: spacing.lg,
     right: spacing.lg,
-    minHeight: TOAST_HEIGHT,
+    minHeight: MIN_TOAST_HEIGHT,
     borderRadius: radii.md,
     paddingHorizontal: spacing.lg,
     paddingVertical: spacing.md,
@@ -372,10 +433,18 @@ const styles = StyleSheet.create({
 
     ...shadows.md,
   },
+  toastScroll: {
+    alignSelf: "stretch",
+  },
+  toastScrollContent: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
   toastText: {
     color: "#FFF",
     fontSize: 14,
     fontWeight: "700",
+    lineHeight: 18,
     textAlign: "center",
   },
 });
