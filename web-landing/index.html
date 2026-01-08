@@ -11,6 +11,38 @@
     <link rel="stylesheet" href="/styles.css?v=2026-01-08-1" />
   </head>
   <body>
+    <header class="top-header" aria-label="Saravafy">
+      <div class="top-header__inner">
+        <div class="top-header__brand" aria-label="Saravafy">
+          <img
+            class="top-header__logo top-header__logo--light"
+            src="/images/saravafy-logo-full-light.png"
+            alt="Saravafy"
+            decoding="async"
+          />
+          <img
+            class="top-header__logo top-header__logo--dark"
+            src="/images/saravafy-logo-full-dark.png"
+            alt="Saravafy"
+            decoding="async"
+          />
+        </div>
+
+        <div class="top-header__actions" aria-label="Ações">
+          <button
+            class="btn-primary"
+            type="button"
+            id="installBtn"
+            data-install-url="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
+            aria-haspopup="dialog"
+            aria-controls="installModal"
+          >
+            Instalar app
+          </button>
+        </div>
+      </div>
+    </header>
+
     <main class="container">
       <header class="card" aria-label="Saravafy">
         <h1>Saravafy</h1>
@@ -110,28 +142,13 @@
 
         <p>Tudo isso de forma gratuita, comunitária e respeitosa.</p>
       </section>
-    </main>
 
-    <footer class="fixed-footer" aria-label="Ações e links">
-      <div class="fixed-footer__inner">
-        <div class="fixed-footer__actions" aria-label="Acesso ao app">
-          <button
-            class="btn-primary"
-            type="button"
-            id="installBtn"
-            data-install-url="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
-            aria-haspopup="dialog"
-            aria-controls="installModal"
-          >
-            Instalar app
-          </button>
-        </div>
-
-        <a class="fixed-footer__link" href="/politica-de-privacidade"
+      <footer class="landing-footer" aria-label="Links legais">
+        <a class="landing-footer__link" href="/politica-de-privacidade"
           >Política de Privacidade</a
         >
-      </div>
-    </footer>
+      </footer>
+    </main>
 
     <div
       class="modal"

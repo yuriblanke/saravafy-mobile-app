@@ -38,10 +38,10 @@
 
   --focus-ring: rgba(61, 145, 121, 0.32);
 
-  /* Footer + modal */
-  --footer-height: 56px;
-  --footer-bg: rgba(239, 233, 223, 0.92);
-  --footer-shadow: 0 -14px 34px rgba(14, 42, 36, 0.14);
+  /* Header + modal */
+  --header-height: 64px;
+  --header-bg: rgba(243, 239, 233, 0.92);
+  --header-shadow: 0 14px 34px rgba(14, 42, 36, 0.1);
   --modal-backdrop: rgba(0, 0, 0, 0.42);
   --modal-panel-bg: var(--paper50);
 
@@ -120,18 +120,69 @@ body::after {
 .container {
   max-width: 520px;
   margin: 0 auto;
-  padding: 28px 16px
-    calc(32px + var(--footer-height) + env(safe-area-inset-bottom, 0px) + 14px);
+  padding: 22px 16px 32px;
+}
+
+/* Top header (logo + instalar) */
+.top-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  background: var(--header-bg);
+  border-bottom: 1px solid var(--card-border);
+  box-shadow: var(--header-shadow);
+  backdrop-filter: blur(10px);
+}
+
+.top-header__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  min-height: var(--header-height);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.top-header__brand {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.top-header__logo {
+  height: 28px;
+  width: auto;
+  max-width: min(240px, 60vw);
+  object-fit: contain;
+}
+
+.top-header__logo--dark {
+  display: none;
+}
+
+.top-header__actions {
+  display: inline-flex;
+  align-items: center;
+}
+
+.top-header .btn-primary {
+  padding: 10px 12px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 /* Progressive enhancement: desktop layout without impacting mobile-first */
 @media (min-width: 960px) {
   .container {
     max-width: 980px;
-    padding: 44px 24px
-      calc(
-        56px + var(--footer-height) + env(safe-area-inset-bottom, 0px) + 18px
-      );
+    padding: 34px 24px 56px;
+  }
+
+  .top-header__inner {
+    padding-left: 24px;
+    padding-right: 24px;
   }
 
   h1 {
@@ -197,6 +248,11 @@ body::after {
     padding-right: 28px;
   }
 
+  .top-header__inner {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+
   /* “O que acreditamos” em grid (3 colunas) */
   .list-items {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -206,49 +262,6 @@ body::after {
     grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
     gap: 18px;
   }
-}
-
-/* Fixed footer (discreto) */
-.fixed-footer {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 60;
-  background: var(--footer-bg);
-  border-top: 1px solid var(--card-border);
-  box-shadow: var(--footer-shadow);
-  backdrop-filter: blur(10px);
-}
-
-.fixed-footer__inner {
-  max-width: 1100px;
-  margin: 0 auto;
-  min-height: var(--footer-height);
-  padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.fixed-footer__actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.fixed-footer__link {
-  font-size: 12px;
-  color: var(--text-muted);
-  text-decoration: underline;
-  padding: 8px 10px;
-  border-radius: 12px;
-}
-
-.fixed-footer__link:focus-visible {
-  outline: 3px solid var(--focus-ring);
-  outline-offset: 3px;
 }
 
 /* Modal */
@@ -524,8 +537,6 @@ p {
   padding: 12px;
 }
 
-
-
 .lyrics-full {
   margin: 0;
   font-size: 14px;
@@ -629,8 +640,6 @@ body.is-ponto .cta-card.card {
   background: rgba(243, 239, 233, 0.55);
   padding: 12px;
 }
-
-
 
 .list-item:focus-visible {
   outline: 3px solid var(--focus-ring);
