@@ -52,40 +52,7 @@
   --light-tint-opacity: 0.12;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    color-scheme: dark;
-    --bg-solid: var(--forest900);
-    --bg-grad-from: var(--forest800);
-    --bg-grad-to: var(--forest900);
-
-    --text-primary: rgba(243, 239, 233, 0.96);
-    --text-secondary: rgba(243, 239, 233, 0.8);
-    --text-muted: rgba(243, 239, 233, 0.62);
-
-    --card-bg: rgba(18, 51, 45, 0.68);
-    --card-border: rgba(243, 239, 233, 0.12);
-    --card-shadow: 0 18px 50px rgba(0, 0, 0, 0.42);
-
-    --btn-primary-bg: var(--forest300);
-    --btn-primary-text: rgba(14, 42, 36, 0.96);
-    --btn-secondary-bg: rgba(18, 51, 45, 0.62);
-    --btn-secondary-text: rgba(243, 239, 233, 0.92);
-    --btn-border: rgba(243, 239, 233, 0.12);
-
-    --focus-ring: rgba(139, 201, 179, 0.28);
-
-    --footer-bg: rgba(18, 51, 45, 0.88);
-    --footer-shadow: 0 -16px 44px rgba(0, 0, 0, 0.5);
-    --modal-backdrop: rgba(0, 0, 0, 0.58);
-    --modal-panel-bg: var(--forest800);
-
-    --vignette: rgba(0, 0, 0, 0.25);
-    --light-brass-opacity: 0.08;
-    --light-paper-opacity: 0.04;
-    --light-tint-opacity: 0.14;
-  }
-}
+/* Tema padronizado: claro (sem overrides de dark mode). */
 
 * {
   box-sizing: border-box;
@@ -557,11 +524,7 @@ p {
   padding: 12px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .lyrics-scroll {
-    background: rgba(18, 51, 45, 0.36);
-  }
-}
+
 
 .lyrics-full {
   margin: 0;
@@ -667,11 +630,7 @@ body.is-ponto .cta-card.card {
   padding: 12px;
 }
 
-@media (prefers-color-scheme: dark) {
-  .list-item {
-    background: rgba(18, 51, 45, 0.52);
-  }
-}
+
 
 .list-item:focus-visible {
   outline: 3px solid var(--focus-ring);
