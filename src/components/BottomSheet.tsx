@@ -393,11 +393,9 @@ export function BottomSheet({
           />
         </View>
 
-        <View>
-          <View
-            style={styles.gestureZone}
-            {...(contentPanResponder ? contentPanResponder.panHandlers : null)}
-          />
+        <View
+          {...(contentPanResponder ? contentPanResponder.panHandlers : null)}
+        >
           <ScrollView
             style={styles.scroll}
             contentContainerStyle={styles.scrollContent}
@@ -473,8 +471,5 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-  },
-  gestureZone: {
-    height: 32,
   },
 });
