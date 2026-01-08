@@ -43,6 +43,7 @@
   --footer-bg: rgba(239, 233, 223, 0.92);
   --footer-shadow: 0 -14px 34px rgba(14, 42, 36, 0.14);
   --modal-backdrop: rgba(0, 0, 0, 0.42);
+  --modal-panel-bg: var(--paper50);
 
   /* Vignette / lights (similar to SaravafyScreen) */
   --vignette: rgba(14, 42, 36, 0.1);
@@ -77,6 +78,7 @@
     --footer-bg: rgba(18, 51, 45, 0.88);
     --footer-shadow: 0 -16px 44px rgba(0, 0, 0, 0.5);
     --modal-backdrop: rgba(0, 0, 0, 0.58);
+    --modal-panel-bg: var(--forest800);
 
     --vignette: rgba(0, 0, 0, 0.25);
     --light-brass-opacity: 0.08;
@@ -307,7 +309,7 @@ body::after {
   position: relative;
   width: 100%;
   max-width: 520px;
-  background: var(--card-bg);
+  background: var(--modal-panel-bg);
   border: 1px solid var(--card-border);
   border-radius: 18px;
   box-shadow: var(--card-shadow);

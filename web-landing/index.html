@@ -101,13 +101,12 @@
         </p>
       </section>
 
-      <section
-        class="card"
-        aria-labelledby="como-funciona"
-      >
+      <section class="card" aria-labelledby="como-funciona">
         <h2 id="como-funciona">Como funciona</h2>
 
-        <p>O Saravafy funciona como um acervo digital acessível por aplicativo.</p>
+        <p>
+          O Saravafy funciona como um acervo digital acessível por aplicativo.
+        </p>
 
         <p>Tudo isso de forma gratuita, comunitária e respeitosa.</p>
       </section>
@@ -120,13 +119,12 @@
             class="btn-primary"
             type="button"
             id="installBtn"
+            data-install-url="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
             aria-haspopup="dialog"
             aria-controls="installModal"
           >
             Instalar app
           </button>
-
-          <a class="btn-secondary" href="saravafy://">Abrir no app</a>
         </div>
 
         <a class="fixed-footer__link" href="/politica-de-privacidade"
@@ -160,18 +158,13 @@
               O Android pode pedir uma confirmação extra na primeira instalação
               — isso é normal e acontece apenas uma vez.
             </li>
-            <li>Após instalar, volte aqui e toque em “Abrir no app”.</li>
+            <li>Após instalar, volte aqui.</li>
           </ul>
         </div>
 
         <div class="modal__actions">
-          <a
-            class="btn-primary"
-            href="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
-            >Continuar instalação</a
-          >
-          <button class="btn-secondary" type="button" data-close-modal>
-            Fechar
+          <button class="btn-primary" type="button" data-close-modal>
+            Entendi
           </button>
         </div>
       </div>
@@ -190,7 +183,7 @@
             lastFocused = document.activeElement;
             modal.hidden = false;
             document.body.classList.add("modal-open");
-            var closeEl = modal.querySelector("[data-close-modal]");
+            var closeEl = modal.querySelector("button[data-close-modal]");
             if (closeEl && closeEl.focus) closeEl.focus();
           } else {
             modal.hidden = true;
@@ -200,6 +193,14 @@
         }
 
         installBtn.addEventListener("click", function () {
+          var url = installBtn.getAttribute("data-install-url");
+          if (url) {
+            var win = window.open(url, "_blank", "noopener");
+            if (!win) {
+              window.location.href = url;
+              return;
+            }
+          }
           setOpen(true);
         });
 
