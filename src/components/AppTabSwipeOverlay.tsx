@@ -12,11 +12,23 @@ import React, {
 } from "react";
 import {
   Animated,
+  DevSettings,
   PanResponder,
   StyleSheet,
   useWindowDimensions,
   View,
 } from "react-native";
+
+type OverlayPointerEvents = "none" | "auto";
+
+function logSwipeOverlay(payload: Record<string, unknown>) {
+  if (!__DEV__) return;
+  try {
+    console.log("[SwipeOverlay] " + JSON.stringify(payload));
+  } catch {
+    console.log("[SwipeOverlay] " + String(payload?.phase ?? "log"));
+  }
+}
 
 function shouldCaptureSwipe(dx: number, dy: number) {
   const absX = Math.abs(dx);
@@ -87,23 +99,43 @@ export function AppTabSwipeOverlay() {
   const gestureGate = useGestureGate();
   const { width } = useWindowDimensions();
 
-  const [panPointerEvents, setPanPointerEvents] = useState<"none" | "auto">(
+  const [forcePointerEventsAuto, setForcePointerEventsAuto] = useState(false);
+  const forcePointerEventsAutoRef = useRef(false);
+
+  const [panPointerEvents, setPanPointerEvents] = useState<OverlayPointerEvents>(
     "none"
   );
-  const panPointerEventsRef = useRef<"none" | "auto">("none");
-  const setPanPE = useCallback((next: "none" | "auto") => {
+  const panPointerEventsRef = useRef<OverlayPointerEvents>("none");
+  const pathnameRef = useRef(pathname);
+
+  useEffect(() => {
+    pathnameRef.current = pathname;
+  }, [pathname]);
+
+  useEffect(() => {
+    forcePointerEventsAutoRef.current = forcePointerEventsAuto;
+  }, [forcePointerEventsAuto]);
+
+  const setPanPE = useCallback((next: OverlayPointerEvents, reason?: string) => {
     if (panPointerEventsRef.current === next) return;
+    const prev = panPointerEventsRef.current;
     panPointerEventsRef.current = next;
     setPanPointerEvents(next);
-    if (__DEV__) {
-      console.log("[SwipeOverlay] pointerEvents -> " + next);
-    }
+    logSwipeOverlay({
+      phase: "pointerEventsChange",
+      pathname: pathnameRef.current,
+      pointerEventsPrev: prev,
+      pointerEventsNext: next,
+      reason: reason ?? null,
+      now: Date.now(),
+    });
   }, []);
 
   const translateX = useRef(new Animated.Value(0)).current;
   const swipeRecognizedRef = useRef(false);
   const didNavigateRef = useRef(false);
   const rejectedForVerticalRef = useRef(false);
+  const lastMoveLogAtRef = useRef(0);
 
   // DEV-only: helps confirm whether swipe is needed to "wake" taps.
   const didLogCaptureThresholdRef = useRef(false);
@@ -120,95 +152,292 @@ export function AppTabSwipeOverlay() {
   const activeTab: TabKey =
     pathname === "/" ? rootPager.activeKey : inferTabFromPathname(pathname);
 
+  const activeTabRef = useRef<TabKey>(activeTab);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
+
+  const effectivePointerEvents: OverlayPointerEvents = forcePointerEventsAuto
+    ? "auto"
+    : panPointerEvents;
+
+  if (__DEV__) {
+    logSwipeOverlay({
+      phase: "render",
+      render: renderCountRef.current,
+      pathname,
+      activeTab,
+      isOverlayDisabled,
+      isPlayerActive,
+      isModalActive,
+      isBottomSheetOpen: !!rootPager?.isBottomSheetOpen,
+      pointerEventsRaw: panPointerEvents,
+      pointerEventsEffective: effectivePointerEvents,
+      forcePointerEventsAuto,
+    });
+  }
+
   // Segurança extra: quando o overlay estiver habilitado, garantimos que ele
-  // comece fora do hit-test (pointerEvents="none") at cruzar o capture threshold.
+  // comece fora do hit-test (pointerEvents="none") até cruzar o capture threshold.
   useEffect(() => {
     if (isOverlayDisabled) return;
-    setPanPE("none");
+    setPanPE("none", "overlayEnabled");
   }, [isOverlayDisabled, setPanPE]);
 
   useEffect(() => {
     if (!__DEV__) return;
-    console.log("[SwipeOverlay] mount", {
+    logSwipeOverlay({
+      phase: "mount",
       pathname,
       activeTab,
+      now: Date.now(),
     });
     return () => {
-      console.log("[SwipeOverlay] unmount", {
-        pathname,
-        activeTab,
+      logSwipeOverlay({
+        phase: "unmount",
+        pathname: pathnameRef.current,
+        activeTab: activeTabRef.current,
+        now: Date.now(),
       });
     };
-  }, [activeTab, pathname]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!__DEV__) return;
-    console.log("[SwipeOverlay] state", {
+    logSwipeOverlay({
+      phase: "devMenu",
+      action: "addMenuItem",
+      item: "SwipeOverlay: Toggle force pointerEvents=auto",
+    });
+    DevSettings.addMenuItem(
+      "SwipeOverlay: Toggle force pointerEvents=auto",
+      () => {
+        setForcePointerEventsAuto((prev) => {
+          const next = !prev;
+          logSwipeOverlay({
+            phase: "devMenu",
+            action: "toggleForcePointerEventsAuto",
+            pathname: pathnameRef.current,
+            prev,
+            next,
+            now: Date.now(),
+          });
+          return next;
+        });
+      }
+    );
+  }, []);
+
+  useEffect(() => {
+    logSwipeOverlay({
+      phase: "state",
       pathname,
       activeTab,
       isPlayerActive,
+      isModalActive,
       isOverlayDisabled,
       isBottomSheetOpen: !!rootPager?.isBottomSheetOpen,
+      pointerEventsRaw: panPointerEvents,
+      pointerEventsEffective: effectivePointerEvents,
+      forcePointerEventsAuto,
+      now: Date.now(),
     });
   }, [
     activeTab,
     isOverlayDisabled,
     isPlayerActive,
+    isModalActive,
     pathname,
     rootPager?.isBottomSheetOpen,
+    panPointerEvents,
+    effectivePointerEvents,
+    forcePointerEventsAuto,
+  ]);
+
+  useEffect(() => {
+    logSwipeOverlay({
+      phase: "pointerEventsEffective",
+      pathname,
+      pointerEventsRaw: panPointerEvents,
+      pointerEventsEffective: effectivePointerEvents,
+      forcePointerEventsAuto,
+      now: Date.now(),
+    });
+  }, [effectivePointerEvents, forcePointerEventsAuto, panPointerEvents, pathname]);
+
+  useEffect(() => {
+    if (!isOverlayDisabled) return;
+    logSwipeOverlay({
+      phase: "disabled",
+      pathname,
+      activeTab,
+      isPlayerActive,
+      isModalActive,
+      isBottomSheetOpen: !!rootPager?.isBottomSheetOpen,
+      pointerEventsRaw: panPointerEvents,
+      pointerEventsEffective: effectivePointerEvents,
+      forcePointerEventsAuto,
+      now: Date.now(),
+    });
+  }, [
+    isOverlayDisabled,
+    pathname,
+    activeTab,
+    isPlayerActive,
+    isModalActive,
+    rootPager?.isBottomSheetOpen,
+    panPointerEvents,
+    effectivePointerEvents,
+    forcePointerEventsAuto,
   ]);
 
   const panResponder = useMemo(() => {
     if (isOverlayDisabled) return null;
 
     return PanResponder.create({
-      onStartShouldSetPanResponder: () => false,
-      onStartShouldSetPanResponderCapture: () => false,
+      onStartShouldSetPanResponder: (_evt, gesture) => {
+        const decision = false;
+        logSwipeOverlay({
+          phase: "startShouldSet",
+          pathname,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          dx: gesture?.dx ?? 0,
+          dy: gesture?.dy ?? 0,
+          decision,
+        });
+        return decision;
+      },
+      onStartShouldSetPanResponderCapture: (_evt, gesture) => {
+        const decision = false;
+        logSwipeOverlay({
+          phase: "startShouldSetCapture",
+          pathname,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          dx: gesture?.dx ?? 0,
+          dy: gesture?.dy ?? 0,
+          decision,
+        });
+        return decision;
+      },
 
       onMoveShouldSetPanResponder: (_evt, gesture) => {
-        if (shouldRejectForVertical(gesture.dx, gesture.dy)) return false;
-
-        const movementTarget = getMovementTargetTab(gesture.dx, activeTab);
-        if (!movementTarget) return false;
-        if (movementTarget === activeTab) return false;
-
-        const should = shouldCaptureSwipe(gesture.dx, gesture.dy);
-        if (should) {
-          setPanPE("auto");
-        }
-        if (__DEV__ && should) {
-          console.log("[SwipeOverlay] capture(move)", {
+        const dx = gesture.dx;
+        const dy = gesture.dy;
+        const rejectedForVertical = shouldRejectForVertical(dx, dy);
+        if (rejectedForVertical) {
+          logSwipeOverlay({
+            phase: "moveShouldSet",
             pathname,
-            activeTab,
-            targetTab: movementTarget,
-            dx: gesture.dx,
-            dy: gesture.dy,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            dx,
+            dy,
+            rejectedForVertical,
+            movementTarget: null,
+            decision: false,
           });
+          return false;
         }
+
+        const movementTarget = getMovementTargetTab(dx, activeTab);
+        if (!movementTarget || movementTarget === activeTab) {
+          logSwipeOverlay({
+            phase: "moveShouldSet",
+            pathname,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            dx,
+            dy,
+            rejectedForVertical,
+            movementTarget: movementTarget ?? null,
+            decision: false,
+          });
+          return false;
+        }
+
+        const should = shouldCaptureSwipe(dx, dy);
+        if (should) {
+          setPanPE("auto", "moveShouldSet:true");
+        }
+        logSwipeOverlay({
+          phase: "moveShouldSet",
+          pathname,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          activeTab,
+          movementTarget,
+          dx,
+          dy,
+          decision: should,
+        });
         return should;
       },
 
       onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
         // Versão "capture" para vencer ScrollView/FlatList quando for swipe horizontal real.
-        if (shouldRejectForVertical(gesture.dx, gesture.dy)) return false;
-
-        const movementTarget = getMovementTargetTab(gesture.dx, activeTab);
-        if (!movementTarget) return false;
-        if (movementTarget === activeTab) return false;
-
-        const should = shouldCaptureSwipe(gesture.dx, gesture.dy);
-        if (should) {
-          setPanPE("auto");
-        }
-        if (__DEV__ && should) {
-          console.log("[SwipeOverlay] capture(move/capture)", {
+        const dx = gesture.dx;
+        const dy = gesture.dy;
+        const rejectedForVertical = shouldRejectForVertical(dx, dy);
+        if (rejectedForVertical) {
+          logSwipeOverlay({
+            phase: "moveShouldSetCapture",
             pathname,
-            activeTab,
-            targetTab: movementTarget,
-            dx: gesture.dx,
-            dy: gesture.dy,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            dx,
+            dy,
+            rejectedForVertical,
+            movementTarget: null,
+            decision: false,
           });
+          return false;
         }
+
+        const movementTarget = getMovementTargetTab(dx, activeTab);
+        if (!movementTarget || movementTarget === activeTab) {
+          logSwipeOverlay({
+            phase: "moveShouldSetCapture",
+            pathname,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            dx,
+            dy,
+            rejectedForVertical,
+            movementTarget: movementTarget ?? null,
+            decision: false,
+          });
+          return false;
+        }
+
+        const should = shouldCaptureSwipe(dx, dy);
+        if (should) {
+          setPanPE("auto", "moveShouldSetCapture:true");
+        }
+        logSwipeOverlay({
+          phase: "moveShouldSetCapture",
+          pathname,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          activeTab,
+          movementTarget,
+          dx,
+          dy,
+          decision: should,
+        });
         return should;
       },
 
@@ -220,18 +449,39 @@ export function AppTabSwipeOverlay() {
         didLogNavThresholdRef.current = false;
         translateX.setValue(0);
 
-        if (__DEV__) {
-          console.log("[SwipeOverlay] grant", {
-            pathname,
-            activeTab,
-            now: Date.now(),
-          });
-        }
+        logSwipeOverlay({
+          phase: "grant",
+          pathname,
+          activeTab,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          now: Date.now(),
+        });
       },
 
       onPanResponderMove: (_evt, gesture) => {
         const absX = Math.abs(gesture.dx);
         const absY = Math.abs(gesture.dy);
+
+        const now = Date.now();
+        if (now - lastMoveLogAtRef.current > 120) {
+          lastMoveLogAtRef.current = now;
+          logSwipeOverlay({
+            phase: "move",
+            pathname,
+            activeTab,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            dx: gesture.dx,
+            dy: gesture.dy,
+            absX,
+            absY,
+            swipeRecognized: swipeRecognizedRef.current,
+            rejectedForVertical: rejectedForVerticalRef.current,
+          });
+        }
 
         const movementTarget = getMovementTargetTab(gesture.dx, activeTab);
 
@@ -242,9 +492,13 @@ export function AppTabSwipeOverlay() {
           shouldCaptureSwipe(gesture.dx, gesture.dy)
         ) {
           didLogCaptureThresholdRef.current = true;
-          console.log("[SwipeOverlay] move:cross_capture_threshold", {
+          logSwipeOverlay({
+            phase: "moveCrossCaptureThreshold",
             pathname,
             activeTab,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
             targetTab: movementTarget,
             dx: gesture.dx,
             dy: gesture.dy,
@@ -261,9 +515,13 @@ export function AppTabSwipeOverlay() {
           absX > absY
         ) {
           didLogNavThresholdRef.current = true;
-          console.log("[SwipeOverlay] move:cross_nav_threshold", {
+          logSwipeOverlay({
+            phase: "moveCrossNavThreshold",
             pathname,
             activeTab,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
             targetTab: getReleaseTargetTab(gesture.dx, activeTab),
             dx: gesture.dx,
             dy: gesture.dy,
@@ -298,21 +556,25 @@ export function AppTabSwipeOverlay() {
           swipeRecognizedRef.current = true;
           gestureGate.markSwipeStart();
 
-          if (__DEV__) {
-            console.log("[SwipeOverlay] swipeRecognized", {
-              pathname,
-              activeTab,
-              targetTab: movementTarget,
-              dx: gesture.dx,
-              dy: gesture.dy,
-            });
-          }
+          logSwipeOverlay({
+            phase: "swipeRecognized",
+            pathname,
+            activeTab,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            targetTab: movementTarget,
+            dx: gesture.dx,
+            dy: gesture.dy,
+            absX,
+            absY,
+          });
         }
       },
 
       onPanResponderRelease: (_evt, gesture) => {
-        // Ao terminar o gesto, o overlay volta a no participar do hit-test.
-        setPanPE("none");
+        // Ao terminar o gesto, o overlay volta a não participar do hit-test.
+        setPanPE("none", "release");
 
         const absX = Math.abs(gesture.dx);
         const absY = Math.abs(gesture.dy);
@@ -326,54 +588,60 @@ export function AppTabSwipeOverlay() {
           absX > absY;
         const isOnRootPager = pathname === "/";
 
-        if (__DEV__) {
-          console.log("[SwipeOverlay] release", {
-            pathname,
-            activeTab,
-            targetTab: targetTab ?? null,
-            dx: gesture.dx,
-            dy: gesture.dy,
-            absX,
-            absY,
-            rejectedForVertical: rejectedForVerticalRef.current,
-            shouldNavigate,
-            isOnRootPager,
-          });
-        }
+        logSwipeOverlay({
+          phase: "release",
+          pathname,
+          activeTab,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          targetTab: targetTab ?? null,
+          dx: gesture.dx,
+          dy: gesture.dy,
+          absX,
+          absY,
+          rejectedForVertical: rejectedForVerticalRef.current,
+          shouldNavigate,
+          isOnRootPager,
+        });
 
         if (shouldNavigate && !didNavigateRef.current) {
           didNavigateRef.current = true;
 
-          if (__DEV__) {
-            console.log("[SwipeOverlay] shouldNavigate", {
-              pathname,
-              activeTab,
-              targetTab,
-              dx: gesture.dx,
-              dy: gesture.dy,
-              absX,
-              absY,
-            });
-          }
+          logSwipeOverlay({
+            phase: "shouldNavigate",
+            pathname,
+            activeTab,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            targetTab,
+            dx: gesture.dx,
+            dy: gesture.dy,
+            absX,
+            absY,
+          });
 
-          if (__DEV__) {
-            console.log("[SwipeOverlay] willNavigate", {
-              pathname,
-              targetTab,
-              restoreHref: tabController.getLastHrefForTab(targetTab),
-            });
-          }
+          logSwipeOverlay({
+            phase: "willNavigate",
+            pathname,
+            activeTab,
+            pointerEventsRaw: panPointerEventsRef.current,
+            pointerEventsEffective: effectivePointerEvents,
+            forcePointerEventsAuto,
+            targetTab,
+            restoreHref: tabController.getLastHrefForTab(targetTab),
+          });
 
           // IMPORTANTE (determinístico): bloquear press APENAS quando
           // realmente vamos navegar (evita bloquear taps normais por jitter).
-          if (__DEV__) {
-            console.log("[SwipeOverlay] markSwipeRecognized", {
-              pathname,
-              activeTab,
-              targetTab,
-              now: Date.now(),
-            });
-          }
+          logSwipeOverlay({
+            phase: "markSwipeRecognized",
+            pathname,
+            activeTab,
+            targetTab,
+            now: Date.now(),
+          });
           gestureBlock.markSwipeRecognized();
 
           // Ao finalizar, já deixa o gate em modo "block" antes de qualquer press.
@@ -437,8 +705,8 @@ export function AppTabSwipeOverlay() {
       },
 
       onPanResponderTerminate: () => {
-        // Ao terminar/interromper o gesto, o overlay volta a no participar do hit-test.
-        setPanPE("none");
+        // Ao terminar/interromper o gesto, o overlay volta a não participar do hit-test.
+        setPanPE("none", "terminate");
 
         // Gesto interrompido, volta para posição original
         Animated.spring(translateX, {
@@ -452,9 +720,15 @@ export function AppTabSwipeOverlay() {
           rejectedForVerticalRef.current = false;
         });
 
-        if (__DEV__) {
-          console.log("[SwipeOverlay] terminate", { pathname });
-        }
+        logSwipeOverlay({
+          phase: "terminate",
+          pathname,
+          activeTab,
+          pointerEventsRaw: panPointerEventsRef.current,
+          pointerEventsEffective: effectivePointerEvents,
+          forcePointerEventsAuto,
+          now: Date.now(),
+        });
       },
     });
   }, [
@@ -468,6 +742,8 @@ export function AppTabSwipeOverlay() {
     translateX,
     width,
     setPanPE,
+    effectivePointerEvents,
+    forcePointerEventsAuto,
   ]);
 
   if (isOverlayDisabled || !panResponder) {
@@ -477,7 +753,7 @@ export function AppTabSwipeOverlay() {
   return (
     <View style={styles.container} pointerEvents="box-none">
       <Animated.View
-        pointerEvents={panPointerEvents}
+        pointerEvents={effectivePointerEvents}
         style={[styles.overlay, { transform: [{ translateX }] }]}
         {...panResponder.panHandlers}
       />
