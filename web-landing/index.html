@@ -3,62 +3,158 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Saravafy</title>
     <meta
-      http-equiv="Cache-Control"
-      content="no-store, no-cache, must-revalidate, max-age=0"
+      name="description"
+      content="Um acervo digital vivo de pontos de Umbanda"
     />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
-    <title>Abrir no Saravafy</title>
-    <link rel="stylesheet" href="/styles.css?v=2025-12-31-1" />
-    <script src="/config.js?v=2025-12-31-1"></script>
+    <link rel="stylesheet" href="/styles.css?v=2026-01-08-1" />
   </head>
   <body>
     <main class="container">
-      <!-- 1) Card do ponto (conteúdo) -->
-      <div id="pontoCard" class="card">
-        <h1 id="pageTitle" class="ponto-title">Carregando ponto…</h1>
-        <div id="tagsRow" class="tags-row" aria-label="Tags do ponto"></div>
-        <div id="lyricsScroll" class="lyrics-scroll">
-          <p id="lyricsFull" class="lyrics-full"></p>
-        </div>
+      <header class="card" aria-label="Saravafy">
+        <h1>Saravafy</h1>
+        <p class="meta">Um acervo digital vivo de pontos de Umbanda</p>
 
-        <div id="listSection" class="list-section" style="display: none">
-          <h2 id="listTitle" class="list-title"></h2>
-          <div id="listItems" class="list-items"></div>
-        </div>
-      </div>
+        <p>
+          O Saravafy é um projeto cultural e comunitário criado para preservar,
+          registrar e compartilhar pontos de Umbanda com respeito,
+          responsabilidade e acesso livre.
+        </p>
 
-      <!-- 2) CTA sticky (ponto) / card normal (outros) -->
-      <div id="ctaDock" class="cta-dock">
-        <div id="ctaCard" class="card cta-card">
-          <h2 id="useAppTitle" class="use-app-title">Use no app Saravafy</h2>
+        <p>
+          Aqui, o som é memória.<br />
+          A palavra é ensinamento.<br />
+          E cada ponto é parte de uma herança viva que atravessa gerações.
+        </p>
+      </header>
+
+      <section class="card" aria-labelledby="o-que-e">
+        <h2 id="o-que-e">O que é o Saravafy</h2>
+
+        <p>
+          O Saravafy nasceu do entendimento de que os pontos de Umbanda não são
+          apenas cantos — são registros históricos, espirituais e culturais.
+        </p>
+
+        <p>
+          Cada batida de atabaque carrega um caminho.<br />
+          Cada letra guarda uma história.<br />
+          Cada melodia mantém viva a tradição dos terreiros.
+        </p>
+
+        <p>
+          O Saravafy existe para que esse conhecimento não se perca, não seja
+          distorcido e não seja apropriado de forma irresponsável.<br />
+          É uma casa digital construída pela comunidade, para a comunidade.
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="o-que-acreditamos">
+        <h2 id="o-que-acreditamos">O que acreditamos</h2>
+
+        <div class="list-items" aria-label="Princípios do Saravafy">
+          <div class="list-item">
+            <div class="list-item__title">O sagrado é coletivo</div>
+            <div class="list-item__preview">
+              O conhecimento espiritual não pertence a indivíduos, marcas ou
+              plataformas. Ele pertence ao povo, à ancestralidade e à vivência
+              nos terreiros.
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="list-item__title">Memória viva</div>
+            <div class="list-item__preview">
+              Preservar não é engessar. É manter vivo, acessível e respeitado
+              aquilo que foi transmitido pela oralidade e pela prática.
+            </div>
+          </div>
+
+          <div class="list-item">
+            <div class="list-item__title">Respeito acima de tudo</div>
+            <div class="list-item__preview">
+              Sem vaidade.<br />
+              Sem hierarquia espiritual.<br />
+              Sem exploração do sagrado.<br />
+              <br />
+              O Saravafy não cria autoridade — apenas abre espaço.
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" aria-labelledby="o-que-nao-e">
+        <h2 id="o-que-nao-e">O que o Saravafy não é</h2>
+
+        <p>Para deixar claro desde o início:</p>
+
+        <ul>
+          <li>Não é comércio da fé</li>
+          <li>Não monetiza o sagrado</li>
+          <li>Não transforma tradição em produto</li>
+          <li>Não substitui o terreiro, a gira ou a vivência espiritual</li>
+        </ul>
+
+        <p>
+          O Saravafy é complemento, registro e memória — nunca substituição.
+        </p>
+      </section>
+
+      <section class="card" aria-labelledby="como-funciona">
+        <h2 id="como-funciona">Como funciona</h2>
+
+        <p>
+          O Saravafy funciona como um acervo digital acessível por aplicativo.
+        </p>
+
+        <p>Por meio do app, pessoas podem:</p>
+
+        <ul>
+          <li>acessar letras de pontos</li>
+          <li>ouvir registros sonoros</li>
+          <li>estudar e preservar esse conteúdo com responsabilidade</li>
+        </ul>
+
+        <p>Tudo isso de forma gratuita, comunitária e respeitosa.</p>
+      </section>
+
+      <section class="cta-dock" aria-label="Acesso ao app">
+        <div class="card cta-card">
+          <h2 class="use-app-title">Use no app Saravafy</h2>
 
           <p class="use-app-copy">
-            O Saravafy ainda não está disponível na Play Store porque é um
+            O Saravafy ainda não está disponível nas lojas oficiais porque é um
             projeto cultural independente, mantido pela própria comunidade.
-            <br />
-            Por isso, a instalação acontece diretamente por aqui.
-            <br />
-            O Android pode pedir uma confirmação extra — é normal e acontece
-            apenas uma vez.
+          </p>
+
+          <p class="use-app-copy">
+            Por isso, o acesso acontece diretamente pelo aplicativo.
+          </p>
+
+          <p class="use-app-copy">
+            O Android pode pedir uma confirmação extra na primeira instalação —
+            isso é normal e acontece apenas uma vez.
+          </p>
+
+          <p class="use-app-copy">
+            Após instalar, volte aqui e toque em “Abrir no app”.
           </p>
 
           <div class="actions">
-            <button id="installBtn" class="btn-primary" disabled>
-              Instalar app
-            </button>
+            <form
+              action="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
+              method="get"
+            >
+              <button class="btn-primary" type="submit">Instalar app</button>
+            </form>
 
-            <p class="notice">
-              Após instalar, volte aqui e toque em “Abrir no app”.
-            </p>
-
-            <button id="openBtn" class="btn-secondary" disabled>
-              Abrir no app
-            </button>
+            <form action="saravafy://" method="get">
+              <button class="btn-secondary" type="submit">Abrir no app</button>
+            </form>
           </div>
         </div>
-      </div>
+      </section>
 
       <footer class="landing-footer" aria-label="Links legais">
         <a class="landing-footer__link" href="/politica-de-privacidade"
@@ -66,787 +162,5 @@
         >
       </footer>
     </main>
-
-    <script>
-      (function () {
-        const titleEl = document.getElementById("pageTitle");
-        const useAppTitleEl = document.getElementById("useAppTitle");
-        const tagsRowEl = document.getElementById("tagsRow");
-        const lyricsFullEl = document.getElementById("lyricsFull");
-        const lyricsScrollEl = document.getElementById("lyricsScroll");
-        const ctaDockEl = document.getElementById("ctaDock");
-        const listSectionEl = document.getElementById("listSection");
-        const listTitleEl = document.getElementById("listTitle");
-        const listItemsEl = document.getElementById("listItems");
-        const installBtn = document.getElementById("installBtn");
-        const openBtn = document.getElementById("openBtn");
-
-        const supabaseUrl = String(window.SARAVAFY_SUPABASE_URL || "").trim();
-        const anonKey = String(window.SARAVAFY_SUPABASE_ANON_KEY || "").trim();
-        const hasSupabaseConfig = !!supabaseUrl && !!anonKey;
-
-        const rawAppScheme = String(
-          window.SARAVAFY_APP_SCHEME || "saravafy://"
-        ).trim();
-
-        const appScheme = rawAppScheme ? rawAppScheme : "saravafy://";
-
-        const CROCKFORD_ALPHABET = "0123456789ABCDEFGHJKMNPQRSTVWXYZ";
-
-        function isUuid(value) {
-          return /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/.test(
-            String(value || "").trim()
-          );
-        }
-
-        function uuidToBytes(uuid) {
-          const hex = String(uuid).replace(/-/g, "");
-          const out = new Uint8Array(16);
-          for (let i = 0; i < 16; i++) {
-            out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-          }
-          return out;
-        }
-
-        function base32CrockfordEncode(bytes) {
-          let bits = 0;
-          let value = 0;
-          let out = "";
-
-          for (let i = 0; i < bytes.length; i++) {
-            value = (value << 8) | bytes[i];
-            bits += 8;
-
-            while (bits >= 5) {
-              const idx = (value >>> (bits - 5)) & 31;
-              out += CROCKFORD_ALPHABET[idx];
-              bits -= 5;
-            }
-          }
-
-          if (bits > 0) {
-            const idx = (value << (5 - bits)) & 31;
-            out += CROCKFORD_ALPHABET[idx];
-          }
-
-          return out;
-        }
-
-        function normalizeTag(value) {
-          try {
-            return String(value || "")
-              .trim()
-              .toLowerCase()
-              .normalize("NFD")
-              .replace(/[\u0300-\u036f]/g, "")
-              .replace(/\s+/g, " ");
-          } catch {
-            return String(value || "")
-              .trim()
-              .toLowerCase();
-          }
-        }
-
-        function isMediumTag(label) {
-          const n = normalizeTag(label);
-          return n.startsWith("medium:") || n.startsWith("medium ");
-        }
-
-        function coerceTags(value) {
-          if (Array.isArray(value)) {
-            return value.filter((v) => typeof v === "string" && v.trim());
-          }
-
-          if (typeof value === "string") {
-            return value
-              .split(/[,|]/g)
-              .map((t) => t.trim())
-              .filter(Boolean);
-          }
-
-          return [];
-        }
-
-        function getLyricsPreview(lyrics, maxLines) {
-          const max = typeof maxLines === "number" ? maxLines : 6;
-          const lines = String(lyrics || "")
-            .split("\n")
-            .map((l) => l.trim())
-            .filter(Boolean);
-          const previewLines = lines.slice(0, max);
-          const preview = previewLines.join("\n");
-          if (lines.length > max) {
-            return preview ? preview + "\n…" : "…";
-          }
-          return preview;
-        }
-
-        function clearPointContent() {
-          if (tagsRowEl) tagsRowEl.innerHTML = "";
-          if (lyricsFullEl) lyricsFullEl.textContent = "";
-          if (lyricsScrollEl) lyricsScrollEl.style.display = "none";
-        }
-
-        function renderTags(tags) {
-          if (!tagsRowEl) return;
-          const arr = Array.isArray(tags) ? tags : [];
-          tagsRowEl.innerHTML = "";
-          if (arr.length === 0) return;
-
-          for (const tag of arr) {
-            const label = typeof tag === "string" ? tag.trim() : "";
-            if (!label) continue;
-
-            const chip = document.createElement("span");
-            chip.className =
-              "tag-chip" + (isMediumTag(label) ? " tag-chip--medium" : "");
-            chip.textContent = label;
-            tagsRowEl.appendChild(chip);
-          }
-        }
-
-        function renderLyricsFull(lyrics) {
-          if (!lyricsFullEl || !lyricsScrollEl) return;
-          const value = String(lyrics || "");
-          if (!value.trim()) {
-            lyricsFullEl.textContent = "";
-            lyricsScrollEl.style.display = "none";
-            return;
-          }
-          lyricsFullEl.textContent = value;
-          lyricsScrollEl.style.display = "block";
-        }
-
-        function setListVisible(isVisible) {
-          if (!listSectionEl) return;
-          listSectionEl.style.display = isVisible ? "block" : "none";
-        }
-
-        function setListTitle(title) {
-          if (!listTitleEl) return;
-          listTitleEl.textContent = String(title || "").trim();
-          listTitleEl.style.display = listTitleEl.textContent
-            ? "block"
-            : "none";
-        }
-
-        function clearList() {
-          if (listItemsEl) listItemsEl.innerHTML = "";
-          setListVisible(false);
-          setListTitle("");
-        }
-
-        function renderSimpleList(items) {
-          if (!listItemsEl) return;
-          const arr = Array.isArray(items) ? items : [];
-          listItemsEl.innerHTML = "";
-          if (arr.length === 0) return;
-
-          for (const item of arr) {
-            if (!item || typeof item !== "object") continue;
-
-            const href = typeof item.href === "string" ? item.href : "";
-            const title = typeof item.title === "string" ? item.title : "";
-            const subtitle =
-              typeof item.subtitle === "string" ? item.subtitle : "";
-            const tags = Array.isArray(item.tags) ? item.tags : [];
-            const preview =
-              typeof item.preview === "string" ? item.preview : "";
-
-            if (!href || !title) continue;
-
-            const link = document.createElement("a");
-            link.className = "list-item";
-            link.href = href;
-
-            const t = document.createElement("div");
-            t.className = "list-item__title";
-            t.textContent = title;
-            link.appendChild(t);
-
-            if (subtitle) {
-              const s = document.createElement("div");
-              s.className = "list-item__subtitle";
-              s.textContent = subtitle;
-              link.appendChild(s);
-            }
-
-            if (Array.isArray(tags) && tags.length > 0) {
-              const tr = document.createElement("div");
-              tr.className = "tags-row";
-
-              for (const tag of tags) {
-                const label = typeof tag === "string" ? tag.trim() : "";
-                if (!label) continue;
-
-                const chip = document.createElement("span");
-                chip.className =
-                  "tag-chip" + (isMediumTag(label) ? " tag-chip--medium" : "");
-                chip.textContent = label;
-                tr.appendChild(chip);
-              }
-
-              link.appendChild(tr);
-            }
-
-            if (preview) {
-              const p = document.createElement("div");
-              p.className = "list-item__preview";
-              p.textContent = preview;
-              link.appendChild(p);
-            }
-
-            listItemsEl.appendChild(link);
-          }
-        }
-
-        function parseLink() {
-          const path = String(window.location.pathname || "");
-          const parts = path.split("/").filter(Boolean);
-          // Expected: /l/<tipo>/<uuid>
-          if (parts.length >= 3 && parts[0] === "l") {
-            const tipo = parts[1];
-            const id = parts[2];
-            if (tipo === "ponto" || tipo === "colecao" || tipo === "terreiro") {
-              return { tipo, id };
-            }
-          }
-          return null;
-        }
-
-        function isValidHttpsUrl(url) {
-          try {
-            const u = new URL(url);
-            return u.protocol === "https:";
-          } catch {
-            return false;
-          }
-        }
-
-        // Install URL vem de public.get_app_install_url() (public_app_config key=app_install_url)
-        async function getInstallUrl() {
-          if (!supabaseUrl || !anonKey) return null;
-
-          const endpointBase =
-            supabaseUrl.replace(/\/+$/, "") +
-            "/rest/v1/rpc/get_app_install_url";
-
-          // IMPORTANT: PostgREST RPC endpoints do not accept arbitrary query params.
-          // Keep anti-cache via fetch options + headers (no query-string cache-buster).
-          const endpoint = endpointBase;
-
-          const res = await fetch(endpoint, {
-            method: "POST",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Content-Type": "application/json",
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-            body: "{}",
-          });
-
-          if (!res.ok) return null;
-
-          const data = await res.json();
-          const value =
-            data && typeof data.value === "string" ? data.value.trim() : "";
-
-          if (!value) return null;
-          if (!isValidHttpsUrl(value)) return null;
-          return value;
-        }
-
-        async function fetchPontoData(pontoId) {
-          if (!supabaseUrl || !anonKey) {
-            return {
-              title: null,
-              tags: [],
-              lyrics: "",
-              reason: "Config do Supabase ausente na landing.",
-            };
-          }
-
-          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/pontos";
-          const url = new URL(base);
-
-          // Important: PostgREST interpreta query params como filtros.
-          // Evite cache-buster como `&<timestamp>` ou `&t=<timestamp>` (gera PGRST100).
-          url.search = new URLSearchParams({
-            select: "title,artist,lyrics,tags",
-            id: `eq.${pontoId}`,
-            is_active: "eq.true",
-            restricted: "eq.false",
-            limit: "1",
-          }).toString();
-
-          const endpoint = url.toString();
-
-          const res = await fetch(endpoint, {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-          });
-
-          if (!res.ok) {
-            return {
-              title: null,
-              tags: [],
-              lyrics: "",
-              reason: "Falha ao buscar o ponto (HTTP " + res.status + ")",
-            };
-          }
-
-          const data = await res.json();
-          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          const title =
-            row && typeof row.title === "string" ? row.title.trim() : "";
-          const tags = row ? coerceTags(row.tags) : [];
-          const lyrics =
-            row && typeof row.lyrics === "string" ? row.lyrics : "";
-          return { title: title || null, tags, lyrics, reason: null };
-        }
-
-        async function fetchTerreiroData(terreiroId) {
-          if (!supabaseUrl || !anonKey) {
-            return {
-              title: null,
-              reason: "Config do Supabase ausente na landing.",
-            };
-          }
-
-          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/terreiros";
-          const url = new URL(base);
-          url.search = new URLSearchParams({
-            select: "title",
-            id: `eq.${terreiroId}`,
-            limit: "1",
-          }).toString();
-
-          const res = await fetch(url.toString(), {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-          });
-
-          if (!res.ok) {
-            return {
-              title: null,
-              reason: "Falha ao buscar o terreiro (HTTP " + res.status + ")",
-            };
-          }
-
-          const data = await res.json();
-          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          const title =
-            row && typeof row.title === "string" ? row.title.trim() : "";
-          return { title: title || null, reason: null };
-        }
-
-        async function fetchColecaoData(collectionId) {
-          if (!supabaseUrl || !anonKey) {
-            return {
-              title: null,
-              reason: "Config do Supabase ausente na landing.",
-            };
-          }
-
-          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections";
-          const url = new URL(base);
-          url.search = new URLSearchParams({
-            select: "title",
-            id: `eq.${collectionId}`,
-            visibility: "eq.public",
-            limit: "1",
-          }).toString();
-
-          const res = await fetch(url.toString(), {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-          });
-
-          if (!res.ok) {
-            return {
-              title: null,
-              reason: "Falha ao buscar a coleção (HTTP " + res.status + ")",
-            };
-          }
-
-          const data = await res.json();
-          const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
-          const title =
-            row && typeof row.title === "string" ? row.title.trim() : "";
-          return { title: title || null, reason: null };
-        }
-
-        async function fetchColecoesByTerreiro(terreiroId) {
-          if (!supabaseUrl || !anonKey) {
-            return {
-              items: [],
-              reason: "Config do Supabase ausente na landing.",
-            };
-          }
-
-          const base = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections";
-          const url = new URL(base);
-          url.search = new URLSearchParams({
-            select: "id,title",
-            owner_terreiro_id: `eq.${terreiroId}`,
-            visibility: "eq.public",
-            order: "title.asc",
-          }).toString();
-
-          const res = await fetch(url.toString(), {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-          });
-
-          if (!res.ok) {
-            return {
-              items: [],
-              reason: "Falha ao buscar coleções (HTTP " + res.status + ")",
-            };
-          }
-
-          const data = await res.json();
-          const rows = Array.isArray(data) ? data : [];
-
-          const items = rows
-            .map((r) => ({
-              id: r && typeof r.id === "string" ? r.id : "",
-              title: r && typeof r.title === "string" ? r.title : "",
-            }))
-            .filter((r) => isUuid(r.id));
-
-          return { items, reason: null };
-        }
-
-        async function fetchPontosByColecao(collectionId) {
-          if (!supabaseUrl || !anonKey) {
-            return {
-              items: [],
-              reason: "Config do Supabase ausente na landing.",
-            };
-          }
-
-          const baseCp =
-            supabaseUrl.replace(/\/+$/, "") + "/rest/v1/collections_pontos";
-          const urlCp = new URL(baseCp);
-          urlCp.search = new URLSearchParams({
-            select: "ponto_id,position",
-            collection_id: `eq.${collectionId}`,
-            order: "position.asc",
-          }).toString();
-
-          const resCp = await fetch(urlCp.toString(), {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-          });
-
-          if (!resCp.ok) {
-            return {
-              items: [],
-              reason: "Falha ao buscar pontos (HTTP " + resCp.status + ")",
-            };
-          }
-
-          const dataCp = await resCp.json();
-          const links = Array.isArray(dataCp) ? dataCp : [];
-          const pontoIds = links
-            .map((r) => (r && typeof r.ponto_id === "string" ? r.ponto_id : ""))
-            .filter((id) => isUuid(id));
-
-          if (pontoIds.length === 0) {
-            return { items: [], reason: null };
-          }
-
-          const baseP = supabaseUrl.replace(/\/+$/, "") + "/rest/v1/pontos";
-          const urlP = new URL(baseP);
-          urlP.search = new URLSearchParams({
-            select: "id,title,lyrics,tags",
-            id: `in.(${pontoIds.join(",")})`,
-            is_active: "eq.true",
-            restricted: "eq.false",
-          }).toString();
-
-          const resP = await fetch(urlP.toString(), {
-            method: "GET",
-            cache: "no-store",
-            headers: {
-              apikey: anonKey,
-              Authorization: "Bearer " + anonKey,
-              "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
-              Pragma: "no-cache",
-              Accept: "application/json",
-            },
-          });
-
-          if (!resP.ok) {
-            return {
-              items: [],
-              reason:
-                "Falha ao buscar dados dos pontos (HTTP " + resP.status + ")",
-            };
-          }
-
-          const dataP = await resP.json();
-          const rows = Array.isArray(dataP) ? dataP : [];
-
-          const byId = new Map();
-          for (const r of rows) {
-            const id = r && typeof r.id === "string" ? r.id : "";
-            if (!isUuid(id)) continue;
-            byId.set(id, {
-              id,
-              title: typeof r.title === "string" ? r.title : "",
-              tags: coerceTags(r.tags),
-              lyrics: typeof r.lyrics === "string" ? r.lyrics : "",
-            });
-          }
-
-          const items = pontoIds.map((id) => byId.get(id)).filter(Boolean);
-
-          return { items, reason: null };
-        }
-
-        const installDefaultLabel = installBtn.textContent || "Instalar app";
-        let installBusy = false;
-
-        function setInstallBusy(isBusy) {
-          installBusy = !!isBusy;
-          installBtn.disabled = installBusy;
-          installBtn.textContent = installBusy
-            ? "Carregando…"
-            : installDefaultLabel;
-        }
-
-        function setInstallEnabled(isEnabled) {
-          if (installBusy) return;
-          installBtn.disabled = !isEnabled;
-          installBtn.textContent = installDefaultLabel;
-        }
-
-        async function refreshInstallAvailability() {
-          try {
-            const installUrl = await getInstallUrl();
-            if (installUrl) {
-              setInstallEnabled(true);
-              return;
-            }
-
-            setInstallEnabled(false);
-            installBtn.textContent = "Disponível em breve";
-          } catch {
-            setInstallEnabled(false);
-            installBtn.textContent = "Disponível em breve";
-          }
-        }
-
-        const parsed = parseLink();
-
-        if (!parsed || !isUuid(parsed.id)) {
-          titleEl.textContent = "Não foi possível abrir este ponto.";
-          clearPointContent();
-          clearList();
-          installBtn.disabled = true;
-          openBtn.disabled = true;
-          return;
-        }
-
-        if (parsed.tipo === "ponto" && useAppTitleEl) {
-          useAppTitleEl.textContent = "Use este ponto no app Saravafy";
-        }
-
-        if (parsed.tipo === "ponto") {
-          document.body.classList.add("is-ponto");
-
-          const syncCtaDockHeight = () => {
-            if (!ctaDockEl) return;
-            const h = ctaDockEl.getBoundingClientRect().height;
-            if (!Number.isFinite(h) || h <= 0) return;
-            document.documentElement.style.setProperty(
-              "--cta-dock-height",
-              Math.ceil(h) + "px"
-            );
-          };
-
-          requestAnimationFrame(syncCtaDockHeight);
-          window.addEventListener("resize", syncCtaDockHeight);
-        }
-
-        function buildOpenUrl(scheme, tipo, id) {
-          const raw = String(scheme || "").trim() || "saravafy://";
-
-          let base = raw;
-          if (base.includes("://")) {
-            const idx = base.indexOf("://");
-            const prefix = base.slice(0, idx + 3); // includes ://
-            const after = base
-              .slice(idx + 3)
-              .replace(/^\/+/, "")
-              .replace(/\/+$/, "");
-            base = prefix + after;
-          } else if (base.endsWith(":")) {
-            base = base + "//";
-          } else {
-            base = base.replace(/\/+$/, "") + "://";
-          }
-
-          const path = "l/" + String(tipo || "").trim() + "/" + id;
-
-          if (base.endsWith("://")) return base + path;
-          return base.replace(/\/+$/, "") + "/" + path;
-        }
-
-        const openUrl = buildOpenUrl(appScheme, parsed.tipo, parsed.id);
-        openBtn.disabled = false;
-
-        // Mantém o código curto calculado internamente (não exibido na UI pública).
-        const _shortCode = base32CrockfordEncode(uuidToBytes(parsed.id));
-        void _shortCode;
-
-        openBtn.addEventListener("click", function () {
-          window.location.href = openUrl;
-        });
-
-        installBtn.addEventListener("click", async function () {
-          if (installBusy) return;
-
-          if (!hasSupabaseConfig) {
-            // Fallback de dev mode: mantém UI útil sem depender de fetch.
-            return;
-          }
-
-          // Always refetch on click to ensure the freshest install URL.
-          setInstallBusy(true);
-
-          try {
-            const installUrl = await getInstallUrl();
-            if (installUrl) {
-              window.location.href = installUrl;
-              return;
-            }
-
-            installBtn.textContent = "Disponível em breve";
-          } catch {
-            installBtn.textContent = "Disponível em breve";
-          } finally {
-            setInstallBusy(false);
-          }
-        });
-
-        if (!hasSupabaseConfig) {
-          // Dev fallback (opção C): não inicializa/faz fetch no Supabase.
-          titleEl.textContent = "Saravafy";
-          installBtn.disabled = true;
-          clearPointContent();
-          clearList();
-          return;
-        }
-
-        void refreshInstallAvailability();
-
-        void (async function () {
-          try {
-            clearPointContent();
-            clearList();
-
-            if (parsed.tipo === "ponto") {
-              const result = await fetchPontoData(parsed.id);
-              if (!result || typeof result !== "object") {
-                titleEl.textContent = "Abrir ponto";
-                clearPointContent();
-                return;
-              }
-
-              titleEl.textContent = result.title ? result.title : "Abrir ponto";
-              renderTags(result.tags);
-              renderLyricsFull(result.lyrics);
-              return;
-            }
-
-            if (parsed.tipo === "terreiro") {
-              titleEl.textContent = "Abrir terreiro";
-              const t = await fetchTerreiroData(parsed.id);
-              if (t && t.title) {
-                titleEl.textContent = t.title;
-              }
-
-              const collections = await fetchColecoesByTerreiro(parsed.id);
-              setListVisible(true);
-              setListTitle("Coleções");
-              renderSimpleList(
-                (collections.items || []).map((c) => ({
-                  href: "/l/colecao/" + c.id,
-                  title: c.title || "Coleção",
-                }))
-              );
-              return;
-            }
-
-            if (parsed.tipo === "colecao") {
-              titleEl.textContent = "Abrir coleção";
-              const c = await fetchColecaoData(parsed.id);
-              if (c && c.title) {
-                titleEl.textContent = c.title;
-              }
-
-              const pontos = await fetchPontosByColecao(parsed.id);
-              setListVisible(true);
-              setListTitle("Pontos");
-              renderSimpleList(
-                (pontos.items || []).map((p) => ({
-                  href: "/l/ponto/" + p.id,
-                  title: p.title || "Ponto",
-                  tags: p.tags,
-                  preview: getLyricsPreview(p.lyrics, 3),
-                }))
-              );
-              return;
-            }
-          } catch {
-            titleEl.textContent = "Saravafy";
-            clearPointContent();
-            clearList();
-          }
-        })();
-      })();
-    </script>
   </body>
 </html>
