@@ -15,7 +15,6 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   Easing,
   runOnJS,
@@ -23,6 +22,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { radii, shadows, spacing } from "@/src/theme";
 
@@ -63,7 +63,9 @@ function getToastStackStep(measuredHeight?: number) {
 }
 
 function createToastId() {
-  return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+  return `t_${Date.now().toString(36)}_${Math.random()
+    .toString(36)
+    .slice(2, 8)}`;
 }
 
 function getStackOffsetX(index: number) {
@@ -252,9 +254,9 @@ function ToastStack({
   const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
 
-  const [measuredHeights, setMeasuredHeights] = useState<Record<string, number>>(
-    {}
-  );
+  const [measuredHeights, setMeasuredHeights] = useState<
+    Record<string, number>
+  >({});
 
   const onMeasuredHeight = useCallback((id: string, h: number) => {
     // Evita re-render em loop por flutuação mínima.
@@ -338,23 +340,20 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     dispatch({ type: "CLEAR" });
   }, []);
 
-  const showToast = useCallback(
-    (message: string, opts?: ToastOptions) => {
-      const trimmed = message.trim();
-      if (!trimmed) return "";
+  const showToast = useCallback((message: string, opts?: ToastOptions) => {
+    const trimmed = message.trim();
+    if (!trimmed) return "";
 
-      const toast = {
-        id: createToastId(),
-        message: trimmed,
-        durationMs: opts?.durationMs ?? DEFAULT_DURATION_MS,
-        createdAt: Date.now(),
-      };
+    const toast = {
+      id: createToastId(),
+      message: trimmed,
+      durationMs: opts?.durationMs ?? DEFAULT_DURATION_MS,
+      createdAt: Date.now(),
+    };
 
-      dispatch({ type: "SHOW", toast });
-      return toast.id;
-    },
-    []
-  );
+    dispatch({ type: "SHOW", toast });
+    return toast.id;
+  }, []);
 
   // Expiração automática só quando estiver visível.
   useEffect(() => {
