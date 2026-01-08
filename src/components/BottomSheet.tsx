@@ -230,13 +230,15 @@ export function BottomSheet({
   );
 
   const createPanResponder = useCallback(
-    (opts: { canCapture: () => boolean }) => {
+    (opts: { canCapture: () => boolean; captureOnStart?: boolean }) => {
       if (!enableSwipeToClose) return null;
 
       return PanResponder.create({
         onStartShouldSetPanResponderCapture: () => {
-          // Captura no touch start (quando permitido) para não perder
-          // flicks extremamente rápidos que podem ser classificados como "tap".
+          // Captura no touch start apenas quando explicitamente habilitado.
+          // No conteúdo isso rouba o ScrollView; no handle isso garante que
+          // flicks extremamente rápidos não sejam classificados como "tap".
+          if (!opts.captureOnStart) return false;
           return opts.canCapture();
         },
         onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
@@ -336,6 +338,7 @@ export function BottomSheet({
     // HANDLE: swipe down sempre pode fechar.
     return createPanResponder({
       canCapture: () => true,
+      captureOnStart: true,
     });
   }, [createPanResponder]);
 
