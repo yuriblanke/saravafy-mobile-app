@@ -21,7 +21,6 @@ import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
-import { pontoCodeToId } from "@/src/utils/pontoCode";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -204,8 +203,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isCuratorAdminOpen, setIsCuratorAdminOpen] = useState(false);
-  const [isOpenByCodeOpen, setIsOpenByCodeOpen] = useState(false);
-  const [openByCodeValue, setOpenByCodeValue] = useState("");
 
   const [curatorInviteEmail, setCuratorInviteEmail] = useState("");
   const [curatorInviteInlineError, setCuratorInviteInlineError] = useState<
@@ -979,35 +976,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               </Pressable>
             )}
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setIsPreferencesOpen(false);
-                setOpenByCodeValue("");
-                setIsOpenByCodeOpen(true);
-              }}
-              style={({ pressed }) => [
-                styles.prefActionRow,
-                {
-                  borderColor: dividerColor,
-                  backgroundColor: inputBg,
-                },
-                pressed ? styles.prefActionRowPressed : null,
-              ]}
-            >
-              <View style={styles.prefActionLeft}>
-                <Text style={[styles.prefActionTitle, { color: textPrimary }]}>
-                  Abrir por código
-                </Text>
-              </View>
-
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={textSecondary}
-              />
-            </Pressable>
-
             {!userId || !normalizedUserEmail ? null : pendingCuratorInvite ? (
               <View
                 style={[
@@ -1532,78 +1500,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
             resizeMode="contain"
             accessibilityIgnoresInvertColors
           />
-        </View>
-      </BottomSheet>
-
-      <BottomSheet
-        visible={uiEnabled && isOpenByCodeOpen}
-        variant={variant}
-        onClose={() => {
-          setIsOpenByCodeOpen(false);
-          setOpenByCodeValue("");
-        }}
-      >
-        <View style={styles.menuWrap}>
-          <Text style={[styles.curatorAdminTitle, { color: textPrimary }]}>
-            Abrir por código
-          </Text>
-
-          <View style={styles.curatorAdminFormRow}>
-            <TextInput
-              value={openByCodeValue}
-              onChangeText={setOpenByCodeValue}
-              placeholder="Código"
-              placeholderTextColor={textSecondary}
-              autoCapitalize="characters"
-              autoCorrect={false}
-              style={[
-                styles.curatorAdminInput,
-                {
-                  color: textPrimary,
-                  borderColor: inputBorder,
-                  backgroundColor: inputBg,
-                },
-              ]}
-              returnKeyType="go"
-              onSubmitEditing={() => {
-                try {
-                  const id = pontoCodeToId(openByCodeValue);
-                  setIsOpenByCodeOpen(false);
-                  setOpenByCodeValue("");
-                  router.push({
-                    pathname: "/(app)/player",
-                    params: { source: "all", pontoId: id },
-                  } as any);
-                } catch {
-                  showToast("Código inválido.");
-                }
-              }}
-            />
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                try {
-                  const id = pontoCodeToId(openByCodeValue);
-                  setIsOpenByCodeOpen(false);
-                  setOpenByCodeValue("");
-                  router.push({
-                    pathname: "/(app)/player",
-                    params: { source: "all", pontoId: id },
-                  } as any);
-                } catch {
-                  showToast("Código inválido.");
-                }
-              }}
-              style={({ pressed }) => [
-                styles.curatorAdminBtn,
-                { borderColor: colors.brass600 },
-                pressed ? styles.inviteBtnPressed : null,
-              ]}
-            >
-              <Text style={styles.curatorAdminBtnText}>Abrir</Text>
-            </Pressable>
-          </View>
         </View>
       </BottomSheet>
 

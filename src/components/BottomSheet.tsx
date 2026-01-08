@@ -28,6 +28,7 @@ const MIN_FLICK_VELOCITY = 0.35;
 const MIN_DIRECTIONAL_DY = 1;
 const HORIZONTAL_SLOP = 8;
 const MIN_FLICK_AVG_PX_PER_S = 700;
+const SCROLL_TOP_TOLERANCE_PX = 1;
 
 type Props = {
   visible: boolean;
@@ -86,17 +87,29 @@ export function BottomSheet({
   const translateY = useRef(new Animated.Value(0)).current;
   const [sheetHeight, setSheetHeight] = useState(0);
   const scrollYRef = useRef(0);
+  const isClosingRef = useRef(false);
+  const isSwipeClosingRef = useRef(false);
 
   const gestureStartTsRef = useRef(0);
-  const lastMoveTsRef = useRef(0);
   const lastDyRef = useRef(0);
 
   useEffect(() => {
     if (!visible) {
       translateY.setValue(0);
       scrollYRef.current = 0;
+      isClosingRef.current = false;
+      isSwipeClosingRef.current = false;
     }
   }, [translateY, visible]);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup defensivo: se desmontar enquanto estava visível/fechando,
+      // não queremos que um próximo mount fique "preso".
+      isClosingRef.current = false;
+      isSwipeClosingRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     // Quando o sheet está visível, bloqueia swipe horizontal global (tabs).
@@ -104,10 +117,54 @@ export function BottomSheet({
     // para qualquer tela que use BottomSheet.
     if (!rootPager) return;
     rootPager.setIsBottomSheetOpen(visible);
+    return () => {
+      // Cleanup no unmount (ou troca de rootPager) para não ficar preso em true.
+      rootPager.setIsBottomSheetOpen(false);
+    };
   }, [rootPager, visible]);
+
+  const maxSheetHeight = Math.round(screenHeight * 0.85);
+  const fixedHeight = resolveSnapHeight(
+    snapPoints?.[0],
+    screenHeight,
+    maxSheetHeight
+  );
+
+  const effectiveSheetHeight = useMemo(() => {
+    // Altura efetiva para clamp do gesto:
+    // - se tiver snap fixo: ele manda
+    // - senão: usa o layout medido
+    // - fallback: maxSheetHeight (evita valores absurdos antes do onLayout)
+    if (typeof fixedHeight === "number" && fixedHeight > 0) return fixedHeight;
+    if (sheetHeight > 0) return sheetHeight;
+    return maxSheetHeight;
+  }, [fixedHeight, maxSheetHeight, sheetHeight]);
+
+  useEffect(() => {
+    if (!visible) return;
+    if (typeof fixedHeight !== "number") return;
+    setSheetHeight(fixedHeight);
+  }, [fixedHeight, visible]);
+
+  const requestClose = useCallback(
+    (reason?: "swipe" | "backdrop" | "button" | "programmatic") => {
+      // `onClose` aqui é tratado como `onRequestClose`: o parent é a fonte de verdade
+      // (ele deve setar `visible=false`).
+      // Guard idempotente: evita múltiplos `onClose` por swipe/backdrop/spam.
+      void reason;
+      if (!visible) return;
+      if (isClosingRef.current) return;
+      isClosingRef.current = true;
+      onClose();
+    },
+    [onClose, visible]
+  );
 
   const closeBySwipe = useCallback(() => {
     if (!visible) return;
+    if (isClosingRef.current) return;
+    if (isSwipeClosingRef.current) return;
+    isSwipeClosingRef.current = true;
 
     const toValue = sheetHeight > 0 ? sheetHeight : 240;
     Animated.timing(translateY, {
@@ -115,21 +172,21 @@ export function BottomSheet({
       duration: 180,
       useNativeDriver: true,
     }).start(() => {
-      translateY.setValue(0);
-      onClose();
+      // IMPORTANTE: não resetar translateY para 0 aqui.
+      // Se resetarmos para 0 antes do parent aplicar visible=false,
+      // pode aparecer um frame "reaberto".
+      requestClose("swipe");
     });
-  }, [onClose, sheetHeight, translateY, visible]);
+  }, [requestClose, sheetHeight, translateY, visible]);
 
   const beginGesture = useCallback(() => {
     const now = Date.now();
     gestureStartTsRef.current = now;
-    lastMoveTsRef.current = now;
     lastDyRef.current = 0;
   }, []);
 
   const updateGesture = useCallback((dy: number) => {
     lastDyRef.current = dy;
-    lastMoveTsRef.current = Date.now();
   }, []);
 
   const shouldCloseFromRelease = useCallback((dy: number, vy: number) => {
@@ -182,8 +239,12 @@ export function BottomSheet({
         },
         onPanResponderMove: (_evt, gesture) => {
           if (gesture.dy <= 0) return;
-          updateGesture(gesture.dy);
-          translateY.setValue(gesture.dy);
+          const clamped = Math.max(
+            0,
+            Math.min(gesture.dy, effectiveSheetHeight)
+          );
+          updateGesture(clamped);
+          translateY.setValue(clamped);
         },
         onPanResponderRelease: (_evt, gesture) => {
           const dy = lastDyRef.current || gesture.dy;
@@ -210,6 +271,7 @@ export function BottomSheet({
     [
       beginGesture,
       closeBySwipe,
+      effectiveSheetHeight,
       enableSwipeToClose,
       shouldCloseFromRelease,
       translateY,
@@ -227,22 +289,13 @@ export function BottomSheet({
   const contentPanResponder = useMemo(() => {
     // CONTEÚDO: só fecha se scroll estiver no topo.
     return createPanResponder({
-      canCapture: () => scrollYRef.current === 0,
+      canCapture: () => {
+        // Tolerância porque o ScrollView pode ficar em valores fracionários
+        // (bounce/float) mesmo "no topo".
+        return (scrollYRef.current ?? 0) <= SCROLL_TOP_TOLERANCE_PX;
+      },
     });
   }, [createPanResponder]);
-
-  const maxSheetHeight = Math.round(screenHeight * 0.85);
-  const fixedHeight = resolveSnapHeight(
-    snapPoints?.[0],
-    screenHeight,
-    maxSheetHeight
-  );
-
-  useEffect(() => {
-    if (!visible) return;
-    if (typeof fixedHeight !== "number") return;
-    setSheetHeight(fixedHeight);
-  }, [fixedHeight, visible]);
 
   if (!visible) return null;
 
@@ -252,7 +305,7 @@ export function BottomSheet({
         accessibilityRole="button"
         accessibilityLabel="Fechar"
         style={styles.backdrop}
-        onPress={onClose}
+        onPress={() => requestClose("backdrop")}
       />
 
       <Animated.View
