@@ -18,7 +18,7 @@ export default function AuthCallbackScreen() {
     const goHome = () => {
       if (cancelled || didNavigateRef.current) return;
       didNavigateRef.current = true;
-      router.replace("/(app)");
+      router.replace("/(app)/(tabs)/(pontos)" as any);
     };
 
     const goLogin = () => {

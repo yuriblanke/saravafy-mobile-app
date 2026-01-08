@@ -31,7 +31,7 @@ export default function DeepLinkBridge() {
 
     if (normalizedTipo === "terreiro" || normalizedTipo === "terreiros") {
       didNavigateRef.current = true;
-      router.replace({ pathname: "/(app)/terreiro", params: { terreiroId: id } });
+      router.replace({ pathname: "/terreiro", params: { terreiroId: id } });
       return;
     }
 
@@ -42,13 +42,13 @@ export default function DeepLinkBridge() {
       normalizedTipo === "colecoes"
     ) {
       didNavigateRef.current = true;
-      router.replace({ pathname: "/(app)/collection/[id]", params: { id } });
+      router.replace({ pathname: "/collection/[id]", params: { id } });
       return;
     }
 
     if (normalizedTipo === "ponto" || normalizedTipo === "pontos") {
       didNavigateRef.current = true;
-      router.replace({ pathname: "/(app)/player", params: { source: "all", pontoId: id } });
+      router.replace({ pathname: "/player", params: { source: "all", pontoId: id } });
       return;
     }
 

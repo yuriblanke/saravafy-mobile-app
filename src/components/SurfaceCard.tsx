@@ -1,14 +1,11 @@
 import React from "react";
 import {
-  ImageBackground,
   StyleSheet,
   View,
   type ViewProps,
 } from "react-native";
 
 import { colors, radii, shadows, spacing } from "@/src/theme";
-
-const noise = require("@/assets/textures/noise_128.png");
 
 type Props = ViewProps & {
   children: React.ReactNode;
@@ -41,18 +38,6 @@ export function SurfaceCard({
           variant === "light" ? styles.bevelBottomLight : styles.bevelBottom
         }
       />
-
-      {/* Grão interno */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ImageBackground
-          source={noise}
-          resizeMode="repeat"
-          style={StyleSheet.absoluteFill}
-          imageStyle={
-            variant === "light" ? styles.noiseImageLight : styles.noiseImage
-          }
-        />
-      </View>
 
       <View style={styles.content}>{children}</View>
     </View>
@@ -114,11 +99,5 @@ const styles = StyleSheet.create({
     height: 2,
     backgroundColor: colors.bevelBottomLight,
     opacity: 1,
-  },
-  noiseImage: {
-    opacity: 0.12,
-  },
-  noiseImageLight: {
-    opacity: 0.06,
   },
 });

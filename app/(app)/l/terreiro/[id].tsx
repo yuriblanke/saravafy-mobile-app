@@ -19,7 +19,7 @@ export default function DeepLinkTerreiroRoute() {
       return;
     }
 
-    router.replace({ pathname: "/(app)/terreiro", params: { terreiroId: id } });
+    router.replace({ pathname: "/terreiro", params: { terreiroId: id } });
   }, [params.id, router, showToast]);
 
   return null;

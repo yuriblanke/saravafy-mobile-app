@@ -428,8 +428,10 @@ Como rodar:
 
 1. Navegue para `/terreiro`.
 2. Faça swipe horizontal em:
-  - área vazia/fora de cards
-  - em cima de um card
+
+- área vazia/fora de cards
+- em cima de um card
+
 3. Repita em `/collection/[id]`.
 4. Abra `/player` e confirme que o overlay fica desabilitado.
 

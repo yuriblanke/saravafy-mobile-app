@@ -31,8 +31,6 @@ import {
   View,
 } from "react-native";
 
-import { useRootPager } from "@/contexts/RootPagerContext";
-
 type CollectionRow = {
   id: string;
   title?: string | null;
@@ -69,7 +67,6 @@ function getLyricsPreview(lyrics: string, maxLines = 4) {
 export default function Collection() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const rootPager = useRootPager();
   const { shouldBlockPress } = useGestureBlock();
 
   const { user } = useAuth();
@@ -134,8 +131,7 @@ export default function Collection() {
 
     if (wasMember && !isMemberNow) {
       showToast("Seu acesso a este terreiro foi removido.");
-      rootPager?.setActiveKey("pontos");
-      router.replace("/(app)");
+      router.replace("/(app)/(tabs)/(pontos)" as any);
     }
 
     wasMemberRef.current = isMemberNow;
@@ -144,7 +140,6 @@ export default function Collection() {
     isMembersOnly,
     membership.data.isActiveMember,
     membership.isLoading,
-    rootPager,
     router,
     showToast,
   ]);
@@ -335,8 +330,7 @@ export default function Collection() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                rootPager?.setActiveKey("pontos");
-                router.replace("/(app)");
+                router.replace("/(app)/(tabs)/(pontos)" as any);
               }}
               style={({ pressed }) => [
                 styles.ctaButton,

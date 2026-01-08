@@ -2,13 +2,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { GestureBlockProvider } from "@/contexts/GestureBlockContext";
 import { GestureGateProvider } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { RootPagerProvider, useRootPager } from "@/contexts/RootPagerContext";
+import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import {
   TabControllerProvider,
   useTabController,
 } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
-import { AppTabSwipeOverlay } from "@/src/components/AppTabSwipeOverlay";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
@@ -24,8 +23,20 @@ import { BackHandler, Platform, View } from "react-native";
 
 function AndroidBackBehavior() {
   const pathname = usePathname();
-  const rootPager = useRootPager();
   const tabController = useTabController();
+  const segments = useSegments() as string[];
+
+  const isInTabs = segments.includes("(tabs)");
+  const activeTab: "pontos" | "terreiros" = segments.includes("(terreiros)")
+    ? "terreiros"
+    : "pontos";
+  const isOnTabRoot =
+    isInTabs &&
+    (segments.length === 3 ||
+      // fallback defensivo para diferenças de segmentação
+      (segments.length > 0 &&
+        (segments[segments.length - 1] === "(pontos)" ||
+          segments[segments.length - 1] === "(terreiros)")));
 
   React.useEffect(() => {
     if (Platform.OS !== "android") return;
@@ -33,7 +44,7 @@ function AndroidBackBehavior() {
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
       // Determinístico: no RootPager, se estiver em Terreiros,
       // o back físico volta para Pontos (Home).
-      if (pathname === "/" && rootPager.activeKey === "terreiros") {
+      if (pathname === "/" && isOnTabRoot && activeTab === "terreiros") {
         if (__DEV__) {
           console.log("[AndroidBack] RootPager terreiros -> pontos");
         }
@@ -46,7 +57,7 @@ function AndroidBackBehavior() {
     });
 
     return () => sub.remove();
-  }, [pathname, rootPager.activeKey, tabController]);
+  }, [activeTab, isOnTabRoot, pathname, tabController]);
 
   return null;
 }
@@ -68,14 +79,16 @@ function AndroidBackBehavior() {
 export default function AppLayout() {
   const { effectiveTheme, selectedTerreiroFilterId } = usePreferences();
   const { user } = useAuth();
-  const segments = useSegments();
+  const segments = useSegments() as string[];
+  const rootPager = useRootPagerOptional();
 
   const globalParams = useGlobalSearchParams<{
     terreiroId?: string;
   }>();
 
+  const isTerreiroRoute = segments.includes("terreiro");
   const routeTerreiroId =
-    segments[1] === "terreiro" && typeof globalParams?.terreiroId === "string"
+    isTerreiroRoute && typeof globalParams?.terreiroId === "string"
       ? globalParams.terreiroId
       : null;
 
@@ -94,7 +107,7 @@ export default function AppLayout() {
   const isHeaderSuspended = useMemo(() => {
     // Mantém o componente montado para preservar o estado das Preferências,
     // mas suspende a UI (header + sheets) em telas full-screen/imersivas.
-    const leaf = segments[1];
+    const leaf = segments[segments.length - 1];
     return (
       leaf === "player" ||
       leaf === "terreiro-editor" ||
@@ -106,64 +119,62 @@ export default function AppLayout() {
     <SaravafyScreen variant={effectiveTheme}>
       <GestureGateProvider>
         <GestureBlockProvider>
-          <RootPagerProvider>
-            <TabControllerProvider>
-              <AndroidBackBehavior />
-              <AppHeaderWithPreferences suspended={isHeaderSuspended} />
+          <TabControllerProvider>
+            <AndroidBackBehavior />
+            <AppHeaderWithPreferences suspended={isHeaderSuspended} />
 
-              <View style={{ flex: 1 }}>
-                <Stack
-                  screenOptions={{
-                    headerShown: false,
-                    contentStyle: { backgroundColor: "transparent" },
-                    // As telas ficam propositalmente sem background sólido para
-                    // deixar o SaravafyScreen aparecer (gradiente/textura).
-                    // Com animação de Stack, isso causa um frame onde a tela anterior
-                    // "vaza" por baixo durante transições. Desabilitamos a animação
-                    // globalmente para eliminar qualquer sobreposição visual.
-                    animation: "none",
+            <View style={{ flex: 1 }}>
+              <Stack
+                screenOptions={{
+                  headerShown: false,
+                  contentStyle: { backgroundColor: "transparent" },
+                  // As telas ficam propositalmente sem background sólido para
+                  // deixar o SaravafyScreen aparecer (gradiente/textura).
+                  // Com animação de Stack, isso causa um frame onde a tela anterior
+                  // "vaza" por baixo durante transições. Desabilitamos a animação
+                  // globalmente para eliminar qualquer sobreposição visual.
+                  animation: "none",
+                }}
+              >
+                {/* Tabs reais (Pontos ↔ Terreiros) com swipe + stacks por aba */}
+                <Stack.Screen name="(tabs)" />
+
+                {/* Player fora das tabs (swipe interno do player tem prioridade) */}
+                <Stack.Screen name="player" />
+
+                {/* Deep links / utilitários */}
+                <Stack.Screen name="l/[tipo]/[id]" />
+
+                {/* Modais */}
+                <Stack.Screen
+                  name="terreiro-editor"
+                  options={{
+                    presentation: "modal",
+                    animation: "slide_from_bottom",
+                    contentStyle: {
+                      backgroundColor:
+                        effectiveTheme === "light"
+                          ? colors.paper50
+                          : colors.forest900,
+                    },
                   }}
-                >
-                  <Stack.Screen name="index" />
-
-                  <Stack.Screen name="terreiro" />
-                  <Stack.Screen name="player" />
-                  <Stack.Screen name="collection/[id]" />
-                  <Stack.Screen name="l/[tipo]/[id]" />
-
-                  <Stack.Screen
-                    name="terreiro-editor"
-                    options={{
-                      presentation: "modal",
-                      animation: "slide_from_bottom",
-                      contentStyle: {
-                        backgroundColor:
-                          effectiveTheme === "light"
-                            ? colors.paper50
-                            : colors.forest900,
-                      },
-                    }}
-                  />
-                  <Stack.Screen
-                    name="access-manager"
-                    options={{
-                      presentation: "modal",
-                      animation: "slide_from_bottom",
-                      contentStyle: {
-                        backgroundColor:
-                          effectiveTheme === "light"
-                            ? colors.paper50
-                            : colors.forest900,
-                      },
-                    }}
-                  />
-                </Stack>
-
-                {/* Overlay global para swipe horizontal entre abas (topo real) */}
-                <AppTabSwipeOverlay />
-              </View>
-            </TabControllerProvider>
-          </RootPagerProvider>
+                />
+                <Stack.Screen
+                  name="access-manager"
+                  options={{
+                    presentation: "modal",
+                    animation: "slide_from_bottom",
+                    contentStyle: {
+                      backgroundColor:
+                        effectiveTheme === "light"
+                          ? colors.paper50
+                          : colors.forest900,
+                    },
+                  }}
+                />
+              </Stack>
+            </View>
+          </TabControllerProvider>
         </GestureBlockProvider>
       </GestureGateProvider>
     </SaravafyScreen>

@@ -1,7 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { useRootPager } from "@/contexts/RootPagerContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -31,7 +30,6 @@ import {
 
 export default function Terreiro() {
   const router = useRouter();
-  const rootPager = useRootPager();
   const { shouldBlockPress } = useGestureBlock();
   const params = useLocalSearchParams<{
     bootStart?: string;
@@ -108,15 +106,13 @@ export default function Terreiro() {
 
     if (wasActive && !isActive) {
       showToast("Seu acesso a este terreiro foi removido.");
-      rootPager?.setActiveKey("pontos");
-      router.replace("/(app)");
+      router.replace("/(app)/(tabs)/(pontos)" as any);
     }
 
     wasActiveMemberRef.current = isActive;
   }, [
     membership.isActiveMember,
     membershipQuery.isLoading,
-    rootPager,
     router,
     terreiroId,
     userId,
@@ -182,9 +178,8 @@ export default function Terreiro() {
     if (terreiroId) return;
     if (params.bootStart === "1") return;
 
-    rootPager?.setActiveKey("pontos");
-    router.replace("/(app)");
-  }, [params.bootStart, rootPager, router, terreiroId]);
+    router.replace("/(app)/(tabs)/(pontos)" as any);
+  }, [params.bootStart, router, terreiroId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,8 +198,7 @@ export default function Terreiro() {
 
         if (params.bootOffline === "1") {
           clearStartPageSnapshotOnly().catch(() => undefined);
-          rootPager?.setActiveKey("pontos");
-          router.replace("/(app)");
+          router.replace("/(app)/(tabs)/(pontos)" as any);
           return;
         }
 
@@ -227,7 +221,6 @@ export default function Terreiro() {
     clearStartPageSnapshotOnly,
     params.bootOffline,
     resolvedTerreiroId,
-    rootPager,
     router,
   ]);
 
@@ -793,7 +786,6 @@ export default function Terreiro() {
                 pressed ? styles.sheetActionPressed : null,
               ]}
             >
-              <Ionicons name="brush" size={18} color={accentColor} />
               <Text style={[styles.sheetActionText, { color: textPrimary }]}>
                 Editar
               </Text>

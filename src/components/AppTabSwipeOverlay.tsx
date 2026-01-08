@@ -2,7 +2,7 @@ import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
-import { usePathname, useRouter } from "expo-router";
+import { usePathname } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -91,7 +91,6 @@ function shouldRejectForVertical(dx: number, dy: number) {
  * - Em telas profundas, volta para /(app) antes de trocar aba
  */
 export function AppTabSwipeOverlay() {
-  const router = useRouter();
   const pathname = usePathname();
   const rootPager = useRootPager();
   const tabController = useTabController();
@@ -100,11 +99,11 @@ export function AppTabSwipeOverlay() {
   const { width } = useWindowDimensions();
 
   const [forcePointerEventsAuto, setForcePointerEventsAuto] = useState(false);
+
   const forcePointerEventsAutoRef = useRef(false);
 
-  const [panPointerEvents, setPanPointerEvents] = useState<OverlayPointerEvents>(
-    "none"
-  );
+  const [panPointerEvents, setPanPointerEvents] =
+    useState<OverlayPointerEvents>("none");
   const panPointerEventsRef = useRef<OverlayPointerEvents>("none");
   const pathnameRef = useRef(pathname);
 
@@ -116,20 +115,23 @@ export function AppTabSwipeOverlay() {
     forcePointerEventsAutoRef.current = forcePointerEventsAuto;
   }, [forcePointerEventsAuto]);
 
-  const setPanPE = useCallback((next: OverlayPointerEvents, reason?: string) => {
-    if (panPointerEventsRef.current === next) return;
-    const prev = panPointerEventsRef.current;
-    panPointerEventsRef.current = next;
-    setPanPointerEvents(next);
-    logSwipeOverlay({
-      phase: "pointerEventsChange",
-      pathname: pathnameRef.current,
-      pointerEventsPrev: prev,
-      pointerEventsNext: next,
-      reason: reason ?? null,
-      now: Date.now(),
-    });
-  }, []);
+  const setPanPE = useCallback(
+    (next: OverlayPointerEvents, reason?: string) => {
+      if (panPointerEventsRef.current === next) return;
+      const prev = panPointerEventsRef.current;
+      panPointerEventsRef.current = next;
+      setPanPointerEvents(next);
+      logSwipeOverlay({
+        phase: "pointerEventsChange",
+        pathname: pathnameRef.current,
+        pointerEventsPrev: prev,
+        pointerEventsNext: next,
+        reason: reason ?? null,
+        now: Date.now(),
+      });
+    },
+    []
+  );
 
   const translateX = useRef(new Animated.Value(0)).current;
   const swipeRecognizedRef = useRef(false);
@@ -267,7 +269,12 @@ export function AppTabSwipeOverlay() {
       forcePointerEventsAuto,
       now: Date.now(),
     });
-  }, [effectivePointerEvents, forcePointerEventsAuto, panPointerEvents, pathname]);
+  }, [
+    effectivePointerEvents,
+    forcePointerEventsAuto,
+    panPointerEvents,
+    pathname,
+  ]);
 
   useEffect(() => {
     if (!isOverlayDisabled) return;
@@ -630,7 +637,6 @@ export function AppTabSwipeOverlay() {
             pointerEventsEffective: effectivePointerEvents,
             forcePointerEventsAuto,
             targetTab,
-            restoreHref: tabController.getLastHrefForTab(targetTab),
           });
 
           // IMPORTANTE (determinístico): bloquear press APENAS quando
@@ -649,34 +655,7 @@ export function AppTabSwipeOverlay() {
             gestureGate.markSwipeEnd();
           }
 
-          const restoreHref = tabController.getLastHrefForTab(targetTab);
-          const shouldRestoreDeep =
-            typeof restoreHref === "string" &&
-            restoreHref.length > 0 &&
-            restoreHref !== "/";
-
-          if (isOnRootPager) {
-            tabController.goToTab(targetTab);
-
-            if (shouldRestoreDeep) {
-              requestAnimationFrame(() => {
-                router.push(restoreHref as any);
-              });
-            }
-          } else {
-            // Está em tela profunda (Terreiro/Collection)
-            // Primeiro volta para /(app), depois troca aba, depois restaura.
-            router.push("/(app)");
-            requestAnimationFrame(() => {
-              tabController.goToTab(targetTab);
-            });
-
-            if (shouldRestoreDeep) {
-              requestAnimationFrame(() => {
-                router.push(restoreHref as any);
-              });
-            }
-          }
+          tabController.goToTab(targetTab);
 
           // Anima saída (puramente cosmético; overlay é invisível)
           Animated.timing(translateX, {
@@ -735,7 +714,6 @@ export function AppTabSwipeOverlay() {
     isOverlayDisabled,
     activeTab,
     pathname,
-    router,
     tabController,
     gestureBlock,
     gestureGate,

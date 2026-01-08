@@ -71,17 +71,10 @@ export function SaravafyScreen({
       {/* Segunda luz (top-left) */}
       <View
         pointerEvents="none"
-        style={variant === "light" ? styles.lightPaperLight : styles.lightPaper}
+        style={
+          variant === "light" ? styles.lightSecondaryLight : styles.lightPaper
+        }
       />
-
-      {/* Lavagens (tema claro): verde + terra */}
-      {variant === "light" ? (
-        <>
-          <View pointerEvents="none" style={styles.lightTintLight} />
-          <View pointerEvents="none" style={styles.lightForestLight} />
-          <View pointerEvents="none" style={styles.lightEarthLight} />
-        </>
-      ) : null}
 
       {/* Vinheta */}
       <View
@@ -162,30 +155,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.paper100,
     opacity: 0.45,
   },
-  lightForestLight: {
+  lightSecondaryLight: {
     position: "absolute",
-    top: -260,
-    left: -260,
-    width: 720,
-    height: 720,
+    top: -180,
+    left: -220,
+    width: 520,
+    height: 520,
     borderRadius: 9999,
-    backgroundColor: colors.forest600,
-    opacity: 0.3,
-  },
-  lightTintLight: {
-    ...StyleSheet.absoluteFillObject,
+    // Mesmo "formato" do dark mode, mas com cor que aparece no tema claro.
     backgroundColor: colors.forest700,
-    opacity: 0.16,
-  },
-  lightEarthLight: {
-    position: "absolute",
-    bottom: -300,
-    right: -260,
-    width: 760,
-    height: 760,
-    borderRadius: 9999,
-    backgroundColor: colors.earth600,
-    opacity: 0.05,
+    opacity: 0.06,
   },
   vignette: {
     ...StyleSheet.absoluteFillObject,

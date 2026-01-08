@@ -19,7 +19,7 @@ export default function DeepLinkColecaoRoute() {
       return;
     }
 
-    router.replace({ pathname: "/(app)/collection/[id]", params: { id } });
+    router.replace({ pathname: "/collection/[id]", params: { id } });
   }, [params.id, router, showToast]);
 
   return null;

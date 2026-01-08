@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
-import { useRootPager } from "@/contexts/RootPagerContext";
+import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
@@ -24,7 +24,7 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
-import { usePathname, useRouter } from "expo-router";
+import { usePathname, useRouter, useSegments } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -144,7 +144,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const { suspended = false } = props;
   const router = useRouter();
   const pathname = usePathname();
-  const rootPager = useRootPager();
+  const segments = useSegments() as string[];
+  const tabController = useTabController();
   const { user, signOut } = useAuth();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
@@ -163,22 +164,25 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const variant = effectiveTheme;
   const uiEnabled = !suspended;
 
-  const isOnRootPager = typeof pathname === "string" && pathname === "/";
+  const isInTabs = segments.includes("(tabs)");
 
-  const isTerreirosActive =
-    isOnRootPager && rootPager
-      ? rootPager.activeKey === "terreiros"
-      : typeof pathname === "string" &&
+  const activeTab: TabKey = useMemo(() => {
+    if (
+      segments.includes("(terreiros)") ||
+      (typeof pathname === "string" &&
         (pathname.startsWith("/terreiro") ||
-          // Mantém o underline em "Terreiros" ao navegar dentro das playlists
-          // de terreiros (collection/player), independente do contexto ativo.
           pathname.startsWith("/collection") ||
-          pathname.startsWith("/player"));
+          pathname.startsWith("/player")))
+    ) {
+      return "terreiros";
+    }
 
-  const isPontosActive =
-    isOnRootPager && rootPager
-      ? rootPager.activeKey === "pontos"
-      : !isTerreirosActive;
+    if (segments.includes("(pontos)")) return "pontos";
+    return "pontos";
+  }, [pathname, segments]);
+
+  const isTerreirosActive = activeTab === "terreiros";
+  const isPontosActive = activeTab === "pontos";
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -725,10 +729,12 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                rootPager?.setActiveKey("pontos");
-                if (!isOnRootPager) {
-                  router.replace("/(app)");
+                if (!isInTabs) {
+                  router.replace("/(app)/(tabs)/(pontos)" as any);
+                  return;
                 }
+
+                tabController.goToTab("pontos");
               }}
               hitSlop={10}
               style={styles.navItem}
@@ -760,10 +766,12 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                rootPager?.setActiveKey("terreiros");
-                if (!isOnRootPager) {
-                  router.replace("/(app)");
+                if (!isInTabs) {
+                  router.replace("/(app)/(tabs)/(terreiros)" as any);
+                  return;
                 }
+
+                tabController.goToTab("terreiros");
               }}
               hitSlop={10}
               style={styles.navItem}
