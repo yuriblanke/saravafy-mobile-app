@@ -445,13 +445,17 @@ export default function Home() {
         id: res.data.id,
         title: typeof res.data.title === "string" ? res.data.title : null,
         owner_user_id:
-          typeof res.data.owner_user_id === "string" ? res.data.owner_user_id : null,
+          typeof res.data.owner_user_id === "string"
+            ? res.data.owner_user_id
+            : null,
         owner_terreiro_id:
           typeof res.data.owner_terreiro_id === "string"
             ? res.data.owner_terreiro_id
             : null,
         terreiro_title:
-          typeof res.data.terreiro_title === "string" ? res.data.terreiro_title : null,
+          typeof res.data.terreiro_title === "string"
+            ? res.data.terreiro_title
+            : null,
         created_at:
           typeof res.data.created_at === "string"
             ? res.data.created_at

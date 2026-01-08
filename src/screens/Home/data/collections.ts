@@ -151,7 +151,10 @@ export async function createCollection(params: {
 
   const cleanTitle = title.trim().slice(0, 40);
   if (!cleanTitle) {
-    return { data: null as CreateCollectionData | null, error: "Título inválido." };
+    return {
+      data: null as CreateCollectionData | null,
+      error: "Título inválido.",
+    };
   }
 
   try {

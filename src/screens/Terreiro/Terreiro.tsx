@@ -232,6 +232,20 @@ export default function Terreiro() {
     setIsCollectionActionsOpen(true);
   };
 
+  const canDeleteCollection = useCallback(
+    (collection: TerreiroCollectionCard | null) => {
+      if (!isAdminOrEditor) return false;
+      const ownerTerreiroId =
+        typeof collection?.owner_terreiro_id === "string"
+          ? collection.owner_terreiro_id
+          : "";
+      if (!ownerTerreiroId) return false;
+      if (!terreiroId) return false;
+      return ownerTerreiroId === terreiroId;
+    },
+    [isAdminOrEditor, terreiroId]
+  );
+
   const closeCollectionActions = () => {
     setIsCollectionActionsOpen(false);
     setCollectionActionsTarget(null);
@@ -244,19 +258,32 @@ export default function Terreiro() {
 
   const deleteCollectionMutation = useMutation({
     mutationFn: async (collection: TerreiroCollectionCard) => {
-      const res = await supabase
-        .from("collections")
-        .delete()
-        .eq("id", collection.id)
-        .select("id")
-        .single();
+      const res = await supabase.rpc("delete_collection", {
+        p_collection_id: collection.id,
+      });
 
       if (res.error) {
         throw new Error(
-          typeof res.error.message === "string"
+          typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
             : "Não foi possível excluir a coleção."
         );
+      }
+
+      const data: any = res.data;
+      const ok =
+        data === true ||
+        (data && typeof data === "object" && "ok" in data && data.ok === true);
+
+      if (!ok) {
+        const message =
+          data &&
+          typeof data === "object" &&
+          typeof data.error === "string" &&
+          data.error.trim()
+            ? data.error
+            : "Não foi possível excluir a coleção.";
+        throw new Error(message);
       }
 
       return { id: collection.id };
@@ -288,11 +315,8 @@ export default function Terreiro() {
         });
       }
 
-      Alert.alert(
-        "Erro",
-        err instanceof Error
-          ? err.message
-          : "Não foi possível excluir a coleção."
+      showToast(
+        err instanceof Error ? err.message : "Não foi possível excluir a coleção."
       );
     },
     onSuccess: (_data, vars) => {
@@ -300,18 +324,37 @@ export default function Terreiro() {
         cancelEditCollectionTitle();
       }
 
+      showToast("Coleção excluída.");
       closeConfirmDeleteCollection();
     },
-    onSettled: () => {
+    onSettled: (_data, _error, vars) => {
       if (!terreiroId) return;
       queryClient.invalidateQueries({
         queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
       });
+
+      if (vars?.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.byId(vars.id),
+        });
+      }
+
+      if (userId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.accountable(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.editableByUserPrefix(userId),
+        });
+      }
     },
   });
 
   const deleteCollection = async (collection: TerreiroCollectionCard) => {
-    if (!canEdit) return;
+    if (!canDeleteCollection(collection)) {
+      showToast("Você não tem permissão para excluir esta coleção.");
+      return;
+    }
     setIsDeletingCollection(true);
     try {
       await deleteCollectionMutation.mutateAsync(collection);
@@ -960,29 +1003,31 @@ export default function Terreiro() {
 
             <Separator variant={variant} />
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Excluir coleção"
-              hitSlop={10}
-              onPress={() => {
-                const target = collectionActionsTarget;
-                closeCollectionActions();
-                if (!target) return;
-                setCollectionPendingDelete(target);
-                setTimeout(() => {
-                  setIsConfirmDeleteCollectionOpen(true);
-                }, 80);
-              }}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-              ]}
-            >
-              <Ionicons name="trash" size={18} color={dangerColor} />
-              <Text style={[styles.sheetActionText, { color: dangerColor }]}>
-                Excluir
-              </Text>
-            </Pressable>
+            {canDeleteCollection(collectionActionsTarget) ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Excluir coleção"
+                hitSlop={10}
+                onPress={() => {
+                  const target = collectionActionsTarget;
+                  closeCollectionActions();
+                  if (!target) return;
+                  setCollectionPendingDelete(target);
+                  setTimeout(() => {
+                    setIsConfirmDeleteCollectionOpen(true);
+                  }, 80);
+                }}
+                style={({ pressed }) => [
+                  styles.sheetActionRow,
+                  pressed ? styles.sheetActionPressed : null,
+                ]}
+              >
+                <Ionicons name="trash" size={18} color={dangerColor} />
+                <Text style={[styles.sheetActionText, { color: dangerColor }]}>
+                  Excluir
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </BottomSheet>
@@ -1031,7 +1076,9 @@ export default function Terreiro() {
               accessibilityRole="button"
               accessibilityLabel="Confirmar exclusão"
               hitSlop={10}
-              disabled={isDeletingCollection}
+              disabled={
+                isDeletingCollection || !canDeleteCollection(collectionPendingDelete)
+              }
               onPress={() => {
                 if (!collectionPendingDelete) return;
                 deleteCollection(collectionPendingDelete);
@@ -1039,7 +1086,10 @@ export default function Terreiro() {
               style={({ pressed }) => [
                 styles.sheetActionRow,
                 pressed ? styles.sheetActionPressed : null,
-                isDeletingCollection ? styles.sheetActionDisabled : null,
+                isDeletingCollection ||
+                !canDeleteCollection(collectionPendingDelete)
+                  ? styles.sheetActionDisabled
+                  : null,
               ]}
             >
               <Ionicons name="trash" size={18} color={dangerColor} />

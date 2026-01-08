@@ -6,9 +6,11 @@ import React, {
   useState,
 } from "react";
 import {
+  ActivityIndicator,
   Alert,
   BackHandler,
   Image,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -352,6 +354,103 @@ async function deleteFinalCoverIfPossible(terreiroId: string) {
   }
 }
 
+type StorageListItem = {
+  name?: unknown;
+  id?: unknown;
+};
+
+async function listAllStorageItems(params: { bucket: string; path: string }) {
+  const items: StorageListItem[] = [];
+  const limit = 1000;
+  let offset = 0;
+
+  while (true) {
+    const res = await supabase.storage
+      .from(params.bucket)
+      .list(params.path, { limit, offset });
+
+    if (res.error) {
+      throw new Error(
+        typeof res.error.message === "string" && res.error.message.trim()
+          ? res.error.message
+          : "Não foi possível listar os arquivos do Storage."
+      );
+    }
+
+    const batch = (res.data ?? []) as StorageListItem[];
+    items.push(...batch);
+
+    if (batch.length < limit) break;
+    offset += limit;
+  }
+
+  return items;
+}
+
+async function collectStorageFilePathsRecursively(params: {
+  bucket: string;
+  folderPath: string;
+}): Promise<string[]> {
+  const items = await listAllStorageItems({
+    bucket: params.bucket,
+    path: params.folderPath,
+  });
+
+  const paths: string[] = [];
+
+  for (const item of items) {
+    const name = typeof item?.name === "string" ? item.name : "";
+    if (!name) continue;
+
+    const nextPath = `${params.folderPath}/${name}`;
+    const isFolder = item?.id === null;
+
+    if (isFolder) {
+      const nested = await collectStorageFilePathsRecursively({
+        bucket: params.bucket,
+        folderPath: nextPath,
+      });
+      paths.push(...nested);
+    } else {
+      paths.push(nextPath);
+    }
+  }
+
+  return paths;
+}
+
+async function deleteTerreiroStorageFolder(terreiroId: string) {
+  const bucket = "terreiros-images";
+  const root = `terreiros/${terreiroId}`;
+
+  const paths = await collectStorageFilePathsRecursively({
+    bucket,
+    folderPath: root,
+  }).catch((error) => {
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : "Não foi possível excluir os arquivos do terreiro."
+    );
+  });
+
+  if (paths.length === 0) return;
+
+  const chunkSize = 100;
+  for (let i = 0; i < paths.length; i += chunkSize) {
+    const chunk = paths.slice(i, i + chunkSize);
+    const res = await supabase.storage.from(bucket).remove(chunk);
+
+    if (res.error) {
+      throw new Error(
+        typeof res.error.message === "string" && res.error.message.trim()
+          ? res.error.message
+          : "Não foi possível excluir os arquivos do terreiro."
+      );
+    }
+  }
+}
+
 function snapshotOf(form: TerreiroForm) {
   return JSON.stringify({
     ...form,
@@ -427,6 +526,11 @@ export default function TerreiroEditor() {
 
   const [loading, setLoading] = useState(isEdit);
   const [saving, setSaving] = useState(false);
+
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleteInlineError, setDeleteInlineError] = useState<string>("");
+  const [deletingTerreiro, setDeletingTerreiro] = useState(false);
 
   const [isUfModalOpen, setIsUfModalOpen] = useState(false);
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
@@ -649,6 +753,105 @@ export default function TerreiroEditor() {
     if (ownerId && user?.id && ownerId === user.id) return true;
     return myTerreiroRole === "admin";
   }, [myTerreiroRole, user?.id]);
+
+  const openDeleteModal = useCallback(() => {
+    setDeleteInlineError("");
+    setDeleteConfirmation("");
+    setDeleteModalOpen(true);
+  }, []);
+
+  const closeDeleteModal = useCallback(() => {
+    if (deletingTerreiro) return;
+    setDeleteModalOpen(false);
+    setDeleteInlineError("");
+    setDeleteConfirmation("");
+  }, [deletingTerreiro]);
+
+  const expectedDeleteName = useMemo(
+    () => (form.title || "").trim(),
+    [form.title]
+  );
+  const deleteNameMatches =
+    deleteConfirmation.trim() !== "" &&
+    deleteConfirmation.trim() === expectedDeleteName;
+
+  const confirmDeleteTerreiro = useCallback(async () => {
+    if (!isTerreiroAdminSectionEnabled || !isAdmin) return;
+    const id = form.id;
+    if (!id) return;
+    if (!user?.id) return;
+
+    setDeleteInlineError("");
+
+    if (!deleteNameMatches) {
+      setDeleteInlineError(
+        "Digite exatamente o nome do terreiro para excluir."
+      );
+      return;
+    }
+
+    setDeletingTerreiro(true);
+    try {
+      await deleteTerreiroStorageFolder(id);
+
+      const res = await supabase.rpc("delete_terreiro", {
+        p_terreiro_id: id,
+      });
+
+      if (res.error) {
+        throw new Error(
+          typeof res.error.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Não foi possível excluir o terreiro."
+        );
+      }
+
+      const data: any = res.data;
+      if (typeof data === "boolean" && data !== true) {
+        throw new Error("Não foi possível excluir o terreiro.");
+      }
+      if (
+        data &&
+        typeof data === "object" &&
+        "ok" in data &&
+        data.ok !== true
+      ) {
+        throw new Error("Não foi possível excluir o terreiro.");
+      }
+
+      showToast("Terreiro excluído.");
+
+      invalidateTerreiro(queryClient, id);
+      invalidateTerreiroListsForRoles(queryClient, user.id);
+      void queryClient.refetchQueries({
+        queryKey: queryKeys.terreiros.withRole(user.id),
+        type: "all",
+      });
+      fetchTerreirosQueAdministro(user.id).catch(() => undefined);
+
+      setDeleteModalOpen(false);
+      router.replace("/(app)/(tabs)/(terreiros)" as any);
+    } catch (error) {
+      setDeleteInlineError(
+        error instanceof Error
+          ? error.message
+          : "Não foi possível excluir o terreiro."
+      );
+    } finally {
+      setDeletingTerreiro(false);
+    }
+  }, [
+    deleteNameMatches,
+    fetchTerreirosQueAdministro,
+    form.id,
+    invalidateTerreiroListsForRoles,
+    isAdmin,
+    isTerreiroAdminSectionEnabled,
+    queryClient,
+    router,
+    showToast,
+    user?.id,
+  ]);
 
   const loadAdminData = async (id: string) => {
     if (!id) return;
@@ -1632,6 +1835,26 @@ export default function TerreiroEditor() {
                   <Text style={styles.inviteCtaText}>Gerenciar acesso</Text>
                 </Pressable>
               ) : null}
+
+              {isTerreiroAdminSectionEnabled && isAdmin ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Excluir terreiro"
+                  disabled={saving || deletingTerreiro}
+                  onPress={openDeleteModal}
+                  style={({ pressed }) => [
+                    styles.deleteCtaBtn,
+                    pressed && !saving && !deletingTerreiro
+                      ? styles.footerBtnPressed
+                      : null,
+                    saving || deletingTerreiro
+                      ? styles.footerBtnDisabled
+                      : null,
+                  ]}
+                >
+                  <Text style={styles.deleteCtaText}>Excluir terreiro</Text>
+                </Pressable>
+              ) : null}
             </View>
           </View>
 
@@ -1785,6 +2008,117 @@ export default function TerreiroEditor() {
           setInviteRole(value === "admin" ? "admin" : "editor");
         }}
       />
+
+      <Modal
+        transparent
+        visible={deleteModalOpen}
+        animationType="fade"
+        onRequestClose={closeDeleteModal}
+      >
+        <View style={styles.deleteModalBackdrop}>
+          <Pressable
+            style={StyleSheet.absoluteFillObject}
+            disabled={deletingTerreiro}
+            onPress={closeDeleteModal}
+          />
+
+          <View style={styles.deleteModalWrap}>
+            <View
+              style={[
+                styles.deleteModalCard,
+                { backgroundColor: inputBg, borderColor: inputBorder },
+              ]}
+            >
+              <Text style={[styles.deleteModalTitle, { color: textPrimary }]}>
+                Excluir terreiro
+              </Text>
+
+              <Text style={[styles.deleteModalText, { color: textSecondary }]}>
+                Esta ação é irreversível. Para confirmar, digite exatamente o
+                nome do terreiro:
+              </Text>
+
+              <Text style={[styles.deleteModalName, { color: textPrimary }]}>
+                {expectedDeleteName || "(sem nome)"}
+              </Text>
+
+              <TextInput
+                value={deleteConfirmation}
+                onChangeText={(v) => {
+                  setDeleteConfirmation(v);
+                  if (deleteInlineError) setDeleteInlineError("");
+                }}
+                editable={!deletingTerreiro}
+                placeholder="Digite o nome do terreiro"
+                placeholderTextColor={textSecondary}
+                autoCapitalize="none"
+                style={[
+                  styles.deleteModalInput,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: inputBorder,
+                    color: textPrimary,
+                  },
+                ]}
+              />
+
+              {deleteInlineError ? (
+                <Text
+                  style={[
+                    styles.inlineErrorText,
+                    { color: colors.danger, marginTop: spacing.sm },
+                  ]}
+                >
+                  {deleteInlineError}
+                </Text>
+              ) : null}
+
+              <View style={styles.deleteModalActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Cancelar exclusão"
+                  disabled={deletingTerreiro}
+                  onPress={closeDeleteModal}
+                  style={({ pressed }) => [
+                    styles.deleteCancelBtn,
+                    { borderColor: inputBorder, backgroundColor: inputBg },
+                    pressed && !deletingTerreiro
+                      ? styles.footerBtnPressed
+                      : null,
+                    deletingTerreiro ? styles.footerBtnDisabled : null,
+                  ]}
+                >
+                  <Text style={[styles.footerBtnText, { color: textPrimary }]}>
+                    Cancelar
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Confirmar exclusão"
+                  disabled={!deleteNameMatches || deletingTerreiro}
+                  onPress={confirmDeleteTerreiro}
+                  style={({ pressed }) => [
+                    styles.deleteConfirmBtn,
+                    pressed && deleteNameMatches && !deletingTerreiro
+                      ? styles.footerBtnPressed
+                      : null,
+                    !deleteNameMatches || deletingTerreiro
+                      ? styles.footerBtnDisabled
+                      : null,
+                  ]}
+                >
+                  {deletingTerreiro ? (
+                    <ActivityIndicator color={colors.paper50} />
+                  ) : (
+                    <Text style={styles.deleteConfirmText}>Excluir</Text>
+                  )}
+                </Pressable>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <BottomSheet
         visible={isRolesSheetOpen}
@@ -2298,6 +2632,20 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: colors.paper50,
   },
+  deleteCtaBtn: {
+    marginTop: spacing.sm,
+    minHeight: 44,
+    borderRadius: radii.md,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  deleteCtaText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.paper50,
+  },
   inviteForm: {
     marginTop: spacing.md,
   },
@@ -2435,5 +2783,79 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.85,
+  },
+
+  deleteModalBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: colors.overlayBackdrop,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: spacing.lg,
+  },
+  deleteModalWrap: {
+    width: "100%",
+    maxWidth: 520,
+  },
+  deleteModalCard: {
+    width: "100%",
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    padding: spacing.lg,
+  },
+  deleteModalTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  deleteModalText: {
+    marginTop: spacing.sm,
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.92,
+    lineHeight: 18,
+  },
+  deleteModalName: {
+    marginTop: spacing.sm,
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  deleteModalInput: {
+    marginTop: spacing.md,
+    minHeight: 44,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: radii.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  deleteModalActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginTop: spacing.lg,
+  },
+  deleteCancelBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.md,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  deleteConfirmBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: radii.md,
+    backgroundColor: colors.danger,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  deleteConfirmText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.paper50,
   },
 });
