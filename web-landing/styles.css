@@ -121,7 +121,7 @@ body::after {
 .hero {
   position: relative;
   min-height: 92vh;
-  background-image: url("/images/hero-image.jpg");
+  background-image: url("/images/hero-image.png");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
