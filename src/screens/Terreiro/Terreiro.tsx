@@ -578,6 +578,7 @@ export default function Terreiro() {
                       id: item.id,
                       collectionId: item.id,
                       collectionTitle: name,
+                      terreiroId: terreiroId || undefined,
                     },
                   });
                 }

@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Image,
@@ -55,6 +55,8 @@ export function AddMediumTagSheet(props: {
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 
+  const inputRef = useRef<TextInput | null>(null);
+
   const [value, setValue] = useState("");
   const [isSaving, setIsSaving] = useState(false);
 
@@ -68,8 +70,15 @@ export function AddMediumTagSheet(props: {
 
   const canSubmit = useMemo(() => {
     const v = normalizeInput(value);
-    return v.length >= 2 && v.length <= 60;
+    return v.length > 0 && v.length <= 60;
   }, [value]);
+
+  useEffect(() => {
+    if (!visible) return;
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+    });
+  }, [visible]);
 
   const closeAndReset = useCallback(() => {
     setValue("");
@@ -218,57 +227,96 @@ export function AddMediumTagSheet(props: {
       variant={variant}
       snapPoints={["55%"]}
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
+      <View style={{ paddingBottom: 16 }}>
+        <View style={styles.sheetHeaderRow}>
           <Text style={[styles.title, { color: textPrimary }]}>
             Médium deste ponto
           </Text>
-          <Text style={[styles.subtitle, { color: textSecondary }]}>
-            Qual médium dá passagem quando este ponto é cantado neste terreiro?
-          </Text>
-        </View>
-
-        <View
-          style={[
-            styles.inputWrap,
-            isLight ? styles.inputWrapLight : styles.inputWrapDark,
-          ]}
-        >
-          <TextInput
-            value={value}
-            onChangeText={setValue}
-            placeholder="Ex: Pai Joaquim"
-            placeholderTextColor={textSecondary}
-            style={[styles.input, { color: textPrimary }]}
-            autoCapitalize="words"
-            autoCorrect={false}
-            maxLength={80}
-            editable={!isSaving}
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (!isSaving && canSubmit) void submit();
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              if (isSaving) return;
+              onClose();
             }}
-          />
+            hitSlop={10}
+            style={styles.sheetCloseBtn}
+          >
+            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>×</Text>
+          </Pressable>
         </View>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Adicionar médium"
-          onPress={() => void submit()}
-          disabled={!canSubmit || isSaving}
-          style={({ pressed }) => [
-            styles.confirmBtn,
-            isLight ? styles.confirmBtnLight : styles.confirmBtnDark,
-            !canSubmit || isSaving ? styles.confirmBtnDisabled : null,
-            pressed ? styles.confirmBtnPressed : null,
+        <Text style={[styles.subtitle, { color: textSecondary }]}>
+          Qual médium dá passagem quando este ponto é cantado neste terreiro?
+        </Text>
+
+        <TextInput
+          ref={(node) => {
+            inputRef.current = node;
+          }}
+          value={value}
+          onChangeText={setValue}
+          placeholder="Ex: Pai Joaquim"
+          placeholderTextColor={textSecondary}
+          style={[
+            styles.input,
+            {
+              color: textPrimary,
+              borderColor: isLight ? colors.inputBorderLight : colors.inputBorderDark,
+              backgroundColor: isLight ? colors.inputBgLight : colors.inputBgDark,
+            },
           ]}
-        >
-          {isSaving ? (
-            <ActivityIndicator color={colors.paper50} />
-          ) : (
-            <Text style={styles.confirmText}>Adicionar médium</Text>
-          )}
-        </Pressable>
+          autoCapitalize="words"
+          autoCorrect={false}
+          maxLength={60}
+          editable={!isSaving}
+          returnKeyType="done"
+          onSubmitEditing={() => {
+            if (!isSaving && canSubmit) void submit();
+          }}
+        />
+
+        <View style={styles.actionsRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cancelar"
+            onPress={() => {
+              if (isSaving) return;
+              onClose();
+            }}
+            disabled={isSaving}
+            style={({ pressed }) => [
+              styles.secondaryActionBtn,
+              {
+                borderColor: isLight ? colors.inputBorderLight : colors.inputBorderDark,
+                backgroundColor: isLight ? colors.inputBgLight : colors.inputBgDark,
+              },
+              pressed ? styles.pressed : null,
+              isSaving ? styles.disabled : null,
+            ]}
+          >
+            <Text style={[styles.secondaryActionText, { color: textPrimary }]}>
+              Cancelar
+            </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Adicionar médium"
+            onPress={() => void submit()}
+            disabled={!canSubmit || isSaving}
+            style={({ pressed }) => [
+              styles.primaryActionBtn,
+              pressed ? styles.pressed : null,
+              !canSubmit || isSaving ? styles.disabled : null,
+            ]}
+          >
+            {isSaving ? (
+              <ActivityIndicator color={colors.paper50} />
+            ) : (
+              <Text style={styles.primaryActionText}>Adicionar médium</Text>
+            )}
+          </Pressable>
+        </View>
 
         <Image
           source={fillerPng}
@@ -282,68 +330,86 @@ export function AddMediumTagSheet(props: {
 }
 
 const styles = StyleSheet.create({
-  content: {
+  sheetHeaderRow: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
-    gap: spacing.lg,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  header: {
-    gap: spacing.sm,
+  sheetCloseBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetCloseText: {
+    fontSize: 20,
+    fontWeight: "900",
+    lineHeight: 20,
   },
   title: {
     fontSize: 16,
     fontWeight: "900",
   },
   subtitle: {
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
     fontSize: 13,
     lineHeight: 18,
   },
-  inputWrap: {
+  input: {
+    height: 44,
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-  },
-  inputWrapLight: {
-    borderColor: colors.inputBorderLight,
-    backgroundColor: colors.paper100,
-  },
-  inputWrapDark: {
-    borderColor: colors.inputBorderDark,
-    backgroundColor: colors.earth700,
-  },
-  input: {
+    paddingHorizontal: 12,
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
+    marginTop: spacing.lg,
+    marginHorizontal: spacing.lg,
   },
-  confirmBtn: {
-    borderRadius: 12,
-    height: 44,
-    alignItems: "center",
-    justifyContent: "center",
+  actionsRow: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.sm,
     paddingHorizontal: spacing.lg,
   },
-  confirmBtnLight: {
-    backgroundColor: colors.brass500,
+  secondaryActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
   },
-  confirmBtnDark: {
+  secondaryActionText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  primaryActionBtn: {
+    flex: 1,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
   },
-  confirmBtnDisabled: {
-    opacity: 0.6,
-  },
-  confirmBtnPressed: {
-    opacity: 0.85,
-  },
-  confirmText: {
-    fontSize: 14,
+  primaryActionText: {
+    fontSize: 13,
     fontWeight: "900",
     color: colors.paper50,
   },
+  pressed: {
+    opacity: 0.85,
+  },
+  disabled: {
+    opacity: 0.6,
+  },
   filler: {
     width: "100%",
-    height: 200,
-    marginTop: spacing.sm,
+    height: 265,
+    marginTop: spacing.lg,
   },
 });

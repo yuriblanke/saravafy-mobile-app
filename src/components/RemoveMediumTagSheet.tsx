@@ -55,6 +55,7 @@ export function RemoveMediumTagSheet(props: {
     ? colors.textSecondaryOnLight
     : colors.textSecondaryOnDark;
   const border = isLight ? colors.inputBorderLight : colors.inputBorderDark;
+  const inputBg = isLight ? colors.inputBgLight : colors.inputBgDark;
 
   const message = useMemo(() => {
     return `Remover “${tagLabel}” deste ponto neste terreiro?`;
@@ -132,46 +133,57 @@ export function RemoveMediumTagSheet(props: {
       variant={variant}
       snapPoints={["55%"]}
     >
-      <View style={styles.content}>
-        <View style={styles.header}>
+      <View style={{ paddingBottom: 16 }}>
+        <View style={styles.sheetHeaderRow}>
           <Text style={[styles.title, { color: textPrimary }]}>Médium</Text>
-          <Text style={[styles.body, { color: textSecondary }]}>{message}</Text>
-        </View>
-
-        <View style={styles.actions}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Remover"
-            onPress={() => void remove()}
+            onPress={close}
             disabled={isDeleting}
-            style={({ pressed }) => [
-              styles.destructiveBtn,
-              pressed ? styles.pressed : null,
-              isDeleting ? styles.disabled : null,
-            ]}
+            hitSlop={10}
+            style={styles.sheetCloseBtn}
           >
-            {isDeleting ? (
-              <ActivityIndicator color={colors.paper50} />
-            ) : (
-              <Text style={styles.destructiveText}>Remover</Text>
-            )}
+            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>×</Text>
           </Pressable>
+        </View>
 
+        <Text style={[styles.body, { color: textSecondary }]}>{message}</Text>
+
+        <View style={styles.actionsRow}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Cancelar"
             onPress={close}
             disabled={isDeleting}
             style={({ pressed }) => [
-              styles.secondaryBtn,
-              { borderColor: border },
+              styles.secondaryActionBtn,
+              { borderColor: border, backgroundColor: inputBg },
               pressed ? styles.pressed : null,
               isDeleting ? styles.disabled : null,
             ]}
           >
-            <Text style={[styles.secondaryText, { color: textPrimary }]}>
+            <Text style={[styles.secondaryActionText, { color: textPrimary }]}>
               Cancelar
             </Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Remover"
+            onPress={() => void remove()}
+            disabled={isDeleting}
+            style={({ pressed }) => [
+              styles.destructiveActionBtn,
+              { borderColor: border, backgroundColor: inputBg },
+              pressed ? styles.pressed : null,
+              isDeleting ? styles.disabled : null,
+            ]}
+          >
+            {isDeleting ? (
+              <ActivityIndicator />
+            ) : (
+              <Text style={styles.destructiveActionText}>Remover</Text>
+            )}
           </Pressable>
         </View>
 
@@ -187,42 +199,54 @@ export function RemoveMediumTagSheet(props: {
 }
 
 const styles = StyleSheet.create({
-  content: {
+  sheetHeaderRow: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
-    paddingBottom: spacing.xl,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
-  header: {
-    gap: spacing.sm,
+  sheetCloseBtn: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetCloseText: {
+    fontSize: 20,
+    fontWeight: "900",
+    lineHeight: 20,
   },
   title: {
     fontSize: 16,
     fontWeight: "900",
   },
   body: {
+    paddingHorizontal: spacing.lg,
+    marginTop: spacing.sm,
     fontSize: 13,
     lineHeight: 18,
   },
-  actions: {
+  actionsRow: {
     flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.lg,
+    paddingHorizontal: spacing.lg,
   },
-  destructiveBtn: {
+  secondaryActionBtn: {
     flex: 1,
     height: 44,
     borderRadius: 12,
-    backgroundColor: colors.danger,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
+    borderWidth: StyleSheet.hairlineWidth,
   },
-  destructiveText: {
+  secondaryActionText: {
     fontSize: 13,
     fontWeight: "900",
-    color: colors.paper50,
   },
-  secondaryBtn: {
+  destructiveActionBtn: {
     flex: 1,
     height: 44,
     borderRadius: 12,
@@ -230,11 +254,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: 12,
-    backgroundColor: "transparent",
   },
-  secondaryText: {
+  destructiveActionText: {
     fontSize: 13,
     fontWeight: "900",
+    color: colors.danger,
   },
   pressed: {
     opacity: 0.85,
@@ -244,7 +268,7 @@ const styles = StyleSheet.create({
   },
   filler: {
     width: "100%",
-    height: 200,
+    height: 265,
     marginTop: spacing.lg,
   },
 });

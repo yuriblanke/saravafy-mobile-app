@@ -101,10 +101,13 @@ export default function Collection() {
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
 
+  const terreiroIdFromParams =
+    typeof params.terreiroId === "string" ? params.terreiroId : "";
+
   const terreiroId =
     typeof collection?.owner_terreiro_id === "string"
       ? collection.owner_terreiro_id
-      : "";
+      : terreiroIdFromParams;
   const visibility =
     typeof collection?.visibility === "string" ? collection.visibility : "";
   const isMembersOnly = !!collection && visibility === "members";
