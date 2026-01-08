@@ -2,9 +2,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
+import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import { TagPlusChip } from "@/src/components/TagPlusChip";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
@@ -13,7 +15,6 @@ import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCusto
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
-import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -25,7 +26,6 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Pressable,
   StyleSheet,
@@ -166,8 +166,6 @@ export default function Collection() {
       .filter(Boolean);
   }, [orderedItems]);
 
-  const queryClient = useQueryClient();
-
   // Leituras são públicas em contexto de terreiro (sem gate de role/membership).
   const canSeeMediumTags = !!terreiroId;
   const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
@@ -180,91 +178,11 @@ export default function Collection() {
     null
   );
 
-  const deleteMediumTag = useCallback(
-    async (params: { pontoId: string; tagId: string; tagLabel: string }) => {
-      if (!canEditCustomTags) return;
-      if (!terreiroId) return;
-
-      Alert.alert(
-        "Remover médium",
-        `Remover “${params.tagLabel}” deste ponto neste terreiro?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Remover",
-            style: "destructive",
-            onPress: async () => {
-              const res = await supabase
-                .from("terreiro_ponto_custom_tags")
-                .delete()
-                .eq("id", params.tagId)
-                .eq("terreiro_id", terreiroId);
-
-              if (res.error) {
-                const msg =
-                  typeof res.error.message === "string" &&
-                  res.error.message.trim()
-                    ? res.error.message
-                    : "Erro ao remover médium.";
-
-                const lower = msg.toLowerCase();
-                if (
-                  lower.includes("row-level security") ||
-                  lower.includes("rls") ||
-                  lower.includes("permission")
-                ) {
-                  showToast(
-                    "Você não tem permissão para editar os médiums deste terreiro."
-                  );
-                  return;
-                }
-
-                showToast(msg);
-                return;
-              }
-
-              // Optimistic update: remove de qualquer query do map desse terreiro.
-              queryClient.setQueriesData(
-                {
-                  predicate: (q) => {
-                    const key = q.queryKey;
-                    return (
-                      Array.isArray(key) &&
-                      key.length >= 3 &&
-                      key[0] === "pontos" &&
-                      key[1] === "customTags" &&
-                      key[2] === terreiroId
-                    );
-                  },
-                },
-                (old) => {
-                  const prev = (old ?? {}) as Record<
-                    string,
-                    {
-                      id: string;
-                      tagText: string;
-                      tagTextNormalized: string;
-                      createdAt: string;
-                    }[]
-                  >;
-
-                  const existing = Array.isArray(prev[params.pontoId])
-                    ? prev[params.pontoId]
-                    : [];
-
-                  return {
-                    ...prev,
-                    [params.pontoId]: existing.filter((t) => t.id !== params.tagId),
-                  };
-                }
-              );
-            },
-          },
-        ]
-      );
-    },
-    [canEditCustomTags, queryClient, showToast, terreiroId]
-  );
+  const [deleteTarget, setDeleteTarget] = useState<null | {
+    pontoId: string;
+    tagId: string;
+    tagLabel: string;
+  }>(null);
   const loadCollection = useCallback(async () => {
     if (!collectionId) {
       setCollection(null);
@@ -387,6 +305,16 @@ export default function Collection() {
         terreiroId={terreiroId}
         pontoId={mediumTargetPontoId ?? ""}
         onClose={() => setMediumTargetPontoId(null)}
+      />
+
+      <RemoveMediumTagSheet
+        visible={!!deleteTarget}
+        variant={variant}
+        terreiroId={terreiroId}
+        pontoId={deleteTarget?.pontoId ?? ""}
+        tagId={deleteTarget?.tagId ?? ""}
+        tagLabel={deleteTarget?.tagLabel ?? ""}
+        onClose={() => setDeleteTarget(null)}
       />
 
       {isLoading ? (
@@ -684,34 +612,11 @@ export default function Collection() {
                       return (
                         <View style={styles.tagsWrap}>
                           {canEditCustomTags && !!terreiroId ? (
-                            <Pressable
-                              accessibilityRole="button"
+                            <TagPlusChip
+                              variant={variant}
                               accessibilityLabel="Adicionar médium"
-                              hitSlop={10}
-                              onPress={() =>
-                                setMediumTargetPontoId(item.ponto.id)
-                              }
-                              style={({ pressed }) => [
-                                styles.addTagBtn,
-                                {
-                                  borderColor:
-                                    variant === "light"
-                                      ? colors.brass500
-                                      : colors.brass600,
-                                },
-                                pressed ? styles.addTagBtnPressed : null,
-                              ]}
-                            >
-                              <Ionicons
-                                name="add"
-                                size={14}
-                                color={
-                                  variant === "light"
-                                    ? colors.brass500
-                                    : colors.brass600
-                                }
-                              />
-                            </Pressable>
+                              onPress={() => setMediumTargetPontoId(item.ponto.id)}
+                            />
                           ) : null}
                           {mediumTags.map((t) => (
                             <Pressable
@@ -724,12 +629,15 @@ export default function Collection() {
                                   ? `Remover médium ${t.tagText}`
                                   : undefined
                               }
-                              onLongPress={() =>
-                                deleteMediumTag({
-                                  pontoId: item.ponto.id,
-                                  tagId: t.id,
-                                  tagLabel: t.tagText,
-                                })
+                              onLongPress={
+                                canEditCustomTags
+                                  ? () =>
+                                      setDeleteTarget({
+                                        pontoId: item.ponto.id,
+                                        tagId: t.id,
+                                        tagLabel: t.tagText,
+                                      })
+                                  : undefined
                               }
                               delayLongPress={350}
                               disabled={!canEditCustomTags}

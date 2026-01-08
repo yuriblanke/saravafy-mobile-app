@@ -33,7 +33,10 @@ export type TerreiroPontoMediumTag = {
   createdAt: string;
 };
 
-export type TerreiroPontosCustomTagsMap = Record<string, TerreiroPontoMediumTag[]>;
+export type TerreiroPontosCustomTagsMap = Record<
+  string,
+  TerreiroPontoMediumTag[]
+>;
 
 export async function fetchTerreiroPontosCustomTagsMap(params: {
   terreiroId: string;

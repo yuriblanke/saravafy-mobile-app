@@ -1,9 +1,9 @@
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
+import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import {
   PontoUpsertModal,
@@ -14,7 +14,6 @@ import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
-import { useQueryClient } from "@tanstack/react-query";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -26,7 +25,6 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   Image,
   Pressable,
@@ -122,8 +120,6 @@ export default function PlayerScreen() {
     return items.map((it) => it.ponto.id).filter(Boolean);
   }, [items]);
 
-  const queryClient = useQueryClient();
-
   const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
     { terreiroId, pontoIds },
     { enabled: canSeeMediumTags && pontoIds.length > 0 }
@@ -141,90 +137,11 @@ export default function PlayerScreen() {
     null
   );
 
-  const deleteMediumTag = useCallback(
-    (params: { pontoId: string; tagId: string; tagLabel: string }) => {
-      if (!canEditCustomTags) return;
-      if (!terreiroId) return;
-
-      Alert.alert(
-        "Remover médium",
-        `Remover “${params.tagLabel}” deste ponto neste terreiro?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Remover",
-            style: "destructive",
-            onPress: async () => {
-              const res = await supabase
-                .from("terreiro_ponto_custom_tags")
-                .delete()
-                .eq("id", params.tagId)
-                .eq("terreiro_id", terreiroId);
-
-              if (res.error) {
-                const msg =
-                  typeof res.error.message === "string" &&
-                  res.error.message.trim()
-                    ? res.error.message
-                    : "Erro ao remover médium.";
-
-                const lower = msg.toLowerCase();
-                if (
-                  lower.includes("row-level security") ||
-                  lower.includes("rls") ||
-                  lower.includes("permission")
-                ) {
-                  showToast(
-                    "Você não tem permissão para editar os médiums deste terreiro."
-                  );
-                  return;
-                }
-
-                showToast(msg);
-                return;
-              }
-
-              queryClient.setQueriesData(
-                {
-                  predicate: (q) => {
-                    const key = q.queryKey;
-                    return (
-                      Array.isArray(key) &&
-                      key.length >= 3 &&
-                      key[0] === "pontos" &&
-                      key[1] === "customTags" &&
-                      key[2] === terreiroId
-                    );
-                  },
-                },
-                (old) => {
-                  const prev = (old ?? {}) as Record<
-                    string,
-                    {
-                      id: string;
-                      tagText: string;
-                      tagTextNormalized: string;
-                      createdAt: string;
-                    }[]
-                  >;
-
-                  const existing = Array.isArray(prev[params.pontoId])
-                    ? prev[params.pontoId]
-                    : [];
-
-                  return {
-                    ...prev,
-                    [params.pontoId]: existing.filter((t) => t.id !== params.tagId),
-                  };
-                }
-              );
-            },
-          },
-        ]
-      );
-    },
-    [canEditCustomTags, queryClient, showToast, terreiroId]
-  );
+  const [deleteTarget, setDeleteTarget] = useState<null | {
+    pontoId: string;
+    tagId: string;
+    tagLabel: string;
+  }>(null);
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
@@ -511,13 +428,14 @@ export default function PlayerScreen() {
                   setMediumTargetPontoId(item.ponto.id)
                 }
                 canDeleteMediumTag={canEditCustomTags}
-                onLongPressMediumTag={(t) =>
-                  deleteMediumTag({
+                onLongPressMediumTag={(t) => {
+                  if (!canEditCustomTags) return;
+                  setDeleteTarget({
                     pontoId: item.ponto.id,
                     tagId: t.id,
                     tagLabel: t.tagText,
-                  })
-                }
+                  });
+                }}
               />
             </View>
           )}
@@ -556,6 +474,16 @@ export default function PlayerScreen() {
         terreiroId={terreiroId}
         pontoId={mediumTargetPontoId ?? ""}
         onClose={() => setMediumTargetPontoId(null)}
+      />
+
+      <RemoveMediumTagSheet
+        visible={!!deleteTarget}
+        variant={variant}
+        terreiroId={terreiroId}
+        pontoId={deleteTarget?.pontoId ?? ""}
+        tagId={deleteTarget?.tagId ?? ""}
+        tagLabel={deleteTarget?.tagLabel ?? ""}
+        onClose={() => setDeleteTarget(null)}
       />
 
       <CurimbaExplainerBottomSheet

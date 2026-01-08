@@ -1,7 +1,7 @@
 import { TagChip } from "@/src/components/TagChip";
+import { TagPlusChip } from "@/src/components/TagPlusChip";
 import type { TerreiroPontoMediumTag } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
-import { Ionicons } from "@expo/vector-icons";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
@@ -48,33 +48,16 @@ export function PlayerContent(props: {
       {hasAnyTags ? (
         <View style={styles.tagsWrap}>
           {canAddMediumTag ? (
-            <Pressable
-              accessibilityRole="button"
+            <TagPlusChip
+              variant={variant}
               accessibilityLabel="Adicionar médium"
-              hitSlop={10}
               onPress={onPressAddMediumTag}
-              style={({ pressed }) => [
-                styles.addTagBtn,
-                {
-                  borderColor:
-                    variant === "light" ? colors.brass500 : colors.brass600,
-                },
-                pressed ? styles.addTagBtnPressed : null,
-              ]}
-            >
-              <Ionicons
-                name="add"
-                size={14}
-                color={variant === "light" ? colors.brass500 : colors.brass600}
-              />
-            </Pressable>
+            />
           ) : null}
           {resolvedMediumTags.map((t) => (
             <Pressable
               key={`medium-${ponto.id}-${t.id}`}
-              accessibilityRole={
-                canDeleteMediumTag ? "button" : undefined
-              }
+              accessibilityRole={canDeleteMediumTag ? "button" : undefined}
               accessibilityLabel={
                 canDeleteMediumTag ? `Remover médium ${t.tagText}` : undefined
               }
@@ -130,17 +113,6 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs,
     paddingTop: spacing.sm,
-  },
-  addTagBtn: {
-    width: 26,
-    height: 26,
-    borderRadius: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 2,
-  },
-  addTagBtnPressed: {
-    opacity: 0.85,
   },
   noTags: {
     paddingTop: spacing.sm,

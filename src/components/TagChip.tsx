@@ -3,6 +3,9 @@ import { StyleSheet, Text, View, type ViewProps } from "react-native";
 
 import { colors, spacing } from "@/src/theme";
 
+export const TAG_CHIP_HEIGHT = 26;
+export const TAG_CHIP_RADIUS = 6;
+
 type Props = ViewProps & {
   label: string;
   variant?: "dark" | "light";
@@ -116,9 +119,12 @@ export function TagChip({
 
 const styles = StyleSheet.create({
   wrap: {
-    borderRadius: 6,
+    height: TAG_CHIP_HEIGHT,
+    borderRadius: TAG_CHIP_RADIUS,
     paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
+    paddingVertical: 0,
+    justifyContent: "center",
+    alignItems: "center",
   },
   textBase: {
     fontSize: 12,

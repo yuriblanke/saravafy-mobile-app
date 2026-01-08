@@ -6,12 +6,15 @@ import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
+
+const fillerPng = require("@/assets/images/filler.png");
 
 function normalizeInput(value: string) {
   return String(value ?? "")
@@ -20,7 +23,9 @@ function normalizeInput(value: string) {
 }
 
 function normalizeMediumText(value: string) {
-  return String(value ?? "").trim().toLowerCase();
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
 }
 
 function getErrorMessage(e: unknown): string {
@@ -166,7 +171,9 @@ export function AddMediumTagSheet(props: {
           >;
 
           const existing = Array.isArray(prev[pontoId]) ? prev[pontoId] : [];
-          if (existing.some((t) => t.tagTextNormalized === tag_text_normalized)) {
+          if (
+            existing.some((t) => t.tagTextNormalized === tag_text_normalized)
+          ) {
             return prev;
           }
 
@@ -212,12 +219,14 @@ export function AddMediumTagSheet(props: {
       snapPoints={["55%"]}
     >
       <View style={styles.content}>
-        <Text style={[styles.title, { color: textPrimary }]}>
-          Adicionar médium
-        </Text>
-        <Text style={[styles.subtitle, { color: textSecondary }]}>
-          Quem trouxe a entidade nesse terreiro
-        </Text>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: textPrimary }]}>
+            Médium deste ponto
+          </Text>
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            Qual médium dá passagem quando este ponto é cantado neste terreiro?
+          </Text>
+        </View>
 
         <View
           style={[
@@ -228,7 +237,7 @@ export function AddMediumTagSheet(props: {
           <TextInput
             value={value}
             onChangeText={setValue}
-            placeholder="Nome do médium"
+            placeholder="Ex: Pai Joaquim"
             placeholderTextColor={textSecondary}
             style={[styles.input, { color: textPrimary }]}
             autoCapitalize="words"
@@ -244,7 +253,7 @@ export function AddMediumTagSheet(props: {
 
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Confirmar médium"
+          accessibilityLabel="Adicionar médium"
           onPress={() => void submit()}
           disabled={!canSubmit || isSaving}
           style={({ pressed }) => [
@@ -255,20 +264,18 @@ export function AddMediumTagSheet(props: {
           ]}
         >
           {isSaving ? (
-            <ActivityIndicator
-              color={isLight ? colors.brass500 : colors.brass600}
-            />
+            <ActivityIndicator color={colors.paper50} />
           ) : (
-            <Text
-              style={[
-                styles.confirmText,
-                { color: isLight ? colors.brass500 : colors.brass600 },
-              ]}
-            >
-              Confirmar
-            </Text>
+            <Text style={styles.confirmText}>Adicionar médium</Text>
           )}
         </Pressable>
+
+        <Image
+          source={fillerPng}
+          style={styles.filler}
+          resizeMode="contain"
+          accessibilityIgnoresInvertColors
+        />
       </View>
     </BottomSheet>
   );
@@ -279,15 +286,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.lg,
     paddingBottom: spacing.xl,
-    gap: spacing.md,
+    gap: spacing.lg,
+  },
+  header: {
+    gap: spacing.sm,
   },
   title: {
     fontSize: 16,
     fontWeight: "900",
   },
   subtitle: {
-    fontSize: 12,
-    lineHeight: 16,
+    fontSize: 13,
+    lineHeight: 18,
   },
   inputWrap: {
     borderRadius: 12,
@@ -308,19 +318,17 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   confirmBtn: {
-    alignSelf: "flex-start",
     borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    borderWidth: 2,
+    height: 44,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
   },
   confirmBtnLight: {
-    borderColor: colors.brass500,
-    backgroundColor: "transparent",
+    backgroundColor: colors.brass500,
   },
   confirmBtnDark: {
-    borderColor: colors.brass600,
-    backgroundColor: "transparent",
+    backgroundColor: colors.brass600,
   },
   confirmBtnDisabled: {
     opacity: 0.6,
@@ -331,5 +339,11 @@ const styles = StyleSheet.create({
   confirmText: {
     fontSize: 14,
     fontWeight: "900",
+    color: colors.paper50,
+  },
+  filler: {
+    width: "100%",
+    height: 200,
+    marginTop: spacing.sm,
   },
 });
