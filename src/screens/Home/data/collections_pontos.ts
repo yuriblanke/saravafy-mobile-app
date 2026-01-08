@@ -19,6 +19,8 @@ function isDuplicatePontoConstraint(e: any): boolean {
   const details = typeof e?.details === "string" ? e.details : "";
   const hint = typeof e?.hint === "string" ? e.hint : "";
   const hay = `${msg} ${details} ${hint}`.toLowerCase();
+  // Alguns formatos trazem o nome do constraint em vez dos campos.
+  if (hay.includes("collections_pontos_pkey")) return true;
   return (
     hay.includes("collection_id") &&
     hay.includes("ponto_id") &&
@@ -32,7 +34,21 @@ function isPositionConstraint(e: any): boolean {
   const details = typeof e?.details === "string" ? e.details : "";
   const hint = typeof e?.hint === "string" ? e.hint : "";
   const hay = `${msg} ${details} ${hint}`.toLowerCase();
+  if (
+    hay.includes("collection_id") &&
+    hay.includes("position") &&
+    hay.includes("unique")
+  ) {
+    return true;
+  }
   return hay.includes("position") && hay.includes("collection");
+}
+
+function getSupabaseErrorMessage(e: any): string {
+  if (!e) return "Erro ao adicionar ponto à coleção.";
+  if (typeof e.message === "string" && e.message.trim()) return e.message;
+  if (typeof e.details === "string" && e.details.trim()) return e.details;
+  return "Erro ao adicionar ponto à coleção.";
 }
 
 async function fetchNextPosition(collectionId: string): Promise<number> {
@@ -64,7 +80,7 @@ export async function addPontoToCollection(params: {
   collectionId: string;
   pontoId: string;
   addedBy: string;
-}): Promise<{ ok: boolean; alreadyExists?: boolean }> {
+}): Promise<{ ok: boolean; alreadyExists?: boolean; error?: string }> {
   const { collectionId, pontoId, addedBy } = params;
 
   // Pode haver corrida com outras inserções por causa do UNIQUE(collection_id, position).
@@ -79,16 +95,16 @@ export async function addPontoToCollection(params: {
       added_by: addedBy,
     };
 
-    // Preferência: insert idempotente via onConflict + ignoreDuplicates
+    // Preferência: operação idempotente por (collection_id, ponto_id).
+    // `upsert` é o caminho suportado para `onConflict`/`ignoreDuplicates` no supabase-js.
     const res = await supabase
       .from(TABLE)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .insert(
+      .upsert(
         payload as any,
         {
           onConflict: "collection_id,ponto_id",
-          // ignoreDuplicates existe no supabase-js v2; se não existir, o TS pode reclamar,
-          // mas o runtime ignora campos desconhecidos.
+          // ignoreDuplicates existe no supabase-js v2.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ignoreDuplicates: true as any,
         } as any
@@ -110,8 +126,8 @@ export async function addPontoToCollection(params: {
       continue;
     }
 
-    return { ok: false };
+    return { ok: false, error: getSupabaseErrorMessage(anyErr) };
   }
 
-  return { ok: false };
+  return { ok: false, error: "Erro ao adicionar ponto à coleção." };
 }

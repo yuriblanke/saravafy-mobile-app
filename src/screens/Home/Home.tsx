@@ -831,14 +831,42 @@ export default function Home() {
                             setAddError(null);
                             setAddSuccess(false);
 
-                            const res = await addPontoToCollection({
-                              collectionId: c.id,
-                              pontoId: selectedPonto.id,
-                              addedBy: user.id,
-                            });
+                            try {
+                              const res = await addPontoToCollection({
+                                collectionId: c.id,
+                                pontoId: selectedPonto.id,
+                                addedBy: user.id,
+                              });
 
-                            setIsAdding(false);
-                            if (!res.ok) {
+                              setIsAdding(false);
+                              if (!res.ok) {
+                                if (__DEV__) {
+                                  console.info(
+                                    "[AddToCollection] addPontoToCollection failed",
+                                    {
+                                      collectionId: c.id,
+                                      pontoId: selectedPonto.id,
+                                      error: res.error,
+                                    }
+                                  );
+                                }
+
+                                setAddError(
+                                  __DEV__
+                                    ? res.error ??
+                                        "Erro ao adicionar ponto à coleção."
+                                    : "Erro ao adicionar ponto à coleção."
+                                );
+                                return;
+                              }
+                            } catch (e) {
+                              setIsAdding(false);
+                              if (__DEV__) {
+                                console.info(
+                                  "[AddToCollection] unexpected error",
+                                  e
+                                );
+                              }
                               setAddError("Erro ao adicionar ponto à coleção.");
                               return;
                             }
