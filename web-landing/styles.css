@@ -125,6 +125,9 @@ body::after {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
+  overflow: hidden;
 }
 
 .hero::before {
