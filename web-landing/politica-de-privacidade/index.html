@@ -59,10 +59,18 @@
           fetch("/politica-de-privacidade.md", { cache: "no-store" })
             .then((r) => r.text())
             .then((text) => {
+              const t = String(text || "");
+              const looksLikeHtml = /^\s*<!doctype\s+html|^\s*<html\b/i.test(t);
+              if (looksLikeHtml) {
+                throw new Error("Markdown não foi servido (recebi HTML).");
+              }
               if (!cancelled) setMd(text);
             })
             .catch(() => {
-              if (!cancelled) setMd("\n\nFalha ao carregar o conteúdo.\n");
+              if (!cancelled)
+                setMd(
+                  "\n\nFalha ao carregar o conteúdo.\n\nTente abrir: https://saravafy.com.br/politica-de-privacidade.md\n"
+                );
             });
           return () => {
             cancelled = true;
