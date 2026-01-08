@@ -1,18 +1,25 @@
 import React, { useMemo } from "react";
-import { Platform } from "react-native";
 import ReactMarkdown from "react-markdown";
+import { Platform } from "react-native";
 import remarkGfm from "remark-gfm";
 
-import privacyMd from "../politica-de-privacidade.md";
+import privacyMd from "../web-landing/politica-de-privacidade.md";
+
+function stripLeadingTitle(markdown: string): string {
+  return String(markdown || "").replace(/^#\s+.*(?:\r?\n){1,2}/, "");
+}
 
 function extractLastUpdated(markdown: string): string | null {
   const lines = String(markdown || "").split(/\r?\n/);
-  const line = lines.find((l) => /\b(Última atualização|Ultima atualizacao)\b\s*:/i.test(l));
+  const line = lines.find((l) =>
+    /\b(Última atualização|Ultima atualizacao)\b\s*:/i.test(l)
+  );
   return line ? line.trim() : null;
 }
 
 export default function PrivacyPolicyRoute() {
   const lastUpdated = useMemo(() => extractLastUpdated(privacyMd), [privacyMd]);
+  const bodyMd = useMemo(() => stripLeadingTitle(privacyMd), [privacyMd]);
 
   if (Platform.OS !== "web") {
     return null;
@@ -23,12 +30,15 @@ export default function PrivacyPolicyRoute() {
       <div className="privacy-container">
         <header className="privacy-header">
           <h1 className="privacy-title">Política de Privacidade — Saravafy</h1>
-          {lastUpdated ? <p className="privacy-updated">{lastUpdated}</p> : null}
+          {lastUpdated ? (
+            <p className="privacy-updated">{lastUpdated}</p>
+          ) : null}
         </header>
 
         <article className="markdown">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
+            skipHtml
             components={{
               a: ({ href, children, ...props }) => (
                 <a
@@ -57,7 +67,7 @@ export default function PrivacyPolicyRoute() {
               ),
             }}
           >
-            {privacyMd}
+            {bodyMd}
           </ReactMarkdown>
         </article>
       </div>

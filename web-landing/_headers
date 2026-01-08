@@ -13,3 +13,11 @@
 /config.js
   Cache-Control: no-store, no-cache, must-revalidate, max-age=0
   Pragma: no-cache
+
+/politica-de-privacidade*
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  Pragma: no-cache
+
+/politica-de-privacidade.md
+  Cache-Control: no-store, no-cache, must-revalidate, max-age=0
+  Pragma: no-cache

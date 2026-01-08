@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Cache-Control"
+      content="no-store, no-cache, must-revalidate, max-age=0"
+    />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
+    <title>Política de Privacidade — Saravafy</title>
+    <link rel="stylesheet" href="/styles.css?v=2026-01-07-1" />
+  </head>
+  <body>
+    <main class="policy-page">
+      <div class="policy-container">
+        <header class="policy-header">
+          <h1 class="policy-title">Política de Privacidade — Saravafy</h1>
+          <p id="lastUpdated" class="policy-updated" style="display: none"></p>
+        </header>
+
+        <div
+          id="root"
+          class="policy-markdown markdown"
+          aria-label="Conteúdo da política"
+        ></div>
+      </div>
+    </main>
+
+    <script type="module">
+      import React, {
+        useEffect,
+        useMemo,
+        useState,
+      } from "https://esm.sh/react@19.1.0";
+      import { createRoot } from "https://esm.sh/react-dom@19.1.0/client";
+      import ReactMarkdown from "https://esm.sh/react-markdown@10.1.0?external=react";
+      import remarkGfm from "https://esm.sh/remark-gfm@4.0.1";
+
+      function extractLastUpdated(markdown) {
+        const lines = String(markdown || "").split(/\r?\n/);
+        const line = lines.find((l) =>
+          /\b(Última atualização|Ultima atualizacao)\b\s*:/i.test(l)
+        );
+        return line ? line.trim() : null;
+      }
+
+      function stripLeadingTitle(markdown) {
+        // Remove apenas o primeiro heading H1 (o título), mantendo o restante intacto.
+        return String(markdown || "").replace(/^#\s+.*(?:\r?\n){1,2}/, "");
+      }
+
+      function PrivacyPolicyApp() {
+        const [md, setMd] = useState("");
+
+        useEffect(() => {
+          let cancelled = false;
+          fetch("/politica-de-privacidade.md", { cache: "no-store" })
+            .then((r) => r.text())
+            .then((text) => {
+              if (!cancelled) setMd(text);
+            })
+            .catch(() => {
+              if (!cancelled) setMd("\n\nFalha ao carregar o conteúdo.\n");
+            });
+          return () => {
+            cancelled = true;
+          };
+        }, []);
+
+        const lastUpdated = useMemo(() => extractLastUpdated(md), [md]);
+        const bodyMd = useMemo(() => stripLeadingTitle(md), [md]);
+
+        useEffect(() => {
+          const el = document.getElementById("lastUpdated");
+          if (!el) return;
+          if (!lastUpdated) {
+            el.style.display = "none";
+            el.textContent = "";
+            return;
+          }
+          el.style.display = "block";
+          el.textContent = lastUpdated;
+        }, [lastUpdated]);
+
+        return React.createElement(ReactMarkdown, {
+          remarkPlugins: [remarkGfm],
+          skipHtml: true,
+          components: {
+            a: ({ href, children, ...props }) =>
+              React.createElement(
+                "a",
+                {
+                  ...props,
+                  href,
+                  target: "_blank",
+                  rel: "noreferrer noopener",
+                },
+                children
+              ),
+            h1: ({ children, ...props }) =>
+              React.createElement(
+                "h2",
+                { ...props, className: "md-h1" },
+                children
+              ),
+            h2: ({ children, ...props }) =>
+              React.createElement(
+                "h3",
+                { ...props, className: "md-h2" },
+                children
+              ),
+            h3: ({ children, ...props }) =>
+              React.createElement(
+                "h4",
+                { ...props, className: "md-h3" },
+                children
+              ),
+          },
+          children: bodyMd,
+        });
+      }
+
+      const rootEl = document.getElementById("root");
+      if (rootEl) {
+        createRoot(rootEl).render(React.createElement(PrivacyPolicyApp));
+      }
+    </script>
+  </body>
+</html>

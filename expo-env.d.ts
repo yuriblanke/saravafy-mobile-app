@@ -3,6 +3,6 @@
 // NOTE: This file should not be edited and should be in your git ignore
 
 declare module "*.md" {
-	const content: string;
-	export default content;
+  const content: string;
+  export default content;
 }
