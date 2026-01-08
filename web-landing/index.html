@@ -192,16 +192,28 @@
           }
         }
 
+        function triggerDownload(url) {
+          if (!url) return;
+
+          // Tenta abrir em nova aba/janela (mantém a página atual para o modal).
+          var win = window.open(url, "_blank", "noopener");
+          if (win) return;
+
+          // Fallback sem navegar a página: tenta clique programático em <a target="_blank">.
+          var a = document.createElement("a");
+          a.href = url;
+          a.target = "_blank";
+          a.rel = "noopener";
+          a.style.display = "none";
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+        }
+
         installBtn.addEventListener("click", function () {
-          var url = installBtn.getAttribute("data-install-url");
-          if (url) {
-            var win = window.open(url, "_blank", "noopener");
-            if (!win) {
-              window.location.href = url;
-              return;
-            }
-          }
           setOpen(true);
+          var url = installBtn.getAttribute("data-install-url");
+          triggerDownload(url);
         });
 
         modal.addEventListener("click", function (e) {
