@@ -14,12 +14,12 @@ Ao utilizar o Saravafy, você concorda com as práticas descritas nesta polític
 
 O Saravafy se orienta pelos seguintes princípios no tratamento de dados:
 
-- Coleta mínima e necessária  
-- Finalidade clara e transparente  
-- Ausência de exploração comercial de dados  
-- Respeito à privacidade e à autonomia das pessoas  
-- Segurança técnica e organizacional  
-- Responsabilidade cultural e comunitária  
+- Coleta mínima e necessária
+- Finalidade clara e transparente
+- Ausência de exploração comercial de dados
+- Respeito à privacidade e à autonomia das pessoas
+- Segurança técnica e organizacional
+- Responsabilidade cultural e comunitária
 
 O Saravafy **não vende, não aluga e não monetiza dados pessoais**.
 
@@ -55,11 +55,11 @@ Esses dados **não são utilizados para fins publicitários, profiling ou rastre
 
 Os dados coletados são utilizados exclusivamente para:
 
-- Garantir o funcionamento técnico e a segurança do aplicativo  
-- Controlar acessos administrativos e editoriais autorizados  
-- Responder a solicitações, dúvidas ou pedidos de correção  
-- Melhorar a estabilidade e a qualidade do serviço  
-- Cumprir obrigações legais, quando aplicável  
+- Garantir o funcionamento técnico e a segurança do aplicativo
+- Controlar acessos administrativos e editoriais autorizados
+- Responder a solicitações, dúvidas ou pedidos de correção
+- Melhorar a estabilidade e a qualidade do serviço
+- Cumprir obrigações legais, quando aplicável
 
 Não utilizamos dados para publicidade, marketing direcionado ou venda de produtos.
 
@@ -118,11 +118,11 @@ Dados desnecessários ou obsoletos são excluídos ou anonimizados.
 
 Nos termos da LGPD, você tem direito a:
 
-- Confirmar se tratamos seus dados  
-- Acessar seus dados  
-- Solicitar correção de dados incompletos ou incorretos  
-- Solicitar a exclusão de dados, quando aplicável  
-- Solicitar informações sobre o uso dos dados  
+- Confirmar se tratamos seus dados
+- Acessar seus dados
+- Solicitar correção de dados incompletos ou incorretos
+- Solicitar a exclusão de dados, quando aplicável
+- Solicitar informações sobre o uso dos dados
 
 As solicitações podem ser feitas por meio dos canais oficiais do Saravafy.
 
