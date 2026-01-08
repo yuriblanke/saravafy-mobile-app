@@ -316,7 +316,9 @@ export default function Terreiro() {
       }
 
       showToast(
-        err instanceof Error ? err.message : "Não foi possível excluir a coleção."
+        err instanceof Error
+          ? err.message
+          : "Não foi possível excluir a coleção."
       );
     },
     onSuccess: (_data, vars) => {
@@ -1077,7 +1079,8 @@ export default function Terreiro() {
               accessibilityLabel="Confirmar exclusão"
               hitSlop={10}
               disabled={
-                isDeletingCollection || !canDeleteCollection(collectionPendingDelete)
+                isDeletingCollection ||
+                !canDeleteCollection(collectionPendingDelete)
               }
               onPress={() => {
                 if (!collectionPendingDelete) return;
