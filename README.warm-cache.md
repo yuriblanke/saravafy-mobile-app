@@ -4,8 +4,10 @@ Este documento descreve **factualmente**, a partir do código atual, o que este 
 
 > Termos usados aqui (para evitar ambiguidade):
 >
-> - **Warm cache**: computação/fetch feito **antes** da tela precisar (prefetch) e/ou hidratação antecipada que evita _loading flashes_ e reduz refetches (React Query + snapshots/TTL em AsyncStorage + caches em memória).
-> - **Persistência local (AsyncStorage)**: chaves usadas para preferências/onboarding/flags de UX. Algumas são lidas no boot (entram no “warm”); outras são lidas sob demanda (não aquecem tela, mas guardam estado de UX entre sessões).
+> - **Warm cache**: computação/fetch feito **antes** da tela precisar (prefetch) e/ou hidratação antecipada que reduz _loading flashes_ e refetches (React Query + snapshots/TTL em AsyncStorage + caches em memória).
+> - **Atualização otimista (optimistic update)**: patch imediato do cache do React Query durante uma mutation (ex.: criar/renomear/excluir coleção), para refletir a ação do usuário sem esperar refetch.
+> - **Realtime (eventual consistency)**: invalidações em background re-sincronizam o cache com eventos do banco; não substituem optimistic update para UX imediata.
+> - **Persistência local (AsyncStorage)**: chaves usadas para preferências/onboarding/flags de UX. Algumas são lidas no boot (entram no “warm”); outras são lidas sob demanda.
 
 ---
 
@@ -30,7 +32,13 @@ Disparo: Root layout, uma vez por boot e, para o plano de prefetch, **uma vez po
   4. `prefetchMyEditableTerreiros(queryClient,{ userId, editableTerreiroIds })`
   5. `prefetchEditableCollections(queryClient,{ userId, editableTerreiroIds })`
 
-Observação importante (factual): algumas dessas queries têm prefetch definido, mas **não foram encontradas telas/hooks consumindo esses caches** (ver 2.1 “Consumidores”).
+Observações factuais sobre consumo hoje:
+
+- `prefetchCollectionsByTerreiro(...)` é consumido pela tela do terreiro via `useCollectionsByTerreiroQuery(terreiroId)`.
+- `prefetchMyTerreiroAccessIds(...)` é usado por `TerreirosRealtimeSync` para filtrar eventos e evitar “refetch spam”.
+- `prefetchMyEditableTerreiros(...)` é consumido por `AppHeaderWithPreferences`.
+- `prefetchEditableCollections(...)` é consumido pelo BottomSheet “Adicionar à coleção” na Home.
+- `prefetchHomeFeedPontos(...)` e `prefetchExploreTerreiros(...)` existem e rodam no boot, mas não foi encontrado consumidor de `useHomeFeedPontos(...)` / `useExploreTerreiros(...)` em telas/componentes (apenas definição e prefetch).
 
 ### 1.2 Logout cleanup (evita “leak” de cache entre usuários)
 
@@ -68,6 +76,58 @@ Observação importante (factual): algumas dessas queries têm prefetch definido
 ---
 
 ## 2) Inventário: o que é aquecido (e o que é “calculado”)
+
+### 2.0 Contrato de Cache por Entidade (Resumo Operacional)
+
+Este resumo é operacional: para cada domínio, indica **fonte de verdade**, **o que é aquecido**, **como o cache muda em mutations**, e **o que o Realtime faz**.
+
+#### Terreiros (visibilidade/roles)
+
+- Fonte de verdade: React Query.
+- Warm/reativo:
+  - Boot: `prefetchEditableTerreiroIds`, `prefetchMyTerreiroAccessIds`, `prefetchMyEditableTerreiros`.
+  - Realtime global: `TerreirosRealtimeSync` aquece/atualiza `me.terreiroAccessIds` e invalida listas/itens de terreiro conforme acesso.
+  - Realtime do escopo: `useRealtimeTerreiroScope` invalida `me.terreiros`, `me.membership` e `me.permissions` quando eventos de `terreiro_members` afetam terreiros do usuário.
+- Stale/gc (quando definido):
+  - `terreiros.withRole(userId)`: `staleTime: 30s`, `gcTime: 30min`.
+  - `me.terreiroAccessIds(userId)`: `staleTime: 60s`.
+  - `me.editableTerreiros(userId)`: `staleTime: 60s`.
+- Mutations:
+  - `TerreiroEditor`: aplica patch local (PreferencesContext) + `patchTerreiroInLists` (React Query) e faz invalidações focadas.
+- Não confiar apenas em invalidate para UX imediata:
+  - create/update de terreiro usa patch (setQueryData) para reduzir “flash” antes do refetch.
+
+#### Coleções (CRUD + membership)
+
+- Fonte de verdade:
+  - Tela do terreiro: `queryKeys.terreiros.collectionsByTerreiro(terreiroId)` via `useCollectionsByTerreiroQuery`.
+  - Sheet de “Adicionar à coleção”: `queryKeys.collections.editableByUser(...)` via `useEditableCollections`.
+  - Detalhes de coleção (quando carregado): `queryKeys.collections.byId(id)`.
+- Warm/reativo:
+  - Boot: `prefetchCollectionsByTerreiro` (para todos os terreiros com acesso) + `prefetchEditableCollections`.
+  - Realtime do escopo: invalida `collections.byId(collectionId)` e `collections.available(...)` em eventos de `collections_pontos`.
+- Stale/gc (quando definido):
+  - `terreiros.collectionsByTerreiro(terreiroId)`: `staleTime: 60s`, `gcTime: 30min`.
+  - `collections.editableByUser(...)`: `staleTime: 5min`, `gcTime: 30min`.
+  - `collections.accountable(userId)`: `staleTime: 10min`, `gcTime: 30min` (hook existe, mas não há consumidor em telas hoje).
+- Mutations com optimistic update (UX imediata):
+  - Home:
+    - Criar coleção: insere item com `tempId` em listas (`collections.accountable` e `collections.editableByUserPrefix`) e reconcilia `tempId → id`.
+    - Adicionar ponto na coleção: dá patch de `updated_at` em listas e, quando presente, em `collections.byId(collectionId)`.
+  - Tela do terreiro: create/rename/delete aplicam patch otimista em `terreiros.collectionsByTerreiro(terreiroId)`.
+- Não confiar apenas em invalidate para UX imediata:
+  - create/rename/delete de coleção na tela do terreiro e create/add ponto na Home dependem de optimistic update para refletir imediatamente.
+
+#### Pontos (conteúdo)
+
+- Fonte de verdade: React Query.
+- Warm/reativo:
+  - Boot: `prefetchHomeFeedPontos` (hoje sem consumidor em UI).
+  - Realtime do escopo: INSERT em `pontos` invalida `queryKeys.pontos.terreiro(scopeTerreiroId)`.
+- Stale/gc (quando definido):
+  - `pontos.feed(userId)`: `staleTime: 5min`, `gcTime: 30min`.
+
+---
 
 ### 2.1 React Query (TanStack Query)
 
@@ -153,8 +213,7 @@ Abaixo, **o que é calculado** ao aquecer: queryKey → queryFn → Supabase (ta
   - hook: `staleTime: 60 s`, `gcTime: 30 min`
   - prefetch: `fetchQuery` com `staleTime: 60 s`
 - Consumidores encontrados:
-  - Nenhum uso de `useCollectionsByTerreiroQuery(...)` foi encontrado (apenas definição e prefetch no boot).
-  - Observação: a tela do terreiro usa **outra fonte** (fetch direto sem React Query), ver 2.3.
+  - `src/screens/Terreiro/Terreiro.tsx` usa `useCollectionsByTerreiroQuery(terreiroId)` como fonte de verdade.
 
 6. `queryKeys.me.editableTerreiros(userId)` (dados mínimos de terreiros editáveis para o sheet)
 
@@ -215,6 +274,8 @@ Para evitar depender apenas de refetch após ações do usuário, algumas mutati
   - `src/screens/Home/Home.tsx`
     - Criar coleção: insere item com `tempId` em `collections.accountable` e `collections.editableByUserPrefix`, depois reconcilia `tempId → id`.
     - Adicionar ponto na coleção: dá patch de `updated_at` em listas (e `collections.byId(collectionId)` quando existir).
+  - `src/screens/Terreiro/Terreiro.tsx`
+    - Criar/renomear/excluir coleção: aplica patch otimista na lista `terreiros.collectionsByTerreiro(terreiroId)` e faz invalidação mínima no `onSettled`.
 
 #### QueryKeys definidos que parecem não ter implementação (fetch)
 
@@ -268,16 +329,6 @@ Também são carregadas no boot do provider:
 - Há uma janela de “cache/throttle” (~12s) para evitar chamadas repetidas durante boot/foreground.
 - Factual: **não usa React Query** para invites.
 
-#### Tela do Terreiro (fetch direto sem React Query)
-
-- Arquivo: `src/screens/Terreiro/Terreiro.tsx` chama `fetchCollectionsDoTerreiro(terreiroId)`
-- Implementação: `src/screens/Terreiro/data/collections.ts`
-- Supabase:
-  - `collections` por `owner_terreiro_id`
-  - contagem de pontos via `collections_pontos` (client-side count)
-- Observação importante:
-  - Isso é **separado** do cache `queryKeys.terreiros.collectionsByTerreiro(terreiroId)` (React Query), que é prefetched no boot mas não é consumido por esta tela.
-
 ---
 
 ## 3) Realtime que afeta o warm cache
@@ -303,6 +354,10 @@ Também são carregadas no boot do provider:
   - `collections_pontos` (\*): invalida `queryKeys.collections.byId(collectionId)` + listas relacionadas do terreiro + `available`.
   - `terreiro_members` (\*): se o `terreiroId` está em `myTerreiroIds`, invalida `queryKeys.me.terreiros(userId)` e também `queryKeys.me.membership/permissions` (mesmo que não exista implementação de fetch hoje).
 
+Observação factual importante:
+
+- `queryKeys.collections.terreiro(terreiroId)` existe em `queryKeys.ts` e é invalidada por realtime, mas **não foi encontrado nenhum hook/queryFn** que preencha esse cache atualmente.
+
 ---
 
 ## 4) Dependências de permissão/roles (como elas entram no warm cache)
@@ -317,6 +372,19 @@ Também são carregadas no boot do provider:
 ---
 
 ## 5) Pontos de melhoria (sem implementar)
+
+1. Remover ou ligar “warm caches sem consumidor”
+
+- Hoje há prefetches que rodam no boot sem consumidor de UI encontrado (`pontos.feed` e `terreiros.exploreInitial`).
+
+2. Implementar (ou remover) `me.permissions`
+
+- `queryKeys.me.permissions(userId)` é invalidada em vários lugares (InviteGate, realtime, cache helpers), mas não existe `useQuery`/`prefetchQuery` correspondente.
+
+3. Revisar invalidations que parecem “órfãs”
+
+- `collections.accountable(userId)` é invalidada em alguns fluxos, mas não há uso do hook em telas.
+- `collections.terreiro(terreiroId)` é invalidada por realtime, mas não há query/hook que use essa key.
 
 ---
 
@@ -355,19 +423,3 @@ Esta seção lista os pontos “mecânicos” que mexem no cache do React Query 
 
 - Arquivo: `src/screens/TerreiroEditor/TerreiroEditor.tsx`
 - Após criar terreiro, além de invalidar, chama `queryClient.refetchQueries({ queryKey: queryKeys.terreiros.withRole(userId), type: "all" })` para forçar atualização imediata da lista.
-
-1. Remover ou ligar “warm caches sem consumidor”
-
-- Hoje há prefetches de queries sem uso encontrado (`pontos.feed`, `terreiros.exploreInitial`, `terreiros.collectionsByTerreiro`, `me.terreiroAccessIds` via hook). Ou conectar telas aos hooks (se for o plano) ou remover prefetch para reduzir custo no boot.
-
-2. Unificar fontes de dados de coleções do terreiro
-
-- A tela do terreiro usa fetch direto (`src/screens/Terreiro/data/collections.ts`) enquanto existe uma query React Query equivalente (`src/queries/terreirosCollections.ts`). Unificar evitaria inconsistência e aproveitaria o prefetch.
-
-3. Implementar (ou remover) `me.membership` e `me.permissions`
-
-- Hoje são invalidadas por realtime/InviteGate mas não existe `queryFn` que preencha esses caches. Isso dificulta “recalcular warm cache” com previsibilidade.
-
-4. Revisar invalidations que parecem “órfãs”
-
-- `collections.accountable(userId)` é invalidada, mas não há uso do hook em telas; pode ser legado ou pré-trabalho.

@@ -8,10 +8,25 @@ import { Separator } from "@/src/components/Separator";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
+import {
+  cancelQueries,
+  patchById,
+  removeById,
+  replaceId,
+  rollbackQueries,
+  setQueriesDataSafe,
+  snapshotQueries,
+} from "@/src/queries/mutationUtils";
+import { queryKeys } from "@/src/queries/queryKeys";
+import {
+  useCollectionsByTerreiroQuery,
+  type TerreiroCollectionCard,
+} from "@/src/queries/terreirosCollections";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -23,12 +38,14 @@ import {
   TextInput,
   View,
 } from "react-native";
-import {
-  fetchCollectionsDoTerreiro,
-  type TerreiroCollection,
-} from "./data/collections";
 
 export default function Terreiro() {
+  type NewCollectionRow = {
+    id: string;
+    title: string;
+    isNew: true;
+  };
+
   const router = useRouter();
   const { shouldBlockPress } = useGestureBlock();
   const params = useLocalSearchParams<{
@@ -143,22 +160,26 @@ export default function Terreiro() {
 
   const [isCollectionActionsOpen, setIsCollectionActionsOpen] = useState(false);
   const [collectionActionsTarget, setCollectionActionsTarget] =
-    useState<TerreiroCollection | null>(null);
+    useState<TerreiroCollectionCard | null>(null);
 
   const [isConfirmDeleteCollectionOpen, setIsConfirmDeleteCollectionOpen] =
     useState(false);
   const [collectionPendingDelete, setCollectionPendingDelete] =
-    useState<TerreiroCollection | null>(null);
+    useState<TerreiroCollectionCard | null>(null);
   const [isDeletingCollection, setIsDeletingCollection] = useState(false);
 
-  const [collections, setCollections] = useState<TerreiroCollection[]>([]);
-  const [creatingCollection, setCreatingCollection] = useState<null | {
-    id: string; // id temporário
-    title: string;
-    isNew: true;
-  }>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [creatingCollection, setCreatingCollection] =
+    useState<NewCollectionRow | null>(null);
+
+  const queryClient = useQueryClient();
+  const collectionsQuery = useCollectionsByTerreiroQuery(terreiroId || null);
+  const collections = collectionsQuery.data ?? [];
+
+  const mergedCollections: Array<TerreiroCollectionCard | NewCollectionRow> =
+    creatingCollection &&
+    !collections.some((c) => c.id === creatingCollection.id)
+      ? [creatingCollection, ...collections]
+      : collections;
 
   useEffect(() => {
     if (!canEdit) {
@@ -181,44 +202,17 @@ export default function Terreiro() {
     router.replace("/(app)/(tabs)/(pontos)" as any);
   }, [params.bootStart, router, terreiroId]);
 
+  // Boot offline: se abrimos via snapshot e o fetch falhar, volta para Pontos.
   useEffect(() => {
-    let cancelled = false;
+    if (!resolvedTerreiroId) return;
+    if (params.bootOffline !== "1") return;
+    if (!collectionsQuery.isError) return;
 
-    async function run() {
-      if (!resolvedTerreiroId) return;
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const data = await fetchCollectionsDoTerreiro(resolvedTerreiroId);
-        if (cancelled) return;
-        setCollections(data);
-      } catch (e) {
-        if (cancelled) return;
-
-        if (params.bootOffline === "1") {
-          clearStartPageSnapshotOnly().catch(() => undefined);
-          router.replace("/(app)/(tabs)/(pontos)" as any);
-          return;
-        }
-
-        if (__DEV__) {
-          console.info("[Terreiro] erro ao carregar coleções", {
-            error: e instanceof Error ? e.message : String(e),
-          });
-        }
-        setError("Erro ao carregar as coleções.");
-      } finally {
-        if (!cancelled) setIsLoading(false);
-      }
-    }
-
-    run();
-    return () => {
-      cancelled = true;
-    };
+    clearStartPageSnapshotOnly().catch(() => undefined);
+    router.replace("/(app)/(tabs)/(pontos)" as any);
   }, [
     clearStartPageSnapshotOnly,
+    collectionsQuery.isError,
     params.bootOffline,
     resolvedTerreiroId,
     router,
@@ -232,7 +226,7 @@ export default function Terreiro() {
   const titleInputBorder =
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
-  const openCollectionActions = (collection: TerreiroCollection) => {
+  const openCollectionActions = (collection: TerreiroCollectionCard) => {
     if (!canEdit) return;
     setCollectionActionsTarget(collection);
     setIsCollectionActionsOpen(true);
@@ -248,11 +242,8 @@ export default function Terreiro() {
     setCollectionPendingDelete(null);
   };
 
-  const deleteCollection = async (collection: TerreiroCollection) => {
-    if (!canEdit) return;
-
-    setIsDeletingCollection(true);
-    try {
+  const deleteCollectionMutation = useMutation({
+    mutationFn: async (collection: TerreiroCollectionCard) => {
       const res = await supabase
         .from("collections")
         .delete()
@@ -268,24 +259,62 @@ export default function Terreiro() {
         );
       }
 
-      setCollections((prev) => prev.filter((c) => c.id !== collection.id));
-      if (editingCollectionId === collection.id) {
-        cancelEditCollectionTitle();
-      }
+      return { id: collection.id };
+    },
+    onMutate: async (collection) => {
+      if (!terreiroId) return null;
 
-      closeConfirmDeleteCollection();
-    } catch (e) {
+      const filters = [
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+      ];
+
+      await cancelQueries(queryClient, filters);
+      const snapshot = snapshotQueries(queryClient, filters);
+
+      setQueriesDataSafe<TerreiroCollectionCard[]>(
+        queryClient,
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+        (old) => removeById(old ?? [], collection.id)
+      );
+
+      return { snapshot };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.snapshot) rollbackQueries(queryClient, ctx.snapshot);
+
       if (__DEV__) {
         console.info("[Terreiro] erro ao excluir coleção", {
-          collectionId: collection.id,
-          error: e instanceof Error ? e.message : String(e),
+          error: err instanceof Error ? err.message : String(err),
         });
       }
 
       Alert.alert(
         "Erro",
-        e instanceof Error ? e.message : "Não foi possível excluir a coleção."
+        err instanceof Error
+          ? err.message
+          : "Não foi possível excluir a coleção."
       );
+    },
+    onSuccess: (_data, vars) => {
+      if (editingCollectionId === vars.id) {
+        cancelEditCollectionTitle();
+      }
+
+      closeConfirmDeleteCollection();
+    },
+    onSettled: () => {
+      if (!terreiroId) return;
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
+      });
+    },
+  });
+
+  const deleteCollection = async (collection: TerreiroCollectionCard) => {
+    if (!canEdit) return;
+    setIsDeletingCollection(true);
+    try {
+      await deleteCollectionMutation.mutateAsync(collection);
     } finally {
       setIsDeletingCollection(false);
     }
@@ -303,7 +332,7 @@ export default function Terreiro() {
     };
   }, [editingCollectionId]);
 
-  const startEditCollectionTitle = (collection: TerreiroCollection) => {
+  const startEditCollectionTitle = (collection: TerreiroCollectionCard) => {
     if (!canEdit) return;
     const current =
       (typeof collection.title === "string" && collection.title.trim()) || "";
@@ -321,6 +350,194 @@ export default function Terreiro() {
     setIsSavingCollectionTitle(false);
   };
 
+  const createCollectionMutation = useMutation({
+    mutationFn: async (vars: { title: string; tempId: string }) => {
+      const res = await supabase
+        .from("collections")
+        .insert({
+          title: vars.title,
+          owner_terreiro_id: terreiroId,
+          owner_user_id: null,
+        })
+        .select("id, title, description, visibility, owner_terreiro_id")
+        .single();
+
+      if (res.error || !res.data?.id) {
+        throw new Error(res.error?.message || "Erro ao criar coleção");
+      }
+
+      return {
+        id: res.data.id as string,
+        title: typeof res.data.title === "string" ? res.data.title : vars.title,
+        description:
+          typeof (res.data as any).description === "string"
+            ? ((res.data as any).description as string)
+            : null,
+        visibility:
+          typeof (res.data as any).visibility === "string"
+            ? ((res.data as any).visibility as string)
+            : null,
+        owner_terreiro_id:
+          typeof (res.data as any).owner_terreiro_id === "string"
+            ? ((res.data as any).owner_terreiro_id as string)
+            : terreiroId,
+      };
+    },
+    onMutate: async (vars) => {
+      if (!terreiroId) return null;
+
+      const optimistic: TerreiroCollectionCard = {
+        id: vars.tempId,
+        title: vars.title,
+        description: null,
+        visibility: null,
+        owner_terreiro_id: terreiroId,
+        pontosCount: 0,
+      };
+
+      const filters = [
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+      ];
+
+      await cancelQueries(queryClient, filters);
+      const snapshot = snapshotQueries(queryClient, filters);
+
+      setQueriesDataSafe<TerreiroCollectionCard[]>(
+        queryClient,
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+        (old) => [optimistic, ...(old ?? [])]
+      );
+
+      return { snapshot, tempId: vars.tempId };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.snapshot) rollbackQueries(queryClient, ctx.snapshot);
+      setNewCollectionError(
+        err instanceof Error ? err.message : "Erro ao criar coleção"
+      );
+    },
+    onSuccess: (data, _vars, ctx) => {
+      if (!terreiroId) return;
+      const tempId = ctx?.tempId;
+      if (!tempId) return;
+
+      setQueriesDataSafe<TerreiroCollectionCard[]>(
+        queryClient,
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+        (old) => {
+          const replaced = replaceId(old ?? [], tempId, data.id);
+          return patchById(replaced, data.id, {
+            title: data.title,
+            description: data.description,
+            visibility: data.visibility,
+            owner_terreiro_id: data.owner_terreiro_id,
+          });
+        }
+      );
+
+      // Se estávamos editando a coleção recém-criada, encerra edição.
+      if (editingCollectionId === tempId) {
+        setEditingCollectionId(null);
+        setDraftCollectionTitle("");
+        setCollectionTitleSelection(undefined);
+      }
+      setCreatingCollection(null);
+      setNewCollectionError("");
+    },
+    onSettled: (_data, _err, _vars, ctx) => {
+      if (!terreiroId) return;
+
+      // Se o optimistic ficou órfão, limpa.
+      if (ctx?.tempId) {
+        setQueriesDataSafe<TerreiroCollectionCard[]>(
+          queryClient,
+          { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+          (old) => removeById(old ?? [], ctx.tempId)
+        );
+      }
+
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
+      });
+    },
+  });
+
+  const updateCollectionTitleMutation = useMutation({
+    mutationFn: async (vars: { collectionId: string; title: string }) => {
+      const res = await supabase
+        .from("collections")
+        .update({ title: vars.title })
+        .eq("id", vars.collectionId)
+        .select("id, title")
+        .single();
+
+      if (res.error) {
+        throw new Error(
+          typeof res.error.message === "string"
+            ? res.error.message
+            : "Erro ao atualizar título da coleção"
+        );
+      }
+
+      const savedTitle =
+        (typeof res.data?.title === "string" && res.data.title.trim()) ||
+        vars.title;
+
+      return { id: vars.collectionId, title: savedTitle };
+    },
+    onMutate: async (vars) => {
+      if (!terreiroId) return null;
+      const filters = [
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+      ];
+
+      await cancelQueries(queryClient, filters);
+      const snapshot = snapshotQueries(queryClient, filters);
+
+      setQueriesDataSafe<TerreiroCollectionCard[]>(
+        queryClient,
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+        (old) => patchById(old ?? [], vars.collectionId, { title: vars.title })
+      );
+
+      return { snapshot };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.snapshot) rollbackQueries(queryClient, ctx.snapshot);
+
+      if (__DEV__) {
+        console.info("[Terreiro] erro ao salvar título da coleção", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+
+      Alert.alert(
+        "Erro",
+        err instanceof Error
+          ? err.message
+          : "Não foi possível atualizar o título da coleção."
+      );
+    },
+    onSuccess: (data) => {
+      if (!terreiroId) return;
+      setQueriesDataSafe<TerreiroCollectionCard[]>(
+        queryClient,
+        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
+        (old) => patchById(old ?? [], data.id, { title: data.title })
+      );
+
+      setEditingCollectionId(null);
+      setDraftCollectionTitle("");
+      setCollectionTitleSelection(undefined);
+    },
+    onSettled: () => {
+      if (!terreiroId) return;
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
+      });
+    },
+  });
+
   // Criação de nova coleção (Supabase)
   const saveNewCollection = async () => {
     if (!canEdit) return;
@@ -333,23 +550,10 @@ export default function Terreiro() {
     setIsSavingCollectionTitle(true);
     setNewCollectionError("");
     try {
-      const res = await supabase
-        .from("collections")
-        .insert({
-          title,
-          owner_terreiro_id: terreiroId,
-          owner_user_id: null,
-        })
-        .select()
-        .single();
-      if (res.error || !res.data) {
-        throw new Error(res.error?.message || "Erro ao criar coleção");
-      }
-      setCollections((prev) => [res.data, ...prev]);
-      setCreatingCollection(null);
-      setEditingCollectionId(null);
-      setDraftCollectionTitle("");
-      setCollectionTitleSelection(undefined);
+      await createCollectionMutation.mutateAsync({
+        title,
+        tempId: creatingCollection.id,
+      });
     } catch (e) {
       setNewCollectionError(
         e instanceof Error ? e.message : "Erro ao criar coleção"
@@ -372,49 +576,12 @@ export default function Terreiro() {
 
     setIsSavingCollectionTitle(true);
     try {
-      const res = await supabase
-        .from("collections")
-        .update({ title: nextName })
-        .eq("id", collectionId)
-        .select("id, title")
-        .single();
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string"
-            ? res.error.message
-            : "Erro ao atualizar título da coleção"
-        );
-      }
-
-      const savedTitle =
-        (typeof res.data?.title === "string" && res.data.title.trim()) ||
-        nextName;
-
-      setCollections((prev) =>
-        prev.map((c) => {
-          if (c.id !== collectionId) return c;
-          return { ...c, title: savedTitle };
-        })
-      );
-
-      setEditingCollectionId(null);
-      setDraftCollectionTitle("");
-      setCollectionTitleSelection(undefined);
+      await updateCollectionTitleMutation.mutateAsync({
+        collectionId,
+        title: nextName,
+      });
     } catch (e) {
-      if (__DEV__) {
-        console.info("[Terreiro] erro ao salvar título da coleção", {
-          collectionId,
-          error: e instanceof Error ? e.message : String(e),
-        });
-      }
-
-      Alert.alert(
-        "Erro",
-        e instanceof Error
-          ? e.message
-          : "Não foi possível atualizar o título da coleção."
-      );
+      // onError do mutation já cuida de rollback + alert
     } finally {
       setIsSavingCollectionTitle(false);
     }
@@ -504,16 +671,16 @@ export default function Terreiro() {
           showToast={showToast}
         />
 
-        {isLoading ? (
+        {collectionsQuery.isLoading ? (
           <View style={styles.paddedBlock}>
             <Text style={[styles.bodyText, { color: textSecondary }]}>
               Carregando…
             </Text>
           </View>
-        ) : error ? (
+        ) : collectionsQuery.isError ? (
           <View style={styles.paddedBlock}>
             <Text style={[styles.bodyText, { color: textSecondary }]}>
-              {error}
+              Erro ao carregar as coleções.
             </Text>
           </View>
         ) : collections.length === 0 && !creatingCollection ? (
@@ -524,11 +691,7 @@ export default function Terreiro() {
           </View>
         ) : (
           <FlatList
-            data={
-              creatingCollection
-                ? [creatingCollection, ...collections]
-                : collections
-            }
+            data={mergedCollections}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             renderItem={({ item }) => {
@@ -540,8 +703,9 @@ export default function Terreiro() {
                   item.title.trim()) ||
                 "Coleção";
               const pontosCount =
-                "pontosCount" in item && typeof item.pontosCount === "number"
-                  ? item.pontosCount
+                "pontosCount" in item &&
+                typeof (item as any).pontosCount === "number"
+                  ? ((item as any).pontosCount as number)
                   : 0;
 
               // Navega para a tela de Collection
@@ -653,7 +817,9 @@ export default function Terreiro() {
                             accessibilityHint="Opções: editar ou excluir"
                             hitSlop={10}
                             onPress={() => {
-                              openCollectionActions(item);
+                              openCollectionActions(
+                                item as TerreiroCollectionCard
+                              );
                             }}
                             style={({ pressed }) => [
                               styles.menuButton,

@@ -10,6 +10,7 @@ export type TerreiroCollectionCard = {
   description: string | null;
   visibility: string | null;
   owner_terreiro_id: string | null;
+  pontosCount: number;
 };
 
 function isMissingColumnError(error: unknown, columnName: string) {
@@ -63,7 +64,7 @@ export async function fetchCollectionsByTerreiro(
   }
 
   const rows = (finalRes.data ?? []) as any[];
-  return rows
+  const collections = rows
     .map((r) => {
       const id = typeof r?.id === "string" ? r.id : "";
       if (!id) return null;
@@ -74,14 +75,56 @@ export async function fetchCollectionsByTerreiro(
         visibility: typeof r?.visibility === "string" ? r.visibility : null,
         owner_terreiro_id:
           typeof r?.owner_terreiro_id === "string" ? r.owner_terreiro_id : null,
+        pontosCount: 0,
       } satisfies TerreiroCollectionCard;
     })
     .filter(Boolean) as TerreiroCollectionCard[];
+
+  const ids = collections.map((c) => c.id).filter(Boolean);
+  if (ids.length === 0) return collections;
+
+  const pontosRes = await supabase
+    .from("collections_pontos")
+    .select("collection_id", { count: "exact" })
+    .in("collection_id", ids);
+
+  if (!pontosRes.error) {
+    const countRows = (pontosRes.data ?? []) as {
+      collection_id?: string | null;
+    }[];
+
+    const counts = new Map<string, number>();
+    for (const row of countRows) {
+      const id =
+        (typeof row.collection_id === "string" && row.collection_id) || "";
+      if (!id) continue;
+      counts.set(id, (counts.get(id) ?? 0) + 1);
+    }
+
+    return collections.map((c) => ({
+      ...c,
+      pontosCount: counts.get(c.id) ?? 0,
+    }));
+  }
+
+  if (__DEV__) {
+    console.info("[Terreiro] erro ao contar pontos", {
+      error:
+        pontosRes.error && typeof pontosRes.error.message === "string"
+          ? pontosRes.error.message
+          : String(pontosRes.error),
+    });
+  }
+
+  // Se a contagem falhar, ainda devolvemos as collections (pontosCount=0).
+  return collections;
 }
 
 export function useCollectionsByTerreiroQuery(terreiroId: string | null) {
   return useQuery({
-    queryKey: terreiroId ? queryKeys.terreiros.collectionsByTerreiro(terreiroId) : [],
+    queryKey: terreiroId
+      ? queryKeys.terreiros.collectionsByTerreiro(terreiroId)
+      : [],
     enabled: !!terreiroId,
     staleTime: 60_000,
     gcTime: 30 * 60_000,
