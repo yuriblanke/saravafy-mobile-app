@@ -38,6 +38,12 @@
 
   --focus-ring: rgba(61, 145, 121, 0.32);
 
+  /* Footer + modal */
+  --footer-height: 56px;
+  --footer-bg: rgba(239, 233, 223, 0.92);
+  --footer-shadow: 0 -14px 34px rgba(14, 42, 36, 0.14);
+  --modal-backdrop: rgba(0, 0, 0, 0.42);
+
   /* Vignette / lights (similar to SaravafyScreen) */
   --vignette: rgba(14, 42, 36, 0.1);
   --light-brass-opacity: 0.06;
@@ -68,6 +74,10 @@
 
     --focus-ring: rgba(139, 201, 179, 0.28);
 
+    --footer-bg: rgba(18, 51, 45, 0.88);
+    --footer-shadow: 0 -16px 44px rgba(0, 0, 0, 0.5);
+    --modal-backdrop: rgba(0, 0, 0, 0.58);
+
     --vignette: rgba(0, 0, 0, 0.25);
     --light-brass-opacity: 0.08;
     --light-paper-opacity: 0.04;
@@ -91,6 +101,10 @@ body {
   background: var(--bg-solid);
   color: var(--text-primary);
   overflow-x: hidden;
+}
+
+body.modal-open {
+  overflow: hidden;
 }
 
 /* Background stack (app-like gradient + lights + tint + vignette) */
@@ -137,14 +151,18 @@ body::after {
 .container {
   max-width: 520px;
   margin: 0 auto;
-  padding: 28px 16px 32px;
+  padding: 28px 16px
+    calc(32px + var(--footer-height) + env(safe-area-inset-bottom, 0px) + 14px);
 }
 
 /* Progressive enhancement: desktop layout without impacting mobile-first */
 @media (min-width: 960px) {
   .container {
     max-width: 980px;
-    padding: 44px 24px 56px;
+    padding: 44px 24px
+      calc(
+        56px + var(--footer-height) + env(safe-area-inset-bottom, 0px) + 18px
+      );
   }
 
   h1 {
@@ -218,6 +236,119 @@ body::after {
   .landing-two-col {
     grid-template-columns: minmax(0, 1fr) minmax(360px, 460px);
     gap: 18px;
+  }
+}
+
+/* Fixed footer (discreto) */
+.fixed-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  background: var(--footer-bg);
+  border-top: 1px solid var(--card-border);
+  box-shadow: var(--footer-shadow);
+  backdrop-filter: blur(10px);
+}
+
+.fixed-footer__inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  min-height: var(--footer-height);
+  padding: 8px 16px calc(8px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fixed-footer__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fixed-footer__link {
+  font-size: 12px;
+  color: var(--text-muted);
+  text-decoration: underline;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+
+.fixed-footer__link:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 3px;
+}
+
+/* Modal */
+.modal[hidden] {
+  display: none;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px 16px;
+}
+
+.modal__backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--modal-backdrop);
+}
+
+.modal__panel {
+  position: relative;
+  width: 100%;
+  max-width: 520px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 18px;
+  box-shadow: var(--card-shadow);
+  padding: 16px;
+}
+
+.modal__body {
+  margin-top: 10px;
+}
+
+.modal__list {
+  margin: 0;
+  padding-left: 20px;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.modal__list li {
+  margin: 8px 0;
+}
+
+.modal__actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+  flex-direction: column;
+}
+
+.modal__actions > * {
+  width: 100%;
+}
+
+@media (min-width: 960px) {
+  .fixed-footer__inner {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .modal__panel {
+    padding: 18px;
   }
 }
 
@@ -575,7 +706,9 @@ body.is-ponto .cta-card.card {
   margin-top: 12px;
 }
 
-button {
+button,
+a.btn-primary,
+a.btn-secondary {
   appearance: none;
   border: 1px solid var(--btn-border);
   border-radius: 14px;
@@ -585,13 +718,28 @@ button {
   letter-spacing: 0.1px;
   cursor: pointer;
   transition: transform 120ms ease, opacity 120ms ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 button:active {
   transform: translateY(1px);
 }
 
+a.btn-primary:active,
+a.btn-secondary:active {
+  transform: translateY(1px);
+}
+
 button:focus-visible {
+  outline: 0;
+  box-shadow: 0 0 0 4px var(--focus-ring);
+}
+
+a.btn-primary:focus-visible,
+a.btn-secondary:focus-visible {
   outline: 0;
   box-shadow: 0 0 0 4px var(--focus-ring);
 }
@@ -610,6 +758,13 @@ button:disabled {
 .btn-secondary {
   background: var(--btn-secondary-bg);
   color: var(--btn-secondary-text);
+}
+
+/* Footer CTAs should be discreet and compact */
+.fixed-footer .btn-primary,
+.fixed-footer .btn-secondary {
+  padding: 10px 12px;
+  font-size: 13px;
 }
 
 .notice {
