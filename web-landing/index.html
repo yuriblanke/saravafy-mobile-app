@@ -43,23 +43,41 @@
       </div>
     </header>
 
-    <main class="container">
-      <header class="card" aria-label="Saravafy">
-        <h1>Saravafy</h1>
-        <p class="meta">Um acervo digital vivo de pontos de Umbanda</p>
+    <section class="hero" aria-label="Saravafy">
+      <div class="hero__inner">
+        <div class="hero__content">
+          <h1 class="hero__title">Saravafy</h1>
+          <p class="hero__subtitle">
+            Um acervo digital vivo de pontos de Umbanda.
+          </p>
 
+          <p class="hero__copy">
+            Aqui, o som é memória.<br />
+            A palavra é ensinamento.<br />
+            E cada ponto é parte de uma herança viva que atravessa gerações.
+          </p>
+
+          <button
+            class="btn-secondary hero__cta"
+            type="button"
+            data-install-url="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
+            aria-haspopup="dialog"
+            aria-controls="installModal"
+          >
+            Usar no app
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <main class="container">
+      <section class="card" aria-label="Manifesto">
         <p>
           O Saravafy é um projeto cultural e comunitário criado para preservar,
           registrar e compartilhar pontos de Umbanda com respeito,
           responsabilidade e acesso livre.
         </p>
-
-        <p>
-          Aqui, o som é memória.<br />
-          A palavra é ensinamento.<br />
-          E cada ponto é parte de uma herança viva que atravessa gerações.
-        </p>
-      </header>
+      </section>
 
       <section class="card" aria-labelledby="o-que-e">
         <h2 id="o-que-e">O que é o Saravafy</h2>
@@ -189,9 +207,11 @@
 
     <script>
       (function () {
-        var installBtn = document.getElementById("installBtn");
+        var triggers = document.querySelectorAll(
+          '[data-install-url][aria-controls="installModal"]'
+        );
         var modal = document.getElementById("installModal");
-        if (!installBtn || !modal) return;
+        if (!modal || !triggers || triggers.length === 0) return;
 
         var lastFocused = null;
 
@@ -228,11 +248,15 @@
           }, 2000);
         }
 
-        installBtn.addEventListener("click", function () {
-          setOpen(true);
-          var url = installBtn.getAttribute("data-install-url");
-          triggerDownload(url);
-        });
+        for (var i = 0; i < triggers.length; i++) {
+          triggers[i].addEventListener("click", function (e) {
+            lastFocused =
+              e && e.currentTarget ? e.currentTarget : document.activeElement;
+            setOpen(true);
+            var url = this.getAttribute("data-install-url");
+            triggerDownload(url);
+          });
+        }
 
         modal.addEventListener("click", function (e) {
           var target = e.target;
