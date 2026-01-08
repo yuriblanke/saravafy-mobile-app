@@ -11,6 +11,18 @@
     <meta http-equiv="Expires" content="0" />
     <title>Política de Privacidade — Saravafy</title>
     <link rel="stylesheet" href="/styles.css?v=2026-01-07-1" />
+    <script type="importmap">
+      {
+        "imports": {
+          "react": "https://esm.sh/react@19.1.0",
+          "react/jsx-runtime": "https://esm.sh/react@19.1.0/jsx-runtime",
+          "react/jsx-dev-runtime": "https://esm.sh/react@19.1.0/jsx-dev-runtime",
+          "react-dom/client": "https://esm.sh/react-dom@19.1.0/client",
+          "react-markdown": "https://esm.sh/react-markdown@10.1.0",
+          "remark-gfm": "https://esm.sh/remark-gfm@4.0.1"
+        }
+      }
+    </script>
   </head>
   <body>
     <main class="policy-page">
@@ -29,14 +41,10 @@
     </main>
 
     <script type="module">
-      import React, {
-        useEffect,
-        useMemo,
-        useState,
-      } from "https://esm.sh/react@19.1.0";
-      import { createRoot } from "https://esm.sh/react-dom@19.1.0/client";
-      import ReactMarkdown from "https://esm.sh/react-markdown@10.1.0?external=react";
-      import remarkGfm from "https://esm.sh/remark-gfm@4.0.1";
+      import React, { useEffect, useMemo, useState } from "react";
+      import { createRoot } from "react-dom/client";
+      import ReactMarkdown from "react-markdown";
+      import remarkGfm from "remark-gfm";
 
       function extractLastUpdated(markdown) {
         const lines = String(markdown || "").split(/\r?\n/);
@@ -69,7 +77,7 @@
             .catch(() => {
               if (!cancelled)
                 setMd(
-                  "\n\nFalha ao carregar o conteúdo.\n\nTente abrir: https://saravafy.com.br/politica-de-privacidade.md\n"
+                  "\n\nFalha ao carregar o conteúdo.\n\nTente abrir: /politica-de-privacidade.md\n"
                 );
             });
           return () => {
