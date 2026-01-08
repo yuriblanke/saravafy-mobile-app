@@ -9,6 +9,7 @@ import React, {
   useState,
 } from "react";
 import {
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -56,6 +57,8 @@ const ENTER_FROM_Y = 18;
 const ENTER_FROM_X = 6;
 const EXIT_TO_Y = 8;
 
+const TOAST_BORDER_COLOR = "rgba(255, 255, 255, 0.08)";
+
 function getToastStackStep(measuredHeight?: number) {
   const height = measuredHeight ?? MIN_TOAST_HEIGHT;
   // 85% overlap => cada card sobe ~15% da altura do anterior.
@@ -72,6 +75,26 @@ function getStackOffsetX(index: number) {
   if (index === 1) return 6;
   if (index === 2) return -6;
   return 0;
+}
+
+function getToastShadowStyleForIndex(index: number) {
+  const clamped = Math.max(0, Math.min(index, 2));
+
+  if (Platform.OS === "android") {
+    // Keep the same vibe as shadows.md, just slightly softer for cards behind.
+    return { elevation: 8 - clamped };
+  }
+
+  if (Platform.OS === "ios") {
+    // Subtle tapering; avoid a "heavy" look.
+    return {
+      shadowOpacity: 0.34 - clamped * 0.04,
+      shadowRadius: 14 - clamped * 2,
+      shadowOffset: { width: 0, height: 10 - clamped },
+    };
+  }
+
+  return {};
 }
 
 type ToastState = {
@@ -224,6 +247,7 @@ function ToastCard({
       pointerEvents="box-none"
       style={[
         styles.toast,
+        getToastShadowStyleForIndex(index),
         {
           bottom: bottomOffset,
           zIndex: 100 - index,
@@ -429,6 +453,9 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     justifyContent: "center",
     backgroundColor: "#000",
+
+    borderWidth: 1,
+    borderColor: TOAST_BORDER_COLOR,
 
     ...shadows.md,
   },
