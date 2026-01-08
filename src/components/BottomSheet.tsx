@@ -43,6 +43,11 @@ type Props = {
   children: React.ReactNode;
   enableSwipeToClose?: boolean;
   /**
+   * When false, tapping the backdrop will NOT close the sheet.
+   * The backdrop still blocks touches behind.
+   */
+  closeOnBackdropPress?: boolean;
+  /**
    * When false, disables ScrollView scrolling (no scroll / no bounce).
    * Useful for sheets that rely on static layout + filler spacing.
    */
@@ -96,6 +101,7 @@ export function BottomSheet({
   variant,
   children,
   enableSwipeToClose = true,
+  closeOnBackdropPress = true,
   scrollEnabled = true,
   bounces = true,
   snapPoints,
@@ -373,7 +379,10 @@ export function BottomSheet({
         accessibilityRole="button"
         accessibilityLabel="Fechar"
         style={styles.backdrop}
-        onPress={() => requestClose("backdrop")}
+        onPress={() => {
+          if (!closeOnBackdropPress) return;
+          requestClose("backdrop");
+        }}
       />
 
       <Animated.View

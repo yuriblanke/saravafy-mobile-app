@@ -1,6 +1,7 @@
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { MediumTagRemoveHintBottomSheet } from "@/src/components/MediumTagRemoveHintBottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -24,7 +25,6 @@ import {
 const fillerPng = require("@/assets/images/filler.png");
 
 const HINT_STORAGE_KEY = "hint_medium_tag_long_press_remove_shown_v1";
-const HINT_TEXT = "Dica: segure a tag para remover";
 
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -99,6 +99,7 @@ export function AddMediumTagSheet(props: {
 
   const [value, setValue] = useState("");
   const [isSaving, setIsSaving] = useState(false);
+  const [isRemoveHintOpen, setIsRemoveHintOpen] = useState(false);
 
   const isLight = variant === "light";
   const textPrimary = isLight
@@ -125,6 +126,11 @@ export function AddMediumTagSheet(props: {
     setIsSaving(false);
     onClose();
   }, [onClose]);
+
+  const acknowledgeRemoveHint = useCallback(async () => {
+    await markHintShown();
+    setIsRemoveHintOpen(false);
+  }, []);
 
   const submit = useCallback(async () => {
     if (!terreiroId || !pontoId) {
@@ -248,10 +254,9 @@ export function AddMediumTagSheet(props: {
       closeAndReset();
 
       if (shouldShowHint) {
-        // O sheet fecha primeiro; um micro-delay evita o toast sumir atrás.
-        await sleep(100);
-        showToast(HINT_TEXT);
-        await markHintShown();
+        // O sheet fecha primeiro; um micro-delay evita overlap visual.
+        await sleep(120);
+        setIsRemoveHintOpen(true);
       }
     } catch (e) {
       showToast(getErrorMessage(e));
@@ -269,17 +274,18 @@ export function AddMediumTagSheet(props: {
   ]);
 
   return (
-    <BottomSheet
-      visible={visible}
-      onClose={() => {
-        if (isSaving) return;
-        onClose();
-      }}
-      variant={variant}
-      scrollEnabled={false}
-      bounces={false}
-    >
-      <View style={{ paddingBottom: 16 }}>
+    <>
+      <BottomSheet
+        visible={visible}
+        onClose={() => {
+          if (isSaving) return;
+          onClose();
+        }}
+        variant={variant}
+        scrollEnabled={false}
+        bounces={false}
+      >
+        <View style={{ paddingBottom: 16 }}>
         <View style={styles.sheetHeaderRow}>
           <Text style={[styles.title, { color: textPrimary }]}>
             Médium deste ponto
@@ -386,8 +392,15 @@ export function AddMediumTagSheet(props: {
           resizeMode="contain"
           accessibilityIgnoresInvertColors
         />
-      </View>
-    </BottomSheet>
+        </View>
+      </BottomSheet>
+
+      <MediumTagRemoveHintBottomSheet
+        visible={isRemoveHintOpen}
+        variant={variant}
+        onAcknowledge={acknowledgeRemoveHint}
+      />
+    </>
   );
 }
 
