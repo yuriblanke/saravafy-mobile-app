@@ -2,6 +2,7 @@ import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
+import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import {
   PontoUpsertModal,
@@ -107,6 +108,12 @@ export default function PlayerScreen() {
   const membership = useTerreiroMembershipStatus(terreiroId);
   const canSeeCustomTags = !!terreiroId && membership.data.isActiveMember;
 
+  const myTerreiroRole = membership.data.role;
+  const canEditCustomTags =
+    !!terreiroId &&
+    membership.data.isActiveMember &&
+    (myTerreiroRole === "admin" || myTerreiroRole === "editor");
+
   const pontoIds = useMemo(() => {
     return items.map((it) => it.ponto.id).filter(Boolean);
   }, [items]);
@@ -124,6 +131,9 @@ export default function PlayerScreen() {
   const [shareMessage, setShareMessage] = useState("");
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
+    null
+  );
 
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
@@ -405,6 +415,8 @@ export default function PlayerScreen() {
                 customTags={
                   canSeeCustomTags ? customTagsMap[item.ponto.id] ?? [] : []
                 }
+                canAddMediumTag={canEditCustomTags}
+                onPressAddMediumTag={() => setMediumTargetPontoId(item.ponto.id)}
               />
             </View>
           )}
@@ -435,6 +447,14 @@ export default function PlayerScreen() {
         message={shareMessage}
         onClose={() => setIsShareOpen(false)}
         showToast={showToast}
+      />
+
+      <AddMediumTagSheet
+        visible={!!mediumTargetPontoId}
+        variant={variant}
+        terreiroId={terreiroId}
+        pontoId={mediumTargetPontoId ?? ""}
+        onClose={() => setMediumTargetPontoId(null)}
       />
 
       <CurimbaExplainerBottomSheet

@@ -2,17 +2,27 @@ import { TagChip } from "@/src/components/TagChip";
 import { colors, spacing } from "@/src/theme";
 import { isMediumTag, mergeCustomAndPointTags } from "@/src/utils/mergeTags";
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
 import { LyricsScroll } from "./LyricsScroll";
+import { Ionicons } from "@expo/vector-icons";
 
 export function PlayerContent(props: {
   ponto: PlayerPonto;
   variant: "light" | "dark";
   lyricsFontSize: number;
   customTags?: readonly string[];
+  canAddMediumTag?: boolean;
+  onPressAddMediumTag?: () => void;
 }) {
-  const { ponto, variant, lyricsFontSize, customTags } = props;
+  const {
+    ponto,
+    variant,
+    lyricsFontSize,
+    customTags,
+    canAddMediumTag,
+    onPressAddMediumTag,
+  } = props;
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -33,6 +43,28 @@ export function PlayerContent(props: {
 
       {hasAnyTags ? (
         <View style={styles.tagsWrap}>
+          {canAddMediumTag ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Adicionar médium"
+              hitSlop={10}
+              onPress={onPressAddMediumTag}
+              style={({ pressed }) => [
+                styles.addTagBtn,
+                {
+                  borderColor:
+                    variant === "light" ? colors.brass500 : colors.brass600,
+                },
+                pressed ? styles.addTagBtnPressed : null,
+              ]}
+            >
+              <Ionicons
+                name="add"
+                size={14}
+                color={variant === "light" ? colors.brass500 : colors.brass600}
+              />
+            </Pressable>
+          ) : null}
           {mergedTags.custom.map((t) => (
             <TagChip
               key={`custom-${ponto.id}-${t}`}
@@ -79,6 +111,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs,
     paddingTop: spacing.sm,
+  },
+  addTagBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+  },
+  addTagBtnPressed: {
+    opacity: 0.85,
   },
   noTags: {
     paddingTop: spacing.sm,

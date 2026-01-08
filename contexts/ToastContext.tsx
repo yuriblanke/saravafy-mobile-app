@@ -273,8 +273,6 @@ function ToastStack({
   const containerHeight = slotHeight + bottomOffset;
   const maxToastHeight = Math.round(height * MAX_TOAST_HEIGHT_RATIO);
 
-  if (toasts.length === 0) return null;
-
   // Renderiza de trás para frente para manter o topo por cima.
   const stack = toasts.slice(0, MAX_VISIBLE);
   const renderList = [...stack].reverse();
@@ -289,6 +287,8 @@ function ToastStack({
     }
     return offsets;
   }, [measuredHeights, stack]);
+
+  if (stack.length === 0) return null;
 
   return (
     <View

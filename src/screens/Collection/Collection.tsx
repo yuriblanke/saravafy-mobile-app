@@ -4,6 +4,7 @@ import { supabase } from "@/lib/supabase";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
@@ -112,6 +113,12 @@ export default function Collection() {
     isMembersOnly ? terreiroId : ""
   );
 
+  const myRole = membership.data.role;
+  const canEditCustomTags =
+    !!terreiroId &&
+    membership.data.isActiveMember &&
+    (myRole === "admin" || myRole === "editor");
+
   const isLoggedIn = !!user?.id;
   const isMember = membership.data.isActiveMember;
   const hasPendingRequest = membership.data.hasPendingRequest;
@@ -164,6 +171,10 @@ export default function Collection() {
     { enabled: canSeeCustomTags && pontoIds.length > 0 }
   );
   const customTagsMap = customTagsMapQuery.data ?? {};
+
+  const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
+    null
+  );
 
   const loadCollection = useCallback(async () => {
     if (!collectionId) {
@@ -279,6 +290,14 @@ export default function Collection() {
         message={shareMessage}
         onClose={() => setIsShareOpen(false)}
         showToast={showToast}
+      />
+
+      <AddMediumTagSheet
+        visible={!!mediumTargetPontoId}
+        variant={variant}
+        terreiroId={terreiroId}
+        pontoId={mediumTargetPontoId ?? ""}
+        onClose={() => setMediumTargetPontoId(null)}
       />
 
       {isLoading ? (
@@ -576,6 +595,36 @@ export default function Collection() {
 
                       return (
                         <View style={styles.tagsWrap}>
+                          {canEditCustomTags ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Adicionar médium"
+                              hitSlop={10}
+                              onPress={() =>
+                                setMediumTargetPontoId(item.ponto.id)
+                              }
+                              style={({ pressed }) => [
+                                styles.addTagBtn,
+                                {
+                                  borderColor:
+                                    variant === "light"
+                                      ? colors.brass500
+                                      : colors.brass600,
+                                },
+                                pressed ? styles.addTagBtnPressed : null,
+                              ]}
+                            >
+                              <Ionicons
+                                name="add"
+                                size={14}
+                                color={
+                                  variant === "light"
+                                    ? colors.brass500
+                                    : colors.brass600
+                                }
+                              />
+                            </Pressable>
+                          ) : null}
                           {merged.custom.map((t) => (
                             <TagChip
                               key={`custom-${item.ponto.id}-${t}`}
@@ -820,6 +869,17 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs,
     paddingTop: spacing.sm,
+  },
+  addTagBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 6,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+  },
+  addTagBtnPressed: {
+    opacity: 0.85,
   },
   preview: {
     paddingTop: spacing.sm,
