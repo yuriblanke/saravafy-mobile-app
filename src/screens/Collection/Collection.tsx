@@ -615,7 +615,9 @@ export default function Collection() {
                             <TagPlusChip
                               variant={variant}
                               accessibilityLabel="Adicionar médium"
-                              onPress={() => setMediumTargetPontoId(item.ponto.id)}
+                              onPress={() =>
+                                setMediumTargetPontoId(item.ponto.id)
+                              }
                             />
                           ) : null}
                           {mediumTags.map((t) => (

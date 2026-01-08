@@ -126,7 +126,12 @@ export function RemoveMediumTagSheet(props: {
   }, [onClose, pontoId, queryClient, showToast, tagId, terreiroId]);
 
   return (
-    <BottomSheet visible={visible} onClose={close} variant={variant} snapPoints={["55%"]}>
+    <BottomSheet
+      visible={visible}
+      onClose={close}
+      variant={variant}
+      snapPoints={["55%"]}
+    >
       <View style={styles.content}>
         <View style={styles.header}>
           <Text style={[styles.title, { color: textPrimary }]}>Médium</Text>
@@ -164,7 +169,9 @@ export function RemoveMediumTagSheet(props: {
               isDeleting ? styles.disabled : null,
             ]}
           >
-            <Text style={[styles.secondaryText, { color: textPrimary }]}>Cancelar</Text>
+            <Text style={[styles.secondaryText, { color: textPrimary }]}>
+              Cancelar
+            </Text>
           </Pressable>
         </View>
 
