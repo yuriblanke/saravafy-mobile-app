@@ -137,11 +137,21 @@ export async function createCollection(params: {
   ownerUserId: string | null;
   ownerTerreiroId: string | null;
 }) {
+  type CreateCollectionData = {
+    id: string;
+    title: string | null;
+    owner_user_id: string | null;
+    owner_terreiro_id: string | null;
+    terreiro_title: string | null;
+    created_at: string;
+    updated_at: string;
+  };
+
   const { title, ownerUserId, ownerTerreiroId } = params;
 
   const cleanTitle = title.trim().slice(0, 40);
   if (!cleanTitle) {
-    return { data: null as { id: string } | null, error: "Título inválido." };
+    return { data: null as CreateCollectionData | null, error: "Título inválido." };
   }
 
   try {
@@ -152,7 +162,9 @@ export async function createCollection(params: {
         owner_user_id: ownerUserId,
         owner_terreiro_id: ownerTerreiroId,
       })
-      .select("id")
+      .select(
+        "id, title, owner_user_id, owner_terreiro_id, created_at, updated_at, terreiros:owner_terreiro_id (title)"
+      )
       .single();
 
     if (res.error) {
@@ -163,12 +175,39 @@ export async function createCollection(params: {
       );
     }
 
-    const id =
-      typeof (res.data as any)?.id === "string" ? (res.data as any).id : "";
+    const row: any = res.data;
+    const id = typeof row?.id === "string" ? row.id : "";
     if (!id) throw new Error("Erro ao criar coleção.");
 
-    return { data: { id }, error: null as string | null };
+    const terreiroTitle =
+      typeof row?.terreiros?.title === "string" ? row.terreiros.title : null;
+
+    return {
+      data: {
+        id,
+        title: typeof row?.title === "string" ? row.title : null,
+        owner_user_id:
+          typeof row?.owner_user_id === "string" ? row.owner_user_id : null,
+        owner_terreiro_id:
+          typeof row?.owner_terreiro_id === "string"
+            ? row.owner_terreiro_id
+            : null,
+        terreiro_title: terreiroTitle,
+        created_at:
+          typeof row?.created_at === "string"
+            ? row.created_at
+            : new Date().toISOString(),
+        updated_at:
+          typeof row?.updated_at === "string"
+            ? row.updated_at
+            : new Date().toISOString(),
+      },
+      error: null as string | null,
+    };
   } catch (e) {
-    return { data: null as { id: string } | null, error: getErrorMessage(e) };
+    return {
+      data: null as CreateCollectionData | null,
+      error: getErrorMessage(e),
+    };
   }
 }

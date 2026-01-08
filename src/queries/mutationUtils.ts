@@ -60,6 +60,20 @@ export function setQueriesDataSafe<TQueryFnData>(
   queryClient.setQueriesData(filter as any, updater as any);
 }
 
+export function patchQueriesByPrefix<T>(
+  queryClient: QueryClient,
+  prefixKey: readonly unknown[],
+  updater: (old: T | undefined) => T
+): void {
+  const entries = queryClient.getQueriesData<T>({
+    queryKey: prefixKey as QueryKey,
+  });
+
+  for (const [queryKey, old] of entries) {
+    queryClient.setQueryData(queryKey, updater(old));
+  }
+}
+
 export function makeTempId(prefix = "tmp"): string {
   const rand = Math.random().toString(16).slice(2);
   return `${prefix}_${Date.now().toString(16)}_${rand}`;

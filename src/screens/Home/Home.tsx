@@ -50,6 +50,7 @@ import {
   cancelQueries,
   makeTempId,
   patchById,
+  patchQueriesByPrefix,
   removeById,
   replaceId,
   rollbackQueries,
@@ -157,9 +158,10 @@ export default function Home() {
         { queryKey: queryKeys.collections.accountable(userId) },
         (old) => patchById(old ?? [], vars.collectionId, { updated_at: now })
       );
-      setQueriesDataSafe<EditableCollection[]>(
+
+      patchQueriesByPrefix<EditableCollection[]>(
         queryClient,
-        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        queryKeys.collections.editableByUserPrefix(userId),
         (old) => patchById(old ?? [], vars.collectionId, { updated_at: now })
       );
 
@@ -429,21 +431,35 @@ export default function Home() {
       title: string;
       ownerUserId: string | null;
       ownerTerreiroId: string | null;
-    }) => {
+    }): Promise<EditableCollection> => {
       if (!userId) {
         throw new Error("Usuário inválido.");
       }
 
       const res = await createCollection(vars);
-      if (res.error || !res.data?.id) {
+      if (res.error || !res.data) {
         throw new Error(res.error || "Erro ao criar coleção.");
       }
 
       return {
         id: res.data.id,
-        title: vars.title,
-        owner_user_id: vars.ownerUserId,
-        owner_terreiro_id: vars.ownerTerreiroId,
+        title: typeof res.data.title === "string" ? res.data.title : null,
+        owner_user_id:
+          typeof res.data.owner_user_id === "string" ? res.data.owner_user_id : null,
+        owner_terreiro_id:
+          typeof res.data.owner_terreiro_id === "string"
+            ? res.data.owner_terreiro_id
+            : null,
+        terreiro_title:
+          typeof res.data.terreiro_title === "string" ? res.data.terreiro_title : null,
+        created_at:
+          typeof res.data.created_at === "string"
+            ? res.data.created_at
+            : new Date().toISOString(),
+        updated_at:
+          typeof res.data.updated_at === "string"
+            ? res.data.updated_at
+            : new Date().toISOString(),
       };
     },
     onMutate: async (vars) => {
@@ -470,9 +486,9 @@ export default function Home() {
       await cancelQueries(queryClient, filters);
       const snapshot = snapshotQueries(queryClient, filters);
 
-      setQueriesDataSafe<EditableCollection[]>(
+      patchQueriesByPrefix<EditableCollection[]>(
         queryClient,
-        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        queryKeys.collections.editableByUserPrefix(userId),
         (old) => upsertById(old ?? [], optimistic, { prepend: true })
       );
 
@@ -500,15 +516,26 @@ export default function Home() {
       const tempId = ctx?.tempId;
       if (!tempId) return;
 
-      setQueriesDataSafe<EditableCollection[]>(
+      const finalItem: EditableCollection = data;
+
+      // Reconcilia em TODAS as queries já materializadas sob o prefix.
+      patchQueriesByPrefix<EditableCollection[]>(
         queryClient,
-        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
-        (old) => replaceId(old ?? [], tempId, realId)
+        queryKeys.collections.editableByUserPrefix(userId),
+        (old) => {
+          const list = Array.isArray(old) ? old : [];
+          const replaced = replaceId(list, tempId, realId);
+          return upsertById(replaced, finalItem, { prepend: true });
+        }
       );
       setQueriesDataSafe<EditableCollection[]>(
         queryClient,
         { queryKey: queryKeys.collections.accountable(userId) },
-        (old) => replaceId(old ?? [], tempId, realId)
+        (old) => {
+          const list = Array.isArray(old) ? old : [];
+          const replaced = replaceId(list, tempId, realId);
+          return upsertById(replaced, finalItem, { prepend: true });
+        }
       );
     },
     onSettled: (_data, _err, _vars, ctx) => {
@@ -516,9 +543,9 @@ export default function Home() {
 
       // Se o optimistic ficou "órfão" por algum motivo, limpa.
       if (ctx?.tempId) {
-        setQueriesDataSafe<EditableCollection[]>(
+        patchQueriesByPrefix<EditableCollection[]>(
           queryClient,
-          { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+          queryKeys.collections.editableByUserPrefix(userId),
           (old) => removeById(old ?? [], ctx.tempId)
         );
         setQueriesDataSafe<EditableCollection[]>(
