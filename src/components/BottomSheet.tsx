@@ -25,7 +25,7 @@ import { colors, spacing } from "@/src/theme";
 // B) Flick down: velocidade (vy e/ou velocidade média calculada)
 const MIN_DRAG_TO_CLOSE = 60;
 const MIN_FLICK_VELOCITY = 0.35;
-const MIN_DIRECTIONAL_DY = 1;
+const MIN_DIRECTIONAL_DY = 0;
 const HORIZONTAL_SLOP = 8;
 const MIN_FLICK_AVG_PX_PER_S = 700;
 const SCROLL_TOP_TOLERANCE_PX = 1;
@@ -34,6 +34,7 @@ const SCROLL_TOP_TOLERANCE_PX = 1;
 // `vy` do PanResponder costuma variar em torno de ~0.5–2.0 em gestos reais.
 const FAST_FLICK_VELOCITY = 1.2;
 const CLOSE_DISTANCE_RATIO = 0.3;
+const FAST_FLICK_TIME_MS = 120;
 
 type Props = {
   visible: boolean;
@@ -205,31 +206,39 @@ export function BottomSheet({
     lastDyRef.current = dy;
   }, []);
 
-  const shouldCloseFromRelease = useCallback((dy: number, vy: number) => {
-    if (!(dy > 0)) return false;
+  const shouldCloseFromRelease = useCallback(
+    (dy: number, vy: number) => {
+      if (!(dy > 0)) return false;
 
-    // Distância: exige um arrasto mais "consciente" (proporcional à altura do sheet).
-    const distanceThreshold = Math.max(
-      MIN_DRAG_TO_CLOSE,
-      Math.round(effectiveSheetHeight * CLOSE_DISTANCE_RATIO)
-    );
-    const dragClose = dy > distanceThreshold;
+      // Distância: exige um arrasto mais "consciente" (proporcional à altura do sheet).
+      const distanceThreshold = Math.max(
+        MIN_DRAG_TO_CLOSE,
+        Math.round(effectiveSheetHeight * CLOSE_DISTANCE_RATIO)
+      );
+      const dragClose = dy > distanceThreshold;
 
-    const dt = (Date.now() - gestureStartTsRef.current) / 1000;
-    const vAvg = dt > 0 ? dy / dt : 0;
+      const dt = (Date.now() - gestureStartTsRef.current) / 1000;
+      const vAvg = dt > 0 ? dy / dt : 0;
 
-    const flickClose =
-      dy > MIN_DIRECTIONAL_DY &&
-      (vy > MIN_FLICK_VELOCITY || vAvg > MIN_FLICK_AVG_PX_PER_S);
+      const flickClose =
+        dy > MIN_DIRECTIONAL_DY &&
+        (vy > MIN_FLICK_VELOCITY || vAvg > MIN_FLICK_AVG_PX_PER_S);
 
-    return dragClose || flickClose;
-  }, [effectiveSheetHeight]);
+      return dragClose || flickClose;
+    },
+    [effectiveSheetHeight]
+  );
 
   const createPanResponder = useCallback(
     (opts: { canCapture: () => boolean }) => {
       if (!enableSwipeToClose) return null;
 
       return PanResponder.create({
+        onStartShouldSetPanResponderCapture: () => {
+          // Captura no touch start (quando permitido) para não perder
+          // flicks extremamente rápidos que podem ser classificados como "tap".
+          return opts.canCapture();
+        },
         onMoveShouldSetPanResponderCapture: (_evt, gesture) => {
           if (!opts.canCapture()) return false;
 
@@ -271,17 +280,22 @@ export function BottomSheet({
           const dy = lastDyRef.current || gesture.dy;
           const vy = gesture.vy;
           const vx = gesture.vx;
+          const dtMs = Date.now() - gestureStartTsRef.current;
 
           // 1) FAST FLICK (prioridade máxima)
           // - fecha com pouco dy, se a intenção é claramente vertical para baixo.
           // - só avaliamos quando o conteúdo está no topo (ou quando o handle captura).
           const canSwipeCloseNow = opts.canCapture();
           const isPredominantlyVertical = Math.abs(vy) > Math.abs(vx);
+
+          // Flick muito rápido: pouco dy + tempo curtíssimo já indica intenção
+          const isQuickTapFlick =
+            dy > MIN_DIRECTIONAL_DY && dtMs > 0 && dtMs < FAST_FLICK_TIME_MS;
+
           if (
             canSwipeCloseNow &&
-            dy > MIN_DIRECTIONAL_DY &&
-            vy > FAST_FLICK_VELOCITY &&
-            isPredominantlyVertical
+            isPredominantlyVertical &&
+            (vy > FAST_FLICK_VELOCITY || isQuickTapFlick)
           ) {
             closeBySwipe();
             return;
