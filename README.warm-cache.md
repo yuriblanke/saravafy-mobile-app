@@ -2,7 +2,10 @@
 
 Este documento descreve **factualmente**, a partir do código atual, o que este app “aquece” (warm cache) para acelerar UX e manter permissões/visibilidade consistentes.
 
-> Definição usada aqui: “warm cache” = qualquer computação/fetch feito **antes** da tela precisar (prefetch), ou qualquer cache mantido/atualizado para evitar _loading flashes_ e reduzir refetches (React Query + caches em memória + AsyncStorage).
+> Termos usados aqui (para evitar ambiguidade):
+>
+> - **Warm cache**: computação/fetch feito **antes** da tela precisar (prefetch) e/ou hidratação antecipada que evita _loading flashes_ e reduz refetches (React Query + snapshots/TTL em AsyncStorage + caches em memória).
+> - **Persistência local (AsyncStorage)**: chaves usadas para preferências/onboarding/flags de UX. Algumas são lidas no boot (entram no “warm”); outras são lidas sob demanda (não aquecem tela, mas guardam estado de UX entre sessões).
 
 ---
 
@@ -202,12 +205,23 @@ Aquecimento aqui acontece de forma “reativa”: `setQueryData` (patch) e `inva
   - Definição: `src/queries/queryKeys.ts`
   - Uso: usada como “prefix” para invalidar **todas** as variantes de `editableByUser` (que incluem `terreiroIdsHash`).
 
+#### Mutations padronizadas (optimistic update)
+
+Para evitar depender apenas de refetch após ações do usuário, algumas mutations aplicam **patch otimista** em caches relevantes e fazem **invalidação mínima** no `onSettled`.
+
+- Contrato: `docs/cache-contract.md`
+- Helpers: `src/queries/mutationUtils.ts`
+- Implementações iniciais:
+  - `src/screens/Home/Home.tsx`
+    - Criar coleção: insere item com `tempId` em `collections.accountable` e `collections.editableByUserPrefix`, depois reconcilia `tempId → id`.
+    - Adicionar ponto na coleção: dá patch de `updated_at` em listas (e `collections.byId(collectionId)` quando existir).
+
 #### QueryKeys definidos que parecem não ter implementação (fetch)
 
 - `queryKeys.me.membership(userId)`
+  - Implementação encontrada: `src/hooks/terreiroMembership.ts` (`useTerreiroMembershipStatus`) usa essa key.
 - `queryKeys.me.permissions(userId)`
-
-Factual: no código atual, essas keys aparecem em `queryKeys.ts` e em `invalidateQueries(...)` (InviteGate + realtime scope), mas **não foi encontrado nenhum `useQuery`/`fetchQuery`/`prefetchQuery` que preencha esses caches**.
+  - Factual: no código atual, essa key aparece em `queryKeys.ts` e em `invalidateQueries(...)`, mas **não foi encontrado nenhum `useQuery`/`fetchQuery`/`prefetchQuery` que preencha esse cache**.
 
 ### 2.2 PreferencesContext + AsyncStorage (warm/hydrate no boot)
 
@@ -239,6 +253,13 @@ Também são carregadas no boot do provider:
 - Arquivo: `src/config/remoteConfig.ts`
 - `warmRemoteConfig()` chama `getAppInstallUrl()` e guarda em AsyncStorage com TTL (~6h).
 - Fonte Supabase: `public_app_config` com key `app_install_url`.
+
+#### Hints/onboarding (AsyncStorage sob demanda)
+
+- Arquivo: `src/components/AddMediumTagSheet.tsx`
+- Uso: controla um hint “one-shot” (BottomSheet de confirmação) que explica como remover tag de médium (“pressione e segure”).
+- Chave: `hint_medium_tag_long_press_remove_shown_v1`
+- Observação factual: essa chave **não** é lida no boot; ela é consultada no fluxo de adicionar tag (após inserção bem-sucedida) para decidir se precisa mostrar o hint.
 
 #### InviteGate (cache em memória + throttle)
 

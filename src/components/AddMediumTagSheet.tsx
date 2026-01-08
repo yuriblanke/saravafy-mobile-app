@@ -3,8 +3,8 @@ import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { MediumTagRemoveHintBottomSheet } from "@/src/components/MediumTagRemoveHintBottomSheet";
 import { colors, spacing } from "@/src/theme";
-import { useQueryClient } from "@tanstack/react-query";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useQueryClient } from "@tanstack/react-query";
 import React, {
   useCallback,
   useEffect,
@@ -247,8 +247,7 @@ export function AddMediumTagSheet(props: {
         }
       );
 
-      const shouldShowHint =
-        canShowRemoveHint && !(await wasHintShown());
+      const shouldShowHint = canShowRemoveHint && !(await wasHintShown());
 
       onSuccess?.(tag_text);
       closeAndReset();
@@ -286,71 +285,41 @@ export function AddMediumTagSheet(props: {
         bounces={false}
       >
         <View style={{ paddingBottom: 16 }}>
-        <View style={styles.sheetHeaderRow}>
-          <Text style={[styles.title, { color: textPrimary }]}>
-            Médium deste ponto
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              if (isSaving) return;
-              onClose();
-            }}
-            hitSlop={10}
-            style={styles.sheetCloseBtn}
-          >
-            <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
-              ×
+          <View style={styles.sheetHeaderRow}>
+            <Text style={[styles.title, { color: textPrimary }]}>
+              Médium deste ponto
             </Text>
-          </Pressable>
-        </View>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (isSaving) return;
+                onClose();
+              }}
+              hitSlop={10}
+              style={styles.sheetCloseBtn}
+            >
+              <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
+                ×
+              </Text>
+            </Pressable>
+          </View>
 
-        <Text style={[styles.subtitle, { color: textSecondary }]}>
-          Qual médium dá passagem quando este ponto é cantado neste terreiro?
-        </Text>
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            Qual médium dá passagem quando este ponto é cantado neste terreiro?
+          </Text>
 
-        <TextInput
-          ref={(node) => {
-            inputRef.current = node;
-          }}
-          value={value}
-          onChangeText={setValue}
-          placeholder="Ex: Pai Joaquim"
-          placeholderTextColor={textSecondary}
-          style={[
-            styles.input,
-            {
-              color: textPrimary,
-              borderColor: isLight
-                ? colors.inputBorderLight
-                : colors.inputBorderDark,
-              backgroundColor: isLight
-                ? colors.inputBgLight
-                : colors.inputBgDark,
-            },
-          ]}
-          autoCapitalize="words"
-          autoCorrect={false}
-          maxLength={60}
-          editable={!isSaving}
-          returnKeyType="done"
-          onSubmitEditing={() => {
-            if (!isSaving && canSubmit) void submit();
-          }}
-        />
-
-        <View style={styles.actionsRow}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Cancelar"
-            onPress={() => {
-              if (isSaving) return;
-              onClose();
+          <TextInput
+            ref={(node) => {
+              inputRef.current = node;
             }}
-            disabled={isSaving}
-            style={({ pressed }) => [
-              styles.secondaryActionBtn,
+            value={value}
+            onChangeText={setValue}
+            placeholder="Ex: Pai Joaquim"
+            placeholderTextColor={textSecondary}
+            style={[
+              styles.input,
               {
+                color: textPrimary,
                 borderColor: isLight
                   ? colors.inputBorderLight
                   : colors.inputBorderDark,
@@ -358,40 +327,72 @@ export function AddMediumTagSheet(props: {
                   ? colors.inputBgLight
                   : colors.inputBgDark,
               },
-              pressed ? styles.pressed : null,
-              isSaving ? styles.disabled : null,
             ]}
-          >
-            <Text style={[styles.secondaryActionText, { color: textPrimary }]}>
-              Cancelar
-            </Text>
-          </Pressable>
+            autoCapitalize="words"
+            autoCorrect={false}
+            maxLength={60}
+            editable={!isSaving}
+            returnKeyType="done"
+            onSubmitEditing={() => {
+              if (!isSaving && canSubmit) void submit();
+            }}
+          />
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Adicionar médium"
-            onPress={() => void submit()}
-            disabled={!canSubmit || isSaving}
-            style={({ pressed }) => [
-              styles.primaryActionBtn,
-              pressed ? styles.pressed : null,
-              !canSubmit || isSaving ? styles.disabled : null,
-            ]}
-          >
-            {isSaving ? (
-              <ActivityIndicator color={colors.paper50} />
-            ) : (
-              <Text style={styles.primaryActionText}>Adicionar médium</Text>
-            )}
-          </Pressable>
-        </View>
+          <View style={styles.actionsRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Cancelar"
+              onPress={() => {
+                if (isSaving) return;
+                onClose();
+              }}
+              disabled={isSaving}
+              style={({ pressed }) => [
+                styles.secondaryActionBtn,
+                {
+                  borderColor: isLight
+                    ? colors.inputBorderLight
+                    : colors.inputBorderDark,
+                  backgroundColor: isLight
+                    ? colors.inputBgLight
+                    : colors.inputBgDark,
+                },
+                pressed ? styles.pressed : null,
+                isSaving ? styles.disabled : null,
+              ]}
+            >
+              <Text
+                style={[styles.secondaryActionText, { color: textPrimary }]}
+              >
+                Cancelar
+              </Text>
+            </Pressable>
 
-        <Image
-          source={fillerPng}
-          style={styles.filler}
-          resizeMode="contain"
-          accessibilityIgnoresInvertColors
-        />
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Adicionar médium"
+              onPress={() => void submit()}
+              disabled={!canSubmit || isSaving}
+              style={({ pressed }) => [
+                styles.primaryActionBtn,
+                pressed ? styles.pressed : null,
+                !canSubmit || isSaving ? styles.disabled : null,
+              ]}
+            >
+              {isSaving ? (
+                <ActivityIndicator color={colors.paper50} />
+              ) : (
+                <Text style={styles.primaryActionText}>Adicionar médium</Text>
+              )}
+            </Pressable>
+          </View>
+
+          <Image
+            source={fillerPng}
+            style={styles.filler}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 

@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
+import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
@@ -16,7 +17,7 @@ import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectio
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import React, {
   useCallback,
   useEffect,
@@ -68,6 +69,8 @@ function getLyricsPreview(lyrics: string, maxLines = 4) {
 
 export default function Collection() {
   const router = useRouter();
+  const segments = useSegments() as string[];
+  const tabController = useTabController();
   const params = useLocalSearchParams();
   const { shouldBlockPress } = useGestureBlock();
 
@@ -100,6 +103,16 @@ export default function Collection() {
   const [collectionError, setCollectionError] = useState<string | null>(null);
   const [isShareOpen, setIsShareOpen] = useState(false);
   const [shareMessage, setShareMessage] = useState("");
+
+  const isInTabs = segments.includes("(tabs)");
+  const goToPontosTab = useCallback(() => {
+    if (isInTabs) {
+      tabController.goToTab("pontos");
+      return;
+    }
+
+    router.replace("/(app)/(tabs)/(pontos)" as any);
+  }, [isInTabs, router, tabController]);
 
   const terreiroIdFromParams =
     typeof params.terreiroId === "string" ? params.terreiroId : "";
@@ -142,7 +155,7 @@ export default function Collection() {
 
     if (wasMember && !isMemberNow) {
       showToast("Seu acesso a este terreiro foi removido.");
-      router.replace("/(app)/(tabs)/(pontos)" as any);
+      goToPontosTab();
     }
 
     wasMemberRef.current = isMemberNow;
@@ -151,7 +164,7 @@ export default function Collection() {
     isMembersOnly,
     membership.data.isActiveMember,
     membership.isLoading,
-    router,
+    goToPontosTab,
     showToast,
   ]);
 
@@ -370,7 +383,7 @@ export default function Collection() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                router.replace("/(app)/(tabs)/(pontos)" as any);
+                goToPontosTab();
               }}
               style={({ pressed }) => [
                 styles.ctaButton,

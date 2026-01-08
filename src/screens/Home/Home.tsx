@@ -17,7 +17,7 @@ import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -46,6 +46,17 @@ import {
   type EditableCollection,
 } from "@/src/queries/collections";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
+import {
+  cancelQueries,
+  makeTempId,
+  patchById,
+  removeById,
+  replaceId,
+  rollbackQueries,
+  setQueriesDataSafe,
+  snapshotQueries,
+  upsertById,
+} from "@/src/queries/mutationUtils";
 import { queryKeys } from "@/src/queries/queryKeys";
 
 function normalize(value: string) {
@@ -114,6 +125,82 @@ export default function Home() {
   const [isAdding, setIsAdding] = useState(false);
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+
+  const addToCollectionMutation = useMutation({
+    mutationFn: async (vars: {
+      collectionId: string;
+      pontoId: string;
+      addedBy: string;
+    }) => {
+      const res = await addPontoToCollection(vars);
+      if (!res.ok) {
+        throw new Error(res.error || "Erro ao adicionar ponto à coleção.");
+      }
+      return res;
+    },
+    onMutate: async (vars) => {
+      if (!userId) return null;
+
+      const now = new Date().toISOString();
+
+      const filters = [
+        { queryKey: queryKeys.collections.accountable(userId) },
+        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        { queryKey: queryKeys.collections.byId(vars.collectionId) },
+      ];
+
+      await cancelQueries(queryClient, filters);
+      const snapshot = snapshotQueries(queryClient, filters);
+
+      setQueriesDataSafe<EditableCollection[]>(
+        queryClient,
+        { queryKey: queryKeys.collections.accountable(userId) },
+        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now })
+      );
+      setQueriesDataSafe<EditableCollection[]>(
+        queryClient,
+        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now })
+      );
+
+      // Se existir cache do detalhe da collection, mantém consistente.
+      setQueriesDataSafe<any>(
+        queryClient,
+        { queryKey: queryKeys.collections.byId(vars.collectionId) },
+        (old: any) => {
+          if (!old || typeof old !== "object") return old;
+          return { ...old, updated_at: now };
+        }
+      );
+
+      return { snapshot };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.snapshot) {
+        rollbackQueries(queryClient, ctx.snapshot);
+      }
+
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Erro ao adicionar ponto à coleção.";
+      setAddError(__DEV__ ? msg : "Erro ao adicionar ponto à coleção.");
+    },
+    onSettled: (_data, _err, vars) => {
+      if (!userId) return;
+
+      // Invalidação mínima: mantém as listas e o detalhe corretos.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.accountable(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.editableByUserPrefix(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.byId(vars.collectionId),
+      });
+    },
+  });
 
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
 
@@ -242,11 +329,11 @@ export default function Home() {
   }, [collectionsFilter, myEditableTerreiros]);
 
   const visibleEditableCollections = useMemo(() => {
-    if (!user?.id) return [] as EditableCollection[];
+    if (!userId) return [] as EditableCollection[];
     if (collectionsFilter === "all") return editableCollections;
     if (collectionsFilter === "user") {
       return editableCollections.filter(
-        (c) => c.owner_user_id === user.id && !c.owner_terreiro_id
+        (c) => c.owner_user_id === userId && !c.owner_terreiro_id
       );
     }
     if (collectionsFilter.startsWith("terreiro:")) {
@@ -254,7 +341,7 @@ export default function Home() {
       return editableCollections.filter((c) => c.owner_terreiro_id === id);
     }
     return editableCollections;
-  }, [collectionsFilter, editableCollections, user?.id]);
+  }, [collectionsFilter, editableCollections, userId]);
 
   const closeAddToCollectionSheet = useCallback(() => {
     setAddModalVisible(false);
@@ -313,8 +400,8 @@ export default function Home() {
   );
 
   const getCollectionOwnerLabel = (c: EditableCollection) => {
-    if (!user?.id) return "";
-    if (c.owner_user_id === user.id) return "Você";
+    if (!userId) return "";
+    if (c.owner_user_id === userId) return "Você";
     if (c.owner_terreiro_id) {
       return `Terreiro: ${c.terreiro_title ?? "Terreiro"}`;
     }
@@ -337,8 +424,122 @@ export default function Home() {
     return () => clearTimeout(t);
   }, [isCreateCollectionModalOpen]);
 
+  const createCollectionMutation = useMutation({
+    mutationFn: async (vars: {
+      title: string;
+      ownerUserId: string | null;
+      ownerTerreiroId: string | null;
+    }) => {
+      if (!userId) {
+        throw new Error("Usuário inválido.");
+      }
+
+      const res = await createCollection(vars);
+      if (res.error || !res.data?.id) {
+        throw new Error(res.error || "Erro ao criar coleção.");
+      }
+
+      return {
+        id: res.data.id,
+        title: vars.title,
+        owner_user_id: vars.ownerUserId,
+        owner_terreiro_id: vars.ownerTerreiroId,
+      };
+    },
+    onMutate: async (vars) => {
+      if (!userId) return null;
+
+      const now = new Date().toISOString();
+      const tempId = makeTempId("collection");
+
+      const optimistic: EditableCollection = {
+        id: tempId,
+        title: vars.title,
+        owner_user_id: vars.ownerUserId,
+        owner_terreiro_id: vars.ownerTerreiroId,
+        terreiro_title: null,
+        created_at: now,
+        updated_at: now,
+      };
+
+      const filters = [
+        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        { queryKey: queryKeys.collections.accountable(userId) },
+      ];
+
+      await cancelQueries(queryClient, filters);
+      const snapshot = snapshotQueries(queryClient, filters);
+
+      setQueriesDataSafe<EditableCollection[]>(
+        queryClient,
+        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        (old) => upsertById(old ?? [], optimistic, { prepend: true })
+      );
+
+      // AccountableCollections pode existir em outros lugares; manter consistente.
+      setQueriesDataSafe<EditableCollection[]>(
+        queryClient,
+        { queryKey: queryKeys.collections.accountable(userId) },
+        (old) => upsertById(old ?? [], optimistic, { prepend: true })
+      );
+
+      return { snapshot, tempId };
+    },
+    onError: (err, _vars, ctx) => {
+      if (ctx?.snapshot) {
+        rollbackQueries(queryClient, ctx.snapshot);
+      }
+      const msg = err instanceof Error ? err.message : "Erro ao criar coleção.";
+      setCreateCollectionError(msg);
+      showToast(msg);
+    },
+    onSuccess: (data, _vars, ctx) => {
+      if (!userId) return;
+
+      const realId = data.id;
+      const tempId = ctx?.tempId;
+      if (!tempId) return;
+
+      setQueriesDataSafe<EditableCollection[]>(
+        queryClient,
+        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+        (old) => replaceId(old ?? [], tempId, realId)
+      );
+      setQueriesDataSafe<EditableCollection[]>(
+        queryClient,
+        { queryKey: queryKeys.collections.accountable(userId) },
+        (old) => replaceId(old ?? [], tempId, realId)
+      );
+    },
+    onSettled: (_data, _err, _vars, ctx) => {
+      if (!userId) return;
+
+      // Se o optimistic ficou "órfão" por algum motivo, limpa.
+      if (ctx?.tempId) {
+        setQueriesDataSafe<EditableCollection[]>(
+          queryClient,
+          { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
+          (old) => removeById(old ?? [], ctx.tempId)
+        );
+        setQueriesDataSafe<EditableCollection[]>(
+          queryClient,
+          { queryKey: queryKeys.collections.accountable(userId) },
+          (old) => removeById(old ?? [], ctx.tempId)
+        );
+      }
+
+      // Invalidação mínima: apenas scopes de collections do usuário.
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.editableByUserPrefix(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.accountable(userId),
+      });
+    },
+  });
+
   const onCreateCollection = useCallback(async () => {
-    if (!user?.id) return;
+    if (!userId) return;
 
     const title = createCollectionTitle.trim().slice(0, 40);
     if (!title) {
@@ -346,39 +547,35 @@ export default function Home() {
       return;
     }
 
-    setIsCreatingCollection(true);
-    setCreateCollectionError(null);
-
     // Owner baseado APENAS no filtro local do sheet.
     const ownerTerreiroId = collectionsFilter.startsWith("terreiro:")
       ? collectionsFilter.slice("terreiro:".length)
       : null;
-    const ownerUserId = ownerTerreiroId ? null : user.id;
+    const ownerUserId = ownerTerreiroId ? null : userId;
 
-    const created = await createCollection({
-      title,
-      ownerUserId,
-      ownerTerreiroId,
-    });
+    setIsCreatingCollection(true);
+    setCreateCollectionError(null);
 
-    setIsCreatingCollection(false);
+    try {
+      await createCollectionMutation.mutateAsync({
+        title,
+        ownerUserId,
+        ownerTerreiroId,
+      });
 
-    if (created.error) {
-      setCreateCollectionError(created.error || "Erro ao criar coleção.");
-      return;
+      setIsCreateCollectionModalOpen(false);
+      setCreateCollectionTitle("");
+    } catch {
+      // Erro já tratado via onError.
+    } finally {
+      setIsCreatingCollection(false);
     }
-
-    // Atualizar caches user-scoped de coleções
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.collections.accountable(user.id),
-    });
-    queryClient.invalidateQueries({
-      queryKey: queryKeys.collections.editableByUserPrefix(user.id),
-    });
-
-    setIsCreateCollectionModalOpen(false);
-    setCreateCollectionTitle("");
-  }, [collectionsFilter, queryClient, createCollectionTitle, user?.id]);
+  }, [
+    collectionsFilter,
+    createCollectionTitle,
+    createCollectionMutation,
+    userId,
+  ]);
 
   const filteredPontos = useMemo(
     () => pontos.filter((p) => matchesQuery(p, searchQuery)),
@@ -825,40 +1022,18 @@ export default function Home() {
                           accessibilityRole="button"
                           disabled={isAdding || isCreatingCollection}
                           onPress={async () => {
-                            if (!user?.id || !selectedPonto) return;
+                            if (!userId || !selectedPonto) return;
 
                             setIsAdding(true);
                             setAddError(null);
                             setAddSuccess(false);
 
                             try {
-                              const res = await addPontoToCollection({
+                              await addToCollectionMutation.mutateAsync({
                                 collectionId: c.id,
                                 pontoId: selectedPonto.id,
-                                addedBy: user.id,
+                                addedBy: userId,
                               });
-
-                              setIsAdding(false);
-                              if (!res.ok) {
-                                if (__DEV__) {
-                                  console.info(
-                                    "[AddToCollection] addPontoToCollection failed",
-                                    {
-                                      collectionId: c.id,
-                                      pontoId: selectedPonto.id,
-                                      error: res.error,
-                                    }
-                                  );
-                                }
-
-                                setAddError(
-                                  __DEV__
-                                    ? res.error ??
-                                        "Erro ao adicionar ponto à coleção."
-                                    : "Erro ao adicionar ponto à coleção."
-                                );
-                                return;
-                              }
                             } catch (e) {
                               setIsAdding(false);
                               if (__DEV__) {
@@ -867,22 +1042,10 @@ export default function Home() {
                                   e
                                 );
                               }
-                              setAddError("Erro ao adicionar ponto à coleção.");
                               return;
                             }
 
-                            // Atualizar cache para refletir mudança no updated_at da coleção
-                            queryClient.invalidateQueries({
-                              queryKey: queryKeys.collections.accountable(
-                                user.id
-                              ),
-                            });
-                            queryClient.invalidateQueries({
-                              queryKey:
-                                queryKeys.collections.editableByUserPrefix(
-                                  user.id
-                                ),
-                            });
+                            setIsAdding(false);
 
                             setAddSuccess(true);
                             showToast("Ponto adicionado à coleção");
