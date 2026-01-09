@@ -10,11 +10,14 @@ import {
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import DraggableFlatList, {
-  type RenderItemParams,
-} from "react-native-draggable-flatlist";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   BackHandler,
@@ -25,11 +28,28 @@ import {
   View,
 } from "react-native";
 
+type RenderItemParams<T> = {
+  item: T;
+  getIndex: () => number | undefined;
+  drag: () => void;
+  isActive: boolean;
+};
+
 type DraftItem = {
   id: string;
   title: string;
   lyrics: string;
 };
+
+function tryGetDraggableFlatList(): any | null {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const mod = require("react-native-draggable-flatlist");
+    return mod?.default ?? mod;
+  } catch {
+    return null;
+  }
+}
 
 function getLyricsPreview(lyrics: string, maxLines = 2) {
   const lines = String(lyrics ?? "")
@@ -132,6 +152,9 @@ export default function CollectionEdit() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
+  const DraggableFlatListImpl = useMemo(() => tryGetDraggableFlatList(), []);
+  const isDraggableAvailable = Boolean(DraggableFlatListImpl);
+
   const { effectiveTheme } =
     require("@/contexts/PreferencesContext").usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
@@ -148,9 +171,7 @@ export default function CollectionEdit() {
 
   const initialOrderedPontoIds = useMemo(() => {
     const items = snapshotRef.current?.orderedItems ?? [];
-    return items
-      .map((it) => String(it?.ponto?.id ?? ""))
-      .filter(Boolean);
+    return items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean);
   }, []);
 
   const pontosById = useMemo(() => {
@@ -225,7 +246,9 @@ export default function CollectionEdit() {
           text: "Remover",
           style: "destructive",
           onPress: () => {
-            setDraftOrderedPontoIds((prev) => prev.filter((id) => id !== pontoId));
+            setDraftOrderedPontoIds((prev) =>
+              prev.filter((id) => id !== pontoId)
+            );
           },
         },
       ]);
@@ -268,9 +291,7 @@ export default function CollectionEdit() {
       router.back();
     } catch (e) {
       showToast(
-        e instanceof Error
-          ? e.message
-          : "Não foi possível salvar a coleção."
+        e instanceof Error ? e.message : "Não foi possível salvar a coleção."
       );
     } finally {
       setSaving(false);
@@ -290,7 +311,9 @@ export default function CollectionEdit() {
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
-    variant === "light" ? colors.textSecondaryOnLight : colors.textSecondaryOnDark;
+    variant === "light"
+      ? colors.textSecondaryOnLight
+      : colors.textSecondaryOnDark;
 
   const borderColor =
     variant === "light"
@@ -304,10 +327,7 @@ export default function CollectionEdit() {
 
       return (
         <View
-          style={[
-            styles.row,
-            { borderColor, opacity: isActive ? 0.9 : 1 },
-          ]}
+          style={[styles.row, { borderColor, opacity: isActive ? 0.9 : 1 }]}
         >
           <Pressable
             accessibilityRole="button"
@@ -320,7 +340,10 @@ export default function CollectionEdit() {
           </Pressable>
 
           <View style={styles.rowText}>
-            <Text style={[styles.title, { color: textPrimary }]} numberOfLines={1}>
+            <Text
+              style={[styles.title, { color: textPrimary }]}
+              numberOfLines={1}
+            >
               {title}
             </Text>
             <Text
@@ -341,7 +364,11 @@ export default function CollectionEdit() {
             <Ionicons
               name="reorder-three"
               size={22}
-              color={variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark}
+              color={
+                variant === "light"
+                  ? colors.textMutedOnLight
+                  : colors.textMutedOnDark
+              }
             />
           </Pressable>
         </View>
@@ -366,7 +393,10 @@ export default function CollectionEdit() {
           <Ionicons name="chevron-back" size={22} color={textPrimary} />
         </Pressable>
 
-        <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
           Editar coleção
         </Text>
 
@@ -389,15 +419,83 @@ export default function CollectionEdit() {
         </Pressable>
       </View>
 
-      <DraggableFlatList
-        data={draftItems}
-        keyExtractor={(it) => it.id}
-        onDragEnd={({ data }) => {
-          setDraftOrderedPontoIds(data.map((it) => it.id));
-        }}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingBottom: spacing.xl }}
-      />
+      {isDraggableAvailable ? (
+        <DraggableFlatListImpl
+          data={draftItems}
+          keyExtractor={(it: DraftItem) => it.id}
+          onDragEnd={({ data }: { data: DraftItem[] }) => {
+            setDraftOrderedPontoIds(data.map((it) => it.id));
+          }}
+          renderItem={renderItem}
+          contentContainerStyle={{ paddingBottom: spacing.xl }}
+        />
+      ) : (
+        <View style={styles.fallback}>
+          <Text style={[styles.fallbackText, { color: textSecondary }]}
+            >
+            Arrastar para reordenar não está disponível neste build. Refaça o
+            build do Android/dev-client para incluir `react-native-gesture-handler`.
+          </Text>
+
+          <View style={{ paddingBottom: spacing.xl }}>
+            {draftItems.map((item) => {
+              const title = (item.title ?? "").trim() || "Ponto";
+              const preview = getLyricsPreview(item.lyrics, 2);
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.row,
+                    { borderColor, borderBottomColor: borderColor },
+                  ]}
+                >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Remover"
+                    onPress={() => removeItem(item.id)}
+                    hitSlop={8}
+                    style={styles.leftBtn}
+                  >
+                    <Ionicons
+                      name="remove-circle"
+                      size={22}
+                      color={colors.danger}
+                    />
+                  </Pressable>
+
+                  <View style={styles.rowText}>
+                    <Text
+                      style={[styles.title, { color: textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {title}
+                    </Text>
+                    <Text
+                      style={[styles.lyrics, { color: textSecondary }]}
+                      numberOfLines={2}
+                    >
+                      {preview}
+                    </Text>
+                  </View>
+
+                  <View style={styles.dragBtn}>
+                    <Ionicons
+                      name="reorder-three"
+                      size={22}
+                      color={
+                        variant === "light"
+                          ? colors.textMutedOnLight
+                          : colors.textMutedOnDark
+                      }
+                    />
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -461,5 +559,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     marginLeft: spacing.md,
+  },
+  fallback: {
+    flex: 1,
+  },
+  fallbackText: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.md,
+    fontSize: 13,
+    lineHeight: 18,
   },
 });

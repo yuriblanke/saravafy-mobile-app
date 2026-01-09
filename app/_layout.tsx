@@ -1,16 +1,17 @@
+import "react-native-reanimated";
+
 import FontAwesome from "@expo/vector-icons/FontAwesome";
 import {
   DarkTheme,
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
-import "react-native-reanimated";
-import { GestureHandlerRootView } from "react-native-gesture-handler";
+import React from "react";
+import { View } from "react-native";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -51,6 +52,33 @@ export {
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+type RootWrapperProps = {
+  children: React.ReactNode;
+};
+
+function RootGestureHandlerWrapper({ children }: RootWrapperProps) {
+  // IMPORTANT:
+  // - Em builds Android onde o módulo nativo não está presente (ex: dev-client antigo),
+  //   o import de `react-native-gesture-handler` causa crash no bootstrap.
+  // - Fazemos require em try/catch para permitir o app iniciar e exibirmos
+  //   a UI normalmente. O editor de coleção vai mostrar um aviso.
+
+  let Wrapper: React.ComponentType<React.PropsWithChildren<{ style?: any }>> =
+    // eslint-disable-next-line react/no-unstable-nested-components
+    ({ style, children: inner }) => <View style={style}>{inner}</View>;
+
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    require("react-native-gesture-handler");
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    Wrapper = require("react-native-gesture-handler").GestureHandlerRootView;
+  } catch {
+    // fallback silencioso: permite app iniciar
+  }
+
+  return <Wrapper style={{ flex: 1 }}>{children}</Wrapper>;
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -82,7 +110,7 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <RootGestureHandlerWrapper>
       <QueryClientProvider client={queryClient}>
         <AuthProvider>
           <PreferencesProvider>
@@ -101,7 +129,7 @@ export default function RootLayout() {
           </PreferencesProvider>
         </AuthProvider>
       </QueryClientProvider>
-    </GestureHandlerRootView>
+    </RootGestureHandlerWrapper>
   );
 }
 
