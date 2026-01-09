@@ -699,445 +699,369 @@ export default function Terreiro() {
           </View>
         </View>
 
-          <View style={styles.sectionGapSmall} />
+        <View style={styles.sectionGapSmall} />
 
-          <View style={styles.globalActionsRow}>
-            {canEdit ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Editar"
-                hitSlop={10}
-                onPress={() => {
-                  if (shouldBlockPress()) return;
-                  if (!terreiroId) return;
-                  router.push({
-                    pathname: "/terreiro-collections/[terreiroId]/edit" as any,
-                    params: { terreiroId },
-                  });
-                }}
-                style={({ pressed }) => [
-                  styles.globalActionButton,
-                  pressed ? styles.globalActionButtonPressed : null,
-                ]}
-              >
-                <Ionicons
-                  name="reorder-three-outline"
-                  size={18}
-                  color={accentColor}
-                />
-                <Text style={[styles.globalActionText, { color: accentColor }]}>
-                  Editar
-                </Text>
-              </Pressable>
-            ) : null}
-
+        <View style={styles.globalActionsRow}>
+          {canEdit ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Compartilhar"
+              accessibilityLabel="Editar"
               hitSlop={10}
-              onPress={openShare}
+              onPress={() => {
+                if (shouldBlockPress()) return;
+                if (!terreiroId) return;
+                router.push({
+                  pathname: "/terreiro-collections/[terreiroId]/edit" as any,
+                  params: { terreiroId },
+                });
+              }}
               style={({ pressed }) => [
                 styles.globalActionButton,
                 pressed ? styles.globalActionButtonPressed : null,
               ]}
             >
-              <Ionicons name="share-outline" size={18} color={accentColor} />
+              <Ionicons
+                name="reorder-three-outline"
+                size={18}
+                color={accentColor}
+              />
+              <Text style={[styles.globalActionText, { color: accentColor }]}>
+                Editar
+              </Text>
             </Pressable>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar"
+            hitSlop={10}
+            onPress={openShare}
+            style={({ pressed }) => [
+              styles.globalActionButton,
+              pressed ? styles.globalActionButtonPressed : null,
+            ]}
+          >
+            <Ionicons name="share-outline" size={18} color={accentColor} />
+          </Pressable>
+        </View>
+
+        <View style={styles.sectionGapSmall} />
+
+        <ShareBottomSheet
+          visible={isShareOpen}
+          variant={variant}
+          message={shareMessage}
+          onClose={() => setIsShareOpen(false)}
+          showToast={showToast}
+        />
+
+        {collectionsQuery.isLoading ? (
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
           </View>
+        ) : collectionsQuery.isError ? (
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Erro ao carregar as coleções.
+            </Text>
+          </View>
+        ) : collections.length === 0 && !creatingCollection ? (
+          <View style={styles.paddedBlock}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Nenhuma coleção ainda.
+            </Text>
+          </View>
+        ) : (
+          <FlatList
+            data={mergedCollections}
+            keyExtractor={(it) => it.id}
+            style={styles.list}
+            contentContainerStyle={styles.listContent}
+            renderItem={({ item }) => {
+              const isEditingThisCollection = editingCollectionId === item.id;
+              const isNew = (item as any).isNew;
+              const name =
+                ("title" in item &&
+                  typeof item.title === "string" &&
+                  item.title.trim()) ||
+                "Coleção";
+              const pontosCount =
+                "pontosCount" in item &&
+                typeof (item as any).pontosCount === "number"
+                  ? ((item as any).pontosCount as number)
+                  : 0;
 
-          <View style={styles.sectionGapSmall} />
-
-          <ShareBottomSheet
-            visible={isShareOpen}
-            variant={variant}
-            message={shareMessage}
-            onClose={() => setIsShareOpen(false)}
-            showToast={showToast}
-          />
-
-          {collectionsQuery.isLoading ? (
-            <View style={styles.paddedBlock}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Carregando…
-              </Text>
-            </View>
-          ) : collectionsQuery.isError ? (
-            <View style={styles.paddedBlock}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Erro ao carregar as coleções.
-              </Text>
-            </View>
-          ) : collections.length === 0 && !creatingCollection ? (
-            <View style={styles.paddedBlock}>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Nenhuma coleção ainda.
-              </Text>
-            </View>
-          ) : (
-            <FlatList
-              data={mergedCollections}
-              keyExtractor={(it) => it.id}
-              contentContainerStyle={styles.listContent}
-              renderItem={({ item }) => {
-                const isEditingThisCollection = editingCollectionId === item.id;
-                const isNew = (item as any).isNew;
-                const name =
-                  ("title" in item &&
-                    typeof item.title === "string" &&
-                    item.title.trim()) ||
-                  "Coleção";
-                const pontosCount =
-                  "pontosCount" in item &&
-                  typeof (item as any).pontosCount === "number"
-                    ? ((item as any).pontosCount as number)
-                    : 0;
-
-                const handlePress = () => {
-                  const now = Date.now();
-                  if (shouldBlockPress()) {
-                    if (__DEV__) {
-                      console.log("[PressGuard] blocked", {
-                        screen: "Terreiro",
-                        now,
-                      });
-                    }
-                    return;
-                  }
-
+              const handlePress = () => {
+                const now = Date.now();
+                if (shouldBlockPress()) {
                   if (__DEV__) {
-                    console.log("[PressGuard] allowed", {
+                    console.log("[PressGuard] blocked", {
                       screen: "Terreiro",
                       now,
                     });
                   }
+                  return;
+                }
 
-                  if (!isEditingThisCollection && !isNew) {
-                    if (__DEV__) {
-                      console.log("[Navigation] click -> /collection/[id]", {
-                        screen: "Terreiro",
-                        now,
-                        collectionId: item.id,
-                      });
-                    }
-                    router.push({
-                      pathname: "/collection/[id]",
-                      params: {
-                        id: item.id,
-                        collectionId: item.id,
-                        collectionTitle: name,
-                        terreiroId: terreiroId || undefined,
-                      },
+                if (__DEV__) {
+                  console.log("[PressGuard] allowed", {
+                    screen: "Terreiro",
+                    now,
+                  });
+                }
+
+                if (!isEditingThisCollection && !isNew) {
+                  if (__DEV__) {
+                    console.log("[Navigation] click -> /collection/[id]", {
+                      screen: "Terreiro",
+                      now,
+                      collectionId: item.id,
                     });
                   }
-                };
+                  router.push({
+                    pathname: "/collection/[id]",
+                    params: {
+                      id: item.id,
+                      collectionId: item.id,
+                      collectionTitle: name,
+                      terreiroId: terreiroId || undefined,
+                    },
+                  });
+                }
+              };
 
-                return (
-                  <View style={styles.cardGap}>
-                    <SurfaceCard variant={variant}>
-                      <Pressable
-                        onPress={handlePress}
-                        disabled={isEditingThisCollection || isNew}
-                        style={{ flex: 1 }}
-                      >
-                        <View style={styles.cardHeaderRow}>
-                          {isEditingThisCollection ? (
-                            <View
+              return (
+                <View style={styles.cardGap}>
+                  <SurfaceCard variant={variant}>
+                    <Pressable
+                      onPress={handlePress}
+                      disabled={isEditingThisCollection || isNew}
+                      style={{ flex: 1 }}
+                    >
+                      <View style={styles.cardHeaderRow}>
+                        {isEditingThisCollection ? (
+                          <View
+                            style={[
+                              styles.collectionEditWrap,
+                              {
+                                backgroundColor: titleInputBg,
+                                borderColor: titleInputBorder,
+                              },
+                            ]}
+                          >
+                            <TextInput
+                              ref={(node) => {
+                                collectionTitleInputRef.current = node;
+                              }}
+                              value={draftCollectionTitle}
+                              onChangeText={setDraftCollectionTitle}
                               style={[
-                                styles.collectionEditWrap,
-                                {
-                                  backgroundColor: titleInputBg,
-                                  borderColor: titleInputBorder,
-                                },
+                                styles.collectionTitleInput,
+                                { color: textPrimary },
                               ]}
-                            >
-                              <TextInput
-                                ref={(node) => {
-                                  collectionTitleInputRef.current = node;
-                                }}
-                                value={draftCollectionTitle}
-                                onChangeText={setDraftCollectionTitle}
-                                style={[
-                                  styles.collectionTitleInput,
-                                  { color: textPrimary },
-                                ]}
-                                placeholder="Nome da coleção"
-                                placeholderTextColor={textSecondary}
-                                selectionColor={accentColor}
-                                multiline={false}
-                                numberOfLines={1}
-                                autoCorrect={false}
-                                autoCapitalize="sentences"
-                                editable={!isSavingCollectionTitle}
-                                autoFocus
-                                selection={collectionTitleSelection}
-                                onSelectionChange={(e) => {
-                                  setCollectionTitleSelection(
-                                    e.nativeEvent.selection
-                                  );
-                                }}
-                                onSubmitEditing={() => {
-                                  if (isNew) {
-                                    saveNewCollection();
-                                  } else {
-                                    saveCollectionTitle(item.id);
-                                  }
-                                }}
-                              />
-                            </View>
-                          ) : (
-                            <Text
-                              style={[styles.cardTitle, { color: textPrimary }]}
-                              numberOfLines={2}
-                            >
-                              {name}
-                            </Text>
-                          )}
-
-                          {canEdit && !isEditingThisCollection && !isNew ? (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel="Abrir menu da coleção"
-                              accessibilityHint="Opções: editar ou excluir"
-                              hitSlop={10}
-                              onPress={() => {
-                                openCollectionActions(
-                                  item as TerreiroCollectionCard
+                              placeholder="Nome da coleção"
+                              placeholderTextColor={textSecondary}
+                              selectionColor={accentColor}
+                              multiline={false}
+                              numberOfLines={1}
+                              autoCorrect={false}
+                              autoCapitalize="sentences"
+                              editable={!isSavingCollectionTitle}
+                              autoFocus
+                              selection={collectionTitleSelection}
+                              onSelectionChange={(e) => {
+                                setCollectionTitleSelection(
+                                  e.nativeEvent.selection
                                 );
                               }}
+                              onSubmitEditing={() => {
+                                if (isNew) {
+                                  saveNewCollection();
+                                } else {
+                                  saveCollectionTitle(item.id);
+                                }
+                              }}
+                            />
+                          </View>
+                        ) : (
+                          <Text
+                            style={[styles.cardTitle, { color: textPrimary }]}
+                            numberOfLines={2}
+                          >
+                            {name}
+                          </Text>
+                        )}
+
+                        {canEdit && !isEditingThisCollection && !isNew ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Abrir menu da coleção"
+                            accessibilityHint="Opções: editar ou excluir"
+                            hitSlop={10}
+                            onPress={() => {
+                              openCollectionActions(
+                                item as TerreiroCollectionCard
+                              );
+                            }}
+                            style={({ pressed }) => [
+                              styles.menuButton,
+                              pressed ? styles.iconButtonPressed : null,
+                            ]}
+                          >
+                            <Ionicons
+                              name="ellipsis-vertical"
+                              size={18}
+                              color={accentColor}
+                            />
+                          </Pressable>
+                        ) : canEdit && isEditingThisCollection ? (
+                          <View style={styles.collectionEditActions}>
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Cancelar edição"
+                              hitSlop={10}
+                              onPress={() => {
+                                if (isNew) {
+                                  setCreatingCollection(null);
+                                  setEditingCollectionId(null);
+                                  setDraftCollectionTitle("");
+                                  setCollectionTitleSelection(undefined);
+                                } else {
+                                  cancelEditCollectionTitle();
+                                }
+                              }}
+                              disabled={isSavingCollectionTitle}
                               style={({ pressed }) => [
-                                styles.menuButton,
+                                styles.collectionActionButton,
                                 pressed ? styles.iconButtonPressed : null,
+                                isSavingCollectionTitle
+                                  ? styles.iconButtonDisabled
+                                  : null,
                               ]}
                             >
                               <Ionicons
-                                name="ellipsis-vertical"
+                                name="close"
                                 size={18}
+                                color={textMuted}
+                              />
+                            </Pressable>
+
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Salvar título"
+                              hitSlop={10}
+                              onPress={() => {
+                                if (isNew) {
+                                  saveNewCollection();
+                                } else {
+                                  saveCollectionTitle(item.id);
+                                }
+                              }}
+                              disabled={isSavingCollectionTitle}
+                              style={({ pressed }) => [
+                                styles.collectionActionButton,
+                                pressed ? styles.iconButtonPressed : null,
+                                isSavingCollectionTitle
+                                  ? styles.iconButtonDisabled
+                                  : null,
+                              ]}
+                            >
+                              <Ionicons
+                                name="checkmark"
+                                size={20}
                                 color={accentColor}
                               />
                             </Pressable>
-                          ) : canEdit && isEditingThisCollection ? (
-                            <View style={styles.collectionEditActions}>
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel="Cancelar edição"
-                                hitSlop={10}
-                                onPress={() => {
-                                  if (isNew) {
-                                    setCreatingCollection(null);
-                                    setEditingCollectionId(null);
-                                    setDraftCollectionTitle("");
-                                    setCollectionTitleSelection(undefined);
-                                  } else {
-                                    cancelEditCollectionTitle();
-                                  }
+                            {isNew && newCollectionError ? (
+                              <Text
+                                style={{
+                                  color: dangerColor,
+                                  marginTop: 4,
+                                  fontSize: 13,
                                 }}
-                                disabled={isSavingCollectionTitle}
-                                style={({ pressed }) => [
-                                  styles.collectionActionButton,
-                                  pressed ? styles.iconButtonPressed : null,
-                                  isSavingCollectionTitle
-                                    ? styles.iconButtonDisabled
-                                    : null,
-                                ]}
                               >
-                                <Ionicons
-                                  name="close"
-                                  size={18}
-                                  color={textMuted}
-                                />
-                              </Pressable>
+                                {newCollectionError}
+                              </Text>
+                            ) : null}
+                          </View>
+                        ) : null}
+                      </View>
+                      <Text
+                        style={[
+                          styles.cardDescription,
+                          { color: textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {pontosCount} pontos
+                      </Text>
+                    </Pressable>
+                  </SurfaceCard>
+                </View>
+              );
+            }}
+          />
+        )}
 
-                              <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel="Salvar título"
-                                hitSlop={10}
-                                onPress={() => {
-                                  if (isNew) {
-                                    saveNewCollection();
-                                  } else {
-                                    saveCollectionTitle(item.id);
-                                  }
-                                }}
-                                disabled={isSavingCollectionTitle}
-                                style={({ pressed }) => [
-                                  styles.collectionActionButton,
-                                  pressed ? styles.iconButtonPressed : null,
-                                  isSavingCollectionTitle
-                                    ? styles.iconButtonDisabled
-                                    : null,
-                                ]}
-                              >
-                                <Ionicons
-                                  name="checkmark"
-                                  size={20}
-                                  color={accentColor}
-                                />
-                              </Pressable>
-                              {isNew && newCollectionError ? (
-                                <Text
-                                  style={{
-                                    color: dangerColor,
-                                    marginTop: 4,
-                                    fontSize: 13,
-                                  }}
-                                >
-                                  {newCollectionError}
-                                </Text>
-                              ) : null}
-                            </View>
-                          ) : null}
-                        </View>
-                        <Text
-                          style={[
-                            styles.cardDescription,
-                            { color: textSecondary },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {pontosCount} pontos
-                        </Text>
-                      </Pressable>
-                    </SurfaceCard>
-                  </View>
-                );
-              }}
-            />
-          )}
-
-          <BottomSheet
-            visible={isCollectionActionsOpen}
-            variant={variant}
-            onClose={closeCollectionActions}
-          >
-            <View>
-              <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-                Ações
+        <BottomSheet
+          visible={isCollectionActionsOpen}
+          variant={variant}
+          onClose={closeCollectionActions}
+        >
+          <View>
+            <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+              Ações
+            </Text>
+            {collectionActionsTarget?.title ? (
+              <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
+                {collectionActionsTarget.title}
               </Text>
-              {collectionActionsTarget?.title ? (
-                <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
-                  {collectionActionsTarget.title}
-                </Text>
-              ) : null}
+            ) : null}
 
-              <View style={styles.sheetActions}>
+            <View style={styles.sheetActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Editar coleção"
+                hitSlop={10}
+                onPress={() => {
+                  const target = collectionActionsTarget;
+                  closeCollectionActions();
+                  if (!target) return;
+                  setTimeout(() => {
+                    startEditCollectionTitle(target);
+                  }, 80);
+                }}
+                style={({ pressed }) => [
+                  styles.sheetActionRow,
+                  pressed ? styles.sheetActionPressed : null,
+                ]}
+              >
+                <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                  Editar
+                </Text>
+              </Pressable>
+
+              <Separator variant={variant} />
+
+              {canDeleteCollection(collectionActionsTarget) ? (
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Editar coleção"
+                  accessibilityLabel="Excluir coleção"
                   hitSlop={10}
                   onPress={() => {
                     const target = collectionActionsTarget;
                     closeCollectionActions();
                     if (!target) return;
+                    setCollectionPendingDelete(target);
                     setTimeout(() => {
-                      startEditCollectionTitle(target);
+                      setIsConfirmDeleteCollectionOpen(true);
                     }, 80);
                   }}
                   style={({ pressed }) => [
                     styles.sheetActionRow,
                     pressed ? styles.sheetActionPressed : null,
-                  ]}
-                >
-                  <Text
-                    style={[styles.sheetActionText, { color: textPrimary }]}
-                  >
-                    Editar
-                  </Text>
-                </Pressable>
-
-                <Separator variant={variant} />
-
-                {canDeleteCollection(collectionActionsTarget) ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Excluir coleção"
-                    hitSlop={10}
-                    onPress={() => {
-                      const target = collectionActionsTarget;
-                      closeCollectionActions();
-                      if (!target) return;
-                      setCollectionPendingDelete(target);
-                      setTimeout(() => {
-                        setIsConfirmDeleteCollectionOpen(true);
-                      }, 80);
-                    }}
-                    style={({ pressed }) => [
-                      styles.sheetActionRow,
-                      pressed ? styles.sheetActionPressed : null,
-                    ]}
-                  >
-                    <Ionicons name="trash" size={18} color={dangerColor} />
-                    <Text
-                      style={[styles.sheetActionText, { color: dangerColor }]}
-                    >
-                      Excluir
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            </View>
-          </BottomSheet>
-
-          <BottomSheet
-            visible={isConfirmDeleteCollectionOpen}
-            variant={variant}
-            onClose={closeConfirmDeleteCollection}
-          >
-            <View>
-              <Text style={[styles.sheetTitle, { color: warningColor }]}>
-                Excluir coleção?
-              </Text>
-              {collectionPendingDelete?.title ? (
-                <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
-                  {collectionPendingDelete.title}
-                </Text>
-              ) : null}
-
-              <Text style={[styles.confirmText, { color: textSecondary }]}>
-                Esta ação é permanente. Dseja prosseguir?
-              </Text>
-
-              <View style={styles.sheetActions}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Cancelar"
-                  hitSlop={10}
-                  onPress={closeConfirmDeleteCollection}
-                  disabled={isDeletingCollection}
-                  style={({ pressed }) => [
-                    styles.sheetActionRow,
-                    pressed ? styles.sheetActionPressed : null,
-                    isDeletingCollection ? styles.sheetActionDisabled : null,
-                  ]}
-                >
-                  <Ionicons name="close" size={18} color={textMuted} />
-                  <Text
-                    style={[styles.sheetActionText, { color: textPrimary }]}
-                  >
-                    Cancelar
-                  </Text>
-                </Pressable>
-
-                <Separator variant={variant} />
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Confirmar exclusão"
-                  hitSlop={10}
-                  disabled={
-                    isDeletingCollection ||
-                    !canDeleteCollection(collectionPendingDelete)
-                  }
-                  onPress={() => {
-                    if (!collectionPendingDelete) return;
-                    deleteCollection(collectionPendingDelete);
-                  }}
-                  style={({ pressed }) => [
-                    styles.sheetActionRow,
-                    pressed ? styles.sheetActionPressed : null,
-                    isDeletingCollection ||
-                    !canDeleteCollection(collectionPendingDelete)
-                      ? styles.sheetActionDisabled
-                      : null,
                   ]}
                 >
                   <Ionicons name="trash" size={18} color={dangerColor} />
@@ -1147,9 +1071,80 @@ export default function Terreiro() {
                     Excluir
                   </Text>
                 </Pressable>
-              </View>
+              ) : null}
             </View>
-          </BottomSheet>
+          </View>
+        </BottomSheet>
+
+        <BottomSheet
+          visible={isConfirmDeleteCollectionOpen}
+          variant={variant}
+          onClose={closeConfirmDeleteCollection}
+        >
+          <View>
+            <Text style={[styles.sheetTitle, { color: warningColor }]}>
+              Excluir coleção?
+            </Text>
+            {collectionPendingDelete?.title ? (
+              <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
+                {collectionPendingDelete.title}
+              </Text>
+            ) : null}
+
+            <Text style={[styles.confirmText, { color: textSecondary }]}>
+              Esta ação é permanente. Dseja prosseguir?
+            </Text>
+
+            <View style={styles.sheetActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Cancelar"
+                hitSlop={10}
+                onPress={closeConfirmDeleteCollection}
+                disabled={isDeletingCollection}
+                style={({ pressed }) => [
+                  styles.sheetActionRow,
+                  pressed ? styles.sheetActionPressed : null,
+                  isDeletingCollection ? styles.sheetActionDisabled : null,
+                ]}
+              >
+                <Ionicons name="close" size={18} color={textMuted} />
+                <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                  Cancelar
+                </Text>
+              </Pressable>
+
+              <Separator variant={variant} />
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Confirmar exclusão"
+                hitSlop={10}
+                disabled={
+                  isDeletingCollection ||
+                  !canDeleteCollection(collectionPendingDelete)
+                }
+                onPress={() => {
+                  if (!collectionPendingDelete) return;
+                  deleteCollection(collectionPendingDelete);
+                }}
+                style={({ pressed }) => [
+                  styles.sheetActionRow,
+                  pressed ? styles.sheetActionPressed : null,
+                  isDeletingCollection ||
+                  !canDeleteCollection(collectionPendingDelete)
+                    ? styles.sheetActionDisabled
+                    : null,
+                ]}
+              >
+                <Ionicons name="trash" size={18} color={dangerColor} />
+                <Text style={[styles.sheetActionText, { color: dangerColor }]}>
+                  Excluir
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </BottomSheet>
       </View>
     </SaravafyStackScene>
   );
@@ -1418,7 +1413,10 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.xl,
+    paddingBottom: spacing.md,
+  },
+  list: {
+    flex: 1,
   },
   cardGap: {
     marginBottom: spacing.md,

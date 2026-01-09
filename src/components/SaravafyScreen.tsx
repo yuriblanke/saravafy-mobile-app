@@ -1,5 +1,5 @@
 import React from "react";
-import { StatusBar, StyleSheet, View, type ViewProps } from "react-native";
+import { Platform, StatusBar, StyleSheet, View, type ViewProps } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
@@ -28,7 +28,11 @@ export function SaravafyScreen({
       style={[styles.root, { backgroundColor: baseColor }, style]}
       {...rest}
     >
-      <StatusBar barStyle={isLight ? "dark-content" : "light-content"} />
+      <StatusBar
+        barStyle={isLight ? "dark-content" : "light-content"}
+        translucent={Platform.OS === "android"}
+        backgroundColor={Platform.OS === "android" ? "transparent" : undefined}
+      />
 
       <SaravafyBackgroundLayers theme={theme} variant={variant} />
 

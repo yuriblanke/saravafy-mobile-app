@@ -2,7 +2,7 @@
 
 Data: 2026-01-09
 
-Este documento descreve **exatamente o estado atual** do fluxo e das telas envolvidas, com foco no bug de *overlap/overlay* durante navegação e na estratégia atual de fundo (SaravafyScreen global + fundo por-cena no fluxo Terreiros + header global transparente).
+Este documento descreve **exatamente o estado atual** do fluxo e das telas envolvidas, com foco no bug de _overlap/overlay_ durante navegação e na estratégia atual de fundo (SaravafyScreen global + fundo por-cena no fluxo Terreiros + header global transparente).
 
 ## 1) Objetivo de UX (como está implementado hoje)
 
@@ -15,7 +15,8 @@ Este documento descreve **exatamente o estado atual** do fluxo e das telas envol
 ## 2) Arquitetura atual (camadas)
 
 ### 2.1 Layout principal do app
-Arquivo: [app/(app)/_layout.tsx](app/(app)/_layout.tsx)
+
+Arquivo: [app/(app)/\_layout.tsx](<app/(app)/_layout.tsx>)
 
 - O app inteiro é envolvido por:
   - `SaravafyScreen theme={effectiveTheme} variant={saravafyVariant}`
@@ -27,21 +28,24 @@ Arquivo: [app/(app)/_layout.tsx](app/(app)/_layout.tsx)
   - `animation: "none"`
 
 Implicação direta:
+
 - O “card” da cena (stack) é **opaco** por padrão, impedindo vazamento visual da tela anterior em frames intermediários.
 - O fundo “bonito” continua existindo (Saravafy), mas **não depende** de transparência do Stack.
 - No fluxo de Terreiros, o fundo global é deliberadamente flat para não competir com o fundo por-cena.
 
 ### 2.2 Header global
+
 Arquivo: [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderWithPreferences.tsx)
 
 - `styles.header.backgroundColor = "transparent"`.
 
-Arquivo (camada/ordem): [app/(app)/_layout.tsx](app/(app)/_layout.tsx)
+Arquivo (camada/ordem): [app/(app)/\_layout.tsx](<app/(app)/_layout.tsx>)
 
 - O container do header recebe `zIndex/elevation` para ficar **acima** de qualquer fundo de cena que se estenda para a área do header.
 - No fluxo de Terreiros, o container do header também renderiza um **recorte do SaravafyBackgroundLayers** atrás do header (clippado pela altura do header), para eliminar a faixa flat quando o `SaravafyScreen` global está em modo flat.
 
 Implicação direta:
+
 - Header global não pinta “faixa” própria. Ele deixa o fundo visível por trás.
 - No fluxo de Terreiros, o header não “vê” um variant diferente do body porque:
   - o fundo global é flat (baseColor), e
@@ -49,6 +53,7 @@ Implicação direta:
   - o fundo por-cena alinha suas camadas ao topo do header via `offsetY`.
 
 ### 2.3 Fundo global (`SaravafyScreen`)
+
 Arquivo: [src/components/SaravafyScreen.tsx](src/components/SaravafyScreen.tsx)
 
 - Sempre desenha uma base opaca (primeiro frame):
@@ -60,16 +65,19 @@ Arquivo: [src/components/SaravafyScreen.tsx](src/components/SaravafyScreen.tsx)
   - Noise (imagem repetida)
 
 Implicação direta:
-- Do ponto de vista do *fundo do app*, o `SaravafyScreen` já é opaco desde o primeiro frame.
+
+- Do ponto de vista do _fundo do app_, o `SaravafyScreen` já é opaco desde o primeiro frame.
 - O “overlap” observado não é por falta de opacidade do `SaravafyScreen` em si; era a composição com Stack/cenas transparentes.
 
 Observação:
+
 - `SaravafyScreen` continua existindo como fundo global (e para telas que não desenham fundo por-cena).
 - Biblioteca/Collection agora desenham fundo por-cena para garantir compartilhamento com o header sem transparência do Stack.
 
 ## 3) Estado atual das telas
 
 ### 3.1 Biblioteca do Terreiro (tela `Terreiro`)
+
 Arquivo: [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)
 
 - A tela usa `SaravafyStackScene` como wrapper da cena.
@@ -87,10 +95,12 @@ Arquivo: [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)
   - Abrir uma coleção: `router.push({ pathname: "/collection/[id]", params: { ... }})`
 
 ### 3.2 Collection (detalhe)
+
 Arquivo: [src/screens/Collection/Collection.tsx](src/screens/Collection/Collection.tsx)
 
 - A tela usa `SaravafyStackScene` como wrapper da cena.
 - Header interno da collection:
+
   - Back
   - Título (1 linha)
   - Ações à direita:
@@ -98,6 +108,7 @@ Arquivo: [src/screens/Collection/Collection.tsx](src/screens/Collection/Collecti
     - Compartilhar (ícone `share-outline`)
 
   ### 3.3 Terreiros (lista)
+
   Arquivo: [src/screens/Terreiros/Terreiros.tsx](src/screens/Terreiros/Terreiros.tsx)
 
   - A tela usa `SaravafyStackScene` (variant `"tabs"`) para manter o fundo Saravafy no root da aba Terreiros, mesmo com o `SaravafyScreen` global flat nesse fluxo.
@@ -105,19 +116,23 @@ Arquivo: [src/screens/Collection/Collection.tsx](src/screens/Collection/Collecti
 ## 4) Mitigações / garantias atuais contra o bug de overlap
 
 ### 4.1 `detachPreviousScreen` em Terreiros
-Arquivo: [app/(app)/(tabs)/(terreiros)/_layout.tsx](app/(app)/(tabs)/(terreiros)/_layout.tsx)
+
+Arquivo: [app/(app)/(tabs)/(terreiros)/\_layout.tsx](<app/(app)/(tabs)/(terreiros)/_layout.tsx>)
 
 - O Stack de Terreiros usa `screenOptions` como função.
 - Ativa `detachPreviousScreen` quando:
   - `route.name === "terreiro"` ou `route.name === "collection/[id]"`.
 
 Observação:
+
 - Isso tenta evitar que a tela anterior permaneça montada/renderizada por baixo no push para essas rotas.
 
 Estado prático após a mudança de arquitetura:
+
 - Mesmo que a tela anterior continue montada, o Stack/cena atual é opaco e a Biblioteca/Collection desenham fundo por-cena, reduzindo drasticamente a chance de “vazar” UI anterior por transparência.
 
 Ponto crítico:
+
 - O Stack do grupo Terreiros não usa mais `contentStyle.backgroundColor = "transparent"`.
 
 ### 4.2 Remoção do “cover” temporário
@@ -127,11 +142,11 @@ Ponto crítico:
 
 ## 5) Bug atual reportado
 
-- Ainda existe *overlap/overlay* ao navegar no fluxo.
+- Ainda existe _overlap/overlay_ ao navegar no fluxo.
 - Hipótese operacional consistente com o estado do código:
-  1) Antes, o Stack/cena estava transparente e isso podia deixar vazar UI anterior por um frame.
-  2) Agora, o Stack é opaco e Biblioteca/Collection desenham fundo por-cena estendido atrás do header.
-  3) Se ainda houver qualquer “flash/overlap”, ele tende a estar ligado a uma outra camada fora desse par (ex.: alguma rota que ainda dependa de transparência, ou um layout alternativo).
+  1. Antes, o Stack/cena estava transparente e isso podia deixar vazar UI anterior por um frame.
+  2. Agora, o Stack é opaco e Biblioteca/Collection desenham fundo por-cena estendido atrás do header.
+  3. Se ainda houver qualquer “flash/overlap”, ele tende a estar ligado a uma outra camada fora desse par (ex.: alguma rota que ainda dependa de transparência, ou um layout alternativo).
 
 ## 6) Pontos de atenção (fatos do estado atual)
 
@@ -146,16 +161,18 @@ Ponto crítico:
 
 Para tornar o relatório acionável, aqui vão as próximas checagens possíveis (sem assumir soluções):
 
-1) Identificar **em qual transição** exata o overlap ainda acontece:
+1. Identificar **em qual transição** exata o overlap ainda acontece:
+
    - Terreiros → Biblioteca (`terreiro`)
    - Biblioteca → Collection (`collection/[id]`)
    - Voltar (pop)
 
-2) Verificar se existe algum outro Stack/navigator no caminho com `contentStyle` transparente.
+2. Verificar se existe algum outro Stack/navigator no caminho com `contentStyle` transparente.
 
-3) Se ainda houver casos de “nunca ver tela anterior em nenhuma condição”, checar:
-  - Se algum componente faz overlay/transição por fora do Stack.
-  - Se há diferença de clipping/overflow entre iOS/Android na área do header.
+3. Se ainda houver casos de “nunca ver tela anterior em nenhuma condição”, checar:
+
+- Se algum componente faz overlay/transição por fora do Stack.
+- Se há diferença de clipping/overflow entre iOS/Android na área do header.
 
 ---
 

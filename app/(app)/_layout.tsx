@@ -8,8 +8,8 @@ import {
   useTabController,
 } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
+import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import {
   SaravafyLayoutMetricsProvider,
   useSaravafyLayoutMetrics,
@@ -25,6 +25,7 @@ import {
 } from "expo-router";
 import React, { useMemo } from "react";
 import { BackHandler, Platform, StyleSheet, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function AndroidBackBehavior() {
   const pathname = usePathname();
@@ -148,8 +149,12 @@ export default function AppLayout() {
 
   const baseColor = getSaravafyBaseColor(effectiveTheme);
 
+  // No fluxo de Terreiros, o topo (status bar) deve ser tratado pelo header,
+  // para que o fundo Saravafy do fluxo apareça também nessa área.
+  const screenEdges = isInTerreirosFlow ? (["bottom"] as const) : (["top", "bottom"] as const);
+
   return (
-    <SaravafyScreen theme={effectiveTheme} variant={saravafyVariant}>
+    <SaravafyScreen theme={effectiveTheme} variant={saravafyVariant} edges={[...screenEdges]}>
       <GestureGateProvider>
         <GestureBlockProvider>
           <TabControllerProvider>
@@ -231,10 +236,12 @@ function HeaderMeasurer({
   terreirosBackgroundVariant: "tabs" | "stack";
 }) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
+  const insets = useSafeAreaInsets();
+  const topInset = showTerreirosBackground ? insets.top : 0;
 
   return (
     <View
-      style={styles.headerWrap}
+      style={[styles.headerWrap, topInset ? { paddingTop: topInset } : null]}
       onLayout={(e) => {
         setHeaderHeight(e.nativeEvent.layout.height);
       }}

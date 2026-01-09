@@ -15,7 +15,11 @@ type Props = {
 
 const noise = require("@/assets/textures/noise_128.png");
 
-export function SaravafyBackgroundLayers({ theme, variant, offsetY = 0 }: Props) {
+export function SaravafyBackgroundLayers({
+  theme,
+  variant,
+  offsetY = 0,
+}: Props) {
   const LinearGradient = useMemo(() => {
     try {
       return require("expo-linear-gradient")
@@ -44,7 +48,10 @@ export function SaravafyBackgroundLayers({ theme, variant, offsetY = 0 }: Props)
         {/* Base opaca garantida */}
         <View
           pointerEvents="none"
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: baseColor }]}
+          style={[
+            StyleSheet.absoluteFillObject,
+            { backgroundColor: baseColor },
+          ]}
         />
 
         {variant === "focus" ? null : (
@@ -88,7 +95,9 @@ export function SaravafyBackgroundLayers({ theme, variant, offsetY = 0 }: Props)
                 source={noise}
                 resizeMode="repeat"
                 style={StyleSheet.absoluteFillObject}
-                imageStyle={isLight ? styles.noiseImageLight : styles.noiseImage}
+                imageStyle={
+                  isLight ? styles.noiseImageLight : styles.noiseImage
+                }
               />
             </View>
           </>

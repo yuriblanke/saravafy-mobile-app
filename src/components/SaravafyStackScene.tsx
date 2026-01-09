@@ -1,9 +1,9 @@
 import React from "react";
 import { StyleSheet, View, type ViewProps } from "react-native";
 
+import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
 import { useSaravafyLayoutMetrics } from "@/src/contexts/SaravafyLayoutMetricsContext";
 import { getSaravafyBaseColor } from "@/src/theme";
-import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
 
 type Props = ViewProps & {
   children: React.ReactNode;
