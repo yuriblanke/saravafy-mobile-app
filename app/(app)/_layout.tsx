@@ -8,15 +8,13 @@ import {
   useTabController,
 } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
-import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import {
   SaravafyLayoutMetricsProvider,
   useSaravafyLayoutMetrics,
 } from "@/src/contexts/SaravafyLayoutMetricsContext";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
-import { colors, getSaravafyBaseColor } from "@/src/theme";
+import { colors } from "@/src/theme";
 import {
   Stack,
   useGlobalSearchParams,
@@ -24,7 +22,7 @@ import {
   useSegments,
 } from "expo-router";
 import React, { useMemo } from "react";
-import { BackHandler, Platform, StyleSheet, View } from "react-native";
+import { BackHandler, Platform, StatusBar, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function AndroidBackBehavior() {
@@ -98,18 +96,9 @@ export default function AppLayout() {
     leaf === "(tabs)" ||
     leaf === "index";
 
-  // Regra: tabs no root das abas; stack nas telas empilhadas.
-  // O header global é transparente, então o fundo precisa ser compartilhado
-  // entre header e body.
-  const backgroundVariant: "tabs" | "stack" =
-    isInTabs && isTabRootLeaf ? "tabs" : "stack";
-
-  // Fluxo de Terreiros: o fundo global deve ser "flat" (só baseColor opaco),
-  // deixando o fundo Saravafy completo ser responsabilidade das cenas.
+  // CADA scene desenha seu próprio fundo Saravafy (full-screen).
+  // O layout global deve ficar sem "mega background".
   const isInTerreirosFlow = segments.includes("(terreiros)");
-  const saravafyVariant: "tabs" | "stack" | "focus" = isInTerreirosFlow
-    ? "focus"
-    : backgroundVariant;
 
   const globalParams = useGlobalSearchParams<{
     terreiroId?: string;
@@ -147,42 +136,25 @@ export default function AppLayout() {
     );
   }, [pathname, segments]);
 
-  const baseColor = getSaravafyBaseColor(effectiveTheme);
-
-  // No fluxo de Terreiros, o topo (status bar) deve ser tratado pelo header,
-  // para que o fundo Saravafy do fluxo apareça também nessa área.
-  // E a área inferior deve ser tratada pelas próprias telas (ex.: paddingBottom
-  // em listas com insets.bottom), evitando uma "faixa" fixa no fim.
-  const screenEdges = isInTerreirosFlow
-    ? ([] as const)
-    : (["top", "bottom"] as const);
-
   return (
-    <SaravafyScreen
-      theme={effectiveTheme}
-      variant={saravafyVariant}
-      edges={[...screenEdges]}
-    >
+    <View style={styles.root}>
+      <StatusBar
+        barStyle={effectiveTheme === "light" ? "dark-content" : "light-content"}
+        translucent={Platform.OS === "android"}
+        backgroundColor={Platform.OS === "android" ? "transparent" : undefined}
+      />
+
       <GestureGateProvider>
         <GestureBlockProvider>
           <TabControllerProvider>
             <AndroidBackBehavior />
             <SaravafyLayoutMetricsProvider>
-              <HeaderMeasurer
-                suspended={isHeaderSuspended}
-                theme={effectiveTheme}
-                showTerreirosBackground={isInTerreirosFlow}
-                terreirosBackgroundVariant={
-                  isInTabs && isTabRootLeaf ? "tabs" : "stack"
-                }
-              />
-
-              <View style={{ flex: 1 }}>
+              <View style={styles.stackWrap}>
                 <Stack
                   screenOptions={{
                     headerShown: false,
-                    // CRÍTICO: cenas opacas desde o primeiro frame (nunca transparente)
-                    contentStyle: { backgroundColor: baseColor },
+                    // Transparente: o fundo vem de CADA scene.
+                    contentStyle: { backgroundColor: "transparent" },
                     animation: "none",
                   }}
                 >
@@ -224,55 +196,67 @@ export default function AppLayout() {
                   />
                 </Stack>
               </View>
+
+              <HeaderMeasurer
+                suspended={isHeaderSuspended}
+                showTopInset={true}
+              />
             </SaravafyLayoutMetricsProvider>
           </TabControllerProvider>
         </GestureBlockProvider>
       </GestureGateProvider>
-    </SaravafyScreen>
+    </View>
   );
 }
 
 function HeaderMeasurer({
   suspended,
-  theme,
-  showTerreirosBackground,
-  terreirosBackgroundVariant,
+  showTopInset,
 }: {
   suspended: boolean;
-  theme: "light" | "dark";
-  showTerreirosBackground: boolean;
-  terreirosBackgroundVariant: "tabs" | "stack";
+  showTopInset: boolean;
 }) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
   const insets = useSafeAreaInsets();
-  const topInset = showTerreirosBackground ? insets.top : 0;
+  const topInset = showTopInset ? insets.top : 0;
+
+  React.useEffect(() => {
+    if (!suspended) return;
+    setHeaderHeight(0);
+  }, [setHeaderHeight, suspended]);
+
+  if (suspended) return null;
 
   return (
     <View
-      style={[styles.headerWrap, topInset ? { paddingTop: topInset } : null]}
+      style={[
+        styles.headerWrap,
+        topInset ? { paddingTop: topInset } : null,
+      ]}
       onLayout={(e) => {
         setHeaderHeight(e.nativeEvent.layout.height);
       }}
     >
-      {showTerreirosBackground ? (
-        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-          <SaravafyBackgroundLayers
-            theme={theme}
-            variant={terreirosBackgroundVariant}
-          />
-        </View>
-      ) : null}
-
       <AppHeaderWithPreferences suspended={suspended} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  root: {
+    flex: 1,
+    backgroundColor: "transparent",
+  },
+  stackWrap: {
+    flex: 1,
+  },
   headerWrap: {
-    position: "relative",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
     zIndex: 10,
-    elevation: 10,
-    overflow: "hidden",
+    elevation: 0,
+    backgroundColor: "transparent",
   },
 });
