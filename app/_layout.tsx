@@ -25,8 +25,8 @@ import { ToastProvider } from "@/contexts/ToastContext";
 import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
 import { InviteGate } from "@/src/components/InviteGate";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
-import { GlobalSafeAreaInsetsProvider } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { warmRemoteConfig } from "@/src/config/remoteConfig";
+import { GlobalSafeAreaInsetsProvider } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
@@ -140,7 +140,6 @@ export default function RootLayout() {
     </RootGestureHandlerWrapper>
   );
 }
-
 
 function RootLayoutNav() {
   const systemColorScheme = useColorScheme();

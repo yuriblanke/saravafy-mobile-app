@@ -9,7 +9,7 @@ import {
 
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
-import { getSaravafyBaseColor } from "@/src/theme";
+import { colors, getSaravafyBaseColor } from "@/src/theme";
 
 type Props = ViewProps & {
   children: React.ReactNode;
@@ -49,6 +49,41 @@ export function SaravafyScreen({
 
       <SaravafyBackgroundLayers theme={theme} variant={variant} />
 
+      {/* Scrim somente nas faixas de safe-area */}
+      {insets.top ? (
+        <View
+          pointerEvents="none"
+          style={[styles.safeAreaScrim, { top: 0, left: 0, right: 0, height: insets.top }]}
+        />
+      ) : null}
+      {insets.bottom ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.safeAreaScrim,
+            { left: 0, right: 0, bottom: 0, height: insets.bottom },
+          ]}
+        />
+      ) : null}
+      {insets.left ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.safeAreaScrim,
+            { top: 0, bottom: 0, left: 0, width: insets.left },
+          ]}
+        />
+      ) : null}
+      {insets.right ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.safeAreaScrim,
+            { top: 0, bottom: 0, right: 0, width: insets.right },
+          ]}
+        />
+      ) : null}
+
       {/* Conteúdo */}
       <View
         style={[
@@ -71,5 +106,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  safeAreaScrim: {
+    position: "absolute",
+    backgroundColor: colors.safeAreaScrim,
   },
 });

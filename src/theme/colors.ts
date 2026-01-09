@@ -64,6 +64,9 @@ export const colors = {
   inputBorderLight: "rgba(14,42,36,0.10)",
   overlayBackdrop: "rgba(0,0,0,0.45)",
 
+  // Safe-area scrim (apenas nas faixas de insets; fundo continua vindo da scene)
+  safeAreaScrim: "rgba(0,0,0,0.30)",
+
   // Screen vignette
   vignette: "rgba(0,0,0,0.25)",
   vignetteLight: "rgba(14,42,36,0.10)",

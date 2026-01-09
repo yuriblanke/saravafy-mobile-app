@@ -8,6 +8,7 @@ import {
   useTabController,
 } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import {
   SaravafyLayoutMetricsProvider,
   useSaravafyLayoutMetrics,
@@ -29,7 +30,6 @@ import {
   StyleSheet,
   View,
 } from "react-native";
-import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 
 function AndroidBackBehavior() {
   const pathname = usePathname();
@@ -225,7 +225,10 @@ function HeaderMeasurer({ suspended }: { suspended: boolean }) {
 
   return (
     <View
-      style={[styles.headerWrap, insets.top ? { paddingTop: insets.top } : null]}
+      style={[
+        styles.headerWrap,
+        insets.top ? { paddingTop: insets.top } : null,
+      ]}
       onLayout={(e) => {
         setHeaderHeight(e.nativeEvent.layout.height);
       }}
