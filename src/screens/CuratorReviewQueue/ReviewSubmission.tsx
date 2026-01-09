@@ -3,11 +3,11 @@ import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
-import { queryKeys } from "@/src/queries/queryKeys";
 import {
   usePontoSubmissionById,
   type PendingPontoSubmission,
 } from "@/src/queries/pontoSubmissions";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import {
   normalizeTagsFromText,
@@ -28,6 +28,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function getErrorMessage(error: unknown): string {
   const message =
@@ -76,6 +77,8 @@ export default function ReviewSubmissionScreen() {
   const { showToast } = useToast();
   const { effectiveTheme } = usePreferences();
   const variant = effectiveTheme;
+
+  const bgColor = variant === "light" ? colors.paper50 : colors.forest900;
 
   const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
 
@@ -286,251 +289,293 @@ export default function ReviewSubmissionScreen() {
 
   if (isCuratorLoading || submissionQuery.isLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <Text style={[styles.centerText, { color: textSecondary }]}>
-          Carregando…
-        </Text>
-      </View>
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      >
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={[styles.centerText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!isCurator) {
-    return <View style={styles.screen} />;
+    return (
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      />
+    );
   }
 
   if (submissionQuery.isError) {
     return (
-      <View style={styles.center}>
-        <Text style={[styles.errorTitle, { color: colors.brass600 }]}>
-          Não foi possível carregar o envio.
-        </Text>
-        <Text style={[styles.centerText, { color: textSecondary }]}>
-          {getErrorMessage(submissionQuery.error)}
-        </Text>
-      </View>
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      >
+        <View style={styles.center}>
+          <Text style={[styles.errorTitle, { color: colors.brass600 }]}>
+            Não foi possível carregar o envio.
+          </Text>
+          <Text style={[styles.centerText, { color: textSecondary }]}>
+            {getErrorMessage(submissionQuery.error)}
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!submission) {
     return (
-      <View style={styles.center}>
-        <Text style={[styles.errorTitle, { color: colors.brass600 }]}>
-          Envio não encontrado.
-        </Text>
-      </View>
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      >
+        <View style={styles.center}>
+          <Text style={[styles.errorTitle, { color: colors.brass600 }]}>
+            Envio não encontrado.
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.topRow}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={({ pressed }) => [
-            styles.backBtn,
-            pressed ? styles.backBtnPressed : null,
-          ]}
-        >
-          <Ionicons
-            name="chevron-back"
-            size={18}
-            color={textSecondary}
-          />
-          <Text style={[styles.backText, { color: textSecondary }]}>Voltar</Text>
-        </Pressable>
-
-        <Text style={[styles.headerTitle, { color: textPrimary }]}>
-          Revisar envio
-        </Text>
-      </View>
-
-      <ScrollView contentContainerStyle={styles.content}>
-        {inlineError ? (
-          <Text style={[styles.inlineError, { color: colors.brass600 }]}>
-            {inlineError}
-          </Text>
-        ) : null}
-
-        <Text style={[styles.label, { color: textSecondary }]}>Título</Text>
-        <TextInput
-          value={title}
-          onChangeText={setTitle}
-          editable={!mutation.isPending}
-          placeholder="Título"
-          placeholderTextColor={
-            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
-          }
-          style={[
-            styles.input,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorder,
-              color: textPrimary,
-            },
-          ]}
-        />
-
-        <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
-        <TextInput
-          value={authorName}
-          onChangeText={setAuthorName}
-          editable={!mutation.isPending}
-          placeholder="Autor"
-          placeholderTextColor={
-            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
-          }
-          style={[
-            styles.input,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorder,
-              color: textPrimary,
-            },
-          ]}
-        />
-
-        <Text style={[styles.label, { color: textSecondary }]}>Intérprete</Text>
-        <TextInput
-          value={interpreterName}
-          onChangeText={setInterpreterName}
-          editable={!mutation.isPending}
-          placeholder="Intérprete"
-          placeholderTextColor={
-            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
-          }
-          style={[
-            styles.input,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorder,
-              color: textPrimary,
-            },
-          ]}
-        />
-
-        <Text style={[styles.label, { color: textSecondary }]}>Letra</Text>
-        <TextInput
-          value={lyrics}
-          onChangeText={setLyrics}
-          editable={!mutation.isPending}
-          multiline
-          textAlignVertical="top"
-          placeholder="Letra"
-          placeholderTextColor={
-            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
-          }
-          style={[
-            styles.textarea,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorder,
-              color: textPrimary,
-            },
-          ]}
-        />
-
-        <Text style={[styles.label, { color: textSecondary }]}>Tags</Text>
-        <TextInput
-          value={tagsText}
-          onChangeText={setTagsText}
-          editable={!mutation.isPending}
-          placeholder="Ex.: Ogum, Caboclo, Xangô"
-          placeholderTextColor={
-            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
-          }
-          style={[
-            styles.input,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorder,
-              color: textPrimary,
-            },
-          ]}
-        />
-
-        {normalizedTags.length > 0 ? (
-          <View style={styles.tagsRow}>
-            {normalizedTags.map((t) => (
-              <TagChip key={t.toLowerCase()} label={t} variant={variant} />
-            ))}
-          </View>
-        ) : null}
-
-        <Text style={[styles.label, { color: textSecondary }]}>Nota (opcional)</Text>
-        <TextInput
-          value={reviewNote}
-          onChangeText={setReviewNote}
-          editable={!mutation.isPending}
-          multiline
-          placeholder="Ex.: corrigir autor, melhorar clareza da letra…"
-          placeholderTextColor={
-            variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
-          }
-          style={[
-            styles.note,
-            {
-              backgroundColor: inputBg,
-              borderColor: inputBorder,
-              color: textPrimary,
-            },
-          ]}
-        />
-
-        <View style={styles.actionsRow}>
+    <SafeAreaView
+      edges={["top", "bottom"]}
+      style={[styles.safeArea, { backgroundColor: bgColor }]}
+    >
+      <View style={styles.screen}>
+        <View style={styles.topRow}>
           <Pressable
             accessibilityRole="button"
-            disabled={mutation.isPending}
-            onPress={() => void reject()}
+            onPress={() => router.back()}
+            hitSlop={10}
             style={({ pressed }) => [
-              styles.rejectBtn,
-              {
-                borderColor: colors.brass600,
-                opacity: mutation.isPending ? 0.7 : 1,
-              },
-              pressed ? styles.actionPressed : null,
+              styles.backBtn,
+              pressed ? styles.backBtnPressed : null,
             ]}
           >
-            <Text style={[styles.rejectText, { color: colors.brass600 }]}>
-              Rejeitar
+            <Ionicons name="chevron-back" size={18} color={textSecondary} />
+            <Text style={[styles.backText, { color: textSecondary }]}>
+              Voltar
             </Text>
           </Pressable>
 
-          <Pressable
-            accessibilityRole="button"
-            disabled={mutation.isPending}
-            onPress={() => void approve()}
-            style={({ pressed }) => [
-              styles.approveBtn,
+          <Text style={[styles.headerTitle, { color: textPrimary }]}>
+            Revisar envio
+          </Text>
+        </View>
+
+        <ScrollView contentContainerStyle={styles.content}>
+          {inlineError ? (
+            <Text style={[styles.inlineError, { color: colors.brass600 }]}>
+              {inlineError}
+            </Text>
+          ) : null}
+
+          <Text style={[styles.label, { color: textSecondary }]}>Título</Text>
+          <TextInput
+            value={title}
+            onChangeText={setTitle}
+            editable={!mutation.isPending}
+            placeholder="Título"
+            placeholderTextColor={
+              variant === "light"
+                ? colors.textMutedOnLight
+                : colors.textMutedOnDark
+            }
+            style={[
+              styles.input,
               {
-                backgroundColor:
-                  variant === "light" ? colors.forest700 : colors.forest300,
-                opacity: mutation.isPending ? 0.7 : 1,
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
               },
-              pressed ? styles.actionPressed : null,
             ]}
-          >
-            <Text
-              style={[
-                styles.approveText,
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
+          <TextInput
+            value={authorName}
+            onChangeText={setAuthorName}
+            editable={!mutation.isPending}
+            placeholder="Autor"
+            placeholderTextColor={
+              variant === "light"
+                ? colors.textMutedOnLight
+                : colors.textMutedOnDark
+            }
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Intérprete
+          </Text>
+          <TextInput
+            value={interpreterName}
+            onChangeText={setInterpreterName}
+            editable={!mutation.isPending}
+            placeholder="Intérprete"
+            placeholderTextColor={
+              variant === "light"
+                ? colors.textMutedOnLight
+                : colors.textMutedOnDark
+            }
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>Letra</Text>
+          <TextInput
+            value={lyrics}
+            onChangeText={setLyrics}
+            editable={!mutation.isPending}
+            multiline
+            textAlignVertical="top"
+            placeholder="Letra"
+            placeholderTextColor={
+              variant === "light"
+                ? colors.textMutedOnLight
+                : colors.textMutedOnDark
+            }
+            style={[
+              styles.textarea,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <Text style={[styles.label, { color: textSecondary }]}>Tags</Text>
+          <TextInput
+            value={tagsText}
+            onChangeText={setTagsText}
+            editable={!mutation.isPending}
+            placeholder="Ex.: Ogum, Caboclo, Xangô"
+            placeholderTextColor={
+              variant === "light"
+                ? colors.textMutedOnLight
+                : colors.textMutedOnDark
+            }
+            style={[
+              styles.input,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          {normalizedTags.length > 0 ? (
+            <View style={styles.tagsRow}>
+              {normalizedTags.map((t) => (
+                <TagChip key={t.toLowerCase()} label={t} variant={variant} />
+              ))}
+            </View>
+          ) : null}
+
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Nota (opcional)
+          </Text>
+          <TextInput
+            value={reviewNote}
+            onChangeText={setReviewNote}
+            editable={!mutation.isPending}
+            multiline
+            placeholder="Ex.: corrigir autor, melhorar clareza da letra…"
+            placeholderTextColor={
+              variant === "light"
+                ? colors.textMutedOnLight
+                : colors.textMutedOnDark
+            }
+            style={[
+              styles.note,
+              {
+                backgroundColor: inputBg,
+                borderColor: inputBorder,
+                color: textPrimary,
+              },
+            ]}
+          />
+
+          <View style={styles.actionsRow}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={mutation.isPending}
+              onPress={() => void reject()}
+              style={({ pressed }) => [
+                styles.rejectBtn,
                 {
-                  color:
-                    variant === "light" ? colors.paper50 : colors.forest900,
+                  borderColor: colors.brass600,
+                  opacity: mutation.isPending ? 0.7 : 1,
                 },
+                pressed ? styles.actionPressed : null,
               ]}
             >
-              {mutation.isPending ? "Enviando…" : "Aprovar"}
-            </Text>
-          </Pressable>
-        </View>
-      </ScrollView>
-    </View>
+              <Text style={[styles.rejectText, { color: colors.brass600 }]}>
+                Rejeitar
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={mutation.isPending}
+              onPress={() => void approve()}
+              style={({ pressed }) => [
+                styles.approveBtn,
+                {
+                  backgroundColor:
+                    variant === "light" ? colors.forest700 : colors.forest300,
+                  opacity: mutation.isPending ? 0.7 : 1,
+                },
+                pressed ? styles.actionPressed : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.approveText,
+                  {
+                    color:
+                      variant === "light" ? colors.paper50 : colors.forest900,
+                  },
+                ]}
+              >
+                {mutation.isPending ? "Enviando…" : "Aprovar"}
+              </Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
     paddingHorizontal: spacing.lg,

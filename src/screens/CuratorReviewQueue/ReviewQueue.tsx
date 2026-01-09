@@ -14,6 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 function formatDateLabel(value: string | null | undefined) {
   if (!value) return "";
@@ -32,6 +33,8 @@ export default function ReviewQueueScreen() {
   const { effectiveTheme } = usePreferences();
 
   const variant = effectiveTheme;
+
+  const bgColor = variant === "light" ? colors.paper50 : colors.forest900;
 
   const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
 
@@ -58,124 +61,142 @@ export default function ReviewQueueScreen() {
 
   if (isCuratorLoading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator />
-        <Text style={[styles.centerText, { color: textSecondary }]}>
-          Carregando…
-        </Text>
-      </View>
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      >
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={[styles.centerText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
   if (!isCurator) {
-    return <View style={styles.screen} />;
+    return (
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      />
+    );
   }
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: textPrimary }]}>
-          Fila de revisão
-        </Text>
-        <Text style={[styles.subtitle, { color: textSecondary }]}>
-          Envios pendentes
-        </Text>
+    <SafeAreaView
+      edges={["top", "bottom"]}
+      style={[styles.safeArea, { backgroundColor: bgColor }]}
+    >
+      <View style={[styles.screen, { backgroundColor: bgColor }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: textPrimary }]}>
+            Fila de revisão
+          </Text>
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            Envios pendentes
+          </Text>
+        </View>
+
+        {submissionsQuery.isLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator />
+            <Text style={[styles.centerText, { color: textSecondary }]}>
+              Carregando envios…
+            </Text>
+          </View>
+        ) : submissionsQuery.isError ? (
+          <View style={styles.center}>
+            <Text style={[styles.errorText, { color: colors.brass600 }]}>
+              Não foi possível carregar a fila.
+            </Text>
+            <Text style={[styles.centerText, { color: textSecondary }]}>
+              {String(
+                submissionsQuery.error instanceof Error
+                  ? submissionsQuery.error.message
+                  : "Erro"
+              )}
+            </Text>
+          </View>
+        ) : items.length === 0 ? (
+          <View style={styles.center}>
+            <Text style={[styles.centerText, { color: textSecondary }]}>
+              Nenhum envio pendente.
+            </Text>
+          </View>
+        ) : (
+          <ScrollView
+            contentContainerStyle={styles.list}
+            showsVerticalScrollIndicator={false}
+          >
+            {items.map((s) => {
+              const dateLabel = formatDateLabel(s.created_at ?? null);
+              const title = s.title?.trim() || "(Sem título)";
+              const authorName = (
+                typeof s.author_name === "string" ? s.author_name : ""
+              )
+                .trim()
+                .slice(0, 80);
+              const interpreterName = (
+                typeof s.interpreter_name === "string" ? s.interpreter_name : ""
+              )
+                .trim()
+                .slice(0, 80);
+
+              const peopleLine = [authorName, interpreterName]
+                .filter(Boolean)
+                .join(" — ");
+
+              return (
+                <Pressable
+                  key={s.id}
+                  accessibilityRole="button"
+                  onPress={() => {
+                    router.push(`/review-submissions/${s.id}` as any as any);
+                  }}
+                  style={({ pressed }) => [pressed ? styles.rowPressed : null]}
+                >
+                  <SurfaceCard variant={variant} style={styles.card}>
+                    <Text
+                      style={[styles.cardTitle, { color: textPrimary }]}
+                      numberOfLines={2}
+                    >
+                      {title}
+                    </Text>
+
+                    {peopleLine ? (
+                      <Text
+                        style={[styles.cardMeta, { color: textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {peopleLine}
+                      </Text>
+                    ) : null}
+
+                    {dateLabel ? (
+                      <Text
+                        style={[styles.cardMeta, { color: textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        Enviado em {dateLabel}
+                      </Text>
+                    ) : null}
+                  </SurfaceCard>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </View>
-
-      {submissionsQuery.isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
-          <Text style={[styles.centerText, { color: textSecondary }]}>
-            Carregando envios…
-          </Text>
-        </View>
-      ) : submissionsQuery.isError ? (
-        <View style={styles.center}>
-          <Text style={[styles.errorText, { color: colors.brass600 }]}>
-            Não foi possível carregar a fila.
-          </Text>
-          <Text style={[styles.centerText, { color: textSecondary }]}>
-            {String(submissionsQuery.error instanceof Error
-              ? submissionsQuery.error.message
-              : "Erro")}
-          </Text>
-        </View>
-      ) : items.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={[styles.centerText, { color: textSecondary }]}>
-            Nenhum envio pendente.
-          </Text>
-        </View>
-      ) : (
-        <ScrollView
-          contentContainerStyle={styles.list}
-          showsVerticalScrollIndicator={false}
-        >
-          {items.map((s) => {
-            const dateLabel = formatDateLabel(s.created_at ?? null);
-            const title = s.title?.trim() || "(Sem título)";
-            const authorName =
-              (typeof s.author_name === "string" ? s.author_name : "")
-                .trim()
-                .slice(0, 80);
-            const interpreterName =
-              (typeof s.interpreter_name === "string"
-                ? s.interpreter_name
-                : "")
-                .trim()
-                .slice(0, 80);
-
-            const peopleLine = [authorName, interpreterName]
-              .filter(Boolean)
-              .join(" — ");
-
-            return (
-              <Pressable
-                key={s.id}
-                accessibilityRole="button"
-                onPress={() => {
-                  router.push((`/review-submissions/${s.id}` as any) as any);
-                }}
-                style={({ pressed }) => [
-                  pressed ? styles.rowPressed : null,
-                ]}
-              >
-                <SurfaceCard variant={variant} style={styles.card}>
-                  <Text
-                    style={[styles.cardTitle, { color: textPrimary }]}
-                    numberOfLines={2}
-                  >
-                    {title}
-                  </Text>
-
-                  {peopleLine ? (
-                    <Text
-                      style={[styles.cardMeta, { color: textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      {peopleLine}
-                    </Text>
-                  ) : null}
-
-                  {dateLabel ? (
-                    <Text
-                      style={[styles.cardMeta, { color: textSecondary }]}
-                      numberOfLines={1}
-                    >
-                      Enviado em {dateLabel}
-                    </Text>
-                  ) : null}
-                </SurfaceCard>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      )}
-    </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+  },
   screen: {
     flex: 1,
     paddingHorizontal: spacing.lg,

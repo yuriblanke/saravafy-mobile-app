@@ -659,6 +659,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { TagChip } from "@/src/components/TagChip";
 
@@ -1263,7 +1264,7 @@ export default function AccessManagerScreen() {
   const isBusyForGestao = isBusyForMember;
 
   return (
-    <View style={styles.root}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <View style={styles.headerRow}>
         <Pressable
           accessibilityRole="button"
@@ -1710,7 +1711,7 @@ export default function AccessManagerScreen() {
           </View>
         </View>
       </BottomSheet>
-    </View>
+    </SafeAreaView>
   );
 }
 

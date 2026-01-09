@@ -5,7 +5,6 @@ import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { SaravafyStackScene } from "@/src/components/SaravafyStackScene";
-import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
@@ -35,6 +34,7 @@ import {
   ActivityIndicator,
   FlatList,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -108,8 +108,6 @@ export default function Collection() {
   const [collection, setCollection] = useState<CollectionRow | null>(null);
   const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionError, setCollectionError] = useState<string | null>(null);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [shareMessage, setShareMessage] = useState("");
 
   const isInTabs = segments.includes("(tabs)");
   const goToPontosTab = useCallback(() => {
@@ -314,13 +312,14 @@ export default function Collection() {
 
   const isPendingView = isMembersOnly && isLoggedIn && hasPendingRequest;
 
-  const openShare = useCallback(async () => {
+  const handleShare = useCallback(async () => {
+    let message = "";
+
     try {
-      const message = await buildShareMessageForColecao({
+      message = await buildShareMessageForColecao({
         collectionId,
         collectionTitle: title,
       });
-      setShareMessage(message);
     } catch (e) {
       if (__DEV__) {
         console.info("[Collection] erro ao gerar mensagem de share", {
@@ -328,10 +327,18 @@ export default function Collection() {
         });
       }
 
-      setShareMessage(`Olha essa coleção “${title}” no Saravafy.`);
+      message = `Olha essa coleção “${title}” no Saravafy.`;
     }
 
-    setIsShareOpen(true);
+    try {
+      await Share.share({ message });
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Collection] erro ao abrir share sheet", {
+          error: getErrorMessage(e),
+        });
+      }
+    }
   }, [collectionId, title]);
 
   const hasCachedPontos = orderedItems.length > 0;
@@ -366,16 +373,14 @@ export default function Collection() {
               accessibilityLabel="Editar"
               onPress={openEdit}
               hitSlop={10}
-              style={styles.headerIconBtn}
+              style={({ pressed }) => [
+                styles.headerActionBtn,
+                pressed ? styles.headerActionBtnPressed : null,
+              ]}
             >
-              <Text
-                style={{
-                  color: textPrimary,
-                  fontSize: 20,
-                  lineHeight: 20,
-                }}
-              >
-                ☰
+              <Ionicons name="reorder-three" size={18} color={textPrimary} />
+              <Text style={[styles.headerActionText, { color: textPrimary }]}>
+                Editar
               </Text>
             </Pressable>
           ) : null}
@@ -383,7 +388,9 @@ export default function Collection() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Compartilhar"
-            onPress={openShare}
+            onPress={() => {
+              void handleShare();
+            }}
             hitSlop={10}
             style={styles.headerIconBtn}
           >
@@ -391,14 +398,6 @@ export default function Collection() {
           </Pressable>
         </View>
       </View>
-
-      <ShareBottomSheet
-        visible={isShareOpen}
-        variant={variant}
-        message={shareMessage}
-        onClose={() => setIsShareOpen(false)}
-        showToast={showToast}
-      />
 
       <AddMediumTagSheet
         visible={!!mediumTargetPontoId}
@@ -811,6 +810,21 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+  headerActionBtn: {
+    height: 36,
+    paddingHorizontal: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  headerActionBtnPressed: {
+    opacity: 0.7,
+  },
+  headerActionText: {
+    fontSize: 15,
+    fontWeight: "700",
   },
   headerTitle: {
     flex: 1,

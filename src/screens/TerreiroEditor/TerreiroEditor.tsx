@@ -538,10 +538,6 @@ export default function TerreiroEditor() {
   const [isCityModalOpen, setIsCityModalOpen] = useState(false);
   const [isInviteRoleModalOpen, setIsInviteRoleModalOpen] = useState(false);
   const [isRolesSheetOpen, setIsRolesSheetOpen] = useState(false);
-  const [isInviteShareSheetOpen, setIsInviteShareSheetOpen] = useState(false);
-  const [inviteToShare, setInviteToShare] = useState<TerreiroInviteRow | null>(
-    null
-  );
 
   const [citiesByUf, setCitiesByUf] = useState<Record<string, string[]>>({});
   const [citiesLoadingUf, setCitiesLoadingUf] = useState<string | null>(null);
@@ -623,47 +619,6 @@ export default function TerreiroEditor() {
     },
     [form.title]
   );
-
-  const openInviteShareSheet = useCallback((invite: TerreiroInviteRow) => {
-    setInviteToShare(invite);
-    setIsInviteShareSheetOpen(true);
-  }, []);
-
-  const closeInviteShareSheet = useCallback(() => {
-    setIsInviteShareSheetOpen(false);
-    setInviteToShare(null);
-  }, []);
-
-  const copyInviteMessage = useCallback(
-    async (message: string, toastMessage?: string) => {
-      await Clipboard.setStringAsync(message);
-      showToast(toastMessage ?? "Mensagem copiada.");
-    },
-    [showToast]
-  );
-
-  const copyInviteMessageOnly = useCallback(async () => {
-    if (!inviteToShare) return;
-    const message = await buildInviteShareMessage(inviteToShare);
-    await copyInviteMessage(message);
-    closeInviteShareSheet();
-  }, [
-    buildInviteShareMessage,
-    closeInviteShareSheet,
-    copyInviteMessage,
-    inviteToShare,
-  ]);
-
-  const shareInviteMoreOptions = useCallback(async () => {
-    if (!inviteToShare) return;
-    const message = await buildInviteShareMessage(inviteToShare);
-
-    try {
-      await Share.share({ message });
-    } finally {
-      closeInviteShareSheet();
-    }
-  }, [buildInviteShareMessage, closeInviteShareSheet, inviteToShare]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2207,45 +2162,6 @@ export default function TerreiroEditor() {
         </View>
       </BottomSheet>
 
-      <BottomSheet
-        visible={isInviteShareSheetOpen}
-        variant={variant}
-        onClose={closeInviteShareSheet}
-      >
-        <View>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Copiar mensagem"
-            onPress={copyInviteMessageOnly}
-            style={({ pressed }) => [
-              styles.shareOptionBtn,
-              pressed ? styles.footerBtnPressed : null,
-            ]}
-          >
-            <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-              Copiar mensagem
-            </Text>
-          </Pressable>
-
-          <View
-            style={[styles.shareDivider, { backgroundColor: inputBorder }]}
-          />
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Mais opções"
-            onPress={shareInviteMoreOptions}
-            style={({ pressed }) => [
-              styles.shareOptionBtn,
-              pressed ? styles.footerBtnPressed : null,
-            ]}
-          >
-            <Text style={[styles.shareOptionText, { color: textPrimary }]}>
-              Mais opções…
-            </Text>
-          </Pressable>
-        </View>
-      </BottomSheet>
     </View>
   );
 }

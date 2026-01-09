@@ -137,8 +137,11 @@ export default function AppLayout() {
       leaf === "edit" ||
       leaf === "terreiro-editor" ||
       leaf === "access-manager" ||
+      segments.includes("review-submissions") ||
       // Player continua imersivo.
-      (typeof pathname === "string" && pathname.startsWith("/player"))
+      (typeof pathname === "string" &&
+        (pathname.startsWith("/player") ||
+          pathname.startsWith("/review-submissions")))
     );
   }, [pathname, segments]);
 
@@ -189,6 +192,20 @@ export default function AppLayout() {
                   />
                   <Stack.Screen
                     name="access-manager"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+
+                  <Stack.Screen
+                    name="review-submissions/[submissionId]"
                     options={{
                       presentation: "modal",
                       animation: "slide_from_bottom",

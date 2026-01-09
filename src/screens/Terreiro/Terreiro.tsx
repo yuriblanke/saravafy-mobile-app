@@ -6,7 +6,6 @@ import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyStackScene } from "@/src/components/SaravafyStackScene";
 import { Separator } from "@/src/components/Separator";
-import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { getCollectionPontosQueryOptions } from "@/src/queries/collectionPontos";
@@ -39,6 +38,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   TextInput,
@@ -80,16 +80,14 @@ export default function Terreiro() {
 
   const terreiroName = resolvedTerreiroName ?? "Terreiro";
 
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [shareMessage, setShareMessage] = useState("");
+  const handleShare = useCallback(async () => {
+    let message = "";
 
-  const openShare = useCallback(async () => {
     try {
-      const message = await buildShareMessageForTerreiro({
+      message = await buildShareMessageForTerreiro({
         terreiroId: resolvedTerreiroId,
         terreiroName,
       });
-      setShareMessage(message);
     } catch (e) {
       if (__DEV__) {
         console.info("[Terreiro] erro ao gerar mensagem de share", {
@@ -97,10 +95,18 @@ export default function Terreiro() {
         });
       }
 
-      setShareMessage(`Olha o terreiro “${terreiroName}” no Saravafy.`);
+      message = `Olha o terreiro “${terreiroName}” no Saravafy.`;
     }
 
-    setIsShareOpen(true);
+    try {
+      await Share.share({ message });
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Terreiro] erro ao abrir share sheet", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
   }, [resolvedTerreiroId, terreiroName]);
 
   const terreiroId = resolvedTerreiroId;
@@ -147,9 +153,9 @@ export default function Terreiro() {
   const [newCollectionSheetMode, setNewCollectionSheetMode] = useState<
     "create" | "rename"
   >("create");
-  const [renamingCollectionId, setRenamingCollectionId] = useState<string | null>(
-    null
-  );
+  const [renamingCollectionId, setRenamingCollectionId] = useState<
+    string | null
+  >(null);
   const [newCollectionTitleDraft, setNewCollectionTitleDraft] = useState("");
   const [newCollectionError, setNewCollectionError] = useState("");
   const [isSubmittingCollectionTitle, setIsSubmittingCollectionTitle] =
@@ -671,14 +677,6 @@ export default function Terreiro() {
   return (
     <SaravafyStackScene theme={variant} variant="stack" style={styles.screen}>
       <View style={styles.container}>
-        <ShareBottomSheet
-          visible={isShareOpen}
-          variant={variant}
-          message={shareMessage}
-          onClose={() => setIsShareOpen(false)}
-          showToast={showToast}
-        />
-
         <BottomSheet
           visible={isNewCollectionSheetOpen}
           variant={variant}
@@ -695,7 +693,9 @@ export default function Terreiro() {
         >
           <View style={styles.newCollectionSheet}>
             <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-              {newCollectionSheetMode === "rename" ? "Renomear" : "Nova coleção"}
+              {newCollectionSheetMode === "rename"
+                ? "Renomear"
+                : "Nova coleção"}
             </Text>
 
             <View
@@ -772,7 +772,10 @@ export default function Terreiro() {
           data={orderedCollections}
           keyExtractor={(it) => it.id}
           style={styles.list}
-          contentContainerStyle={[styles.listContent, { paddingBottom: spacing.md }]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: spacing.md },
+          ]}
           ListHeaderComponent={
             <View>
               <View style={styles.contextHeader}>
@@ -784,13 +787,30 @@ export default function Terreiro() {
                     >
                       Biblioteca de
                     </Text>
-                    <Text
-                      style={[styles.title, { color: textPrimary }]}
-                      numberOfLines={2}
-                      ellipsizeMode="tail"
-                    >
+                    <Text style={[styles.title, { color: textPrimary }]}>
                       {terreiroName}
                     </Text>
+                  </View>
+
+                  <View style={styles.headerActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Compartilhar"
+                      hitSlop={10}
+                      onPress={() => {
+                        void handleShare();
+                      }}
+                      style={({ pressed }) => [
+                        styles.iconButton,
+                        pressed ? styles.iconButtonPressed : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name="share-outline"
+                        size={18}
+                        color={accentColor}
+                      />
+                    </Pressable>
                   </View>
                 </View>
               </View>
@@ -807,7 +827,8 @@ export default function Terreiro() {
                       if (shouldBlockPress()) return;
                       if (!terreiroId) return;
                       router.push({
-                        pathname: "/terreiro-collections/[terreiroId]/edit" as any,
+                        pathname:
+                          "/terreiro-collections/[terreiroId]/edit" as any,
                         params: { terreiroId },
                       });
                     }}
@@ -829,37 +850,27 @@ export default function Terreiro() {
                   </Pressable>
                 ) : null}
 
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Compartilhar"
-                  hitSlop={10}
-                  onPress={openShare}
-                  style={({ pressed }) => [
-                    styles.globalActionButton,
-                    pressed ? styles.globalActionButtonPressed : null,
-                  ]}
-                >
-                  <Ionicons name="share-outline" size={18} color={accentColor} />
-                  <Text style={[styles.globalActionText, { color: accentColor }]}>
-                    Compartilhar
-                  </Text>
-                </Pressable>
-
                 {canEdit ? (
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="+ Nova coleção"
+                    accessibilityLabel="Nova coleção"
                     hitSlop={10}
                     onPress={openCreateCollectionSheet}
                     disabled={isSubmittingCollectionTitle}
                     style={({ pressed }) => [
                       styles.primaryButton,
                       pressed ? styles.primaryButtonPressed : null,
-                      isSubmittingCollectionTitle ? styles.iconButtonDisabled : null,
+                      isSubmittingCollectionTitle
+                        ? styles.iconButtonDisabled
+                        : null,
                     ]}
                   >
-                    <Ionicons name="add-outline" size={18} color={colors.paper50} />
-                    <Text style={styles.primaryButtonText}>+ Nova coleção</Text>
+                    <Ionicons
+                      name="add-outline"
+                      size={18}
+                      color={colors.paper50}
+                    />
+                    <Text style={styles.primaryButtonText}>Nova coleção</Text>
                   </Pressable>
                 ) : null}
               </View>
@@ -959,7 +970,9 @@ export default function Terreiro() {
                           accessibilityHint="Opções: renomear ou excluir"
                           hitSlop={10}
                           onPress={() => {
-                            openCollectionActions(item as TerreiroCollectionCard);
+                            openCollectionActions(
+                              item as TerreiroCollectionCard
+                            );
                           }}
                           style={({ pressed }) => [
                             styles.menuButton,
@@ -1536,7 +1549,7 @@ const styles = StyleSheet.create({
   },
   newCollectionFiller: {
     width: "100%",
-    height: 275,
+    height: 285,
     resizeMode: "cover",
     borderRadius: 12,
   },

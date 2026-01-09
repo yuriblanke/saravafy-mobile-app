@@ -31,6 +31,7 @@ export function LyricsScroll(props: {
 const styles = StyleSheet.create({
   scroll: {
     flex: 1,
+    marginTop: spacing.sm,
   },
   content: {
     paddingTop: spacing.md,

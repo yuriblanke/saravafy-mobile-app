@@ -5,7 +5,6 @@ import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
-import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import {
   PontoUpsertModal,
   type PontoUpsertInitialValues,
@@ -29,6 +28,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -130,8 +130,6 @@ export default function PlayerScreen() {
   const [lyricsFontSize, setLyricsFontSize] = useState(20);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isShareOpen, setIsShareOpen] = useState(false);
-  const [shareMessage, setShareMessage] = useState("");
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
@@ -190,7 +188,7 @@ export default function PlayerScreen() {
       };
     }, [activePonto]);
 
-  const openShare = useCallback(() => {
+  const handleShare = useCallback(async () => {
     if (!activePonto?.id) {
       showToast("Não foi possível compartilhar este ponto.");
       return;
@@ -201,8 +199,15 @@ export default function PlayerScreen() {
       pontoTitle: activePonto.title ?? "Ponto",
     });
 
-    setShareMessage(message);
-    setIsShareOpen(true);
+    try {
+      await Share.share({ message });
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Player] erro ao abrir share sheet", {
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    }
   }, [activePonto?.id, activePonto?.title, showToast]);
 
   const onDecreaseFont = useCallback(() => {
@@ -352,7 +357,9 @@ export default function PlayerScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Compartilhar"
-              onPress={openShare}
+              onPress={() => {
+                void handleShare();
+              }}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -476,14 +483,6 @@ export default function PlayerScreen() {
           visible={isSearchOpen}
           variant={variant}
           onClose={() => setIsSearchOpen(false)}
-        />
-
-        <ShareBottomSheet
-          visible={isShareOpen}
-          variant={variant}
-          message={shareMessage}
-          onClose={() => setIsShareOpen(false)}
-          showToast={showToast}
         />
 
         <AddMediumTagSheet
