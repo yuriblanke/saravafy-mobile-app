@@ -9,6 +9,7 @@ import {
 } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
 import {
   SaravafyLayoutMetricsProvider,
   useSaravafyLayoutMetrics,
@@ -23,7 +24,7 @@ import {
   useSegments,
 } from "expo-router";
 import React, { useMemo } from "react";
-import { BackHandler, Platform, View } from "react-native";
+import { BackHandler, Platform, StyleSheet, View } from "react-native";
 
 function AndroidBackBehavior() {
   const pathname = usePathname();
@@ -154,7 +155,14 @@ export default function AppLayout() {
           <TabControllerProvider>
             <AndroidBackBehavior />
             <SaravafyLayoutMetricsProvider>
-              <HeaderMeasurer suspended={isHeaderSuspended} />
+              <HeaderMeasurer
+                suspended={isHeaderSuspended}
+                theme={effectiveTheme}
+                showTerreirosBackground={isInTerreirosFlow}
+                terreirosBackgroundVariant={
+                  isInTabs && isTabRootLeaf ? "tabs" : "stack"
+                }
+              />
 
               <View style={{ flex: 1 }}>
                 <Stack
@@ -211,17 +219,45 @@ export default function AppLayout() {
   );
 }
 
-function HeaderMeasurer({ suspended }: { suspended: boolean }) {
+function HeaderMeasurer({
+  suspended,
+  theme,
+  showTerreirosBackground,
+  terreirosBackgroundVariant,
+}: {
+  suspended: boolean;
+  theme: "light" | "dark";
+  showTerreirosBackground: boolean;
+  terreirosBackgroundVariant: "tabs" | "stack";
+}) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
 
   return (
     <View
-      style={{ zIndex: 10, elevation: 10, position: "relative" }}
+      style={styles.headerWrap}
       onLayout={(e) => {
         setHeaderHeight(e.nativeEvent.layout.height);
       }}
     >
+      {showTerreirosBackground ? (
+        <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+          <SaravafyBackgroundLayers
+            theme={theme}
+            variant={terreirosBackgroundVariant}
+          />
+        </View>
+      ) : null}
+
       <AppHeaderWithPreferences suspended={suspended} />
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  headerWrap: {
+    position: "relative",
+    zIndex: 10,
+    elevation: 10,
+    overflow: "hidden",
+  },
+});

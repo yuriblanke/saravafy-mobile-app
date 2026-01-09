@@ -30,18 +30,14 @@ export function SaravafyStackScene({
       />
 
       {/*
-        Camadas Saravafy: renderiza em um container que “sobe” por trás do header
-        global (sem depender de cenas transparentes).
+        Camadas Saravafy alinhadas ao viewport do header global.
+        OBS: não dependemos de overflow/negative top (que pode ser clippado pelo navigator).
       */}
-      <View
-        pointerEvents="none"
-        style={[
-          StyleSheet.absoluteFillObject,
-          headerHeight ? { top: -headerHeight } : null,
-        ]}
-      >
-        <SaravafyBackgroundLayers theme={theme} variant={variant} />
-      </View>
+      <SaravafyBackgroundLayers
+        theme={theme}
+        variant={variant}
+        offsetY={headerHeight}
+      />
 
       <View style={styles.content}>{children}</View>
     </View>

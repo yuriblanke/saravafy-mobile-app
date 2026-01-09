@@ -39,12 +39,14 @@ Arquivo: [src/components/AppHeaderWithPreferences.tsx](src/components/AppHeaderW
 Arquivo (camada/ordem): [app/(app)/_layout.tsx](app/(app)/_layout.tsx)
 
 - O container do header recebe `zIndex/elevation` para ficar **acima** de qualquer fundo de cena que se estenda para a área do header.
+- No fluxo de Terreiros, o container do header também renderiza um **recorte do SaravafyBackgroundLayers** atrás do header (clippado pela altura do header), para eliminar a faixa flat quando o `SaravafyScreen` global está em modo flat.
 
 Implicação direta:
 - Header global não pinta “faixa” própria. Ele deixa o fundo visível por trás.
 - No fluxo de Terreiros, o header não “vê” um variant diferente do body porque:
   - o fundo global é flat (baseColor), e
-  - o fundo por-cena usa o mesmo `baseColor` como primeira camada.
+  - o header recebe o mesmo recorte de Saravafy do fluxo, e
+  - o fundo por-cena alinha suas camadas ao topo do header via `offsetY`.
 
 ### 2.3 Fundo global (`SaravafyScreen`)
 Arquivo: [src/components/SaravafyScreen.tsx](src/components/SaravafyScreen.tsx)
@@ -71,7 +73,8 @@ Observação:
 Arquivo: [src/screens/Terreiro/Terreiro.tsx](src/screens/Terreiro/Terreiro.tsx)
 
 - A tela usa `SaravafyStackScene` como wrapper da cena.
-- `SaravafyStackScene` desenha o fundo Saravafy por-cena (base + camadas) e usa a altura medida do header via contexto para tentar estender o fundo para cima (sem depender de cenas transparentes).
+- `SaravafyStackScene` desenha o fundo Saravafy por-cena (base + camadas).
+- Alinhamento: as camadas usam `offsetY={headerHeight}` para casar com o recorte renderizado no header global.
 - Header de contexto da tela:
   - “Biblioteca de” (1 linha)
   - Nome do terreiro (até 2 linhas, ellipsis)
