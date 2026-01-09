@@ -151,7 +151,9 @@ export default function AppLayout() {
 
   // No fluxo de Terreiros, o topo (status bar) deve ser tratado pelo header,
   // para que o fundo Saravafy do fluxo apareça também nessa área.
-  const screenEdges = isInTerreirosFlow ? (["bottom"] as const) : (["top", "bottom"] as const);
+  // E a área inferior deve ser tratada pelas próprias telas (ex.: paddingBottom
+  // em listas com insets.bottom), evitando uma "faixa" fixa no fim.
+  const screenEdges = isInTerreirosFlow ? ([] as const) : (["top", "bottom"] as const);
 
   return (
     <SaravafyScreen theme={effectiveTheme} variant={saravafyVariant} edges={[...screenEdges]}>

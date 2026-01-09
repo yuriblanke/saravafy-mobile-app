@@ -8,6 +8,7 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   FlatList,
   Image,
@@ -396,6 +397,7 @@ export default function Terreiros() {
   const { effectiveTheme } = usePreferences();
   const gestureGate = useGestureGate();
   const variant = effectiveTheme;
+  const insets = useSafeAreaInsets();
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -510,7 +512,10 @@ export default function Terreiros() {
           <FlatList
             data={filteredTerreiros}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + spacing.md },
+            ]}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const expanded = expandedTerreiroId === item.id;
@@ -635,7 +640,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.xs,
-    paddingBottom: spacing.xl,
+    paddingBottom: 0,
   },
   cardGap: {
     marginBottom: spacing.md,

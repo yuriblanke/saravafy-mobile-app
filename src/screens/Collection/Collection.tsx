@@ -31,6 +31,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   FlatList,
@@ -75,6 +76,7 @@ function getLyricsPreview(lyrics: string, maxLines = 4) {
 }
 
 export default function Collection() {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const segments = useSegments() as string[];
   const tabController = useTabController();
@@ -634,7 +636,10 @@ export default function Collection() {
         <FlatList
           data={orderedItems}
           keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-          contentContainerStyle={styles.listContent}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: insets.bottom + spacing.xl },
+          ]}
           renderItem={({ item }) => {
             const preview = getLyricsPreview(item.ponto.lyrics);
             return (
@@ -972,7 +977,7 @@ const styles = StyleSheet.create({
   listContent: {
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
-    paddingBottom: spacing.xl,
+    paddingBottom: 0,
   },
   cardGap: {
     marginBottom: spacing.md,
