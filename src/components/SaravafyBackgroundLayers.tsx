@@ -4,8 +4,8 @@ import { ImageBackground, StyleSheet, View } from "react-native";
 import { colors, getSaravafyBaseColor } from "@/src/theme";
 
 type Props = {
-  theme: "dark" | "light";
-  variant: "tabs" | "stack" | "focus";
+  theme?: "dark" | "light";
+  variant?: "tabs" | "stack" | "focus";
   /**
    * Deslocamento vertical para alinhar o fundo ao viewport "global".
    * Use quando o conteúdo começa abaixo de um header global.
@@ -16,8 +16,8 @@ type Props = {
 const noise = require("@/assets/textures/noise_128.png");
 
 export function SaravafyBackgroundLayers({
-  theme,
-  variant,
+  theme = "dark",
+  variant = "tabs",
   offsetY = 0,
 }: Props) {
   const LinearGradient = useMemo(() => {

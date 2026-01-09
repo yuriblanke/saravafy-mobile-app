@@ -1,5 +1,11 @@
 import React from "react";
-import { Platform, StatusBar, StyleSheet, View, type ViewProps } from "react-native";
+import {
+  Platform,
+  StatusBar,
+  StyleSheet,
+  View,
+  type ViewProps,
+} from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";

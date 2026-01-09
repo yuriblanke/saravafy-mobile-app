@@ -22,22 +22,21 @@ export function SaravafyStackScene({
   const baseColor = getSaravafyBaseColor(theme);
 
   return (
-    <View style={[styles.root, style]} {...rest}>
-      {/* Base opaca idiot-proof: sempre existe */}
-      <View
-        pointerEvents="none"
-        style={[StyleSheet.absoluteFillObject, { backgroundColor: baseColor }]}
-      />
-
-      {/*
-        Camadas Saravafy alinhadas ao viewport do header global.
-        OBS: não dependemos de overflow/negative top (que pode ser clippado pelo navigator).
-      */}
-      <SaravafyBackgroundLayers
-        theme={theme}
-        variant={variant}
-        offsetY={headerHeight}
-      />
+    <View
+      style={[styles.root, { backgroundColor: baseColor }, style]}
+      {...rest}
+    >
+      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+        {/*
+          Camadas Saravafy alinhadas ao viewport do header global.
+          OBS: não dependemos de overflow/negative top (que pode ser clippado pelo navigator).
+        */}
+        <SaravafyBackgroundLayers
+          theme={theme}
+          variant={variant}
+          offsetY={headerHeight}
+        />
+      </View>
 
       <View style={styles.content}>{children}</View>
     </View>

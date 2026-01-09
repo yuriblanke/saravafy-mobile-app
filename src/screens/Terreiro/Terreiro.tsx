@@ -33,7 +33,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   Alert,
   FlatList,
@@ -43,6 +42,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Terreiro() {
   type NewCollectionRow = {
@@ -780,10 +780,10 @@ export default function Terreiro() {
             data={mergedCollections}
             keyExtractor={(it) => it.id}
             style={styles.list}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + spacing.md },
-          ]}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: insets.bottom + spacing.md },
+            ]}
             renderItem={({ item }) => {
               const isEditingThisCollection = editingCollectionId === item.id;
               const isNew = (item as any).isNew;

@@ -8,7 +8,6 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   FlatList,
   Image,
@@ -19,6 +18,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type TerreiroListItem } from "./data/terreiros";
 
 function normalize(value: string) {

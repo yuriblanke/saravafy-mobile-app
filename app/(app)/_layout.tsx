@@ -153,10 +153,16 @@ export default function AppLayout() {
   // para que o fundo Saravafy do fluxo apareça também nessa área.
   // E a área inferior deve ser tratada pelas próprias telas (ex.: paddingBottom
   // em listas com insets.bottom), evitando uma "faixa" fixa no fim.
-  const screenEdges = isInTerreirosFlow ? ([] as const) : (["top", "bottom"] as const);
+  const screenEdges = isInTerreirosFlow
+    ? ([] as const)
+    : (["top", "bottom"] as const);
 
   return (
-    <SaravafyScreen theme={effectiveTheme} variant={saravafyVariant} edges={[...screenEdges]}>
+    <SaravafyScreen
+      theme={effectiveTheme}
+      variant={saravafyVariant}
+      edges={[...screenEdges]}
+    >
       <GestureGateProvider>
         <GestureBlockProvider>
           <TabControllerProvider>

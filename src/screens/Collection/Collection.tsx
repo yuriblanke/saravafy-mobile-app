@@ -31,7 +31,6 @@ import React, {
   useRef,
   useState,
 } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
   ActivityIndicator,
   FlatList,
@@ -40,6 +39,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type CollectionRow = {
   id: string;
