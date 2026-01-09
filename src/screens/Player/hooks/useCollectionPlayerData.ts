@@ -1,5 +1,5 @@
 import { supabase } from "@/lib/supabase";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import {
@@ -97,7 +97,7 @@ export function useCollectionPlayerData(
   });
 
   // Modo: biblioteca inteira (cache sem depender do filtro local)
-  const allPontosQuery = require("@tanstack/react-query").useQuery({
+  const allPontosQuery = useQuery({
     queryKey: ["pontos", "all", "public"] as const,
     enabled: enabled && isAllMode,
     staleTime: 3 * 60 * 1000,
