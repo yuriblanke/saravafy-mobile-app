@@ -8,7 +8,6 @@ import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { Badge } from "@/src/components/Badge";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
-import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import {
   PreferencesPageItem,
   PreferencesRadioGroup,
@@ -16,12 +15,13 @@ import {
   PreferencesSwitchItem,
   type PreferencesRadioOption,
 } from "@/src/components/preferences";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
+import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
-import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -454,8 +454,7 @@ export function PreferencesOverlaySheets(
     queryKey: normalizedUserEmail
       ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
       : (["curatorInvites", "pendingForInvitee", null] as const),
-    enabled:
-      !!userId && !!normalizedUserEmail && isOpen && !isCurator,
+    enabled: !!userId && !!normalizedUserEmail && isOpen && !isCurator,
     staleTime: 0,
     queryFn: async () => {
       if (!normalizedUserEmail) return null;
@@ -887,6 +886,16 @@ export function PreferencesOverlaySheets(
     }
   };
 
+  const closeThen = (navigate: () => void) => {
+    // Preferences is rendered inside a global RN <Modal />.
+    // Any Expo Router navigation while it is open will appear "behind" it.
+    // Close first, then navigate on the next tick.
+    closePreferences();
+    setTimeout(() => {
+      navigate();
+    }, 0);
+  };
+
   return (
     <>
       {/* Menu de preferências */}
@@ -997,8 +1006,9 @@ export function PreferencesOverlaySheets(
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  closePreferences();
-                  router.push("/review-submissions" as any);
+                  closeThen(() => {
+                    router.push("/review-submissions" as any);
+                  });
                 }}
                 style={({ pressed }) => [
                   styles.prefActionRow,
@@ -1228,15 +1238,19 @@ export function PreferencesOverlaySheets(
                     onPress={() => {
                       closePreferences();
                       void Haptics.selectionAsync().catch(() => undefined);
-                      router.push({
-                        pathname: "/terreiro" as any,
-                        params: { terreiroId: t.id, terreiroTitle: t.title },
-                      });
+                      setTimeout(() => {
+                        router.push({
+                          pathname: "/terreiro" as any,
+                          params: { terreiroId: t.id, terreiroTitle: t.title },
+                        });
+                      }, 0);
                     }}
                     onPressEdit={() => {
-                      router.push({
-                        pathname: "/terreiro-editor" as any,
-                        params: { mode: "edit", terreiroId: t.id },
+                      closeThen(() => {
+                        router.push({
+                          pathname: "/terreiro-editor" as any,
+                          params: { mode: "edit", terreiroId: t.id },
+                        });
                       });
                     }}
                   />
@@ -1252,9 +1266,11 @@ export function PreferencesOverlaySheets(
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              router.push({
-                pathname: "/terreiro-editor" as any,
-                params: { mode: "create" },
+              closeThen(() => {
+                router.push({
+                  pathname: "/terreiro-editor" as any,
+                  params: { mode: "create" },
+                });
               });
             }}
             style={({ pressed }) => [
