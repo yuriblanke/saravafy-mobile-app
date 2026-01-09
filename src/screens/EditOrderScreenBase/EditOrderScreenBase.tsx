@@ -340,7 +340,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
             setDraftOrderedIds(data.map((it) => it.id));
           }}
           renderItem={renderItem}
-          contentContainerStyle={{ paddingBottom: spacing.xl }}
+          contentContainerStyle={{ paddingBottom: spacing.md }}
         />
       ) : (
         <View style={styles.fallback}>
@@ -348,7 +348,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
             {dragUnavailableMessage}
           </Text>
 
-          <View style={{ paddingBottom: spacing.xl }}>
+          <View style={{ paddingBottom: spacing.md }}>
             {draftItems.map((item) => (
               <View
                 key={item.id}
@@ -417,7 +417,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.lg,
+    paddingTop: spacing.md,
     paddingBottom: spacing.md,
   },
   headerIconBtn: {
