@@ -8,6 +8,7 @@ import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { Badge } from "@/src/components/Badge";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
+import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import {
   PreferencesPageItem,
   PreferencesRadioGroup,
@@ -20,6 +21,7 @@ import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -146,20 +148,9 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const pathname = usePathname();
   const segments = useSegments() as string[];
   const tabController = useTabController();
-  const { user, signOut } = useAuth();
-  const { showToast } = useToast();
-  const queryClient = useQueryClient();
-  const {
-    themeMode,
-    setThemeMode,
-    effectiveTheme,
-    curimbaEnabled,
-    setCurimbaEnabled,
-    curimbaOnboardingDismissed,
-    setCurimbaOnboardingDismissed,
-    startPagePreference,
-    fetchTerreirosQueAdministro,
-  } = usePreferences();
+  const { user } = useAuth();
+  const { effectiveTheme } = usePreferences();
+  const { openPreferences } = usePreferencesOverlay();
 
   const variant = effectiveTheme;
   const uiEnabled = !suspended;
@@ -186,6 +177,175 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
+  const textMuted =
+    variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+
+  const userPhotoUrl =
+    (typeof user?.user_metadata?.avatar_url === "string" &&
+      user.user_metadata.avatar_url) ||
+    (typeof user?.user_metadata?.picture === "string" &&
+      user.user_metadata.picture) ||
+    undefined;
+
+  const initials = getInitials(
+    (typeof user?.user_metadata?.name === "string" &&
+      user.user_metadata.name) ||
+      user?.email ||
+      undefined
+  );
+
+  const contextAvatarUrl = userPhotoUrl;
+  const contextInitials = initials;
+
+  if (!uiEnabled) return null;
+
+  return (
+    <View style={styles.header}>
+      <View style={styles.headerNav}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            if (!isInTabs) {
+              router.replace("/(app)/(tabs)/(pontos)" as any);
+              return;
+            }
+
+            tabController.goToTab("pontos");
+          }}
+          hitSlop={10}
+          style={styles.navItem}
+        >
+          <Text
+            style={[
+              styles.navText,
+              {
+                color: textPrimary,
+                opacity: isPontosActive ? 1 : 0.7,
+                fontWeight: isPontosActive ? "800" : "700",
+              },
+            ]}
+          >
+            Pontos
+          </Text>
+          <View
+            style={[
+              styles.navUnderline,
+              {
+                backgroundColor: isPontosActive
+                  ? colors.brass600
+                  : "transparent",
+              },
+            ]}
+          />
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            if (!isInTabs) {
+              router.replace("/(app)/(tabs)/(terreiros)" as any);
+              return;
+            }
+
+            tabController.goToTab("terreiros");
+          }}
+          hitSlop={10}
+          style={styles.navItem}
+        >
+          <Text
+            style={[
+              styles.navText,
+              {
+                color: textPrimary,
+                opacity: isTerreirosActive ? 1 : 0.7,
+                fontWeight: isTerreirosActive ? "800" : "700",
+              },
+            ]}
+          >
+            Terreiros
+          </Text>
+          <View
+            style={[
+              styles.navUnderline,
+              {
+                backgroundColor: isTerreirosActive
+                  ? colors.brass600
+                  : "transparent",
+              },
+            ]}
+          />
+        </Pressable>
+      </View>
+
+      <View style={styles.headerIdentity}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Abrir preferências"
+          onPress={openPreferences}
+          hitSlop={10}
+          style={({ pressed }) => [
+            styles.avatarTrigger,
+            pressed ? styles.avatarTriggerPressed : null,
+          ]}
+        >
+          <View style={styles.avatarTriggerStack} pointerEvents="none">
+            <View style={styles.avatarWrap}>
+              {contextAvatarUrl ? (
+                <Image
+                  source={{ uri: contextAvatarUrl }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <View
+                  style={[
+                    styles.avatarPlaceholder,
+                    variant === "light"
+                      ? styles.avatarPlaceholderLight
+                      : styles.avatarPlaceholderDark,
+                  ]}
+                >
+                  <Text style={[styles.avatarInitials, { color: textPrimary }]}>
+                    {contextInitials}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Ionicons name="chevron-down" size={14} color={textMuted} />
+          </View>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+export function PreferencesOverlaySheets(
+  props: AppHeaderWithPreferencesProps = {}
+) {
+  const { suspended = false } = props;
+  const router = useRouter();
+  const { user, signOut } = useAuth();
+  const { showToast } = useToast();
+  const queryClient = useQueryClient();
+  const { isOpen, closePreferences } = usePreferencesOverlay();
+  const insets = useGlobalSafeAreaInsets();
+  const {
+    themeMode,
+    setThemeMode,
+    effectiveTheme,
+    curimbaEnabled,
+    setCurimbaEnabled,
+    curimbaOnboardingDismissed,
+    setCurimbaOnboardingDismissed,
+    startPagePreference,
+    fetchTerreirosQueAdministro,
+  } = usePreferences();
+
+  const variant = effectiveTheme;
+  const uiEnabled = !suspended;
+
+  const textPrimary =
+    variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
     variant === "light"
       ? colors.textSecondaryOnLight
@@ -203,7 +363,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
-  const [isPreferencesOpen, setIsPreferencesOpen] = useState(false);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isCuratorAdminOpen, setIsCuratorAdminOpen] = useState(false);
@@ -213,6 +372,16 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
     string | null
   >(null);
   const [isCreatingCuratorInvite, setIsCreatingCuratorInvite] = useState(false);
+
+  useEffect(() => {
+    if (isOpen) return;
+    setIsEditProfileOpen(false);
+    setIsCurimbaExplainerOpen(false);
+    setIsCuratorAdminOpen(false);
+    setCuratorInviteEmail("");
+    setCuratorInviteInlineError(null);
+    setIsCreatingCuratorInvite(false);
+  }, [isOpen]);
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -257,9 +426,9 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const shouldShowCurator = !isCuratorLoading && isCurator;
 
   useEffect(() => {
-    if (!isPreferencesOpen) return;
+    if (!isOpen) return;
     void refetchIsCurator();
-  }, [isPreferencesOpen, refetchIsCurator]);
+  }, [isOpen, refetchIsCurator]);
 
   const curatorModeInfo = useMemo(() => {
     return {
@@ -281,15 +450,12 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
     [myEditableTerreiros]
   );
 
-  const contextAvatarUrl = userPhotoUrl;
-  const contextInitials = initials;
-
   const curatorInviteQuery = useQuery({
     queryKey: normalizedUserEmail
       ? queryKeys.curatorInvites.pendingForInvitee(normalizedUserEmail)
       : (["curatorInvites", "pendingForInvitee", null] as const),
     enabled:
-      !!userId && !!normalizedUserEmail && isPreferencesOpen && !isCurator,
+      !!userId && !!normalizedUserEmail && isOpen && !isCurator,
     staleTime: 0,
     queryFn: async () => {
       if (!normalizedUserEmail) return null;
@@ -328,7 +494,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
     queryKey: normalizedUserEmail
       ? queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail)
       : (["terreiroInvites", "pendingForInvitee", null] as const),
-    enabled: !!userId && !!normalizedUserEmail && isPreferencesOpen,
+    enabled: !!userId && !!normalizedUserEmail && isOpen,
     staleTime: 0,
     queryFn: async () => {
       if (!normalizedUserEmail) return [] as PendingTerreiroInvite[];
@@ -684,7 +850,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const didLogPrefsVisibleRef = React.useRef(false);
 
   useEffect(() => {
-    if (!isPreferencesOpen) {
+    if (!isOpen) {
       didLogPrefsVisibleRef.current = false;
       return;
     }
@@ -700,7 +866,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
       });
     }
   }, [
-    isPreferencesOpen,
+    isOpen,
     myEditableTerreiros.length,
     myEditableTerreirosQuery.isFetching,
     userId,
@@ -723,145 +889,21 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 
   return (
     <>
-      {uiEnabled ? (
-        <View style={styles.header}>
-          <View style={styles.headerNav}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                if (!isInTabs) {
-                  router.replace("/(app)/(tabs)/(pontos)" as any);
-                  return;
-                }
-
-                tabController.goToTab("pontos");
-              }}
-              hitSlop={10}
-              style={styles.navItem}
-            >
-              <Text
-                style={[
-                  styles.navText,
-                  {
-                    color: textPrimary,
-                    opacity: isPontosActive ? 1 : 0.7,
-                    fontWeight: isPontosActive ? "800" : "700",
-                  },
-                ]}
-              >
-                Pontos
-              </Text>
-              <View
-                style={[
-                  styles.navUnderline,
-                  {
-                    backgroundColor: isPontosActive
-                      ? colors.brass600
-                      : "transparent",
-                  },
-                ]}
-              />
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                if (!isInTabs) {
-                  router.replace("/(app)/(tabs)/(terreiros)" as any);
-                  return;
-                }
-
-                tabController.goToTab("terreiros");
-              }}
-              hitSlop={10}
-              style={styles.navItem}
-            >
-              <Text
-                style={[
-                  styles.navText,
-                  {
-                    color: textPrimary,
-                    opacity: isTerreirosActive ? 1 : 0.7,
-                    fontWeight: isTerreirosActive ? "800" : "700",
-                  },
-                ]}
-              >
-                Terreiros
-              </Text>
-              <View
-                style={[
-                  styles.navUnderline,
-                  {
-                    backgroundColor: isTerreirosActive
-                      ? colors.brass600
-                      : "transparent",
-                  },
-                ]}
-              />
-            </Pressable>
-          </View>
-
-          <View style={styles.headerIdentity}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Abrir preferências"
-              onPress={() => {
-                if (__DEV__) {
-                  console.info("[PrefsDebug] open", {
-                    userId,
-                    dataCount: myEditableTerreiros.length,
-                    isFetching: myEditableTerreirosQuery.isFetching,
-                  });
-                }
-                setIsPreferencesOpen(true);
-              }}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.avatarTrigger,
-                pressed ? styles.avatarTriggerPressed : null,
-              ]}
-            >
-              <View style={styles.avatarTriggerStack} pointerEvents="none">
-                <View style={styles.avatarWrap}>
-                  {contextAvatarUrl ? (
-                    <Image
-                      source={{ uri: contextAvatarUrl }}
-                      style={styles.avatarImage}
-                    />
-                  ) : (
-                    <View
-                      style={[
-                        styles.avatarPlaceholder,
-                        variant === "light"
-                          ? styles.avatarPlaceholderLight
-                          : styles.avatarPlaceholderDark,
-                      ]}
-                    >
-                      <Text
-                        style={[styles.avatarInitials, { color: textPrimary }]}
-                      >
-                        {contextInitials}
-                      </Text>
-                    </View>
-                  )}
-                </View>
-
-                <Ionicons name="chevron-down" size={14} color={textMuted} />
-              </View>
-            </Pressable>
-          </View>
-        </View>
-      ) : null}
-
       {/* Menu de preferências */}
       <BottomSheet
-        visible={uiEnabled && isPreferencesOpen}
+        visible={
+          uiEnabled &&
+          isOpen &&
+          !isEditProfileOpen &&
+          !isCuratorAdminOpen &&
+          !isCurimbaExplainerOpen
+        }
         variant={variant}
         onClose={() => {
-          setIsPreferencesOpen(false);
+          closePreferences();
         }}
       >
-        <View style={styles.menuWrap}>
+        <View style={[styles.menuWrap, { paddingBottom: insets.bottom }]}>
           <View style={styles.pagesList}>
             <PreferencesPageItem
               variant={variant}
@@ -872,7 +914,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                     accessibilityRole="button"
                     accessibilityLabel={`Editar ${userDisplayName}`}
                     onPress={() => {
-                      setIsPreferencesOpen(false);
                       setIsEditProfileOpen(true);
                     }}
                     hitSlop={12}
@@ -956,7 +997,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  setIsPreferencesOpen(false);
+                  closePreferences();
                   router.push("/review-submissions" as any);
                 }}
                 style={({ pressed }) => [
@@ -1185,7 +1226,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
                     avatarUrl={t.cover_image_url ?? undefined}
                     initials={getInitials(t.title)}
                     onPress={() => {
-                      setIsPreferencesOpen(false);
+                      closePreferences();
                       void Haptics.selectionAsync().catch(() => undefined);
                       router.push({
                         pathname: "/terreiro" as any,
@@ -1282,7 +1323,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                setIsPreferencesOpen(false);
+                closePreferences();
                 Alert.alert("Sair", "Deseja sair da sua conta?", [
                   { text: "Cancelar", style: "cancel" },
                   {
@@ -1318,7 +1359,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
           setCuratorInviteInlineError(null);
         }}
       >
-        <View style={styles.menuWrap}>
+        <View style={[styles.menuWrap, { paddingBottom: insets.bottom }]}>
           <Text
             style={[styles.curatorAdminTitle, { color: textPrimary }]}
             numberOfLines={1}

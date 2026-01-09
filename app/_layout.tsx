@@ -24,9 +24,11 @@ import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
 import { InviteGate } from "@/src/components/InviteGate";
+import { GlobalOverlaysHost } from "@/src/components/overlays/GlobalOverlaysHost";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
 import { warmRemoteConfig } from "@/src/config/remoteConfig";
 import { GlobalSafeAreaInsetsProvider } from "@/src/contexts/GlobalSafeAreaInsetsContext";
+import { PreferencesOverlayProvider } from "@/src/contexts/PreferencesOverlayContext";
 import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
@@ -120,18 +122,21 @@ export default function RootLayout() {
           <AuthProvider>
             <PreferencesProvider>
               <GlobalSafeAreaInsetsProvider>
-                <RootPagerProvider>
-                  <ToastProvider>
-                    <CuratorModeProvider>
-                      <InviteGatesProvider>
-                        <RootLayoutNav />
-                        <TerreirosRealtimeSync />
-                        <InviteGate />
-                        <CuratorInviteGate />
-                      </InviteGatesProvider>
-                    </CuratorModeProvider>
-                  </ToastProvider>
-                </RootPagerProvider>
+                <PreferencesOverlayProvider>
+                  <RootPagerProvider>
+                    <ToastProvider>
+                      <CuratorModeProvider>
+                        <InviteGatesProvider>
+                          <RootLayoutNav />
+                          <TerreirosRealtimeSync />
+                          <InviteGate />
+                          <CuratorInviteGate />
+                          <GlobalOverlaysHost />
+                        </InviteGatesProvider>
+                      </CuratorModeProvider>
+                    </ToastProvider>
+                  </RootPagerProvider>
+                </PreferencesOverlayProvider>
               </GlobalSafeAreaInsetsProvider>
             </PreferencesProvider>
           </AuthProvider>

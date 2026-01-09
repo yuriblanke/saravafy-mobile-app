@@ -53,7 +53,10 @@ export function SaravafyScreen({
       {insets.top ? (
         <View
           pointerEvents="none"
-          style={[styles.safeAreaScrim, { top: 0, left: 0, right: 0, height: insets.top }]}
+          style={[
+            styles.safeAreaScrim,
+            { top: 0, left: 0, right: 0, height: insets.top },
+          ]}
         />
       ) : null}
       {insets.bottom ? (
