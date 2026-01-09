@@ -81,13 +81,14 @@ function getErrorMessage(e: unknown): string {
 
 export function useCollectionPlayerData(
   params: PlayerDataParams,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean; allowCachedWhileDisabled?: boolean }
 ) {
   const isAllMode = "mode" in params && params.mode === "all";
   const collectionId = "collectionId" in params ? params.collectionId : "";
   const query = isAllMode && "query" in params ? params.query ?? "" : "";
 
   const enabled = options?.enabled ?? true;
+  const allowCachedWhileDisabled = options?.allowCachedWhileDisabled ?? false;
 
   const queryClient = useQueryClient();
 
@@ -160,12 +161,12 @@ export function useCollectionPlayerData(
   const allPontos = allPontosQuery.data;
 
   const items: CollectionPlayerItem[] = useMemo(() => {
-    if (!enabled) return [];
-
     if (!isAllMode) {
+      if (!enabled && !allowCachedWhileDisabled) return [];
       return collectionItems ?? [];
     }
 
+    if (!enabled && !allowCachedWhileDisabled) return [];
     const pontos = allPontos ?? [];
     return pontos
       .filter((p: PlayerPonto) => matchesQuery(p, query))

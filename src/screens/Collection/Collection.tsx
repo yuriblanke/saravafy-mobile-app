@@ -182,7 +182,16 @@ export default function Collection() {
     error: pontosError,
     isEmpty: pontosEmpty,
     reload: reloadPontos,
-  } = useCollectionPlayerData({ collectionId }, { enabled: shouldLoadPontos });
+  } = useCollectionPlayerData(
+    { collectionId },
+    {
+      enabled: shouldLoadPontos,
+      // Mostra cache (se existir) enquanto esperamos metadata/gate da collection.
+      // Se a collection for members-only e o usuário não for membro, isso será
+      // desativado assim que a metadata carregar.
+      allowCachedWhileDisabled: !collection || !isMembersOnly || isMember,
+    }
+  );
 
   const pontoIds = useMemo(() => {
     return orderedItems
@@ -326,7 +335,10 @@ export default function Collection() {
     setIsShareOpen(true);
   }, [collectionId, title]);
 
-  const isLoading = collectionLoading || pontosLoading;
+  const hasCachedPontos = orderedItems.length > 0;
+
+  // Não bloquear UI com loading se já temos cache de pontos.
+  const isLoading = (collectionLoading || pontosLoading) && !hasCachedPontos;
   const error = collectionError || pontosError;
 
   return (
@@ -369,7 +381,7 @@ export default function Collection() {
             </Pressable>
           ) : null}
 
-          {shouldLoadPontos && orderedItems.length > 0 && pontosFetching ? (
+          {orderedItems.length > 0 && (pontosFetching || collectionLoading) ? (
             <View style={{ marginRight: 8 }}>
               <ActivityIndicator size="small" color={textMuted} />
             </View>
