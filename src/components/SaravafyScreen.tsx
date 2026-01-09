@@ -14,6 +14,7 @@ type Props = ViewProps & {
   children: React.ReactNode;
   theme?: "dark" | "light";
   variant?: "tabs" | "stack" | "focus";
+  edges?: Array<"top" | "bottom" | "left" | "right">;
 };
 
 const noise = require("@/assets/textures/noise_128.png");
@@ -23,6 +24,7 @@ export function SaravafyScreen({
   children,
   theme = "dark",
   variant = "tabs",
+  edges = ["top", "bottom"],
   ...rest
 }: Props) {
   const LinearGradient = useMemo(() => {
@@ -98,7 +100,7 @@ export function SaravafyScreen({
       )}
 
       {/* Conteúdo */}
-      <SafeAreaView style={styles.content} edges={["top", "bottom"]}>
+      <SafeAreaView style={styles.content} edges={edges}>
         {children}
       </SafeAreaView>
     </View>

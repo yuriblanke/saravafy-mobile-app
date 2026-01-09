@@ -84,7 +84,18 @@ export default function AppLayout() {
   const rootPager = useRootPagerOptional();
 
   const isInTabs = segments.includes("(tabs)");
-  const backgroundVariant: "tabs" | "stack" = isInTabs ? "tabs" : "stack";
+  const leaf = segments[segments.length - 1];
+  const isTabRootLeaf =
+    leaf === "(pontos)" ||
+    leaf === "(terreiros)" ||
+    // fallback defensivo para algumas segmentações
+    leaf === "(tabs)" ||
+    leaf === "index";
+
+  // Regra: tabs no root das abas; stack nas telas empilhadas (mesmo dentro das abas).
+  // Isso mantém o fundo consistente entre header global e body e evita revelar a tela anterior.
+  const backgroundVariant: "tabs" | "stack" =
+    isInTabs && isTabRootLeaf ? "tabs" : "stack";
 
   const globalParams = useGlobalSearchParams<{
     terreiroId?: string;
