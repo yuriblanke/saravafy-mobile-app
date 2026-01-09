@@ -1533,6 +1533,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 
 const styles = StyleSheet.create({
   header: {
+    backgroundColor: "transparent",
     paddingHorizontal: spacing.lg,
     paddingTop: spacing.sm,
     paddingBottom: spacing.sm,

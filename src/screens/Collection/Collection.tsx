@@ -4,7 +4,7 @@ import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { SaravafyStackScene } from "@/src/components/SaravafyStackScene";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -329,57 +329,56 @@ export default function Collection() {
   const error = collectionError || pontosError;
 
   return (
-    <SaravafyScreen theme={variant} variant="stack" edges={["bottom"]}>
-      <View style={styles.screen}>
+    <SaravafyStackScene theme={variant} variant="stack" style={styles.screen}>
       <View style={styles.collectionHeader}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="chevron-back" size={22} color={textPrimary} />
-          </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          hitSlop={10}
+          style={styles.headerIconBtn}
+        >
+          <Ionicons name="chevron-back" size={22} color={textPrimary} />
+        </Pressable>
 
-          <Text
-            style={[styles.headerTitle, { color: textPrimary }]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
+          {title}
+        </Text>
 
-          <View style={styles.headerRight}>
-            {canEditCollection ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Editar"
-                onPress={openEdit}
-                hitSlop={10}
-                style={styles.headerIconBtn}
-              >
-                <Text
-                  style={{
-                    color: textPrimary,
-                    fontSize: 20,
-                    lineHeight: 20,
-                  }}
-                >
-                  ☰
-                </Text>
-              </Pressable>
-            ) : null}
-
+        <View style={styles.headerRight}>
+          {canEditCollection ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Compartilhar"
-              onPress={openShare}
+              accessibilityLabel="Editar"
+              onPress={openEdit}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={18} color={textPrimary} />
+              <Text
+                style={{
+                  color: textPrimary,
+                  fontSize: 20,
+                  lineHeight: 20,
+                }}
+              >
+                ☰
+              </Text>
             </Pressable>
-          </View>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar"
+            onPress={openShare}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="share-outline" size={18} color={textPrimary} />
+          </Pressable>
         </View>
+      </View>
 
         <ShareBottomSheet
           visible={isShareOpen}
@@ -408,37 +407,39 @@ export default function Collection() {
           onClose={() => setDeleteTarget(null)}
         />
 
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Carregando…
-          </Text>
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            {error}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              loadCollection();
-              reloadPontos();
-              membership.reload();
-            }}
-            style={({ pressed }) => [
-              styles.retryBtn,
-              pressed && styles.retryBtnPressed,
-              variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
-            ]}
-          >
-            <Text style={[styles.retryText, { color: textPrimary }]}>
-              Tentar novamente
+        {isLoading ? (
+          <View style={styles.center}>
+            <ActivityIndicator />
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Carregando…
             </Text>
-          </Pressable>
-        </View>
-      ) : pontosEmpty ? (
+          </View>
+        ) : error ? (
+          <View style={styles.center}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              {error}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                loadCollection();
+                reloadPontos();
+                membership.reload();
+              }}
+              style={({ pressed }) => [
+                styles.retryBtn,
+                pressed && styles.retryBtnPressed,
+                variant === "light"
+                  ? styles.retryBtnLight
+                  : styles.retryBtnDark,
+              ]}
+            >
+              <Text style={[styles.retryText, { color: textPrimary }]}>
+                Tentar novamente
+              </Text>
+            </Pressable>
+          </View>
+        ) : pontosEmpty ? (
           <SurfaceCard variant={variant} style={styles.emptyCard}>
             <View style={styles.emptyContent}>
               <Ionicons
@@ -777,9 +778,8 @@ export default function Collection() {
               );
             }}
           />
-      )}
-      </View>
-    </SaravafyScreen>
+        )}
+    </SaravafyStackScene>
   );
 }
 

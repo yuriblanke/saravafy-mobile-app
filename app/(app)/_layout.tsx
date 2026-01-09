@@ -9,9 +9,13 @@ import {
 } from "@/contexts/TabControllerContext";
 import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import {
+  SaravafyLayoutMetricsProvider,
+  useSaravafyLayoutMetrics,
+} from "@/src/contexts/SaravafyLayoutMetricsContext";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
-import { colors } from "@/src/theme";
+import { colors, getSaravafyBaseColor } from "@/src/theme";
 import {
   Stack,
   useGlobalSearchParams,
@@ -74,7 +78,7 @@ function AndroidBackBehavior() {
  * DECISÕES DE DESIGN:
  * - animation: "none" no Stack para evitar "vazamento" visual do gradiente durante transições
  * - Header global aparece em todas as rotas exceto terreiro-editor e access-manager (modais)
- * - backgroundColor: "transparent" no Stack para deixar o SaravafyScreen aparecer
+ * - contentStyle backgroundColor opaco no Stack para impedir transparência/overlap entre cenas
  */
 export default function AppLayout() {
   const { effectiveTheme, selectedTerreiroFilterId } = usePreferences();
@@ -92,10 +96,18 @@ export default function AppLayout() {
     leaf === "(tabs)" ||
     leaf === "index";
 
-  // Regra: tabs no root das abas; stack nas telas empilhadas (mesmo dentro das abas).
-  // Isso mantém o fundo consistente entre header global e body e evita revelar a tela anterior.
+  // Regra: tabs no root das abas; stack nas telas empilhadas.
+  // O header global é transparente, então o fundo precisa ser compartilhado
+  // entre header e body.
   const backgroundVariant: "tabs" | "stack" =
     isInTabs && isTabRootLeaf ? "tabs" : "stack";
+
+  // Fluxo de Terreiros: o fundo global deve ser "flat" (só baseColor opaco),
+  // deixando o fundo Saravafy completo ser responsabilidade das cenas.
+  const isInTerreirosFlow = segments.includes("(terreiros)");
+  const saravafyVariant: "tabs" | "stack" | "focus" = isInTerreirosFlow
+    ? "focus"
+    : backgroundVariant;
 
   const globalParams = useGlobalSearchParams<{
     terreiroId?: string;
@@ -133,68 +145,83 @@ export default function AppLayout() {
     );
   }, [pathname, segments]);
 
+  const baseColor = getSaravafyBaseColor(effectiveTheme);
+
   return (
-    <SaravafyScreen theme={effectiveTheme} variant={backgroundVariant}>
+    <SaravafyScreen theme={effectiveTheme} variant={saravafyVariant}>
       <GestureGateProvider>
         <GestureBlockProvider>
           <TabControllerProvider>
             <AndroidBackBehavior />
-            <AppHeaderWithPreferences suspended={isHeaderSuspended} />
+            <SaravafyLayoutMetricsProvider>
+              <HeaderMeasurer suspended={isHeaderSuspended} />
 
-            <View style={{ flex: 1 }}>
-              <Stack
-                screenOptions={{
-                  headerShown: false,
-                  contentStyle: { backgroundColor: "transparent" },
-                  // As telas ficam propositalmente sem background sólido para
-                  // deixar o SaravafyScreen aparecer (gradiente/textura).
-                  // Com animação de Stack, isso causa um frame onde a tela anterior
-                  // "vaza" por baixo durante transições. Desabilitamos a animação
-                  // globalmente para eliminar qualquer sobreposição visual.
-                  animation: "none",
-                }}
-              >
-                {/* Tabs reais (Pontos ↔ Terreiros) com swipe + stacks por aba */}
-                <Stack.Screen name="(tabs)" />
-
-                {/* Player fora das tabs (swipe interno do player tem prioridade) */}
-                <Stack.Screen name="player" />
-
-                {/* Deep links / utilitários */}
-                <Stack.Screen name="l/[tipo]/[id]" />
-
-                {/* Modais */}
-                <Stack.Screen
-                  name="terreiro-editor"
-                  options={{
-                    presentation: "modal",
-                    animation: "slide_from_bottom",
-                    contentStyle: {
-                      backgroundColor:
-                        effectiveTheme === "light"
-                          ? colors.paper50
-                          : colors.forest900,
-                    },
+              <View style={{ flex: 1 }}>
+                <Stack
+                  screenOptions={{
+                    headerShown: false,
+                    // CRÍTICO: cenas opacas desde o primeiro frame (nunca transparente)
+                    contentStyle: { backgroundColor: baseColor },
+                    animation: "none",
                   }}
-                />
-                <Stack.Screen
-                  name="access-manager"
-                  options={{
-                    presentation: "modal",
-                    animation: "slide_from_bottom",
-                    contentStyle: {
-                      backgroundColor:
-                        effectiveTheme === "light"
-                          ? colors.paper50
-                          : colors.forest900,
-                    },
-                  }}
-                />
-              </Stack>
-            </View>
+                >
+                  {/* Tabs reais (Pontos ↔ Terreiros) com swipe + stacks por aba */}
+                  <Stack.Screen name="(tabs)" />
+
+                  {/* Player fora das tabs (swipe interno do player tem prioridade) */}
+                  <Stack.Screen name="player" />
+
+                  {/* Deep links / utilitários */}
+                  <Stack.Screen name="l/[tipo]/[id]" />
+
+                  {/* Modais */}
+                  <Stack.Screen
+                    name="terreiro-editor"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="access-manager"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+                </Stack>
+              </View>
+            </SaravafyLayoutMetricsProvider>
           </TabControllerProvider>
         </GestureBlockProvider>
       </GestureGateProvider>
     </SaravafyScreen>
+  );
+}
+
+function HeaderMeasurer({ suspended }: { suspended: boolean }) {
+  const { setHeaderHeight } = useSaravafyLayoutMetrics();
+
+  return (
+    <View
+      style={{ zIndex: 10, elevation: 10, position: "relative" }}
+      onLayout={(e) => {
+        setHeaderHeight(e.nativeEvent.layout.height);
+      }}
+    >
+      <AppHeaderWithPreferences suspended={suspended} />
+    </View>
   );
 }
