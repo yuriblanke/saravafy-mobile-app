@@ -502,6 +502,8 @@ export default function TerreiroEditor() {
 
   const variant = effectiveTheme;
 
+  const modalBg = variant === "light" ? colors.paper50 : colors.forest900;
+
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
@@ -1324,6 +1326,9 @@ export default function TerreiroEditor() {
               name: title,
               coverImageUrl:
                 typeof finalCoverUrl === "string" ? finalCoverUrl : undefined,
+              phoneDigits: digits ? digits : null,
+              phoneIsWhatsApp: !!form.isWhatsappUi,
+              instagramHandle: instagram ? instagram : null,
               role: "admin",
             },
           });
@@ -1444,11 +1449,20 @@ export default function TerreiroEditor() {
               : typeof coverImageUrl === "string" && coverImageUrl
               ? coverImageUrl
               : undefined,
+            phoneDigits: digits ? digits : null,
+            phoneIsWhatsApp: !!form.isWhatsappUi,
+            instagramHandle: instagram ? instagram : null,
           },
         });
 
         invalidateTerreiro(queryClient, id);
         invalidateTerreiroListsForRoles(queryClient, user.id);
+
+        // Força a lista a atualizar imediatamente (inclui contatos/WhatsApp).
+        void queryClient.refetchQueries({
+          queryKey: queryKeys.terreiros.withRole(user.id),
+          type: "all",
+        });
       }
 
       if (user?.id) {
@@ -2010,12 +2024,14 @@ export default function TerreiroEditor() {
       />
 
       <Modal
-        transparent
+        transparent={false}
         visible={deleteModalOpen}
         animationType="fade"
         onRequestClose={closeDeleteModal}
       >
-        <View style={styles.deleteModalBackdrop}>
+        <View
+          style={[styles.deleteModalBackdrop, { backgroundColor: modalBg }]}
+        >
           <Pressable
             style={StyleSheet.absoluteFillObject}
             disabled={deletingTerreiro}
@@ -2786,8 +2802,7 @@ const styles = StyleSheet.create({
   },
 
   deleteModalBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: colors.overlayBackdrop,
+    flex: 1,
     alignItems: "center",
     justifyContent: "center",
     padding: spacing.lg,

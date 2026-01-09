@@ -140,6 +140,7 @@ function TerreiroCard({
   }, [item.responsaveis]);
 
   const phone = normalizePhoneDigits(item.phoneDigits);
+  const phoneIsWhatsApp = item.phoneIsWhatsApp === true;
   const instagram = normalizeInstagramHandle(item.instagramHandle);
 
   const linesOfWork =
@@ -266,7 +267,7 @@ function TerreiroCard({
                   </View>
                 ) : null}
 
-                {instagram || phone ? (
+                {instagram || (phone && phoneIsWhatsApp) ? (
                   <View style={styles.cardBlock}>
                     <Text style={[styles.cardLabel, { color: textMuted }]}>
                       Contatos
@@ -295,7 +296,7 @@ function TerreiroCard({
                         </View>
                       </Pressable>
                     ) : null}
-                    {phone ? (
+                    {phone && phoneIsWhatsApp ? (
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="Abrir WhatsApp"
@@ -341,7 +342,7 @@ function TerreiroCard({
               />
             )}
 
-            {!expanded && (instagram || phone) ? (
+            {!expanded && (instagram || (phone && phoneIsWhatsApp)) ? (
               <View style={styles.iconRow}>
                 {instagram ? (
                   <Pressable
@@ -362,7 +363,7 @@ function TerreiroCard({
                   </Pressable>
                 ) : null}
 
-                {phone ? (
+                {phone && phoneIsWhatsApp ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Abrir WhatsApp"

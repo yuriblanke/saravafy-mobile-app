@@ -52,6 +52,9 @@ export function patchTerreiroInLists(
       id: string;
       name: string;
       coverImageUrl?: string | null;
+      phoneDigits?: string | null;
+      phoneIsWhatsApp?: boolean | null;
+      instagramHandle?: string | null;
       role?: "admin" | "editor" | "member" | "follower";
     };
   }
@@ -62,6 +65,19 @@ export function patchTerreiroInLists(
   const hasCoverField = Object.prototype.hasOwnProperty.call(
     terreiro,
     "coverImageUrl"
+  );
+
+  const hasPhoneDigitsField = Object.prototype.hasOwnProperty.call(
+    terreiro,
+    "phoneDigits"
+  );
+  const hasPhoneIsWhatsAppField = Object.prototype.hasOwnProperty.call(
+    terreiro,
+    "phoneIsWhatsApp"
+  );
+  const hasInstagramHandleField = Object.prototype.hasOwnProperty.call(
+    terreiro,
+    "instagramHandle"
   );
 
   // Patch the main "Terreiros" list cache if present.
@@ -80,6 +96,13 @@ export function patchTerreiroInLists(
             ? terreiro.coverImageUrl
             : undefined
           : next[idx]?.coverImageUrl,
+        ...(hasPhoneDigitsField ? { phoneDigits: terreiro.phoneDigits } : null),
+        ...(hasPhoneIsWhatsAppField
+          ? { phoneIsWhatsApp: terreiro.phoneIsWhatsApp }
+          : null),
+        ...(hasInstagramHandleField
+          ? { instagramHandle: terreiro.instagramHandle }
+          : null),
         role: terreiro.role ?? next[idx]?.role,
       };
     } else {
@@ -91,6 +114,13 @@ export function patchTerreiroInLists(
           typeof terreiro.coverImageUrl === "string"
             ? terreiro.coverImageUrl
             : undefined,
+        ...(hasPhoneDigitsField ? { phoneDigits: terreiro.phoneDigits } : null),
+        ...(hasPhoneIsWhatsAppField
+          ? { phoneIsWhatsApp: terreiro.phoneIsWhatsApp }
+          : null),
+        ...(hasInstagramHandleField
+          ? { instagramHandle: terreiro.instagramHandle }
+          : null),
       });
     }
 
@@ -120,12 +150,26 @@ export function patchTerreiroInLists(
         ...next[idx],
         title: terreiro.name,
         cover_image_url: cover,
+        ...(hasPhoneDigitsField ? { phoneDigits: terreiro.phoneDigits } : null),
+        ...(hasPhoneIsWhatsAppField
+          ? { phoneIsWhatsApp: terreiro.phoneIsWhatsApp }
+          : null),
+        ...(hasInstagramHandleField
+          ? { instagramHandle: terreiro.instagramHandle }
+          : null),
       };
     } else {
       next.push({
         id: terreiro.id,
         title: terreiro.name,
         cover_image_url: cover,
+        ...(hasPhoneDigitsField ? { phoneDigits: terreiro.phoneDigits } : null),
+        ...(hasPhoneIsWhatsAppField
+          ? { phoneIsWhatsApp: terreiro.phoneIsWhatsApp }
+          : null),
+        ...(hasInstagramHandleField
+          ? { instagramHandle: terreiro.instagramHandle }
+          : null),
         role: terreiro.role === "editor" ? "editor" : "admin",
       });
     }

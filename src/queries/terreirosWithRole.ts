@@ -39,6 +39,7 @@ export type TerreiroListItem = {
   state?: string;
   neighborhood?: string;
   phoneDigits?: string;
+  phoneIsWhatsApp?: boolean;
   instagramHandle?: string;
   responsaveis?: {
     name: string;
@@ -222,6 +223,7 @@ export async function fetchTerreirosWithRole(
         contato.phone_whatsapp.trim()
           ? contato.phone_whatsapp.replace(/\D/g, "")
           : undefined,
+      phoneIsWhatsApp: contato?.phone_is_whatsapp === true,
       instagramHandle:
         contato &&
         typeof contato.instagram_handle === "string" &&

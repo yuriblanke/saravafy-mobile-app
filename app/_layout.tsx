@@ -4,11 +4,13 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+import "react-native-gesture-handler";
 import { useFonts } from "expo-font";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef, useState } from "react";
 import "react-native-reanimated";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -80,24 +82,26 @@ export default function RootLayout() {
   }
 
   return (
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <PreferencesProvider>
-          <RootPagerProvider>
-            <ToastProvider>
-              <CuratorModeProvider>
-                <InviteGatesProvider>
-                  <RootLayoutNav />
-                  <TerreirosRealtimeSync />
-                  <InviteGate />
-                  <CuratorInviteGate />
-                </InviteGatesProvider>
-              </CuratorModeProvider>
-            </ToastProvider>
-          </RootPagerProvider>
-        </PreferencesProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <PreferencesProvider>
+            <RootPagerProvider>
+              <ToastProvider>
+                <CuratorModeProvider>
+                  <InviteGatesProvider>
+                    <RootLayoutNav />
+                    <TerreirosRealtimeSync />
+                    <InviteGate />
+                    <CuratorInviteGate />
+                  </InviteGatesProvider>
+                </CuratorModeProvider>
+              </ToastProvider>
+            </RootPagerProvider>
+          </PreferencesProvider>
+        </AuthProvider>
+      </QueryClientProvider>
+    </GestureHandlerRootView>
   );
 }
 

@@ -2,12 +2,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
+import {
+  consumeCollectionPontosDirty,
+  putCollectionEditDraft,
+} from "@/src/screens/CollectionEdit/draftStore";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
@@ -37,6 +42,7 @@ import {
 type CollectionRow = {
   id: string;
   title?: string | null;
+  owner_user_id?: string | null;
   owner_terreiro_id?: string | null;
   visibility?: string | null;
 };
@@ -212,7 +218,7 @@ export default function Collection() {
     try {
       const res = await supabase
         .from("collections")
-        .select("id, title, owner_terreiro_id, visibility")
+        .select("id, title, owner_terreiro_id, owner_user_id, visibility")
         .eq("id", collectionId)
         .single();
 
@@ -248,9 +254,58 @@ export default function Collection() {
     loadCollection();
   }, [loadCollection]);
 
+  useFocusEffect(
+    useCallback(() => {
+      if (!collectionId) return;
+      if (!consumeCollectionPontosDirty(collectionId)) return;
+
+      reloadPontos();
+      loadCollection();
+    }, [collectionId, loadCollection, reloadPontos])
+  );
+
   const title =
     (typeof collection?.title === "string" && collection.title.trim()) ||
     titleFallback;
+
+  const canEditCollection =
+    (!!user?.id &&
+      typeof collection?.owner_user_id === "string" &&
+      collection.owner_user_id === user.id) ||
+    (!!terreiroId &&
+      membership.data.isActiveMember &&
+      (myRole === "admin" || myRole === "editor"));
+
+  const openEdit = useCallback(() => {
+    if (!collectionId) return;
+    if (!canEditCollection) {
+      showToast("Você não tem permissão para editar esta coleção.");
+      return;
+    }
+
+    const draftKey = `collection-edit:${collectionId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+    putCollectionEditDraft({
+      draftKey,
+      snapshot: {
+        collectionId,
+        collectionTitle: title,
+        orderedItems,
+        createdAt: Date.now(),
+      },
+    });
+
+    router.push({
+      pathname: "/collection/[id]/edit" as any,
+      params: { id: collectionId, draftKey },
+    });
+  }, [
+    canEditCollection,
+    collectionId,
+    orderedItems,
+    router,
+    showToast,
+    title,
+  ]);
 
   const isPendingView = isMembersOnly && isLoggedIn && hasPendingRequest;
 
@@ -296,15 +351,29 @@ export default function Collection() {
           {title}
         </Text>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Compartilhar"
-          onPress={openShare}
-          hitSlop={10}
-          style={styles.headerIconBtn}
-        >
-          <Ionicons name="share-outline" size={18} color={textPrimary} />
-        </Pressable>
+        <View style={styles.headerRight}>
+          {canEditCollection ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar"
+              onPress={openEdit}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="options-outline" size={20} color={textPrimary} />
+            </Pressable>
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar"
+            onPress={openShare}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="share-outline" size={18} color={textPrimary} />
+          </Pressable>
+        </View>
       </View>
 
       <ShareBottomSheet
@@ -712,6 +781,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+  },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
   },
   headerIconBtn: {
     width: 36,
