@@ -4,7 +4,13 @@ import { useToast } from "@/contexts/ToastContext";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   BackHandler,
@@ -107,7 +113,9 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
         id,
         title: String(item?.title ?? ""),
         subtitle:
-          typeof item?.subtitle === "string" ? String(item.subtitle) : undefined,
+          typeof item?.subtitle === "string"
+            ? String(item.subtitle)
+            : undefined,
       });
     }
     return map;
@@ -117,9 +125,8 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     return items.map((it) => String(it?.id ?? "")).filter(Boolean);
   }, [items]);
 
-  const [draftOrderedIds, setDraftOrderedIds] = useState<string[]>(
-    initialOrderedIds
-  );
+  const [draftOrderedIds, setDraftOrderedIds] =
+    useState<string[]>(initialOrderedIds);
   const [saving, setSaving] = useState(false);
 
   const didInitFromPropsRef = useRef(false);
@@ -210,7 +217,16 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     } finally {
       setSaving(false);
     }
-  }, [dirty, draftOrderedIds, errorToastFallback, onSave, router, shouldBlockPress, showToast, successToast]);
+  }, [
+    dirty,
+    draftOrderedIds,
+    errorToastFallback,
+    onSave,
+    router,
+    shouldBlockPress,
+    showToast,
+    successToast,
+  ]);
 
   const renderItem = useCallback(
     ({ item, drag, isActive }: RenderItemParams<EditOrderItem>) => {
@@ -239,11 +255,17 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
           )}
 
           <View style={styles.rowText}>
-            <Text style={[styles.itemTitle, { color: textPrimary }]} numberOfLines={1}>
+            <Text
+              style={[styles.itemTitle, { color: textPrimary }]}
+              numberOfLines={1}
+            >
               {resolvedTitle}
             </Text>
             {subtitle ? (
-              <Text style={[styles.itemSubtitle, { color: textSecondary }]} numberOfLines={2}>
+              <Text
+                style={[styles.itemSubtitle, { color: textSecondary }]}
+                numberOfLines={2}
+              >
                 {subtitle}
               </Text>
             ) : null}
@@ -260,7 +282,9 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
               name="reorder-three"
               size={22}
               color={
-                variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
+                variant === "light"
+                  ? colors.textMutedOnLight
+                  : colors.textMutedOnDark
               }
             />
           </Pressable>
@@ -282,7 +306,10 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
           <Ionicons name="chevron-back" size={22} color={textPrimary} />
         </Pressable>
 
-        <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
           {title}
         </Text>
 
@@ -317,8 +344,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
         />
       ) : (
         <View style={styles.fallback}>
-          <Text style={[styles.fallbackText, { color: textSecondary }]}
-            >
+          <Text style={[styles.fallbackText, { color: textSecondary }]}>
             {dragUnavailableMessage}
           </Text>
 

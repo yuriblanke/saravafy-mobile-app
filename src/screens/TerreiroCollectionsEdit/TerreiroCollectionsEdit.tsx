@@ -1,12 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
+import { useCollectionsByTerreiroQuery } from "@/src/queries/terreirosCollections";
 import {
   EditOrderScreenBase,
   type EditOrderItem,
 } from "@/src/screens/EditOrderScreenBase/EditOrderScreenBase";
-import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
-import { useCollectionsByTerreiroQuery } from "@/src/queries/terreirosCollections";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo } from "react";
 
@@ -29,7 +29,8 @@ export default function EditTerreiroCollectionsScreen() {
   const membershipQuery = useTerreiroMembershipStatus(terreiroId);
   const membership = membershipQuery.data;
   const myRole = membership.role;
-  const canEdit = membership.isActiveMember && (myRole === "admin" || myRole === "editor");
+  const canEdit =
+    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
 
   useEffect(() => {
     if (!terreiroId) return;
@@ -40,7 +41,14 @@ export default function EditTerreiroCollectionsScreen() {
       showToast("Sem permissão para editar este terreiro.");
       router.back();
     }
-  }, [canEdit, membershipQuery.isLoading, router, showToast, terreiroId, user?.id]);
+  }, [
+    canEdit,
+    membershipQuery.isLoading,
+    router,
+    showToast,
+    terreiroId,
+    user?.id,
+  ]);
 
   const collectionsQuery = useCollectionsByTerreiroQuery(terreiroId || null);
   const collections = collectionsQuery.data ?? [];
@@ -50,27 +58,31 @@ export default function EditTerreiroCollectionsScreen() {
     for (const c of collections) {
       const id = String(c?.id ?? "");
       if (!id) continue;
-      const title = (typeof c?.title === "string" && c.title.trim()) || "Coleção";
+      const title =
+        (typeof c?.title === "string" && c.title.trim()) || "Coleção";
       const subtitle =
         typeof c?.description === "string" && c.description.trim()
           ? c.description
           : typeof c?.pontosCount === "number"
-            ? `${c.pontosCount} ponto(s)`
-            : undefined;
+          ? `${c.pontosCount} ponto(s)`
+          : undefined;
       mapped.push({ id, title, subtitle });
     }
     return mapped;
   }, [collections]);
 
-  const onSave = useCallback(async (_orderedIds: string[]) => {
-    if (!terreiroId) {
-      throw new Error("Terreiro inválido.");
-    }
+  const onSave = useCallback(
+    async (_orderedIds: string[]) => {
+      if (!terreiroId) {
+        throw new Error("Terreiro inválido.");
+      }
 
-    // Stub: ainda não existe persistência da ordem das collections por terreiro.
-    // Mantemos o editor reutilizável, mas o save não altera o backend.
-    return;
-  }, [terreiroId]);
+      // Stub: ainda não existe persistência da ordem das collections por terreiro.
+      // Mantemos o editor reutilizável, mas o save não altera o backend.
+      return;
+    },
+    [terreiroId]
+  );
 
   if (!terreiroId) return null;
 

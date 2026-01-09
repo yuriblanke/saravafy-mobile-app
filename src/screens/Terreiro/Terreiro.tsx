@@ -683,8 +683,7 @@ export default function Terreiro() {
                 if (!terreiroId) return;
 
                 router.push({
-                  pathname:
-                    "/terreiro-collections/[terreiroId]/edit" as any,
+                  pathname: "/terreiro-collections/[terreiroId]/edit" as any,
                   params: { terreiroId },
                 });
               }}
@@ -693,12 +692,16 @@ export default function Terreiro() {
                 pressed ? styles.iconButtonPressed : null,
               ]}
             >
-              <Ionicons
-                name="swap-vertical"
-                size={18}
-                color={accentColor}
-                style={{ marginRight: 4 }}
-              />
+              <Text
+                style={{
+                  marginRight: 4,
+                  color: accentColor,
+                  fontSize: 18,
+                  lineHeight: 18,
+                }}
+              >
+                ☰
+              </Text>
               <Text
                 style={[styles.newCollectionButtonText, { color: accentColor }]}
               >

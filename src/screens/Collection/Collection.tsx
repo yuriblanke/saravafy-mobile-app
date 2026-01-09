@@ -2,26 +2,26 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
-import {
-  consumeCollectionPontosDirty,
-  putCollectionEditDraft,
-} from "@/src/screens/CollectionEdit/draftStore";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
-import { useFocusEffect } from "@react-navigation/native";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
+import {
+  consumeCollectionPontosDirty,
+  putCollectionEditDraft,
+} from "@/src/screens/CollectionEdit/draftStore";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import React, {
   useCallback,
@@ -283,7 +283,9 @@ export default function Collection() {
       return;
     }
 
-    const draftKey = `collection-edit:${collectionId}:${Date.now().toString(36)}:${Math.random().toString(36).slice(2)}`;
+    const draftKey = `collection-edit:${collectionId}:${Date.now().toString(
+      36
+    )}:${Math.random().toString(36).slice(2)}`;
     putCollectionEditDraft({
       draftKey,
       snapshot: {
@@ -298,14 +300,7 @@ export default function Collection() {
       pathname: "/collection/[id]/edit" as any,
       params: { id: collectionId, draftKey },
     });
-  }, [
-    canEditCollection,
-    collectionId,
-    orderedItems,
-    router,
-    showToast,
-    title,
-  ]);
+  }, [canEditCollection, collectionId, orderedItems, router, showToast, title]);
 
   const isPendingView = isMembersOnly && isLoggedIn && hasPendingRequest;
 
@@ -360,7 +355,15 @@ export default function Collection() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="options-outline" size={20} color={textPrimary} />
+              <Text
+                style={{
+                  color: textPrimary,
+                  fontSize: 20,
+                  lineHeight: 20,
+                }}
+              >
+                ☰
+              </Text>
             </Pressable>
           ) : null}
 
