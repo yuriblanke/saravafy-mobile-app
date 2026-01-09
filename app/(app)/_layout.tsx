@@ -83,6 +83,9 @@ export default function AppLayout() {
   const pathname = usePathname();
   const rootPager = useRootPagerOptional();
 
+  const isInTabs = segments.includes("(tabs)");
+  const backgroundVariant: "tabs" | "stack" = isInTabs ? "tabs" : "stack";
+
   const globalParams = useGlobalSearchParams<{
     terreiroId?: string;
   }>();
@@ -120,7 +123,7 @@ export default function AppLayout() {
   }, [pathname, segments]);
 
   return (
-    <SaravafyScreen theme={effectiveTheme} variant="tabs">
+    <SaravafyScreen theme={effectiveTheme} variant={backgroundVariant}>
       <GestureGateProvider>
         <GestureBlockProvider>
           <TabControllerProvider>

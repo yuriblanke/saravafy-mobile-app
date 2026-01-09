@@ -4,7 +4,6 @@ import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -329,9 +328,8 @@ export default function Collection() {
   const error = collectionError || pontosError;
 
   return (
-    <SaravafyScreen theme={variant} variant="stack">
-      <View style={styles.screen}>
-        <View style={styles.collectionHeader}>
+    <View style={styles.screen}>
+      <View style={styles.collectionHeader}>
           <Pressable
             accessibilityRole="button"
             onPress={() => router.back()}
@@ -408,39 +406,37 @@ export default function Collection() {
           onClose={() => setDeleteTarget(null)}
         />
 
-        {isLoading ? (
-          <View style={styles.center}>
-            <ActivityIndicator />
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
+      {isLoading ? (
+        <View style={styles.center}>
+          <ActivityIndicator />
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Carregando…
+          </Text>
+        </View>
+      ) : error ? (
+        <View style={styles.center}>
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            {error}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => {
+              loadCollection();
+              reloadPontos();
+              membership.reload();
+            }}
+            style={({ pressed }) => [
+              styles.retryBtn,
+              pressed && styles.retryBtnPressed,
+              variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
+            ]}
+          >
+            <Text style={[styles.retryText, { color: textPrimary }]}>
+              Tentar novamente
             </Text>
-          </View>
-        ) : error ? (
-          <View style={styles.center}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              {error}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                loadCollection();
-                reloadPontos();
-                membership.reload();
-              }}
-              style={({ pressed }) => [
-                styles.retryBtn,
-                pressed && styles.retryBtnPressed,
-                variant === "light"
-                  ? styles.retryBtnLight
-                  : styles.retryBtnDark,
-              ]}
-            >
-              <Text style={[styles.retryText, { color: textPrimary }]}>
-                Tentar novamente
-              </Text>
-            </Pressable>
-          </View>
-        ) : pontosEmpty ? (
+          </Pressable>
+        </View>
+      ) : pontosEmpty ? (
           <SurfaceCard variant={variant} style={styles.emptyCard}>
             <View style={styles.emptyContent}>
               <Ionicons
@@ -779,9 +775,8 @@ export default function Collection() {
               );
             }}
           />
-        )}
-      </View>
-    </SaravafyScreen>
+      )}
+    </View>
   );
 }
 
@@ -981,7 +976,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingTop: spacing.sm,
     paddingBottom: spacing.xl,
   },
   cardGap: {
