@@ -176,13 +176,21 @@ export function useCollectionPlayerData(
       }));
   }, [allPontos, collectionItems, enabled, isAllMode, query]);
 
-  const isLoading = isAllMode ? allPontosQuery.isLoading : collectionPontosQuery.isLoading;
-  const isFetching = isAllMode ? allPontosQuery.isFetching : collectionPontosQuery.isFetching;
+  const isLoading = isAllMode
+    ? allPontosQuery.isLoading
+    : collectionPontosQuery.isLoading;
+  const isFetching = isAllMode
+    ? allPontosQuery.isFetching
+    : collectionPontosQuery.isFetching;
   const error = isAllMode
-    ? (allPontosQuery.error ? getErrorMessage(allPontosQuery.error) : null)
+    ? allPontosQuery.error
+      ? getErrorMessage(allPontosQuery.error)
+      : null
     : collectionPontosQuery.errorMessage;
 
-  const isSuccess = isAllMode ? allPontosQuery.isSuccess : collectionPontosQuery.isSuccess;
+  const isSuccess = isAllMode
+    ? allPontosQuery.isSuccess
+    : collectionPontosQuery.isSuccess;
   const isEmpty = useMemo(
     () => enabled && isSuccess && !error && items.length === 0,
     [enabled, error, isSuccess, items.length]
@@ -204,7 +212,8 @@ export function useCollectionPlayerData(
                   ...it.ponto,
                   title: updated.title,
                   artist:
-                    typeof updated.artist === "string" || updated.artist === null
+                    typeof updated.artist === "string" ||
+                    updated.artist === null
                       ? updated.artist
                       : it.ponto.artist ?? null,
                   lyrics: updated.lyrics,
@@ -217,23 +226,26 @@ export function useCollectionPlayerData(
     }
 
     // Atualiza o cache do modo "all" (se existir)
-    queryClient.setQueryData<PlayerPonto[]>(["pontos", "all", "public"], (old) => {
-      if (!Array.isArray(old)) return old;
-      return old.map((p) =>
-        p.id === updated.id
-          ? {
-              ...p,
-              title: updated.title,
-              artist:
-                typeof updated.artist === "string" || updated.artist === null
-                  ? updated.artist
-                  : p.artist ?? null,
-              lyrics: updated.lyrics,
-              tags: updated.tags,
-            }
-          : p
-      );
-    });
+    queryClient.setQueryData<PlayerPonto[]>(
+      ["pontos", "all", "public"],
+      (old) => {
+        if (!Array.isArray(old)) return old;
+        return old.map((p) =>
+          p.id === updated.id
+            ? {
+                ...p,
+                title: updated.title,
+                artist:
+                  typeof updated.artist === "string" || updated.artist === null
+                    ? updated.artist
+                    : p.artist ?? null,
+                lyrics: updated.lyrics,
+                tags: updated.tags,
+              }
+            : p
+        );
+      }
+    );
   }, []);
 
   const reload = useCallback(() => {

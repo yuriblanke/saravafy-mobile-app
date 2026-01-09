@@ -5,11 +5,11 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 
+import { queryKeys } from "@/src/queries/queryKeys";
 import {
   type CollectionPlayerItem,
   type PlayerPonto,
 } from "@/src/screens/Player/hooks/useCollectionPlayerData";
-import { queryKeys } from "@/src/queries/queryKeys";
 
 function coerceTags(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -84,7 +84,9 @@ export async function fetchCollectionPontosItems(
         title,
         artist: typeof ponto.artist === "string" ? ponto.artist : null,
         duration_seconds:
-          typeof ponto.duration_seconds === "number" ? ponto.duration_seconds : null,
+          typeof ponto.duration_seconds === "number"
+            ? ponto.duration_seconds
+            : null,
         audio_url: typeof ponto.audio_url === "string" ? ponto.audio_url : null,
         cover_url: typeof ponto.cover_url === "string" ? ponto.cover_url : null,
         lyrics,
