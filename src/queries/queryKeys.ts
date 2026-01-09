@@ -55,6 +55,10 @@ export const queryKeys = {
     terreiro: (terreiroId: string) =>
       ["collections", { scope: "terreiro", terreiroId }] as const,
     byId: (id: string) => ["collection", { id }] as const,
+
+    // Pontos ordenados de uma coleção (somente depende do collectionId)
+    pontos: (collectionId: string) =>
+      ["collections", "pontos", collectionId] as const,
   },
   globalRoles: {
     isCurator: (userId: string) => ["globalRoles", "curator", userId] as const,

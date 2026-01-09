@@ -23,6 +23,7 @@ import {
   useCollectionsByTerreiroQuery,
   type TerreiroCollectionCard,
 } from "@/src/queries/terreirosCollections";
+import { getCollectionPontosQueryOptions } from "@/src/queries/collectionPontos";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import {
@@ -166,6 +167,37 @@ export default function Terreiro() {
   const queryClient = useQueryClient();
   const collectionsQuery = useCollectionsByTerreiroQuery(terreiroId || null);
   const collections = collectionsQuery.data ?? [];
+
+  // Warm-cache: prefetch pontos das primeiras collections para evitar fetch+flash
+  // ao abrir o detalhe.
+  const prefetchedCollectionIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!terreiroId) return;
+    if (!collectionsQuery.isSuccess) return;
+    if (collections.length === 0) return;
+
+    const MAX_PREFETCH = 5;
+    const targets = collections
+      .map((c) => String((c as any)?.id ?? ""))
+      .filter(Boolean)
+      .filter((id) => !prefetchedCollectionIdsRef.current.has(id))
+      .slice(0, MAX_PREFETCH);
+
+    if (targets.length === 0) return;
+
+    if (__DEV__) {
+      console.info("[WarmCache] prefetch collection pontos", {
+        terreiroId,
+        count: targets.length,
+        collectionIds: targets,
+      });
+    }
+
+    targets.forEach((collectionId) => {
+      prefetchedCollectionIdsRef.current.add(collectionId);
+      void queryClient.prefetchQuery(getCollectionPontosQueryOptions(collectionId));
+    });
+  }, [collections, collectionsQuery.isSuccess, queryClient, terreiroId]);
 
   const [libraryOrderIds, setLibraryOrderIds] = useState<string[]>([]);
   useEffect(() => {

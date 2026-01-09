@@ -178,6 +178,7 @@ export default function Collection() {
   const {
     items: orderedItems,
     isLoading: pontosLoading,
+    isFetching: pontosFetching,
     error: pontosError,
     isEmpty: pontosEmpty,
     reload: reloadPontos,
@@ -366,6 +367,12 @@ export default function Collection() {
                 ☰
               </Text>
             </Pressable>
+          ) : null}
+
+          {shouldLoadPontos && orderedItems.length > 0 && pontosFetching ? (
+            <View style={{ marginRight: 8 }}>
+              <ActivityIndicator size="small" color={textMuted} />
+            </View>
           ) : null}
 
           <Pressable
