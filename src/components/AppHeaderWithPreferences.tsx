@@ -1246,11 +1246,11 @@ export function PreferencesOverlaySheets(
                       }, 0);
                     }}
                     onPressEdit={() => {
-                      closeThen(() => {
-                        router.push({
-                          pathname: "/terreiro-editor" as any,
-                          params: { mode: "edit", terreiroId: t.id },
-                        });
+                      // Do NOT close preferences. We'll keep isOpen=true, but
+                      // PreferencesModal hides itself while this modal route is active.
+                      router.push({
+                        pathname: "/terreiro-editor" as any,
+                        params: { mode: "edit", terreiroId: t.id },
                       });
                     }}
                   />
@@ -1266,11 +1266,10 @@ export function PreferencesOverlaySheets(
           <Pressable
             accessibilityRole="button"
             onPress={() => {
-              closeThen(() => {
-                router.push({
-                  pathname: "/terreiro-editor" as any,
-                  params: { mode: "create" },
-                });
+              // Keep preferences open; open the editor modal on top.
+              router.push({
+                pathname: "/terreiro-editor" as any,
+                params: { mode: "create" },
               });
             }}
             style={({ pressed }) => [

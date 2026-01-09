@@ -116,7 +116,11 @@ export function PreferencesPageItem({
               setIsEditPressed(false);
             }, 100);
           }}
-          onPress={() => {
+          onPress={(e) => {
+            // Prevent the row onPress from firing when the edit button is tapped.
+            // Relying on `disabled={isEditPressed}` alone is not enough because
+            // state updates may not apply before the parent Pressable evaluates.
+            e.stopPropagation();
             onPressEdit();
           }}
           hitSlop={12}
