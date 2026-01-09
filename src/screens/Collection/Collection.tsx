@@ -4,6 +4,7 @@ import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
+import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -328,7 +329,8 @@ export default function Collection() {
   const error = collectionError || pontosError;
 
   return (
-    <View style={styles.screen}>
+    <SaravafyScreen theme={variant} variant="stack">
+      <View style={styles.screen}>
       <View style={styles.collectionHeader}>
         <Pressable
           accessibilityRole="button"
@@ -770,7 +772,8 @@ export default function Collection() {
           }}
         />
       )}
-    </View>
+      </View>
+    </SaravafyScreen>
   );
 }
 

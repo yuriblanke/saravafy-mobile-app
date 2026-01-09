@@ -80,6 +80,7 @@ export default function AppLayout() {
   const { effectiveTheme, selectedTerreiroFilterId } = usePreferences();
   const { user } = useAuth();
   const segments = useSegments() as string[];
+  const pathname = usePathname();
   const rootPager = useRootPagerOptional();
 
   const globalParams = useGlobalSearchParams<{
@@ -112,12 +113,19 @@ export default function AppLayout() {
       leaf === "player" ||
       leaf === "edit" ||
       leaf === "terreiro-editor" ||
-      leaf === "access-manager"
+      leaf === "access-manager" ||
+      // Em rotas empilhadas do fluxo crítico (Terreiro/Collection/Player),
+      // o header global deve sair para evitar sobreposição visual e permitir
+      // que a própria tela pinte um fundo opaco desde o primeiro frame.
+      (typeof pathname === "string" &&
+        (pathname === "/terreiro" ||
+          pathname.startsWith("/collection/") ||
+          pathname.startsWith("/player")))
     );
-  }, [segments]);
+  }, [pathname, segments]);
 
   return (
-    <SaravafyScreen variant={effectiveTheme}>
+    <SaravafyScreen theme={effectiveTheme} variant="tabs">
       <GestureGateProvider>
         <GestureBlockProvider>
           <TabControllerProvider>

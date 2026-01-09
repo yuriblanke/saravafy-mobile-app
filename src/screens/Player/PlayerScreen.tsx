@@ -4,6 +4,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
+import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import {
   PontoUpsertModal,
@@ -235,87 +236,94 @@ export default function PlayerScreen() {
 
   if (isLoading) {
     return (
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="chevron-back" size={22} color={textPrimary} />
-          </Pressable>
+      <SaravafyScreen theme={variant} variant="stack">
+        <View style={styles.screen}>
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.back()}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="chevron-back" size={22} color={textPrimary} />
+            </Pressable>
+          </View>
+          <View style={styles.loadingCenter}>
+            <ActivityIndicator />
+            <Text style={[styles.loadingText, { color: textSecondary }]}>
+              Carregando…
+            </Text>
+          </View>
         </View>
-        <View style={styles.loadingCenter}>
-          <ActivityIndicator />
-          <Text style={[styles.loadingText, { color: textSecondary }]}>
-            Carregando…
-          </Text>
-        </View>
-      </View>
+      </SaravafyScreen>
     );
   }
 
   if (error) {
     return (
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="chevron-back" size={22} color={textPrimary} />
-          </Pressable>
-        </View>
+      <SaravafyScreen theme={variant} variant="stack">
+        <View style={styles.screen}>
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.back()}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="chevron-back" size={22} color={textPrimary} />
+            </Pressable>
+          </View>
 
-        <View style={styles.loadingCenter}>
-          <Text style={[styles.errorText, { color: textSecondary }]}>
-            {error}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={reload}
-            style={({ pressed }) => [
-              styles.retryBtn,
-              pressed && styles.retryBtnPressed,
-              variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
-            ]}
-          >
-            <Text style={[styles.retryText, { color: textPrimary }]}>
-              Tentar novamente
+          <View style={styles.loadingCenter}>
+            <Text style={[styles.errorText, { color: textSecondary }]}>
+              {error}
             </Text>
-          </Pressable>
+            <Pressable
+              accessibilityRole="button"
+              onPress={reload}
+              style={({ pressed }) => [
+                styles.retryBtn,
+                pressed && styles.retryBtnPressed,
+                variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
+              ]}
+            >
+              <Text style={[styles.retryText, { color: textPrimary }]}>
+                Tentar novamente
+              </Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      </SaravafyScreen>
     );
   }
 
   if (isEmpty) {
     return (
-      <View style={styles.screen}>
-        <View style={styles.header}>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => router.back()}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="chevron-back" size={22} color={textPrimary} />
-          </Pressable>
+      <SaravafyScreen theme={variant} variant="stack">
+        <View style={styles.screen}>
+          <View style={styles.header}>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => router.back()}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="chevron-back" size={22} color={textPrimary} />
+            </Pressable>
+          </View>
+          <View style={styles.loadingCenter}>
+            <Text style={[styles.errorText, { color: textSecondary }]}>
+              Collection vazia.
+            </Text>
+          </View>
         </View>
-        <View style={styles.loadingCenter}>
-          <Text style={[styles.errorText, { color: textSecondary }]}>
-            Collection vazia.
-          </Text>
-        </View>
-      </View>
+      </SaravafyScreen>
     );
   }
 
   return (
-    <View style={styles.screen}>
+    <SaravafyScreen theme={variant} variant="stack">
+      <View style={styles.screen}>
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
@@ -506,7 +514,8 @@ export default function PlayerScreen() {
           patchPontoById(updated);
         }}
       />
-    </View>
+      </View>
+    </SaravafyScreen>
   );
 }
 

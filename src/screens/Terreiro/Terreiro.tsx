@@ -4,6 +4,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
 import { ShareBottomSheet } from "@/src/components/ShareBottomSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -633,8 +634,9 @@ export default function Terreiro() {
   };
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.container}>
+    <SaravafyScreen theme={variant} variant="stack">
+      <View style={styles.screen}>
+        <View style={styles.container}>
         <View style={styles.contextHeader}>
           <View style={styles.titleRow}>
             <View style={styles.titleLeft}>
@@ -1199,7 +1201,9 @@ export default function Terreiro() {
           </View>
         </View>
       </BottomSheet>
-    </View>
+        </View>
+      </View>
+    </SaravafyScreen>
   );
 }
 

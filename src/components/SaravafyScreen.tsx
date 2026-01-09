@@ -12,7 +12,8 @@ import { colors } from "@/src/theme";
 
 type Props = ViewProps & {
   children: React.ReactNode;
-  variant?: "dark" | "light";
+  theme?: "dark" | "light";
+  variant?: "tabs" | "stack" | "focus";
 };
 
 const noise = require("@/assets/textures/noise_128.png");
@@ -20,7 +21,8 @@ const noise = require("@/assets/textures/noise_128.png");
 export function SaravafyScreen({
   style,
   children,
-  variant = "dark",
+  theme = "dark",
+  variant = "tabs",
   ...rest
 }: Props) {
   const LinearGradient = useMemo(() => {
@@ -32,67 +34,68 @@ export function SaravafyScreen({
     }
   }, []);
 
+  const isLight = theme === "light";
+  const baseColor = isLight ? colors.paper50 : colors.forest900;
+
   return (
     <View
-      style={[
-        styles.root,
-        variant === "light" ? styles.rootLight : styles.rootDark,
-        style,
-      ]}
+      style={[styles.root, { backgroundColor: baseColor }, style]}
       {...rest}
     >
-      <StatusBar
-        barStyle={variant === "light" ? "dark-content" : "light-content"}
+      <StatusBar barStyle={isLight ? "dark-content" : "light-content"} />
+
+      {/* Base opaca garantida (inclusive no primeiro frame) */}
+      <View
+        pointerEvents="none"
+        style={[StyleSheet.absoluteFill, { backgroundColor: baseColor }]}
       />
 
-      {/* Base (gradiente quando disponível; fallback é a cor sólida do root) */}
-      {LinearGradient ? (
-        <LinearGradient
-          pointerEvents="none"
-          colors={
-            variant === "light"
-              ? [colors.paper50, colors.paper100]
-              : [colors.forest800, colors.forest900]
-          }
-          start={{ x: 0.2, y: 0 }}
-          end={{ x: 0.8, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      ) : (
-        <View pointerEvents="none" style={StyleSheet.absoluteFill} />
+      {variant === "focus" ? null : (
+        <>
+          {/* Base (gradiente quando disponível; fallback é a cor sólida do root) */}
+          {LinearGradient ? (
+            <LinearGradient
+              pointerEvents="none"
+              colors={
+                isLight
+                  ? [colors.paper50, colors.paper100]
+                  : [colors.forest800, colors.forest900]
+              }
+              start={{ x: 0.2, y: 0 }}
+              end={{ x: 0.8, y: 1 }}
+              style={StyleSheet.absoluteFill}
+            />
+          ) : null}
+
+          {/* Luz difusa (top-right) */}
+          <View
+            pointerEvents="none"
+            style={isLight ? styles.lightBrassLight : styles.lightBrass}
+          />
+
+          {/* Segunda luz (top-left) */}
+          <View
+            pointerEvents="none"
+            style={isLight ? styles.lightSecondaryLight : styles.lightPaper}
+          />
+
+          {/* Vinheta */}
+          <View
+            pointerEvents="none"
+            style={isLight ? styles.vignetteLight : styles.vignette}
+          />
+
+          {/* Grão */}
+          <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+            <ImageBackground
+              source={noise}
+              resizeMode="repeat"
+              style={StyleSheet.absoluteFill}
+              imageStyle={isLight ? styles.noiseImageLight : styles.noiseImage}
+            />
+          </View>
+        </>
       )}
-
-      {/* Luz difusa (top-right) */}
-      <View
-        pointerEvents="none"
-        style={variant === "light" ? styles.lightBrassLight : styles.lightBrass}
-      />
-
-      {/* Segunda luz (top-left) */}
-      <View
-        pointerEvents="none"
-        style={
-          variant === "light" ? styles.lightSecondaryLight : styles.lightPaper
-        }
-      />
-
-      {/* Vinheta */}
-      <View
-        pointerEvents="none"
-        style={variant === "light" ? styles.vignetteLight : styles.vignette}
-      />
-
-      {/* Grão */}
-      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-        <ImageBackground
-          source={noise}
-          resizeMode="repeat"
-          style={StyleSheet.absoluteFill}
-          imageStyle={
-            variant === "light" ? styles.noiseImageLight : styles.noiseImage
-          }
-        />
-      </View>
 
       {/* Conteúdo */}
       <SafeAreaView style={styles.content} edges={["top", "bottom"]}>
@@ -105,12 +108,6 @@ export function SaravafyScreen({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-  },
-  rootDark: {
-    backgroundColor: colors.forest900,
-  },
-  rootLight: {
-    backgroundColor: colors.paper50,
   },
   content: {
     flex: 1,

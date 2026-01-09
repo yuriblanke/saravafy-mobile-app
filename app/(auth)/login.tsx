@@ -42,7 +42,7 @@ export default function LoginScreen() {
   };
 
   return (
-    <SaravafyScreen variant={variant}>
+    <SaravafyScreen theme={variant}>
       <View style={styles.container}>
         <Image source={logoSource} style={styles.logo} resizeMode="contain" />
         <Text style={[styles.subtitle, { color: textSecondary }]}>

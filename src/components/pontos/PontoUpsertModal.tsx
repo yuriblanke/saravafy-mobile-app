@@ -3,8 +3,8 @@ import {
   ActivityIndicator,
   Modal,
   Pressable,
-  Switch,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
@@ -220,7 +220,7 @@ export function PontoUpsertModal({
       presentationStyle="fullScreen"
       onRequestClose={onCancel}
     >
-      <SaravafyScreen variant={variant}>
+      <SaravafyScreen theme={variant}>
         <View style={styles.screen}>
           <View style={styles.header}>
             <Pressable
@@ -342,7 +342,9 @@ export function PontoUpsertModal({
               </>
             ) : (
               <>
-                <Text style={[styles.label, { color: textSecondary }]}>Autor</Text>
+                <Text style={[styles.label, { color: textSecondary }]}>
+                  Autor
+                </Text>
                 <TextInput
                   value={artist}
                   onChangeText={setArtist}

@@ -1,3 +1,239 @@
+# Diagnóstico — Navegação, layouts e hipótese do “frame de sobreposição”
+
+Data: 2026-01-09
+
+Objetivo deste documento: **mapear o estado atual real** da navegação (Expo Router/React Navigation), **como as rotas herdam layouts/containers**, e **formular hipóteses técnicas** (baseadas no código) para o problema sistêmico de UX em transições de stack onde duas telas aparecem simultaneamente por um frame.
+
+Restrições deste diagnóstico:
+
+- Não propõe correção definitiva.
+- Não altera comportamento.
+- Serve como base para refatoração consciente.
+
+---
+
+## Estrutura de rotas e layouts
+
+### 1) Árvore real de rotas (baseada em `app/`)
+
+Diagrama (simplificado):
+
+```
+app/
+  _layout.tsx                        # RootLayout: providers + Slot
+  +not-found.tsx
+  +html.tsx
+  politica-de-privacidade.tsx
+  modal.tsx
+
+  (auth)/
+    _layout.tsx                      # Auth Stack (header off)
+    login.tsx
+  auth/
+    callback.tsx                     # bridge transitório pós OAuth
+
+  (app)/
+    _layout.tsx                      # SaravafyScreen + AppHeaderWithPreferences + Stack
+    index.tsx                         # redirect para /(app)/(tabs)/(pontos)
+    player.tsx
+    access-manager.tsx                # modal
+    terreiro-editor.tsx               # modal
+    review-submissions/
+      index.tsx
+      [submissionId].tsx
+    l/
+      [tipo]/[id].tsx                 # deep link bridge genérico
+      ponto/[id].tsx
+      colecao/[id].tsx
+      terreiro/[id].tsx
+    (tabs)/
+      _layout.tsx                     # MaterialTopTabs (tabBar oculto)
+      (pontos)/
+        _layout.tsx                   # Stack de Pontos (header off)
+        index.tsx
+      (terreiros)/
+        _layout.tsx                   # Stack de Terreiros (header off)
+        index.tsx
+        terreiro.tsx
+        collection/[id].tsx
+
+  (fullscreen)/
+    _layout.tsx                       # Stack isolado: sem header/tabs + background sólido
+    collection/[id]/edit.tsx
+    terreiro-collections/[terreiroId]/edit.tsx
+```
+
+Observações relevantes (do código):
+
+- `app/_layout.tsx` é o **root**: monta providers (React Query, Auth, Preferences, RootPager, Toast, gates) e renderiza `RootLayoutNav` + overlays persistentes (`InviteGate`, `CuratorInviteGate`, etc.).
+- `app/(app)/_layout.tsx` é o **shell visual do app**:
+  - desenha o background (`SaravafyScreen`),
+  - desenha o header global (`AppHeaderWithPreferences`),
+  - define um `Stack` com `contentStyle: { backgroundColor: "transparent" }` e `animation: "none"`.
+- `app/(app)/(tabs)/_layout.tsx` implementa as abas **Pontos ↔ Terreiros** como `createMaterialTopTabNavigator()` (tabBar oculto), com `sceneStyle: { backgroundColor: "transparent" }`.
+- `app/(app)/(tabs)/(pontos)/_layout.tsx` e `app/(app)/(tabs)/(terreiros)/_layout.tsx` criam **Stacks por aba**, também com `contentStyle` transparente e `animation: "none"`.
+- `app/(fullscreen)/_layout.tsx` é um grupo **fora do shell `(app)`**: define Stack sem header/tabs e com **background sólido** (`paper50`/`forest900`), e `animation: "fade"` apenas neste grupo.
+
+### 2) Quais rotas herdam tabs, header global e backgrounds
+
+Definições (do projeto):
+
+- “Tabs” = `MaterialTopTabNavigator` em `app/(app)/(tabs)/_layout.tsx`.
+- “Header global” = componente `AppHeaderWithPreferences` desenhado em `app/(app)/_layout.tsx` (não é o header do React Navigation).
+- “Background do shell” = `SaravafyScreen` desenhado em `app/(app)/_layout.tsx`.
+
+Mapa:
+
+- Rotas **com tabs**: tudo sob `app/(app)/(tabs)/**`.
+  - Ex.: `/(app)/(tabs)/(pontos)` e `/(app)/(tabs)/(terreiros)`.
+- Rotas **sem tabs** mas ainda dentro do shell `(app)`:
+  - `/(app)/player` (tela imersiva, mas ainda sob `SaravafyScreen`).
+  - `/(app)/terreiro-editor` e `/(app)/access-manager` (modais).
+  - `/(app)/review-submissions/*`.
+  - `/(app)/l/*` (bridges de deep link).
+- Rotas **full screen reais (fora do shell `(app)`)**:
+  - Tudo sob `app/(fullscreen)/**`.
+  - Ex.: `/collection/[id]/edit` e `/terreiro-collections/[terreiroId]/edit`.
+
+### 3) Rotas “equivalentes” / duplicidade semântica (risco)
+
+Mesmo conceito pode ser alcançado por paths diferentes (dependendo de `router.push/replace`):
+
+- Player:
+  - `/(app)/player` (rota declarada em `app/(app)/player.tsx`)
+  - Em alguns bridges há `router.replace({ pathname: "/(app)/player", ... })`.
+- Tabs:
+  - `/(app)` hoje apenas redireciona para `/(app)/(tabs)/(pontos)` via `app/(app)/index.tsx`.
+
+Risco: diferenças de pathname podem gerar histórico/stack com entradas redundantes, e também alterar `useSegments()` (ex.: para lógica de “suspender header global” em `app/(app)/_layout.tsx`).
+
+---
+
+## Fluxos principais de navegação
+
+### 1) Terreiros → Collection → Ponto/Player
+
+Sequência típica (nível de navigators):
+
+1. Terreiros (aba)
+
+   - Rota: `/(app)/(tabs)/(terreiros)`
+   - Navigator: TopTabs ➜ Stack(terreiros)
+
+2. Collection (ainda dentro da aba Terreiros)
+
+   - Rota: `/(app)/(tabs)/(terreiros)/collection/[id]`
+   - Navigator: TopTabs ➜ Stack(terreiros) (push dentro do stack da aba)
+
+3. Player (fora das tabs)
+   - Rota: `/(app)/player`
+   - Navigator: Stack do grupo `(app)` (push acima de `(tabs)`)
+
+Observação: o passo 3 cruza a fronteira “tabs ➜ stack do `(app)`”, mantendo `(tabs)` montado atrás.
+
+### 2) Pontos → Ponto/Player
+
+1. Pontos (aba)
+
+   - Rota: `/(app)/(tabs)/(pontos)`
+   - Navigator: TopTabs ➜ Stack(pontos)
+
+2. Player
+   - Rota: `/(app)/player`
+   - Navigator: Stack do grupo `(app)` (push acima de `(tabs)`)
+
+### 3) Troca entre abas (Pontos ↔ Terreiros)
+
+- Feita pelo `MaterialTopTabNavigator` (TopTabs) em `app/(app)/(tabs)/_layout.tsx`.
+- Controle programático de troca via `TabControllerContext` (registro de `goToTab`).
+- `swipeEnabled` pode ser desabilitado quando `RootPagerContext.isBottomSheetOpen` está true.
+
+---
+
+## Containers visuais e backgrounds
+
+### 1) Containers/layouts que desenham UI persistente
+
+No root (`app/_layout.tsx`):
+
+- Providers: React Query, Auth, Preferences, RootPager, Toast.
+- Overlays persistentes:
+  - `TerreirosRealtimeSync`
+  - `InviteGate`
+  - `CuratorInviteGate`
+
+No shell do app (`app/(app)/_layout.tsx`):
+
+- `SaravafyScreen`: background/texture/gradiente do app.
+- `AppHeaderWithPreferences`: header global (UI própria do app).
+  - Suspenso (não desmontado) quando `leaf` em `useSegments()` é:
+    - `player`, `edit`, `terreiro-editor`, `access-manager`.
+
+### 2) Transparência como padrão (impacto em transições)
+
+O projeto explicitamente usa `backgroundColor: "transparent"` em múltiplos níveis:
+
+- `app/(app)/_layout.tsx` (Stack do app)
+- `app/(app)/(tabs)/_layout.tsx` (sceneStyle do TopTabs)
+- `app/(app)/(tabs)/(pontos)/_layout.tsx` e `app/(app)/(tabs)/(terreiros)/_layout.tsx` (stacks das abas)
+
+Consequência arquitetural:
+
+- As telas filhas frequentemente **não têm background opaco próprio**; elas “deixam aparecer” o `SaravafyScreen`.
+- Em navegação por stack, a tela anterior permanece montada atrás; se a nova tela inicia com UI parcial/placeholder/transparente (por render inicial ou carregamento), o usuário pode ver **a tela anterior através**.
+
+O grupo `app/(fullscreen)` é uma exceção importante:
+
+- `contentStyle` define background sólido, evitando que o stack revele a tela anterior por transparência.
+
+---
+
+## Hipóteses para o problema de sobreposição
+
+Hipóteses fundamentadas no estado atual do código (não “chutes”):
+
+1. **Stacks com fundo transparente revelam a tela anterior**
+
+   - Evidência: `contentStyle: { backgroundColor: "transparent" }` aparece no Stack do `(app)` e nos Stacks das abas.
+   - Mecanismo: a tela anterior continua montada atrás; se a nova tela não pinta um background opaco imediatamente, o frame mostra “duas telas”.
+
+2. **Transições cruzando a fronteira tabs ➜ stack do `(app)` aumentam o efeito**
+
+   - Ex.: abrir `/(app)/player` a partir de uma screen dentro de `/(app)/(tabs)/...`.
+   - Mecanismo: o navigator `(tabs)` permanece montado; qualquer transparência na screen de destino (ou no container do Stack) pode expor o conteúdo do tab atual.
+
+3. **Inconsistência de paths (histórico/segmentos) pode gerar stack redundante**
+
+   - Evidência: há uso de `"/player"` e também `"/(app)/player"` em bridges.
+   - Risco: entradas duplicadas no histórico e variações em `useSegments()` podem afetar lógica de UI global (ex.: suspensão do header global).
+
+4. **“Primeiro frame” sem background por render incremental/carregamento**
+
+   - Muitas telas (ex.: Collection) carregam dados e exibem estado “Carregando…”.
+   - Se a estrutura inicial não cobre o viewport com algo opaco, a tela anterior aparece por baixo nesse intervalo.
+
+5. **SetState antes de navegar (precisa ser auditado por fluxo)**
+   - Este documento não confirma ocorrências em todos os fluxos; porém é um padrão que pode causar um render intermediário visível antes do `router.push`.
+   - Exemplo a procurar: handlers que fazem `setState` e só depois navegam.
+
+---
+
+## Pontos de atenção para refatoração futura
+
+Sem propor solução definitiva, pontos que merecem padronização/inspeção por serem “sensíveis” ao bug:
+
+- **Política de backgrounds**: telas de Stack devem explicitar se são opacas ou transparentes (e em qual nível).
+- **Consolidação de paths**: padronizar uso de `pathname` (ex.: sempre `/(app)/player` ou sempre `/player`) para evitar histórico redundante e diferenças de `segments`.
+- **Navegação cruzando tabs**: mapear todos os pontos que fazem push para rotas fora de `(tabs)` (ex.: player, modais) e checar comportamento.
+- **Auditoria de handlers**: em fluxos críticos (Terreiros → Collection → Player), verificar se existe qualquer `setState` antes do push.
+- **Overlays persistentes**: `InviteGate/CuratorInviteGate/TerreirosRealtimeSync` vivem acima da navegação; entender se algum overlay pode contribuir para percepção de “duas telas”.
+
+---
+
+## Histórico (preservado)
+
+O conteúdo abaixo foi mantido como registro de investigação anterior (2026-01-07). Algumas partes descrevem uma arquitetura antiga (ex.: RootPager com TabView) e podem estar desatualizadas em relação ao estado atual.
+
 # Investigação — Swipe entre abas “Pontos” ↔ “Terreiros” e conflito com Player
 
 Data: 2026-01-07
