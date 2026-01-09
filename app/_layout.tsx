@@ -9,8 +9,7 @@ import {
 import { useFonts } from "expo-font";
 import { Slot, useRouter, useSegments } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
-import { useEffect, useRef, useState } from "react";
-import React from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
 
 import { useColorScheme } from "@/components/useColorScheme";

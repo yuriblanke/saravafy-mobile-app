@@ -110,6 +110,7 @@ export default function AppLayout() {
     const leaf = segments[segments.length - 1];
     return (
       leaf === "player" ||
+      leaf === "edit" ||
       leaf === "terreiro-editor" ||
       leaf === "access-manager"
     );

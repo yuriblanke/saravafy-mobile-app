@@ -673,6 +673,39 @@ export default function Terreiro() {
           <Text style={[styles.sectionTitle, { color: textMuted }]}>
             Coleções
           </Text>
+          {canEdit && collections.length > 0 && !creatingCollection && (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar ordem das coleções"
+              hitSlop={10}
+              onPress={() => {
+                if (shouldBlockPress()) return;
+                if (!terreiroId) return;
+
+                router.push({
+                  pathname:
+                    "/terreiro-collections/[terreiroId]/edit" as any,
+                  params: { terreiroId },
+                });
+              }}
+              style={({ pressed }) => [
+                styles.newCollectionButton,
+                pressed ? styles.iconButtonPressed : null,
+              ]}
+            >
+              <Ionicons
+                name="swap-vertical"
+                size={18}
+                color={accentColor}
+                style={{ marginRight: 4 }}
+              />
+              <Text
+                style={[styles.newCollectionButtonText, { color: accentColor }]}
+              >
+                Editar
+              </Text>
+            </Pressable>
+          )}
           {canEdit && !creatingCollection && (
             <Pressable
               accessibilityRole="button"
