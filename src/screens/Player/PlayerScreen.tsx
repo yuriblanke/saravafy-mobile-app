@@ -2,6 +2,7 @@ import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
+import { BottomSheet } from "@/src/components/BottomSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
@@ -14,7 +15,7 @@ import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
-import { Ionicons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -132,6 +133,8 @@ export default function PlayerScreen() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [isReportOpen, setIsReportOpen] = useState(false);
+  const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
   const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
     null
   );
@@ -187,6 +190,18 @@ export default function PlayerScreen() {
         tags: activePonto.tags,
       };
     }, [activePonto]);
+
+  const openCorrection = useCallback(async () => {
+    if (!activePonto?.id || !editingInitialValues?.id) {
+      showToast("Não foi possível abrir a correção deste ponto.");
+      return;
+    }
+
+    setIsReportOpen(false);
+    // Micro-delay para evitar overlap visual com o fechamento do sheet.
+    await new Promise((r) => setTimeout(r, 120));
+    setIsCorrectionOpen(true);
+  }, [activePonto?.id, editingInitialValues?.id, showToast]);
 
   const handleShare = useCallback(async () => {
     if (!activePonto?.id) {
@@ -356,6 +371,20 @@ export default function PlayerScreen() {
 
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Reportar problema"
+              onPress={() => setIsReportOpen(true)}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <MaterialCommunityIcons
+                name="email-alert-outline"
+                size={18}
+                color={textPrimary}
+              />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
               accessibilityLabel="Compartilhar"
               onPress={() => {
                 void handleShare();
@@ -512,6 +541,59 @@ export default function PlayerScreen() {
           onClose={() => setIsCurimbaExplainerOpen(false)}
         />
 
+        <BottomSheet
+          visible={isReportOpen}
+          onClose={() => setIsReportOpen(false)}
+          variant={variant}
+          scrollEnabled={false}
+          bounces={false}
+        >
+          <View style={{ paddingBottom: 16 }}>
+            <View style={styles.sheetHeaderRow}>
+              <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+                Tem algo de errado nesse ponto?
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setIsReportOpen(false)}
+                hitSlop={10}
+                style={styles.sheetCloseBtn}
+              >
+                <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
+                  ×
+                </Text>
+              </Pressable>
+            </View>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                void openCorrection();
+              }}
+              style={({ pressed }) => [
+                styles.sheetOption,
+                pressed ? styles.sheetOptionPressed : null,
+              ]}
+            >
+              <Text style={[styles.sheetOptionText, { color: textPrimary }]}>
+                Letra ou dados
+              </Text>
+              <Ionicons name="chevron-forward" size={18} color={textSecondary} />
+            </Pressable>
+          </View>
+        </BottomSheet>
+
+        <PontoUpsertModal
+          visible={isCorrectionOpen}
+          variant={variant}
+          mode="correction"
+          initialValues={editingInitialValues}
+          onCancel={() => setIsCorrectionOpen(false)}
+          onSuccess={() => {
+            showToast("Correção enviada.");
+          }}
+        />
+
         <PontoUpsertModal
           visible={isEditOpen}
           variant={variant}
@@ -549,6 +631,46 @@ const styles = StyleSheet.create({
     height: 36,
     alignItems: "center",
     justifyContent: "center",
+  },
+  sheetHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+  },
+  sheetTitle: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "900",
+    paddingRight: spacing.md,
+  },
+  sheetCloseBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  sheetCloseText: {
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 22,
+  },
+  sheetOption: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  sheetOptionPressed: {
+    opacity: 0.86,
+  },
+  sheetOptionText: {
+    fontSize: 14,
+    fontWeight: "800",
   },
   fontBtnText: {
     fontSize: 14,

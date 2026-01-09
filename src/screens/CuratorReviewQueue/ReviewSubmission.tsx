@@ -1,6 +1,7 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import {
@@ -52,6 +53,13 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
   if (has("invalid_decision")) return "Ação inválida.";
 
   return "Não foi possível concluir agora. Tente novamente.";
+}
+
+function toKindLabel(kind: string | null | undefined) {
+  const k = typeof kind === "string" ? kind.trim().toLowerCase() : "";
+  if (k === "correction") return "Correção";
+  if (k === "problem") return "Problema";
+  return "Envio";
 }
 
 type RpcPayload = {
@@ -345,6 +353,12 @@ export default function ReviewSubmissionScreen() {
     );
   }
 
+  const kindLabel = toKindLabel(submission.kind);
+  const submitterEmail =
+    typeof submission.submitter_email === "string" ? submission.submitter_email : "";
+  const issueDetails =
+    typeof submission.issue_details === "string" ? submission.issue_details.trim() : "";
+
   return (
     <SafeAreaView
       edges={["top", "bottom"]}
@@ -373,6 +387,35 @@ export default function ReviewSubmissionScreen() {
         </View>
 
         <ScrollView contentContainerStyle={styles.content}>
+          <View style={styles.metaRow}>
+            <Badge label={kindLabel} variant={variant} />
+            {submitterEmail ? (
+              <Text style={[styles.metaEmail, { color: textSecondary }]}>
+                {submitterEmail}
+              </Text>
+            ) : (
+              <View />
+            )}
+          </View>
+
+          {issueDetails ? (
+            <View
+              style={[
+                styles.issueBox,
+                { backgroundColor: inputBg, borderColor: inputBorder },
+              ]}
+            >
+              <Text style={[styles.issueLabel, { color: textSecondary }]}
+                numberOfLines={1}
+              >
+                Nota da usuária
+              </Text>
+              <Text style={[styles.issueText, { color: textPrimary }]}>
+                {issueDetails}
+              </Text>
+            </View>
+          ) : null}
+
           {inlineError ? (
             <Text style={[styles.inlineError, { color: colors.brass600 }]}>
               {inlineError}
@@ -610,6 +653,33 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: spacing.xl,
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginBottom: spacing.sm,
+  },
+  metaEmail: {
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  issueBox: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    padding: spacing.md,
+    gap: 6,
+    marginBottom: spacing.sm,
+  },
+  issueLabel: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  issueText: {
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
   },
   label: {
     marginTop: spacing.md,

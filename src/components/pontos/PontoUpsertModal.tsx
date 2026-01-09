@@ -11,12 +11,16 @@ import {
 } from "react-native";
 
 import { useToast } from "@/contexts/ToastContext";
-import { createPontoSubmission, parseTagsInput } from "@/lib/pontosSubmissions";
+import {
+  createPontoSubmission,
+  parseTagsInput,
+  submitPontoCorrection,
+} from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { colors, spacing } from "@/src/theme";
 
-export type PontoUpsertMode = "create" | "edit";
+export type PontoUpsertMode = "create" | "edit" | "correction";
 
 export type PontoUpsertInitialValues = {
   id: string;
@@ -75,6 +79,7 @@ export function PontoUpsertModal({
   const [artist, setArtist] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [tagsText, setTagsText] = useState("");
+  const [issueDetails, setIssueDetails] = useState("");
 
   // Submission-only fields (create mode)
   const [isTraditional, setIsTraditional] = useState(true);
@@ -96,8 +101,18 @@ export function PontoUpsertModal({
   const inputBorder =
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
-  const headerTitle = mode === "create" ? "Enviar ponto" : "Salvar alterações";
-  const primaryCta = mode === "create" ? "Enviar" : "Salvar alterações";
+  const headerTitle =
+    mode === "create"
+      ? "Enviar ponto"
+      : mode === "correction"
+      ? "Corrigir ponto"
+      : "Salvar alterações";
+  const primaryCta =
+    mode === "create"
+      ? "Enviar"
+      : mode === "correction"
+      ? "Enviar correção"
+      : "Salvar alterações";
 
   const canSubmit = useMemo(() => {
     return title.trim().length > 0 && lyrics.trim().length > 0;
@@ -108,13 +123,14 @@ export function PontoUpsertModal({
 
     setErrorMessage(null);
 
-    if (mode === "edit" && initialValues) {
+    if ((mode === "edit" || mode === "correction") && initialValues) {
       setTitle(initialValues.title ?? "");
       setArtist(
         typeof initialValues.artist === "string" ? initialValues.artist : ""
       );
       setLyrics(initialValues.lyrics ?? "");
       setTagsText((initialValues.tags ?? []).join(", "));
+      setIssueDetails("");
       return;
     }
 
@@ -123,6 +139,7 @@ export function PontoUpsertModal({
       setArtist("");
       setLyrics("");
       setTagsText("");
+      setIssueDetails("");
       setIsTraditional(true);
       setAuthorName("");
       setInterpreterName("");
@@ -139,6 +156,11 @@ export function PontoUpsertModal({
 
     if (mode === "edit" && (!initialValues || !initialValues.id)) {
       setErrorMessage("Ponto inválido para edição.");
+      return;
+    }
+
+    if (mode === "correction" && (!initialValues || !initialValues.id)) {
+      setErrorMessage("Ponto inválido para correção.");
       return;
     }
 
@@ -162,6 +184,21 @@ export function PontoUpsertModal({
           tags,
           author_name: authorValue ? authorValue : null,
           interpreter_name: interpreterValue ? interpreterValue : null,
+        });
+
+        onCancel();
+        onSuccess?.();
+        return;
+      }
+
+      if (mode === "correction") {
+        await submitPontoCorrection({
+          target_ponto_id: initialValues!.id,
+          title: title.trim(),
+          lyrics: lyrics.trim(),
+          tags,
+          artist: artistValue,
+          issue_details: issueDetails.trim() ? issueDetails.trim() : null,
         });
 
         onCancel();
@@ -411,6 +448,34 @@ export function PontoUpsertModal({
               editable={!isSubmitting}
             />
 
+            {mode === "correction" ? (
+              <>
+                <Text style={[styles.label, { color: textSecondary }]}>
+                  Nota (opcional)
+                </Text>
+                <TextInput
+                  value={issueDetails}
+                  onChangeText={setIssueDetails}
+                  placeholder="Ex.: letra errada, autor incorreto, falta uma parte…"
+                  placeholderTextColor={textSecondary}
+                  style={[
+                    styles.input,
+                    styles.inputNote,
+                    {
+                      backgroundColor: inputBg,
+                      borderColor: inputBorder,
+                      color: textPrimary,
+                    },
+                  ]}
+                  autoCapitalize="sentences"
+                  autoCorrect
+                  editable={!isSubmitting}
+                  multiline
+                  textAlignVertical="top"
+                />
+              </>
+            ) : null}
+
             {errorMessage ? (
               <Text style={[styles.errorText, { color: colors.brass600 }]}>
                 {errorMessage}
@@ -435,7 +500,11 @@ export function PontoUpsertModal({
                   <View style={styles.primaryBtnRow}>
                     <ActivityIndicator color={"#fff"} />
                     <Text style={styles.primaryBtnText}>
-                      {mode === "create" ? "Enviando…" : "Salvando…"}
+                      {mode === "create"
+                        ? "Enviando…"
+                        : mode === "correction"
+                        ? "Enviando…"
+                        : "Salvando…"}
                     </Text>
                   </View>
                 ) : (
@@ -519,6 +588,11 @@ const styles = StyleSheet.create({
   },
   inputMultiline: {
     height: 180,
+    paddingTop: 12,
+    paddingBottom: 12,
+  },
+  inputNote: {
+    height: 96,
     paddingTop: 12,
     paddingBottom: 12,
   },

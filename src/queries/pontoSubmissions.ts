@@ -5,12 +5,16 @@ import { queryKeys } from "./queryKeys";
 
 export type PendingPontoSubmission = {
   id: string;
+  kind?: string | null;
   title: string;
   lyrics: string;
   tags: string[];
   artist?: string | null;
   author_name?: string | null;
   interpreter_name?: string | null;
+  submitter_email?: string | null;
+  issue_details?: string | null;
+  target_ponto_id?: string | null;
   created_at?: string | null;
   created_by?: string | null;
 };
@@ -44,7 +48,7 @@ export async function fetchPendingPontoSubmissions(): Promise<
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, title, artist, author_name, interpreter_name, lyrics, tags, status, created_at, created_by"
+      "id, kind, title, artist, author_name, interpreter_name, lyrics, tags, submitter_email, issue_details, target_ponto_id, status, created_at, created_by"
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
@@ -55,6 +59,7 @@ export async function fetchPendingPontoSubmissions(): Promise<
 
   return (res.data ?? []).map((row: any) => ({
     id: String(row.id),
+    kind: typeof row.kind === "string" ? row.kind : null,
     title: typeof row.title === "string" ? row.title : "",
     lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
     tags: coerceTags(row.tags),
@@ -62,6 +67,12 @@ export async function fetchPendingPontoSubmissions(): Promise<
     author_name: typeof row.author_name === "string" ? row.author_name : null,
     interpreter_name:
       typeof row.interpreter_name === "string" ? row.interpreter_name : null,
+    submitter_email:
+      typeof row.submitter_email === "string" ? row.submitter_email : null,
+    issue_details:
+      typeof row.issue_details === "string" ? row.issue_details : null,
+    target_ponto_id:
+      typeof row.target_ponto_id === "string" ? row.target_ponto_id : null,
     created_at: typeof row.created_at === "string" ? row.created_at : null,
     created_by: typeof row.created_by === "string" ? row.created_by : null,
   }));
@@ -75,7 +86,7 @@ export async function fetchPontoSubmissionById(
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, title, artist, author_name, interpreter_name, lyrics, tags, status, created_at, created_by"
+      "id, kind, title, artist, author_name, interpreter_name, lyrics, tags, submitter_email, issue_details, target_ponto_id, status, created_at, created_by"
     )
     .eq("id", submissionId)
     .maybeSingle();
@@ -89,6 +100,7 @@ export async function fetchPontoSubmissionById(
   const row: any = res.data;
   return {
     id: String(row.id),
+    kind: typeof row.kind === "string" ? row.kind : null,
     title: typeof row.title === "string" ? row.title : "",
     lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
     tags: coerceTags(row.tags),
@@ -96,6 +108,12 @@ export async function fetchPontoSubmissionById(
     author_name: typeof row.author_name === "string" ? row.author_name : null,
     interpreter_name:
       typeof row.interpreter_name === "string" ? row.interpreter_name : null,
+    submitter_email:
+      typeof row.submitter_email === "string" ? row.submitter_email : null,
+    issue_details:
+      typeof row.issue_details === "string" ? row.issue_details : null,
+    target_ponto_id:
+      typeof row.target_ponto_id === "string" ? row.target_ponto_id : null,
     created_at: typeof row.created_at === "string" ? row.created_at : null,
     created_by: typeof row.created_by === "string" ? row.created_by : null,
   };

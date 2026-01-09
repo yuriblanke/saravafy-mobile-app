@@ -1,5 +1,6 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { usePendingPontoSubmissions } from "@/src/queries/pontoSubmissions";
@@ -27,6 +28,13 @@ function formatDateLabel(value: string | null | undefined) {
   }
 }
 
+function toKindLabel(kind: string | null | undefined) {
+  const k = typeof kind === "string" ? kind.trim().toLowerCase() : "";
+  if (k === "correction") return "Correção";
+  if (k === "problem") return "Problema";
+  return "Envio";
+}
+
 export default function ReviewQueueScreen() {
   const router = useRouter();
   const { showToast } = useToast();
@@ -34,7 +42,9 @@ export default function ReviewQueueScreen() {
 
   const variant = effectiveTheme;
 
-  const bgColor = variant === "light" ? colors.paper50 : colors.forest900;
+  // Match the Preferences menu (BottomSheet) background.
+  const bgColor =
+    variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
 
   const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
 
@@ -148,6 +158,12 @@ export default function ReviewQueueScreen() {
                 .filter(Boolean)
                 .join(" — ");
 
+              const kindLabel = toKindLabel(s.kind);
+              const submitterEmail =
+                typeof s.submitter_email === "string" ? s.submitter_email : "";
+              const issuePreview =
+                typeof s.issue_details === "string" ? s.issue_details.trim() : "";
+
               return (
                 <Pressable
                   key={s.id}
@@ -158,6 +174,20 @@ export default function ReviewQueueScreen() {
                   style={({ pressed }) => [pressed ? styles.rowPressed : null]}
                 >
                   <SurfaceCard variant={variant} style={styles.card}>
+                    <View style={styles.cardTopRow}>
+                      <Badge label={kindLabel} variant={variant} />
+                      {submitterEmail ? (
+                        <Text
+                          style={[styles.cardMeta, { color: textSecondary }]}
+                          numberOfLines={1}
+                        >
+                          {submitterEmail}
+                        </Text>
+                      ) : (
+                        <View />
+                      )}
+                    </View>
+
                     <Text
                       style={[styles.cardTitle, { color: textPrimary }]}
                       numberOfLines={2}
@@ -180,6 +210,15 @@ export default function ReviewQueueScreen() {
                         numberOfLines={1}
                       >
                         Enviado em {dateLabel}
+                      </Text>
+                    ) : null}
+
+                    {issuePreview ? (
+                      <Text
+                        style={[styles.cardMeta, { color: textSecondary }]}
+                        numberOfLines={2}
+                      >
+                        {issuePreview}
                       </Text>
                     ) : null}
                   </SurfaceCard>
@@ -221,6 +260,13 @@ const styles = StyleSheet.create({
   },
   card: {
     padding: spacing.md,
+  },
+  cardTopRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginBottom: spacing.sm,
   },
   rowPressed: {
     opacity: 0.92,
