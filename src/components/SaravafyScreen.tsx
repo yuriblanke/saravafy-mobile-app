@@ -8,6 +8,7 @@ import {
 } from "react-native";
 
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { getSaravafyBaseColor } from "@/src/theme";
 
 type Props = ViewProps & {
@@ -27,6 +28,13 @@ export function SaravafyScreen({
 }: Props) {
   const isLight = theme === "light";
   const baseColor = getSaravafyBaseColor(theme);
+  const insets = useGlobalSafeAreaInsets();
+
+  const edges = _edges;
+  const padTop = edges.includes("top") ? insets.top : 0;
+  const padBottom = edges.includes("bottom") ? insets.bottom : 0;
+  const padLeft = edges.includes("left") ? insets.left : 0;
+  const padRight = edges.includes("right") ? insets.right : 0;
 
   return (
     <View
@@ -42,7 +50,15 @@ export function SaravafyScreen({
       <SaravafyBackgroundLayers theme={theme} variant={variant} />
 
       {/* Conteúdo */}
-      <View style={styles.content}>
+      <View
+        style={[
+          styles.content,
+          padTop ? { paddingTop: padTop } : null,
+          padBottom ? { paddingBottom: padBottom } : null,
+          padLeft ? { paddingLeft: padLeft } : null,
+          padRight ? { paddingRight: padRight } : null,
+        ]}
+      >
         {children}
       </View>
     </View>

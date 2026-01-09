@@ -510,7 +510,10 @@ export default function Terreiros() {
           <FlatList
             data={filteredTerreiros}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={[styles.listContent, { paddingBottom: spacing.md }]}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: spacing.md },
+            ]}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const expanded = expandedTerreiroId === item.id;

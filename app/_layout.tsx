@@ -25,8 +25,8 @@ import { ToastProvider } from "@/contexts/ToastContext";
 import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
 import { InviteGate } from "@/src/components/InviteGate";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
+import { GlobalSafeAreaInsetsProvider } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { warmRemoteConfig } from "@/src/config/remoteConfig";
-import { getSaravafyBaseColor } from "@/src/theme";
 import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
@@ -45,7 +45,6 @@ import {
 } from "@tanstack/react-query";
 import {
   SafeAreaProvider,
-  SafeAreaView,
   initialWindowMetrics,
 } from "react-native-safe-area-context";
 
@@ -120,7 +119,7 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <PreferencesProvider>
-              <SafeAreaShell>
+              <GlobalSafeAreaInsetsProvider>
                 <RootPagerProvider>
                   <ToastProvider>
                     <CuratorModeProvider>
@@ -133,7 +132,7 @@ export default function RootLayout() {
                     </CuratorModeProvider>
                   </ToastProvider>
                 </RootPagerProvider>
-              </SafeAreaShell>
+              </GlobalSafeAreaInsetsProvider>
             </PreferencesProvider>
           </AuthProvider>
         </QueryClientProvider>
@@ -142,19 +141,6 @@ export default function RootLayout() {
   );
 }
 
-function SafeAreaShell({ children }: RootWrapperProps) {
-  const { effectiveTheme } = usePreferences();
-  const baseColor = getSaravafyBaseColor(effectiveTheme);
-
-  return (
-    <SafeAreaView
-      style={{ flex: 1, backgroundColor: baseColor }}
-      edges={["top", "bottom"]}
-    >
-      {children}
-    </SafeAreaView>
-  );
-}
 
 function RootLayoutNav() {
   const systemColorScheme = useColorScheme();

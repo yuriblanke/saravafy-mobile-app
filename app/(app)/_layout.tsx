@@ -29,6 +29,7 @@ import {
   StyleSheet,
   View,
 } from "react-native";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 
 function AndroidBackBehavior() {
   const pathname = usePathname();
@@ -213,6 +214,7 @@ export default function AppLayout() {
 
 function HeaderMeasurer({ suspended }: { suspended: boolean }) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
+  const insets = useGlobalSafeAreaInsets();
 
   React.useEffect(() => {
     if (!suspended) return;
@@ -223,7 +225,7 @@ function HeaderMeasurer({ suspended }: { suspended: boolean }) {
 
   return (
     <View
-      style={styles.headerWrap}
+      style={[styles.headerWrap, insets.top ? { paddingTop: insets.top } : null]}
       onLayout={(e) => {
         setHeaderHeight(e.nativeEvent.layout.height);
       }}

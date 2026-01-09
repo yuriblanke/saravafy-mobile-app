@@ -634,7 +634,10 @@ export default function Collection() {
         <FlatList
           data={orderedItems}
           keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-          contentContainerStyle={[styles.listContent, { paddingBottom: spacing.xl }]}
+          contentContainerStyle={[
+            styles.listContent,
+            { paddingBottom: spacing.xl },
+          ]}
           renderItem={({ item }) => {
             const preview = getLyricsPreview(item.ponto.lyrics);
             return (

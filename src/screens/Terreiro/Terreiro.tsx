@@ -778,7 +778,10 @@ export default function Terreiro() {
             data={mergedCollections}
             keyExtractor={(it) => it.id}
             style={styles.list}
-            contentContainerStyle={[styles.listContent, { paddingBottom: spacing.md }]}
+            contentContainerStyle={[
+              styles.listContent,
+              { paddingBottom: spacing.md },
+            ]}
             renderItem={({ item }) => {
               const isEditingThisCollection = editingCollectionId === item.id;
               const isNew = (item as any).isNew;
