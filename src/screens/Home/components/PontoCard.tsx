@@ -12,7 +12,7 @@ type Props = {
   lyricsPreview: string;
 };
 
-function PointCardImpl({ title, tags, lyricsPreview }: Props) {
+function PontoCardImpl({ title, tags, lyricsPreview }: Props) {
   const { effectiveTheme } = usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
 
@@ -49,7 +49,7 @@ function PointCardImpl({ title, tags, lyricsPreview }: Props) {
   );
 }
 
-export const PointCard = memo(PointCardImpl);
+export const PontoCard = memo(PontoCardImpl);
 
 const styles = StyleSheet.create({
   card: {

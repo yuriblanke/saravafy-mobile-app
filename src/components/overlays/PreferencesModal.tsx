@@ -1,6 +1,6 @@
+import { useSegments } from "expo-router";
 import React, { useEffect } from "react";
 import { BackHandler, Modal, StyleSheet, View } from "react-native";
-import { useSegments } from "expo-router";
 
 import { PreferencesOverlaySheets } from "@/src/components/AppHeaderWithPreferences";
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
@@ -16,7 +16,8 @@ export function PreferencesModal() {
   // editor/access-manager modal is active. When it closes, preferences appears
   // again automatically.
   const leaf = segments[segments.length - 1];
-  const shouldHideForRoute = leaf === "terreiro-editor" || leaf === "access-manager";
+  const shouldHideForRoute =
+    leaf === "terreiro-editor" || leaf === "access-manager";
 
   useEffect(() => {
     if (!isOpen) return;

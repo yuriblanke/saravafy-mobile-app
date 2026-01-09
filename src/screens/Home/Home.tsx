@@ -856,16 +856,6 @@ export default function Home() {
                       </View>
                     </View>
 
-                    {item.artist ? (
-                      <Text
-                        style={[styles.cardAuthor, { color: textSecondary }]}
-                        numberOfLines={1}
-                        ellipsizeMode="tail"
-                      >
-                        {item.artist}
-                      </Text>
-                    ) : null}
-
                     <View style={styles.tagsRow}>
                       {item.tags.map((tag) => (
                         <TagChip key={tag} label={tag} variant={variant} />
@@ -1436,11 +1426,6 @@ const styles = StyleSheet.create({
     color: colors.textPrimaryOnLight,
     marginBottom: spacing.sm,
     letterSpacing: 0.2,
-  },
-  cardAuthor: {
-    fontSize: 12,
-    fontWeight: "600",
-    marginBottom: spacing.sm,
   },
   tagsRow: {
     flexDirection: "row",
