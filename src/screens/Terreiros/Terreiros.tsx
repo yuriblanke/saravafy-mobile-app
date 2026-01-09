@@ -18,7 +18,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { type TerreiroListItem } from "./data/terreiros";
 
 function normalize(value: string) {
@@ -397,7 +396,6 @@ export default function Terreiros() {
   const { effectiveTheme } = usePreferences();
   const gestureGate = useGestureGate();
   const variant = effectiveTheme;
-  const insets = useSafeAreaInsets();
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -512,10 +510,7 @@ export default function Terreiros() {
           <FlatList
             data={filteredTerreiros}
             keyExtractor={(item) => item.id}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingBottom: insets.bottom + spacing.md },
-            ]}
+            contentContainerStyle={[styles.listContent, { paddingBottom: spacing.md }]}
             keyboardShouldPersistTaps="handled"
             renderItem={({ item }) => {
               const expanded = expandedTerreiroId === item.id;

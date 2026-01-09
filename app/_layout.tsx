@@ -26,6 +26,7 @@ import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
 import { InviteGate } from "@/src/components/InviteGate";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
 import { warmRemoteConfig } from "@/src/config/remoteConfig";
+import { getSaravafyBaseColor } from "@/src/theme";
 import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
@@ -42,6 +43,11 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from "@tanstack/react-query";
+import {
+  SafeAreaProvider,
+  SafeAreaView,
+  initialWindowMetrics,
+} from "react-native-safe-area-context";
 
 export {
   // Catch any errors thrown by the Layout component.
@@ -110,25 +116,43 @@ export default function RootLayout() {
 
   return (
     <RootGestureHandlerWrapper>
-      <QueryClientProvider client={queryClient}>
-        <AuthProvider>
-          <PreferencesProvider>
-            <RootPagerProvider>
-              <ToastProvider>
-                <CuratorModeProvider>
-                  <InviteGatesProvider>
-                    <RootLayoutNav />
-                    <TerreirosRealtimeSync />
-                    <InviteGate />
-                    <CuratorInviteGate />
-                  </InviteGatesProvider>
-                </CuratorModeProvider>
-              </ToastProvider>
-            </RootPagerProvider>
-          </PreferencesProvider>
-        </AuthProvider>
-      </QueryClientProvider>
+      <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+        <QueryClientProvider client={queryClient}>
+          <AuthProvider>
+            <PreferencesProvider>
+              <SafeAreaShell>
+                <RootPagerProvider>
+                  <ToastProvider>
+                    <CuratorModeProvider>
+                      <InviteGatesProvider>
+                        <RootLayoutNav />
+                        <TerreirosRealtimeSync />
+                        <InviteGate />
+                        <CuratorInviteGate />
+                      </InviteGatesProvider>
+                    </CuratorModeProvider>
+                  </ToastProvider>
+                </RootPagerProvider>
+              </SafeAreaShell>
+            </PreferencesProvider>
+          </AuthProvider>
+        </QueryClientProvider>
+      </SafeAreaProvider>
     </RootGestureHandlerWrapper>
+  );
+}
+
+function SafeAreaShell({ children }: RootWrapperProps) {
+  const { effectiveTheme } = usePreferences();
+  const baseColor = getSaravafyBaseColor(effectiveTheme);
+
+  return (
+    <SafeAreaView
+      style={{ flex: 1, backgroundColor: baseColor }}
+      edges={["top", "bottom"]}
+    >
+      {children}
+    </SafeAreaView>
   );
 }
 

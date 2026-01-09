@@ -42,7 +42,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function Terreiro() {
   type NewCollectionRow = {
@@ -53,7 +52,6 @@ export default function Terreiro() {
 
   const router = useRouter();
   const { shouldBlockPress } = useGestureBlock();
-  const insets = useSafeAreaInsets();
   const params = useLocalSearchParams<{
     bootStart?: string;
     bootOffline?: string;
@@ -780,10 +778,7 @@ export default function Terreiro() {
             data={mergedCollections}
             keyExtractor={(it) => it.id}
             style={styles.list}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingBottom: insets.bottom + spacing.md },
-            ]}
+            contentContainerStyle={[styles.listContent, { paddingBottom: spacing.md }]}
             renderItem={({ item }) => {
               const isEditingThisCollection = editingCollectionId === item.id;
               const isNew = (item as any).isNew;

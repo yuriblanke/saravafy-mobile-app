@@ -23,7 +23,6 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from "react-native-reanimated";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { radii, shadows, spacing } from "@/src/theme";
 
@@ -275,7 +274,6 @@ function ToastStack({
   toasts: ToastModel[];
   onToastExited: (id: string) => void;
 }) {
-  const insets = useSafeAreaInsets();
   const { height } = useWindowDimensions();
 
   const [measuredHeights, setMeasuredHeights] = useState<
@@ -293,7 +291,7 @@ function ToastStack({
 
   // Slot inferior: 12% por padrão (fica naturalmente entre 5% e 15%)
   const slotHeight = Math.round(height * 0.12);
-  const bottomOffset = insets.bottom + spacing.sm;
+  const bottomOffset = spacing.sm;
   const containerHeight = slotHeight + bottomOffset;
   const maxToastHeight = Math.round(height * MAX_TOAST_HEIGHT_RATIO);
 

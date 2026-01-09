@@ -22,8 +22,13 @@ import {
   useSegments,
 } from "expo-router";
 import React, { useMemo } from "react";
-import { BackHandler, Platform, StatusBar, StyleSheet, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import {
+  BackHandler,
+  Platform,
+  StatusBar,
+  StyleSheet,
+  View,
+} from "react-native";
 
 function AndroidBackBehavior() {
   const pathname = usePathname();
@@ -197,10 +202,7 @@ export default function AppLayout() {
                 </Stack>
               </View>
 
-              <HeaderMeasurer
-                suspended={isHeaderSuspended}
-                showTopInset={true}
-              />
+              <HeaderMeasurer suspended={isHeaderSuspended} />
             </SaravafyLayoutMetricsProvider>
           </TabControllerProvider>
         </GestureBlockProvider>
@@ -209,16 +211,8 @@ export default function AppLayout() {
   );
 }
 
-function HeaderMeasurer({
-  suspended,
-  showTopInset,
-}: {
-  suspended: boolean;
-  showTopInset: boolean;
-}) {
+function HeaderMeasurer({ suspended }: { suspended: boolean }) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
-  const insets = useSafeAreaInsets();
-  const topInset = showTopInset ? insets.top : 0;
 
   React.useEffect(() => {
     if (!suspended) return;
@@ -229,10 +223,7 @@ function HeaderMeasurer({
 
   return (
     <View
-      style={[
-        styles.headerWrap,
-        topInset ? { paddingTop: topInset } : null,
-      ]}
+      style={styles.headerWrap}
       onLayout={(e) => {
         setHeaderHeight(e.nativeEvent.layout.height);
       }}

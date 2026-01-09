@@ -39,7 +39,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type CollectionRow = {
   id: string;
@@ -76,7 +75,6 @@ function getLyricsPreview(lyrics: string, maxLines = 4) {
 }
 
 export default function Collection() {
-  const insets = useSafeAreaInsets();
   const router = useRouter();
   const segments = useSegments() as string[];
   const tabController = useTabController();
@@ -636,10 +634,7 @@ export default function Collection() {
         <FlatList
           data={orderedItems}
           keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: insets.bottom + spacing.xl },
-          ]}
+          contentContainerStyle={[styles.listContent, { paddingBottom: spacing.xl }]}
           renderItem={({ item }) => {
             const preview = getLyricsPreview(item.ponto.lyrics);
             return (

@@ -31,14 +31,22 @@ export function SaravafyStackScene({
         {debugSolidColor ? (
           <View
             pointerEvents="none"
-            style={[StyleSheet.absoluteFillObject, { backgroundColor: debugSolidColor }]}
+            style={[
+              StyleSheet.absoluteFillObject,
+              { backgroundColor: debugSolidColor },
+            ]}
           />
         ) : (
           <SaravafyBackgroundLayers theme={theme} variant={variant} />
         )}
       </View>
 
-      <View style={[styles.content, headerHeight ? { paddingTop: headerHeight } : null]}>
+      <View
+        style={[
+          styles.content,
+          headerHeight ? { paddingTop: headerHeight } : null,
+        ]}
+      >
         {children}
       </View>
     </View>

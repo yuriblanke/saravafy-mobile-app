@@ -6,7 +6,6 @@ import {
   View,
   type ViewProps,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
 import { getSaravafyBaseColor } from "@/src/theme";
@@ -23,7 +22,7 @@ export function SaravafyScreen({
   children,
   theme = "dark",
   variant = "tabs",
-  edges = ["top", "bottom"],
+  edges: _edges = ["top", "bottom"],
   ...rest
 }: Props) {
   const isLight = theme === "light";
@@ -43,9 +42,9 @@ export function SaravafyScreen({
       <SaravafyBackgroundLayers theme={theme} variant={variant} />
 
       {/* Conteúdo */}
-      <SafeAreaView style={styles.content} edges={edges}>
+      <View style={styles.content}>
         {children}
-      </SafeAreaView>
+      </View>
     </View>
   );
 }
