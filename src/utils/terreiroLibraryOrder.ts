@@ -17,9 +17,7 @@ export async function loadTerreiroLibraryOrder(
   try {
     const parsed = JSON.parse(raw) as unknown;
     if (!Array.isArray(parsed)) return [];
-    return parsed
-      .map((v) => (typeof v === "string" ? v : ""))
-      .filter(Boolean);
+    return parsed.map((v) => (typeof v === "string" ? v : "")).filter(Boolean);
   } catch {
     return [];
   }

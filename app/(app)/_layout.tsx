@@ -114,13 +114,8 @@ export default function AppLayout() {
       leaf === "edit" ||
       leaf === "terreiro-editor" ||
       leaf === "access-manager" ||
-      // Em rotas empilhadas do fluxo crítico (Terreiro/Collection/Player),
-      // o header global deve sair para evitar sobreposição visual e permitir
-      // que a própria tela pinte um fundo opaco desde o primeiro frame.
-      (typeof pathname === "string" &&
-        (pathname === "/terreiro" ||
-          pathname.startsWith("/collection/") ||
-          pathname.startsWith("/player")))
+      // Player continua imersivo.
+      (typeof pathname === "string" && pathname.startsWith("/player"))
     );
   }, [pathname, segments]);
 
