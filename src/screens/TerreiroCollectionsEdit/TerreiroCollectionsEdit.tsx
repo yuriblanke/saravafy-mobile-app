@@ -1,14 +1,22 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useToast } from "@/contexts/ToastContext";
+import { supabase } from "@/lib/supabase";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { useCollectionsByTerreiroQuery } from "@/src/queries/terreirosCollections";
 import {
   EditOrderScreenBase,
   type EditOrderItem,
 } from "@/src/screens/EditOrderScreenBase/EditOrderScreenBase";
+import {
+  applyTerreiroLibraryOrder,
+  loadTerreiroLibraryOrder,
+  saveTerreiroLibraryOrder,
+} from "@/src/utils/terreiroLibraryOrder";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 export default function EditTerreiroCollectionsScreen() {
   const router = useRouter();
@@ -16,6 +24,7 @@ export default function EditTerreiroCollectionsScreen() {
   const { shouldBlockPress } = useGestureBlock();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
   const terreiroId =
     typeof params.terreiroId === "string" ? params.terreiroId : "";
@@ -53,9 +62,34 @@ export default function EditTerreiroCollectionsScreen() {
   const collectionsQuery = useCollectionsByTerreiroQuery(terreiroId || null);
   const collections = collectionsQuery.data ?? [];
 
+  const [libraryOrderIds, setLibraryOrderIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!terreiroId) return;
+
+    let cancelled = false;
+    loadTerreiroLibraryOrder(terreiroId)
+      .then((ids) => {
+        if (cancelled) return;
+        setLibraryOrderIds(ids);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLibraryOrderIds([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [terreiroId]);
+
+  const orderedCollections = applyTerreiroLibraryOrder(
+    collections,
+    libraryOrderIds
+  );
+
   const items = useMemo(() => {
     const mapped: EditOrderItem[] = [];
-    for (const c of collections) {
+    for (const c of orderedCollections) {
       const id = String(c?.id ?? "");
       if (!id) continue;
       const title =
@@ -69,7 +103,7 @@ export default function EditTerreiroCollectionsScreen() {
       mapped.push({ id, title, subtitle });
     }
     return mapped;
-  }, [collections]);
+  }, [orderedCollections]);
 
   const onSave = useCallback(
     async (_orderedIds: string[]) => {
@@ -77,25 +111,55 @@ export default function EditTerreiroCollectionsScreen() {
         throw new Error("Terreiro inválido.");
       }
 
-      // Stub: ainda não existe persistência da ordem das collections por terreiro.
-      // Mantemos o editor reutilizável, mas o save não altera o backend.
-      return;
+      if (shouldBlockPress()) return;
+
+      const orderedIds = _orderedIds;
+      const initialIds = items.map((it) => it.id);
+      const removedIds = initialIds.filter((id) => !orderedIds.includes(id));
+
+      // Persistimos a ordem localmente (sem depender de schema/backend).
+      await saveTerreiroLibraryOrder(terreiroId, orderedIds);
+
+      // Se houve remoções, refletimos no backend removendo as coleções.
+      for (const id of removedIds) {
+        const res: any = await supabase
+          .from("collections")
+          .delete()
+          .eq("id", id)
+          .eq("owner_terreiro_id", terreiroId);
+
+        if (res.error) {
+          throw new Error(
+            typeof res.error.message === "string" && res.error.message.trim()
+              ? res.error.message
+              : "Não foi possível excluir a coleção."
+          );
+        }
+      }
+
+      if (removedIds.length > 0) {
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
+        });
+      }
     },
-    [terreiroId]
+    [items, queryClient, shouldBlockPress, terreiroId]
   );
 
   if (!terreiroId) return null;
 
   return (
     <EditOrderScreenBase
-      title="Editar coleções"
+      title="Editar biblioteca"
       items={items}
-      allowRemove={false}
+      allowRemove
       onSave={onSave}
-      successToast="Ordem de coleções ainda não é persistida."
+      successToast="Biblioteca atualizada."
       errorToastFallback="Não foi possível salvar."
       discardConfirmTitle="Descartar alterações?"
       discardConfirmMessage="Suas alterações não foram salvas."
+      removeConfirmTitle="Excluir coleção?"
+      removeConfirmMessage="Esta coleção será excluída ao salvar."
     />
   );
 }

@@ -24,6 +24,10 @@ import {
   type TerreiroCollectionCard,
 } from "@/src/queries/terreirosCollections";
 import { colors, spacing } from "@/src/theme";
+import {
+  applyTerreiroLibraryOrder,
+  loadTerreiroLibraryOrder,
+} from "@/src/utils/terreiroLibraryOrder";
 import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -176,11 +180,36 @@ export default function Terreiro() {
   const collectionsQuery = useCollectionsByTerreiroQuery(terreiroId || null);
   const collections = collectionsQuery.data ?? [];
 
+  const [libraryOrderIds, setLibraryOrderIds] = useState<string[]>([]);
+  useEffect(() => {
+    if (!terreiroId) return;
+
+    let cancelled = false;
+    loadTerreiroLibraryOrder(terreiroId)
+      .then((ids) => {
+        if (cancelled) return;
+        setLibraryOrderIds(ids);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setLibraryOrderIds([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [terreiroId]);
+
+  const orderedCollections = applyTerreiroLibraryOrder(
+    collections,
+    libraryOrderIds
+  );
+
   const mergedCollections: Array<TerreiroCollectionCard | NewCollectionRow> =
     creatingCollection &&
-    !collections.some((c) => c.id === creatingCollection.id)
-      ? [creatingCollection, ...collections]
-      : collections;
+    !orderedCollections.some((c) => c.id === creatingCollection.id)
+      ? [creatingCollection, ...orderedCollections]
+      : orderedCollections;
 
   useEffect(() => {
     if (!canEdit) {
@@ -640,6 +669,9 @@ export default function Terreiro() {
         <View style={styles.contextHeader}>
           <View style={styles.titleRow}>
             <View style={styles.titleLeft}>
+              <Text style={[styles.kicker, { color: textMuted }]}>
+                Biblioteca de
+              </Text>
               <Text
                 style={[styles.title, { color: textPrimary }]}
                 numberOfLines={2}
@@ -649,6 +681,32 @@ export default function Terreiro() {
             </View>
 
             <View style={styles.headerActions}>
+              {canEdit && !creatingCollection ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="+ Nova coleção"
+                  hitSlop={10}
+                  onPress={() => {
+                    const tempId = `new-${Date.now()}`;
+                    setCreatingCollection({
+                      id: tempId,
+                      title: "",
+                      isNew: true,
+                    });
+                    setEditingCollectionId(tempId);
+                    setDraftCollectionTitle("");
+                    setCollectionTitleSelection({ start: 0, end: 0 });
+                  }}
+                  style={({ pressed }) => [
+                    styles.primaryButton,
+                    pressed ? styles.primaryButtonPressed : null,
+                  ]}
+                >
+                  <Text style={styles.primaryButtonText}>+ Nova coleção</Text>
+                </Pressable>
+              ) : null}
+
+              {isAdmin ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Abrir menu do terreiro"
@@ -665,83 +723,52 @@ export default function Terreiro() {
                   color={textMuted}
                 />
               </Pressable>
+              ) : null}
             </View>
           </View>
         </View>
 
-        <View style={styles.sectionGap} />
+        <View style={styles.sectionGapSmall} />
 
-        <View style={[styles.sectionTitleRow]}>
-          <Text style={[styles.sectionTitle, { color: textMuted }]}>
-            Coleções
-          </Text>
-          {canEdit && collections.length > 0 && !creatingCollection && (
+        <View style={styles.globalActionsRow}>
+          {canEdit ? (
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Editar ordem das coleções"
+              accessibilityLabel="Editar biblioteca"
               hitSlop={10}
               onPress={() => {
                 if (shouldBlockPress()) return;
                 if (!terreiroId) return;
-
                 router.push({
                   pathname: "/terreiro-collections/[terreiroId]/edit" as any,
                   params: { terreiroId },
                 });
               }}
               style={({ pressed }) => [
-                styles.newCollectionButton,
-                pressed ? styles.iconButtonPressed : null,
+                styles.globalActionButton,
+                pressed ? styles.globalActionButtonPressed : null,
               ]}
             >
-              <Text
-                style={{
-                  marginRight: 4,
-                  color: accentColor,
-                  fontSize: 18,
-                  lineHeight: 18,
-                }}
-              >
-                ☰
-              </Text>
-              <Text
-                style={[styles.newCollectionButtonText, { color: accentColor }]}
-              >
-                Editar
+              <Text style={[styles.globalActionText, { color: accentColor }]}>
+                Editar biblioteca
               </Text>
             </Pressable>
-          )}
-          {canEdit && !creatingCollection && (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Nova coleção"
-              hitSlop={10}
-              onPress={() => {
-                // Cria um id temporário único
-                const tempId = `new-${Date.now()}`;
-                setCreatingCollection({ id: tempId, title: "", isNew: true });
-                setEditingCollectionId(tempId);
-                setDraftCollectionTitle("");
-                setCollectionTitleSelection({ start: 0, end: 0 });
-              }}
-              style={({ pressed }) => [
-                styles.newCollectionButton,
-                pressed ? styles.iconButtonPressed : null,
-              ]}
-            >
-              <Ionicons
-                name="add"
-                size={18}
-                color={accentColor}
-                style={{ marginRight: 4 }}
-              />
-              <Text
-                style={[styles.newCollectionButtonText, { color: accentColor }]}
-              >
-                Nova coleção
-              </Text>
-            </Pressable>
-          )}
+          ) : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Compartilhar biblioteca"
+            hitSlop={10}
+            onPress={openShare}
+            style={({ pressed }) => [
+              styles.globalActionButton,
+              pressed ? styles.globalActionButtonPressed : null,
+            ]}
+          >
+            <Text style={[styles.globalActionText, { color: accentColor }]}>
+              Compartilhar biblioteca
+            </Text>
+          </Pressable>
         </View>
 
         <View style={styles.sectionGapSmall} />
@@ -1149,26 +1176,8 @@ export default function Terreiro() {
       >
         <View>
           <View style={styles.sheetActions}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Compartilhar terreiro"
-              hitSlop={10}
-              onPress={openShare}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-              ]}
-            >
-              <Ionicons name="share-outline" size={18} color={accentColor} />
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Compartilhar terreiro
-              </Text>
-            </Pressable>
-
             {isAdmin ? (
               <>
-                <Separator variant={variant} />
-
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Editar terreiro"
@@ -1201,29 +1210,27 @@ export default function Terreiro() {
           </View>
         </View>
       </BottomSheet>
-        </View>
       </View>
     </SaravafyScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  sectionTitleRow: {
+  globalActionsRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
+    justifyContent: "flex-start",
+    gap: spacing.lg,
     paddingHorizontal: spacing.lg,
   },
-  newCollectionButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    borderRadius: 6,
-    backgroundColor: "transparent",
+  globalActionButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 0,
   },
-  newCollectionButtonText: {
+  globalActionButtonPressed: {
+    opacity: 0.7,
+  },
+  globalActionText: {
     fontSize: 15,
     fontWeight: "600",
   },
@@ -1362,15 +1369,36 @@ const styles = StyleSheet.create({
   titleLeft: {
     flex: 1,
     minWidth: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
+    flexDirection: "column",
+    alignItems: "flex-start",
+    gap: 2,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     paddingTop: 2,
+  },
+  kicker: {
+    fontSize: 14,
+    fontWeight: "600",
+    letterSpacing: 0.2,
+  },
+  primaryButton: {
+    paddingHorizontal: 12,
+    height: 36,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brass600,
+  },
+  primaryButtonPressed: {
+    opacity: 0.85,
+  },
+  primaryButtonText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: colors.paper50,
   },
   iconButton: {
     width: 36,

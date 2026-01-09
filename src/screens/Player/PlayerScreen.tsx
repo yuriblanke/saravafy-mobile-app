@@ -284,7 +284,9 @@ export default function PlayerScreen() {
               style={({ pressed }) => [
                 styles.retryBtn,
                 pressed && styles.retryBtnPressed,
-                variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
+                variant === "light"
+                  ? styles.retryBtnLight
+                  : styles.retryBtnDark,
               ]}
             >
               <Text style={[styles.retryText, { color: textPrimary }]}>
@@ -324,196 +326,204 @@ export default function PlayerScreen() {
   return (
     <SaravafyScreen theme={variant} variant="stack">
       <View style={styles.screen}>
-      <View style={styles.header}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={styles.headerIconBtn}
-        >
-          <Ionicons name="chevron-back" size={22} color={textPrimary} />
-        </Pressable>
+        <View style={styles.header}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="chevron-back" size={22} color={textPrimary} />
+          </Pressable>
 
-        <View style={styles.headerRight}>
-          {canEditPontos && activePonto ? (
+          <View style={styles.headerRight}>
+            {canEditPontos && activePonto ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Editar ponto"
+                onPress={() => setIsEditOpen(true)}
+                hitSlop={10}
+                style={styles.headerIconBtn}
+              >
+                <Ionicons name="pencil" size={18} color={textPrimary} />
+              </Pressable>
+            ) : null}
+
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Editar ponto"
-              onPress={() => setIsEditOpen(true)}
+              accessibilityLabel="Compartilhar"
+              onPress={openShare}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="pencil" size={18} color={textPrimary} />
+              <Ionicons name="share-outline" size={18} color={textPrimary} />
             </Pressable>
-          ) : null}
 
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Compartilhar"
-            onPress={openShare}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="share-outline" size={18} color={textPrimary} />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              curimbaEnabled ? "Desativar Modo Curimba" : "Ativar Modo Curimba"
-            }
-            onPress={onToggleCurimba}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Image
-              source={
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
                 curimbaEnabled
-                  ? curimbaOnPng
-                  : variant === "light"
-                  ? curimbaOffOnLightPng
-                  : curimbaOffOnDarkPng
+                  ? "Desativar Modo Curimba"
+                  : "Ativar Modo Curimba"
               }
-              style={styles.curimbaIcon}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-            />
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Diminuir fonte"
-            onPress={onDecreaseFont}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Text style={[styles.fontBtnText, { color: textPrimary }]}>A-</Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Aumentar fonte"
-            onPress={onIncreaseFont}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Text style={[styles.fontBtnText, { color: textPrimary }]}>A+</Text>
-          </Pressable>
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Buscar ponto"
-            onPress={() => setIsSearchOpen(true)}
-            hitSlop={10}
-            style={styles.headerIconBtn}
-          >
-            <Ionicons name="search" size={18} color={textPrimary} />
-          </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.body}>
-        <FlatList
-          ref={(node) => {
-            flatListRef.current = node;
-          }}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          data={items}
-          keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-          renderItem={({ item }) => (
-            <View style={{ width }}>
-              <PlayerContent
-                ponto={item.ponto}
-                variant={variant}
-                lyricsFontSize={lyricsFontSize}
-                mediumTags={
-                  canSeeMediumTags ? customTagsMap[item.ponto.id] ?? [] : []
+              onPress={onToggleCurimba}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Image
+                source={
+                  curimbaEnabled
+                    ? curimbaOnPng
+                    : variant === "light"
+                    ? curimbaOffOnLightPng
+                    : curimbaOffOnDarkPng
                 }
-                canAddMediumTag={canEditCustomTags}
-                onPressAddMediumTag={() =>
-                  setMediumTargetPontoId(item.ponto.id)
-                }
-                canDeleteMediumTag={canEditCustomTags}
-                onLongPressMediumTag={(t) => {
-                  if (!canEditCustomTags) return;
-                  setDeleteTarget({
-                    pontoId: item.ponto.id,
-                    tagId: t.id,
-                    tagLabel: t.tagText,
-                  });
-                }}
+                style={styles.curimbaIcon}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
               />
-            </View>
-          )}
-          onMomentumScrollEnd={(e) => {
-            const nextIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-            if (Number.isFinite(nextIndex)) setActiveIndex(nextIndex);
-          }}
-          getItemLayout={getItemLayout}
-          initialScrollIndex={initialIndex}
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Diminuir fonte"
+              onPress={onDecreaseFont}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Text style={[styles.fontBtnText, { color: textPrimary }]}>
+                A-
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Aumentar fonte"
+              onPress={onIncreaseFont}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Text style={[styles.fontBtnText, { color: textPrimary }]}>
+                A+
+              </Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Buscar ponto"
+              onPress={() => setIsSearchOpen(true)}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="search" size={18} color={textPrimary} />
+            </Pressable>
+          </View>
+        </View>
+
+        <View style={styles.body}>
+          <FlatList
+            ref={(node) => {
+              flatListRef.current = node;
+            }}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            data={items}
+            keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
+            renderItem={({ item }) => (
+              <View style={{ width }}>
+                <PlayerContent
+                  ponto={item.ponto}
+                  variant={variant}
+                  lyricsFontSize={lyricsFontSize}
+                  mediumTags={
+                    canSeeMediumTags ? customTagsMap[item.ponto.id] ?? [] : []
+                  }
+                  canAddMediumTag={canEditCustomTags}
+                  onPressAddMediumTag={() =>
+                    setMediumTargetPontoId(item.ponto.id)
+                  }
+                  canDeleteMediumTag={canEditCustomTags}
+                  onLongPressMediumTag={(t) => {
+                    if (!canEditCustomTags) return;
+                    setDeleteTarget({
+                      pontoId: item.ponto.id,
+                      tagId: t.id,
+                      tagLabel: t.tagText,
+                    });
+                  }}
+                />
+              </View>
+            )}
+            onMomentumScrollEnd={(e) => {
+              const nextIndex = Math.round(
+                e.nativeEvent.contentOffset.x / width
+              );
+              if (Number.isFinite(nextIndex)) setActiveIndex(nextIndex);
+            }}
+            getItemLayout={getItemLayout}
+            initialScrollIndex={initialIndex}
+          />
+        </View>
+
+        <AudioPlayerFooter
+          ponto={activePonto}
+          variant={variant}
+          curimbaEnabled={curimbaEnabled}
         />
-      </View>
 
-      <AudioPlayerFooter
-        ponto={activePonto}
-        variant={variant}
-        curimbaEnabled={curimbaEnabled}
-      />
+        <PlayerSearchModal
+          visible={isSearchOpen}
+          variant={variant}
+          onClose={() => setIsSearchOpen(false)}
+        />
 
-      <PlayerSearchModal
-        visible={isSearchOpen}
-        variant={variant}
-        onClose={() => setIsSearchOpen(false)}
-      />
+        <ShareBottomSheet
+          visible={isShareOpen}
+          variant={variant}
+          message={shareMessage}
+          onClose={() => setIsShareOpen(false)}
+          showToast={showToast}
+        />
 
-      <ShareBottomSheet
-        visible={isShareOpen}
-        variant={variant}
-        message={shareMessage}
-        onClose={() => setIsShareOpen(false)}
-        showToast={showToast}
-      />
+        <AddMediumTagSheet
+          visible={!!mediumTargetPontoId}
+          variant={variant}
+          terreiroId={terreiroId}
+          pontoId={mediumTargetPontoId ?? ""}
+          canShowRemoveHint={canEditCustomTags}
+          onClose={() => setMediumTargetPontoId(null)}
+        />
 
-      <AddMediumTagSheet
-        visible={!!mediumTargetPontoId}
-        variant={variant}
-        terreiroId={terreiroId}
-        pontoId={mediumTargetPontoId ?? ""}
-        canShowRemoveHint={canEditCustomTags}
-        onClose={() => setMediumTargetPontoId(null)}
-      />
+        <RemoveMediumTagSheet
+          visible={!!deleteTarget}
+          variant={variant}
+          terreiroId={terreiroId}
+          pontoId={deleteTarget?.pontoId ?? ""}
+          tagId={deleteTarget?.tagId ?? ""}
+          tagLabel={deleteTarget?.tagLabel ?? ""}
+          onClose={() => setDeleteTarget(null)}
+        />
 
-      <RemoveMediumTagSheet
-        visible={!!deleteTarget}
-        variant={variant}
-        terreiroId={terreiroId}
-        pontoId={deleteTarget?.pontoId ?? ""}
-        tagId={deleteTarget?.tagId ?? ""}
-        tagLabel={deleteTarget?.tagLabel ?? ""}
-        onClose={() => setDeleteTarget(null)}
-      />
+        <CurimbaExplainerBottomSheet
+          visible={isCurimbaExplainerOpen}
+          variant={variant}
+          dontShowAgain={curimbaOnboardingDismissed}
+          onChangeDontShowAgain={setCurimbaOnboardingDismissed}
+          onClose={() => setIsCurimbaExplainerOpen(false)}
+        />
 
-      <CurimbaExplainerBottomSheet
-        visible={isCurimbaExplainerOpen}
-        variant={variant}
-        dontShowAgain={curimbaOnboardingDismissed}
-        onChangeDontShowAgain={setCurimbaOnboardingDismissed}
-        onClose={() => setIsCurimbaExplainerOpen(false)}
-      />
-
-      <PontoUpsertModal
-        visible={isEditOpen}
-        variant={variant}
-        mode="edit"
-        initialValues={editingInitialValues}
-        onCancel={() => setIsEditOpen(false)}
-        onSuccess={(updated) => {
-          if (!updated) return;
-          patchPontoById(updated);
-        }}
-      />
+        <PontoUpsertModal
+          visible={isEditOpen}
+          variant={variant}
+          mode="edit"
+          initialValues={editingInitialValues}
+          onCancel={() => setIsEditOpen(false)}
+          onSuccess={(updated) => {
+            if (!updated) return;
+            patchPontoById(updated);
+          }}
+        />
       </View>
     </SaravafyScreen>
   );
