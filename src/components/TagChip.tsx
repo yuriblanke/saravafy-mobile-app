@@ -39,8 +39,13 @@ export function TagChip({
 
   const isMedium = tone === "medium";
 
+  const transparentBgOnly =
+    isLight && kind === "ponto" && appearance == null && !isMedium;
+
   const bg =
-    resolvedAppearance === "primary"
+    transparentBgOnly
+      ? "transparent"
+      : resolvedAppearance === "primary"
       ? isMedium
         ? medium
         : baseBg
@@ -95,8 +100,11 @@ export function TagChip({
         {
           backgroundColor: bg,
           borderColor,
-          borderWidth:
-            resolvedAppearance === "primary" ? StyleSheet.hairlineWidth : 2,
+          borderWidth: transparentBgOnly
+            ? 2
+            : resolvedAppearance === "primary"
+            ? StyleSheet.hairlineWidth
+            : 2,
         },
         style,
       ]}

@@ -26,34 +26,17 @@ export function AudioPlayerFooter(props: {
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
   const bg =
-    variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
+    variant === "light" ? colors.paper200 : colors.surfaceCardBg;
 
   const hasAudio = Boolean(ponto?.audio_url);
   const progress = 0;
   const isPlaying = false;
 
-  if (curimbaEnabled) {
-    return (
-      <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
-        <View style={styles.row}>
-          <View style={styles.meta}>
-            <Text
-              style={[styles.nowPlaying, { color: textSecondary }]}
-              numberOfLines={1}
-            >
-              Modo Curimba: apenas letra
-            </Text>
-            <Text
-              style={[styles.title, { color: textPrimary }]}
-              numberOfLines={1}
-            >
-              {ponto?.title ?? ""}
-            </Text>
-          </View>
-        </View>
-      </View>
-    );
-  }
+  const subtitle = curimbaEnabled
+    ? "Modo Curimba: apenas letra"
+    : hasAudio
+    ? "Áudio (em desenvolvimento)"
+    : "Sem áudio";
 
   return (
     <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
@@ -63,7 +46,7 @@ export function AudioPlayerFooter(props: {
             style={[styles.nowPlaying, { color: textSecondary }]}
             numberOfLines={1}
           >
-            {hasAudio ? "Áudio (em desenvolvimento)" : "Sem áudio"}
+            {subtitle}
           </Text>
           <Text
             style={[styles.title, { color: textPrimary }]}
@@ -77,6 +60,14 @@ export function AudioPlayerFooter(props: {
           accessibilityRole="button"
           accessibilityLabel={isPlaying ? "Pausar" : "Tocar"}
           onPress={() => {
+            if (curimbaEnabled) {
+              Alert.alert(
+                "Modo Curimba ativo",
+                "O áudio fica desativado enquanto o Modo Curimba estiver ativo."
+              );
+              return;
+            }
+
             Alert.alert(
               "Em desenvolvimento",
               "Reprodução de áudio em desenvolvimento."
@@ -85,6 +76,7 @@ export function AudioPlayerFooter(props: {
           style={({ pressed }) => [
             styles.playBtn,
             { borderColor: accent },
+            curimbaEnabled && styles.playBtnDisabled,
             pressed && styles.playBtnPressed,
           ]}
         >
@@ -104,7 +96,7 @@ export function AudioPlayerFooter(props: {
           style={[
             styles.progressFill,
             {
-              backgroundColor: hasAudio ? accent : "transparent",
+              backgroundColor: !curimbaEnabled && hasAudio ? accent : "transparent",
               width: `${Math.round(progress * 100)}%`,
             },
           ]}
@@ -154,6 +146,9 @@ const styles = StyleSheet.create({
   },
   playBtnPressed: {
     opacity: 0.7,
+  },
+  playBtnDisabled: {
+    opacity: 0.55,
   },
   progressTrack: {
     marginTop: spacing.sm,
