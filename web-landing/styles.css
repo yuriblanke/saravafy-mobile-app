@@ -61,8 +61,6 @@
 html,
 body {
   height: 100%;
-  overscroll-behavior: none;
-  background: var(--bg-solid);
 }
 
 html {
