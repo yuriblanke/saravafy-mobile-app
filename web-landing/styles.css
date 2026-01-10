@@ -127,7 +127,7 @@ body::after {
   min-height: 92vh;
   background-color: var(--bg-solid);
   background-image: url("/images/hero-image.png");
-  background-size: cover;
+  background-size: 100% 100%;
   background-position: center bottom;
   background-repeat: no-repeat;
   border-bottom-left-radius: 0;
