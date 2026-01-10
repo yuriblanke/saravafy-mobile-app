@@ -338,6 +338,41 @@ body::after {
   }
 }
 
+/* Mobile: keep the top "Instalar app" visible and bring hero content up */
+@media (max-width: 640px) {
+  .hero {
+    /* Keep hero within the viewport below the sticky header */
+    min-height: calc(100dvh - var(--header-height));
+  }
+
+  .hero__inner {
+    align-items: center;
+    padding-top: 22px;
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .hero__cta {
+    margin-top: 14px;
+  }
+}
+
+@media (max-width: 420px) {
+  .top-header__inner {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .top-header__logo {
+    max-width: min(220px, 52vw);
+    height: 26px;
+  }
+
+  .top-header .btn-primary {
+    padding: 9px 10px;
+    font-size: 12px;
+  }
+}
+
 @media (min-width: 1200px) {
   .container {
     max-width: 1100px;
