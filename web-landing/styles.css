@@ -63,10 +63,6 @@ body {
   height: 100%;
 }
 
-html {
-  background: var(--bg-solid);
-}
-
 body {
   margin: 0;
   padding: 0;
@@ -125,15 +121,13 @@ body::after {
 .hero {
   position: relative;
   min-height: 92vh;
-  background-color: var(--bg-solid);
   background-image: url("/images/hero-image.png");
-  background-size: 100% 100%;
-  background-position: center bottom;
+  background-size: cover;
+  background-position: center;
   background-repeat: no-repeat;
-  border-bottom-left-radius: 0;
-  border-bottom-right-radius: 0;
+  border-bottom-left-radius: 18px;
+  border-bottom-right-radius: 18px;
   overflow: hidden;
-  margin-bottom: 0;
 }
 
 .hero::before {
@@ -193,13 +187,6 @@ body::after {
   max-width: 520px;
   margin: 0 auto;
   padding: 22px 16px 32px;
-}
-
-/* Landing continuity: no external gap between hero and the first content block.
-   The breathing room should come from inside the first card, not from space between sections. */
-.hero + .container {
-  /* Remove only the external band created by container top padding */
-  padding-top: 0;
 }
 
 /* Top header (logo + instalar) */
@@ -290,11 +277,6 @@ body::after {
     padding: 34px 24px 56px;
   }
 
-  /* Explicit override for continuity at this breakpoint */
-  .hero + .container {
-    padding-top: 0;
-  }
-
   .top-header__inner {
     padding-left: 24px;
     padding-right: 24px;
@@ -358,25 +340,15 @@ body::after {
 
 /* Mobile: keep the top "Instalar app" visible and bring hero content up */
 @media (max-width: 640px) {
-  /* Mobile browsers can show a translucent navigation/URL bar area;
-     disable the vignette overlay to avoid a visible band at the bottom. */
-  body::after {
-    content: none;
-  }
-
   .hero {
-    /* Mobile viewport bars can change while scrolling; avoid dvh here.
-       Use a stable hero height on mobile, smaller than desktop. */
-    min-height: unset;
-    height: min(560px, calc(92vh - var(--header-height)));
-    height: min(560px, calc(92svh - var(--header-height)));
+    /* Keep hero within the viewport below the sticky header */
+    min-height: calc(100dvh - var(--header-height));
   }
 
   .hero__inner {
-    min-height: 100%;
-    align-items: flex-end;
+    align-items: center;
     padding-top: 22px;
-    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
   }
 
   .hero__cta {
@@ -406,11 +378,6 @@ body::after {
     max-width: 1100px;
     padding-left: 28px;
     padding-right: 28px;
-  }
-
-  /* Explicit override for continuity at this breakpoint */
-  .hero + .container {
-    padding-top: 0;
   }
 
   .top-header__inner {
