@@ -247,9 +247,7 @@
           if (lastFetchPromise) return lastFetchPromise;
 
           var endpoint =
-            cfg.url.replace(/\/$/, "") +
-            "/rest/v1/rpc/get_app_install_url?t=" +
-            String(Date.now());
+            cfg.url.replace(/\/$/, "") + "/rest/v1/rpc/get_app_install_url";
 
           var controller = null;
           var timeoutId = null;
