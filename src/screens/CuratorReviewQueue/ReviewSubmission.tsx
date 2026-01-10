@@ -52,6 +52,15 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
   if (has("missing_lyrics")) return "Informe a letra antes de aprovar.";
   if (has("invalid_decision")) return "Ação inválida.";
 
+  // Guard-rail do banco: correction approved deve bater com target_ponto_id.
+  // Não expor nomes de constraints na UI.
+  if (
+    has("pontos_submissions_correction_approved_matches_target") ||
+    (has("approved_ponto_id") && has("target_ponto_id"))
+  ) {
+    return "Esta correção precisa ser aprovada pelo fluxo de correção. Atualize o app e tente novamente.";
+  }
+
   return "Não foi possível concluir agora. Tente novamente.";
 }
 
@@ -74,6 +83,16 @@ type RpcPayload = {
   p_interpreter_name?: string | null;
   p_has_author_consent?: boolean | null;
   p_author_contact?: string | null;
+};
+
+type ApproveCorrectionRpcPayload = {
+  p_submission_id: string;
+  p_review_note?: string | null;
+};
+
+type RejectSubmissionRpcPayload = {
+  p_submission_id: string;
+  p_review_note?: string | null;
 };
 
 export default function ReviewSubmissionScreen() {
@@ -162,7 +181,7 @@ export default function ReviewSubmissionScreen() {
     );
   };
 
-  const mutation = useMutation({
+  const reviewNewMutation = useMutation({
     mutationFn: async (payload: RpcPayload) => {
       const res: any = await supabase.rpc("review_ponto_submission", payload);
       if (res?.error) {
@@ -176,11 +195,99 @@ export default function ReviewSubmissionScreen() {
     },
   });
 
+  const approveCorrectionMutation = useMutation({
+    mutationFn: async (payload: ApproveCorrectionRpcPayload) => {
+      const res: any = await supabase.rpc(
+        "approve_ponto_correction_submission",
+        payload
+      );
+      if (res?.error) {
+        throw new Error(
+          typeof res.error?.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Erro ao aprovar correção."
+        );
+      }
+      return res?.data ?? null;
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (payload: RejectSubmissionRpcPayload) => {
+      const res: any = await supabase.rpc("reject_ponto_submission", payload);
+      if (res?.error) {
+        throw new Error(
+          typeof res.error?.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Erro ao rejeitar envio."
+        );
+      }
+      return res?.data ?? null;
+    },
+  });
+
+  const isMutating =
+    reviewNewMutation.isPending ||
+    approveCorrectionMutation.isPending ||
+    rejectMutation.isPending;
+
   const approve = async () => {
     setInlineError(null);
 
     if (!submissionId) {
       setInlineError("Envio inválido.");
+      return;
+    }
+
+    const kind = typeof submission?.kind === "string" ? submission.kind : null;
+    const isCorrection =
+      typeof kind === "string" && kind.trim().toLowerCase() === "correction";
+
+    if (isCorrection) {
+      const payload: ApproveCorrectionRpcPayload = {
+        p_submission_id: submissionId,
+        p_review_note: sanitizeOptionalText(reviewNote),
+      };
+
+      try {
+        await approveCorrectionMutation.mutateAsync(payload);
+
+        // Recarrega fila e evita deixar detalhes stale.
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pontosSubmissions.pending(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pontosSubmissions.byId(submissionId),
+        });
+
+        // Força o Player a refletir a letra atualizada (invalidate amplo;
+        // não existe queryKey por id hoje).
+        const targetId =
+          typeof submission?.target_ponto_id === "string"
+            ? submission.target_ponto_id
+            : null;
+        if (targetId) {
+          queryClient.invalidateQueries({ queryKey: ["collections", "pontos"] });
+          queryClient.invalidateQueries({ queryKey: ["pontos"] });
+        }
+
+        showToast("Correção aprovada.");
+        router.back();
+      } catch (e) {
+        const friendly = mapReviewErrorToFriendlyMessage(e);
+        const raw = getErrorMessage(e);
+
+        console.error("[CuratorReview] erro ao aprovar correction", {
+          submissionId,
+          kind,
+          error: raw,
+        });
+
+        // Não remover da fila em erro.
+        setInlineError(friendly);
+        showToast(friendly);
+      }
+
       return;
     }
 
@@ -215,7 +322,7 @@ export default function ReviewSubmissionScreen() {
     };
 
     try {
-      await mutation.mutateAsync(payload);
+      await reviewNewMutation.mutateAsync(payload);
 
       removeFromPendingList(submissionId);
       queryClient.invalidateQueries({ queryKey: ["pontos"] });
@@ -255,22 +362,13 @@ export default function ReviewSubmissionScreen() {
           text: "Rejeitar",
           style: "destructive",
           onPress: async () => {
-            const payload: RpcPayload = {
+            const payload: RejectSubmissionRpcPayload = {
               p_submission_id: submissionId,
-              p_decision: "rejected",
               p_review_note: sanitizeOptionalText(reviewNote),
-              p_title: null,
-              p_lyrics: null,
-              p_tags: null,
-              p_artist: null,
-              p_author_name: null,
-              p_interpreter_name: null,
-              p_has_author_consent: null,
-              p_author_contact: null,
             };
 
             try {
-              await mutation.mutateAsync(payload);
+              await rejectMutation.mutateAsync(payload);
 
               removeFromPendingList(submissionId);
               showToast("Envio rejeitado.");
@@ -278,6 +376,12 @@ export default function ReviewSubmissionScreen() {
             } catch (e) {
               const friendly = mapReviewErrorToFriendlyMessage(e);
               const raw = getErrorMessage(e);
+
+              console.error("[CuratorReview] erro ao rejeitar submission", {
+                submissionId,
+                kind: submission?.kind ?? null,
+                error: raw,
+              });
 
               if (raw.toLowerCase().includes("submission_not_pending")) {
                 removeFromPendingList(submissionId);
@@ -355,9 +459,13 @@ export default function ReviewSubmissionScreen() {
 
   const kindLabel = toKindLabel(submission.kind);
   const submitterEmail =
-    typeof submission.submitter_email === "string" ? submission.submitter_email : "";
+    typeof submission.submitter_email === "string"
+      ? submission.submitter_email
+      : "";
   const issueDetails =
-    typeof submission.issue_details === "string" ? submission.issue_details.trim() : "";
+    typeof submission.issue_details === "string"
+      ? submission.issue_details.trim()
+      : "";
 
   return (
     <SafeAreaView
@@ -405,7 +513,8 @@ export default function ReviewSubmissionScreen() {
                 { backgroundColor: inputBg, borderColor: inputBorder },
               ]}
             >
-              <Text style={[styles.issueLabel, { color: textSecondary }]}
+              <Text
+                style={[styles.issueLabel, { color: textSecondary }]}
                 numberOfLines={1}
               >
                 Nota da usuária
@@ -426,7 +535,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={title}
             onChangeText={setTitle}
-            editable={!mutation.isPending}
+            editable={!isMutating}
             placeholder="Título"
             placeholderTextColor={
               variant === "light"
@@ -447,7 +556,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={authorName}
             onChangeText={setAuthorName}
-            editable={!mutation.isPending}
+            editable={!isMutating}
             placeholder="Autor"
             placeholderTextColor={
               variant === "light"
@@ -470,7 +579,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={interpreterName}
             onChangeText={setInterpreterName}
-            editable={!mutation.isPending}
+            editable={!isMutating}
             placeholder="Intérprete"
             placeholderTextColor={
               variant === "light"
@@ -491,7 +600,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={lyrics}
             onChangeText={setLyrics}
-            editable={!mutation.isPending}
+            editable={!isMutating}
             multiline
             textAlignVertical="top"
             placeholder="Letra"
@@ -514,7 +623,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={tagsText}
             onChangeText={setTagsText}
-            editable={!mutation.isPending}
+            editable={!isMutating}
             placeholder="Ex.: Ogum, Caboclo, Xangô"
             placeholderTextColor={
               variant === "light"
@@ -545,7 +654,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={reviewNote}
             onChangeText={setReviewNote}
-            editable={!mutation.isPending}
+            editable={!isMutating}
             multiline
             placeholder="Ex.: corrigir autor, melhorar clareza da letra…"
             placeholderTextColor={
@@ -566,13 +675,13 @@ export default function ReviewSubmissionScreen() {
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="button"
-              disabled={mutation.isPending}
+              disabled={isMutating}
               onPress={() => void reject()}
               style={({ pressed }) => [
                 styles.rejectBtn,
                 {
                   borderColor: colors.brass600,
-                  opacity: mutation.isPending ? 0.7 : 1,
+                  opacity: isMutating ? 0.7 : 1,
                 },
                 pressed ? styles.actionPressed : null,
               ]}
@@ -584,14 +693,14 @@ export default function ReviewSubmissionScreen() {
 
             <Pressable
               accessibilityRole="button"
-              disabled={mutation.isPending}
+              disabled={isMutating}
               onPress={() => void approve()}
               style={({ pressed }) => [
                 styles.approveBtn,
                 {
                   backgroundColor:
                     variant === "light" ? colors.forest700 : colors.forest300,
-                  opacity: mutation.isPending ? 0.7 : 1,
+                  opacity: isMutating ? 0.7 : 1,
                 },
                 pressed ? styles.actionPressed : null,
               ]}
@@ -605,7 +714,7 @@ export default function ReviewSubmissionScreen() {
                   },
                 ]}
               >
-                {mutation.isPending ? "Enviando…" : "Aprovar"}
+                {isMutating ? "Enviando…" : "Aprovar"}
               </Text>
             </Pressable>
           </View>
