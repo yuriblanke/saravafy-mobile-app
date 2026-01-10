@@ -197,11 +197,8 @@ body::after {
 /* Landing continuity: no external gap between hero and the first content block.
    The breathing room should come from inside the first card, not from space between sections. */
 .hero + .container {
+  /* Remove only the external band created by container top padding */
   padding-top: 0;
-}
-
-.hero + .container > .card:first-child {
-  margin-top: 0;
 }
 
 /* Top header (logo + instalar) */
@@ -290,6 +287,11 @@ body::after {
   .container {
     max-width: 980px;
     padding: 34px 24px 56px;
+  }
+
+  /* Explicit override for continuity at this breakpoint */
+  .hero + .container {
+    padding-top: 0;
   }
 
   .top-header__inner {
@@ -403,6 +405,11 @@ body::after {
     max-width: 1100px;
     padding-left: 28px;
     padding-right: 28px;
+  }
+
+  /* Explicit override for continuity at this breakpoint */
+  .hero + .container {
+    padding-top: 0;
   }
 
   .top-header__inner {
