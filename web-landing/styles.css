@@ -63,6 +63,10 @@ body {
   height: 100%;
 }
 
+html {
+  background: var(--bg-solid);
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -340,6 +344,12 @@ body::after {
 
 /* Mobile: keep the top "Instalar app" visible and bring hero content up */
 @media (max-width: 640px) {
+  /* Mobile browsers can show a translucent navigation/URL bar area;
+     disable the vignette overlay to avoid a visible band at the bottom. */
+  body::after {
+    content: none;
+  }
+
   .hero {
     /* Mobile viewport bars can change while scrolling; avoid dvh here.
        Use a stable hero height on mobile, smaller than desktop. */
