@@ -341,8 +341,11 @@ body::after {
 /* Mobile: keep the top "Instalar app" visible and bring hero content up */
 @media (max-width: 640px) {
   .hero {
-    /* Keep hero within the viewport below the sticky header */
-    min-height: calc(92dvh - var(--header-height));
+    /* Mobile viewport bars can change while scrolling; avoid dvh here.
+       Use a stable hero height on mobile, smaller than desktop. */
+    min-height: unset;
+    height: min(560px, calc(92vh - var(--header-height)));
+    height: min(560px, calc(92svh - var(--header-height)));
   }
 
   .hero__inner {
