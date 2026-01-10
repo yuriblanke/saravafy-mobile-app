@@ -142,6 +142,18 @@ body::after {
   background: linear-gradient(rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.7) 100%);
 }
 
+/* Mask to hide a 1–2px subpixel seam at the hero bottom edge (radius + image/overlay). */
+.hero::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--bg-solid);
+  pointer-events: none;
+}
+
 .hero__inner {
   position: relative;
   z-index: 1;
