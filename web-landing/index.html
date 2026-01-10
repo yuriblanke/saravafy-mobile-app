@@ -33,7 +33,7 @@
             class="btn-primary"
             type="button"
             id="installBtn"
-            data-install-url="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
+            data-install-url=""
             aria-haspopup="dialog"
             aria-controls="installModal"
           >
@@ -60,7 +60,7 @@
           <button
             class="btn-secondary hero__cta"
             type="button"
-            data-install-url="https://expo.dev/artifacts/eas/iG5svoB1GvcHgZ71aLamgD.apk"
+            data-install-url=""
             aria-haspopup="dialog"
             aria-controls="installModal"
           >
@@ -193,7 +193,6 @@
               O Android pode pedir uma confirmação extra na primeira instalação
               — isso é normal e acontece apenas uma vez.
             </li>
-            <li>Após instalar, volte aqui.</li>
           </ul>
         </div>
 
@@ -205,6 +204,7 @@
       </div>
     </div>
 
+    <script src="/config.js?v=2026-01-10-1"></script>
     <script>
       (function () {
         var triggers = document.querySelectorAll(
@@ -214,6 +214,98 @@
         if (!modal || !triggers || triggers.length === 0) return;
 
         var lastFocused = null;
+        var currentInstallUrl = null;
+        var lastFetchPromise = null;
+
+        function getSupabaseConfig() {
+          var url = window.SARAVAFY_SUPABASE_URL;
+          var key = window.SARAVAFY_SUPABASE_ANON_KEY;
+          if (!url || !key) return null;
+          return { url: String(url), key: String(key) };
+        }
+
+        function setInstallUrl(url) {
+          currentInstallUrl = url ? String(url) : null;
+
+          for (var i = 0; i < triggers.length; i++) {
+            if (currentInstallUrl) {
+              triggers[i].setAttribute("data-install-url", currentInstallUrl);
+            } else {
+              triggers[i].setAttribute("data-install-url", "");
+            }
+          }
+        }
+
+        function fetchInstallUrlFresh() {
+          var cfg = getSupabaseConfig();
+          if (!cfg) {
+            setInstallUrl(null);
+            return Promise.resolve(null);
+          }
+
+          // De-dupe concurrent fetches (but still refetch on each page show).
+          if (lastFetchPromise) return lastFetchPromise;
+
+          var endpoint =
+            cfg.url.replace(/\/$/, "") +
+            "/rest/v1/rpc/get_app_install_url?t=" +
+            String(Date.now());
+
+          var controller = null;
+          var timeoutId = null;
+          try {
+            controller = new AbortController();
+            timeoutId = window.setTimeout(function () {
+              try {
+                controller.abort();
+              } catch (_e) {}
+            }, 8000);
+          } catch (_e) {
+            controller = null;
+          }
+
+          lastFetchPromise = fetch(endpoint, {
+            method: "POST",
+            cache: "no-store",
+            headers: {
+              apikey: cfg.key,
+              authorization: "Bearer " + cfg.key,
+              "content-type": "application/json",
+              "cache-control": "no-store, no-cache, must-revalidate, max-age=0",
+              pragma: "no-cache",
+            },
+            body: "{}",
+            signal: controller ? controller.signal : undefined,
+          })
+            .then(function (res) {
+              if (!res || !res.ok)
+                throw new Error("Failed to fetch install URL");
+              return res.json();
+            })
+            .then(function (json) {
+              var url = json && json.value ? String(json.value) : "";
+
+              // Guard against placeholder.
+              if (!url || url === "pending") {
+                setInstallUrl(null);
+                return null;
+              }
+
+              setInstallUrl(url);
+              return url;
+            })
+            .catch(function () {
+              // Fail closed: do not keep any previous URL.
+              setInstallUrl(null);
+              return null;
+            })
+            .finally(function () {
+              if (timeoutId) window.clearTimeout(timeoutId);
+              lastFetchPromise = null;
+            });
+
+          return lastFetchPromise;
+        }
 
         function setOpen(open) {
           if (open) {
@@ -248,13 +340,28 @@
           }, 2000);
         }
 
+        // Always fetch a fresh URL when the page is shown (covers normal load + bfcache restore).
+        window.addEventListener("pageshow", function () {
+          fetchInstallUrlFresh();
+        });
+
         for (var i = 0; i < triggers.length; i++) {
           triggers[i].addEventListener("click", function (e) {
             lastFocused =
               e && e.currentTarget ? e.currentTarget : document.activeElement;
             setOpen(true);
-            var url = this.getAttribute("data-install-url");
-            triggerDownload(url);
+
+            var url =
+              currentInstallUrl || this.getAttribute("data-install-url");
+            if (url) {
+              triggerDownload(url);
+              return;
+            }
+
+            // If the URL isn't ready yet, fetch it now (still no-cache/no-store).
+            fetchInstallUrlFresh().then(function (freshUrl) {
+              if (freshUrl) triggerDownload(freshUrl);
+            });
           });
         }
 
