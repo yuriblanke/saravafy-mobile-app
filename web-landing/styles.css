@@ -129,8 +129,8 @@ body::after {
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
-  border-bottom-left-radius: 18px;
-  border-bottom-right-radius: 18px;
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
   overflow: hidden;
   margin-bottom: 0;
 }
@@ -140,18 +140,6 @@ body::after {
   position: absolute;
   inset: 0;
   background: linear-gradient(rgba(0, 0, 0, 0.4) 0%, rgba(0, 0, 0, 0.7) 100%);
-}
-
-/* Mask to hide a 1–2px subpixel seam at the hero bottom edge (radius + image/overlay). */
-.hero::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -1px;
-  height: 2px;
-  background: var(--bg-solid);
-  pointer-events: none;
 }
 
 .hero__inner {
