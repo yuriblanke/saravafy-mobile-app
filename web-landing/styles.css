@@ -342,13 +342,13 @@ body::after {
 @media (max-width: 640px) {
   .hero {
     /* Keep hero within the viewport below the sticky header */
-    min-height: calc(100dvh - var(--header-height));
+    min-height: calc(92dvh - var(--header-height));
   }
 
   .hero__inner {
-    align-items: center;
+    align-items: flex-end;
     padding-top: 22px;
-    padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
   }
 
   .hero__cta {
