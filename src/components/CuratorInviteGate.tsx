@@ -546,12 +546,10 @@ export function CuratorInviteGate() {
     return "Convite";
   }, []);
 
-  const modalLead = useMemo(() => {
-    return "Você foi convidada(o) para cuidar do acervo do Saravafy.";
-  }, []);
-
-  const modalComplement = useMemo(() => {
-    return "É um papel de confiança — seu cuidado ajuda a manter as letras bem cuidadas e a energia do canto bem alinhada.";
+  const closeModalNoSideEffects = useCallback(() => {
+    setIsModalVisible(false);
+    // Mantém o convite acessível: reexibe o banner, pois o convite segue pendente.
+    setIsBannerVisible(!!currentInviteRef.current);
   }, []);
 
   if (!userId || !normalizedUserEmail) return null;
@@ -598,26 +596,27 @@ export function CuratorInviteGate() {
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
               <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                Convite
+                Um cuidado foi confiado a você
               </Text>
 
-              <Text style={[styles.modalBody, { color: textSecondary }]}>
-                {modalLead}
+              <Text style={[styles.modalLead, { color: textSecondary }]}>
+                Você foi convidada(o) a zelar pelo acervo do Saravafy.
               </Text>
 
-              <View style={styles.fieldList}>
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.fieldLabel, { color: textSecondary }]}>
-                    Função
-                  </Text>
-                  <Text style={[styles.fieldValue, { color: textPrimary }]}>
-                    Pessoa Guardiã do Acervo
-                  </Text>
-                </View>
+              <View
+                style={[
+                  styles.rolePill,
+                  { borderColor: inputBorder, backgroundColor: inputBg },
+                ]}
+              >
+                <Text style={[styles.rolePillText, { color: textPrimary }]}>
+                  {roleLabel}
+                </Text>
               </View>
 
               <Text style={[styles.modalBody, { color: textSecondary }]}>
-                {modalComplement}
+                Seu cuidado ajuda a manter as letras bem cuidadas{"\n"}e a
+                energia do canto alinhada.
               </Text>
 
               {isProcessing ? (
@@ -629,7 +628,7 @@ export function CuratorInviteGate() {
               <View style={styles.modalButtons}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Aceitar convite"
+                  accessibilityLabel="Aceitar o cuidado"
                   disabled={isProcessing}
                   onPress={acceptInvite}
                   style={({ pressed }) => [
@@ -638,7 +637,7 @@ export function CuratorInviteGate() {
                     isProcessing ? styles.btnDisabled : null,
                   ]}
                 >
-                  <Text style={styles.primaryBtnText}>Aceitar convite</Text>
+                  <Text style={styles.primaryBtnText}>Aceitar o cuidado</Text>
                 </Pressable>
 
                 <Pressable
@@ -657,6 +656,27 @@ export function CuratorInviteGate() {
                     style={[styles.secondaryBtnText, { color: textPrimary }]}
                   >
                     Recusar convite
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Decidir depois"
+                  disabled={isProcessing}
+                  onPress={closeModalNoSideEffects}
+                  style={({ pressed }) => [
+                    styles.tertiaryBtn,
+                    pressed ? styles.tertiaryBtnPressed : null,
+                    isProcessing ? styles.btnDisabled : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tertiaryBtnText,
+                      { color: textSecondary },
+                    ]}
+                  >
+                    Decidir depois
                   </Text>
                 </Pressable>
               </View>
@@ -730,31 +750,31 @@ const styles = StyleSheet.create({
     maxWidth: 520,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
-    marginBottom: spacing.sm,
+    marginBottom: 8,
     textAlign: "center",
   },
-  fieldList: {
-    marginTop: spacing.md,
-    gap: 10,
-  },
-  fieldRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  fieldValue: {
-    flex: 1,
-    minWidth: 0,
+  modalLead: {
     fontSize: 13,
     fontWeight: "800",
-    textAlign: "right",
+    opacity: 0.92,
+    lineHeight: 18,
+    textAlign: "center",
+    marginBottom: spacing.md,
+  },
+  rolePill: {
+    alignSelf: "center",
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginBottom: spacing.md,
+  },
+  rolePillText: {
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.2,
   },
   modalBody: {
     fontSize: 13,
@@ -796,6 +816,21 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontSize: 14,
     fontWeight: "900",
+  },
+  tertiaryBtn: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+  },
+  tertiaryBtnPressed: {
+    opacity: 0.82,
+  },
+  tertiaryBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    textDecorationLine: "underline",
   },
   btnPressed: {
     opacity: 0.92,
