@@ -20,12 +20,7 @@ import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import {
-  getAccessRoleInfoProps,
-  type AccessRole,
-} from "@/src/constants/accessRoleCopy";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, radii, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
@@ -941,35 +936,11 @@ export function InviteGate() {
     return "Convite";
   }, []);
 
-  const modalLead = useMemo(() => {
-    return "Você foi convidada(o) para colaborar neste terreiro no Saravafy.";
+  const closeModalNoSideEffects = useCallback(() => {
+    setIsModalVisible(false);
+    setActionError(null);
+    setDebugInfo(null);
   }, []);
-
-  const inviteRoleValue = useMemo(() => {
-    const role = currentInvite?.role;
-    if (role === "admin") return "Admin";
-    if (role === "editor") return "Editor";
-    return "Member";
-  }, [currentInvite?.role]);
-
-  const inviteRoleComplement = useMemo(() => {
-    const role = currentInvite?.role;
-    if (role === "admin") {
-      return "Esse convite permite participar do cuidado e da organização do terreiro, ajudando a manter informações, pontos e estrutura sempre atualizados.";
-    }
-    if (role === "editor") {
-      return "Esse convite permite colaborar com o cuidado do conteúdo do terreiro, ajudando a manter pontos e informações organizados e bem apresentados.";
-    }
-    return "Esse convite permite acompanhar e acessar o conteúdo do terreiro, participando do espaço e do que é compartilhado ali.";
-  }, [currentInvite?.role]);
-
-  const inviteAccessRole = useMemo(() => {
-    const role = currentInvite?.role;
-    if (role === "admin" || role === "editor" || role === "member") {
-      return role satisfies AccessRole;
-    }
-    return null;
-  }, [currentInvite?.role]);
 
   useEffect(() => {
     const active =
@@ -1036,50 +1007,31 @@ export function InviteGate() {
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
               <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                Convite
+                Um cuidado foi confiado a você
               </Text>
 
-              <Text style={[styles.modalBody, { color: textSecondary }]}>
-                {modalLead}
+              <Text style={[styles.modalLead, { color: textSecondary }]}>
+                Você foi convidada(o) a zelar pelo acervo do Saravafy.
               </Text>
 
-              <View style={styles.fieldList}>
-                <View style={styles.fieldRow}>
-                  <Text style={[styles.fieldLabel, { color: textSecondary }]}>
-                    Terreiro
-                  </Text>
-                  <Text
-                    style={[styles.fieldValue, { color: textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {inviteTerreiroTitle}
-                  </Text>
-                </View>
-
-                <View style={styles.fieldRow}>
-                  <View style={styles.fieldLabelWithInfo}>
-                    <Text
-                      style={[styles.fieldLabel, { color: textSecondary }]}
-                    >
-                      Função
-                    </Text>
-                    {inviteAccessRole ? (
-                      <AccessRoleInfo
-                        variant={variant}
-                        info={getAccessRoleInfoProps(inviteAccessRole)}
-                      />
-                    ) : null}
-                  </View>
-                  <Text style={[styles.fieldValue, { color: textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {inviteRoleValue}
-                  </Text>
-                </View>
+              <View
+                style={[
+                  styles.rolePill,
+                  { borderColor: inputBorder, backgroundColor: inputBg },
+                ]}
+              >
+                <Text style={[styles.rolePillText, { color: textPrimary }]}>
+                  Guardiã(o) do Acervo
+                </Text>
               </View>
 
               <Text style={[styles.modalBody, { color: textSecondary }]}>
-                {inviteRoleComplement}
+                Seu cuidado ajuda a manter as letras bem cuidadas{"\n"}
+                e a energia do canto alinhada.
+              </Text>
+
+              <Text style={[styles.modalMeta, { color: textSecondary }]}>
+                Acervo: <Text style={{ color: textPrimary }}>{inviteTerreiroTitle}</Text>
               </Text>
 
               {isProcessing ? (
@@ -1118,7 +1070,7 @@ export function InviteGate() {
               <View style={styles.modalButtons}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Aceitar convite"
+                  accessibilityLabel="Aceitar o cuidado"
                   disabled={isProcessing}
                   onPress={acceptInvite}
                   style={({ pressed }) => [
@@ -1127,7 +1079,7 @@ export function InviteGate() {
                     isProcessing ? styles.btnDisabled : null,
                   ]}
                 >
-                  <Text style={styles.primaryBtnText}>Aceitar convite</Text>
+                  <Text style={styles.primaryBtnText}>Aceitar o cuidado</Text>
                 </Pressable>
 
                 <Pressable
@@ -1146,6 +1098,27 @@ export function InviteGate() {
                     style={[styles.secondaryBtnText, { color: textPrimary }]}
                   >
                     Recusar convite
+                  </Text>
+                </Pressable>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Decidir depois"
+                  disabled={isProcessing}
+                  onPress={closeModalNoSideEffects}
+                  style={({ pressed }) => [
+                    styles.tertiaryBtn,
+                    pressed ? styles.tertiaryBtnPressed : null,
+                    isProcessing ? styles.btnDisabled : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.tertiaryBtnText,
+                      { color: textSecondary },
+                    ]}
+                  >
+                    Decidir depois
                   </Text>
                 </Pressable>
               </View>
@@ -1219,42 +1192,44 @@ const styles = StyleSheet.create({
     maxWidth: 520,
   },
   modalTitle: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
-    marginBottom: spacing.sm,
+    marginBottom: 8,
     textAlign: "center",
   },
-  fieldList: {
-    marginTop: spacing.md,
-    gap: 10,
-  },
-  fieldRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: spacing.md,
-  },
-  fieldLabelWithInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  fieldLabel: {
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  fieldValue: {
-    flex: 1,
-    minWidth: 0,
+  modalLead: {
     fontSize: 13,
     fontWeight: "800",
-    textAlign: "right",
+    opacity: 0.92,
+    lineHeight: 18,
+    textAlign: "center",
+    marginBottom: spacing.md,
+  },
+  rolePill: {
+    alignSelf: "center",
+    borderRadius: 999,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    marginBottom: spacing.md,
+  },
+  rolePillText: {
+    fontSize: 13,
+    fontWeight: "900",
+    letterSpacing: 0.2,
   },
   modalBody: {
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.92,
     lineHeight: 18,
+    textAlign: "center",
+  },
+  modalMeta: {
+    marginTop: spacing.md,
+    fontSize: 12,
+    fontWeight: "700",
+    opacity: 0.9,
     textAlign: "center",
   },
   modalError: {
@@ -1305,6 +1280,21 @@ const styles = StyleSheet.create({
   secondaryBtnText: {
     fontSize: 14,
     fontWeight: "900",
+  },
+  tertiaryBtn: {
+    minHeight: 40,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+    borderRadius: radii.md,
+  },
+  tertiaryBtnPressed: {
+    opacity: 0.82,
+  },
+  tertiaryBtnText: {
+    fontSize: 13,
+    fontWeight: "800",
+    textDecorationLine: "underline",
   },
   btnPressed: {
     opacity: 0.92,
