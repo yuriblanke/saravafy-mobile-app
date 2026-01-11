@@ -21,9 +21,9 @@ import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import {
+  useMyTerreirosWithRoleQuery,
   type MyTerreiroRole,
   type MyTerreiroWithRole,
-  useMyTerreirosWithRoleQuery,
 } from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
@@ -33,7 +33,6 @@ import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   Modal,
   Pressable,
@@ -588,14 +587,11 @@ export function PreferencesOverlaySheets(
     null
   );
 
-  const [leaveRoleTarget, setLeaveRoleTarget] = useState<
-    | {
-        terreiroId: string;
-        terreiroTitle: string;
-        role: Exclude<MyTerreiroRole, "member">;
-      }
-    | null
-  >(null);
+  const [leaveRoleTarget, setLeaveRoleTarget] = useState<{
+    terreiroId: string;
+    terreiroTitle: string;
+    role: Exclude<MyTerreiroRole, "member">;
+  } | null>(null);
   const [leaveRoleConfirmText, setLeaveRoleConfirmText] = useState("");
   const [leaveRoleBusy, setLeaveRoleBusy] = useState(false);
 
@@ -612,7 +608,9 @@ export function PreferencesOverlaySheets(
     return msg.includes("cannot_remove_last_admin");
   };
 
-  const countActiveAdmins = async (terreiroId: string): Promise<number | null> => {
+  const countActiveAdmins = async (
+    terreiroId: string
+  ): Promise<number | null> => {
     try {
       let res: any = await supabase
         .from("terreiro_members")
@@ -722,9 +720,15 @@ export function PreferencesOverlaySheets(
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreirosWithRole(userId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.membership(userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.membership(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.permissions(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiros(userId),
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreiroAccessIds(userId),
       });
@@ -1125,12 +1129,7 @@ export function PreferencesOverlaySheets(
         isFetching: myTerreirosQuery.isFetching,
       });
     }
-  }, [
-    isOpen,
-    myTerreiros.length,
-    myTerreirosQuery.isFetching,
-    userId,
-  ]);
+  }, [isOpen, myTerreiros.length, myTerreirosQuery.isFetching, userId]);
 
   const onSelectTheme = (mode: ThemeMode) => {
     setThemeMode(mode);
@@ -1525,7 +1524,9 @@ export function PreferencesOverlaySheets(
                           onPress={(e) => {
                             // Prevent row press.
                             (e as any)?.stopPropagation?.();
-                            void Haptics.selectionAsync().catch(() => undefined);
+                            void Haptics.selectionAsync().catch(
+                              () => undefined
+                            );
                             openTerreiroMenu(t);
                           }}
                           style={({ pressed }) => [
@@ -1656,7 +1657,10 @@ export function PreferencesOverlaySheets(
         visible={uiEnabled && isLogoutConfirmOpen}
         onRequestClose={closeLogoutConfirm}
       >
-        <Pressable style={styles.leaveRoleBackdrop} onPress={closeLogoutConfirm}>
+        <Pressable
+          style={styles.leaveRoleBackdrop}
+          onPress={closeLogoutConfirm}
+        >
           <Pressable
             style={[
               styles.leaveRoleCard,
@@ -1683,7 +1687,11 @@ export function PreferencesOverlaySheets(
                   },
                 ]}
               >
-                <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+                <Ionicons
+                  name="log-out-outline"
+                  size={18}
+                  color={colors.danger}
+                />
               </View>
 
               <View style={styles.logoutHeaderTextCol}>
@@ -1996,7 +2004,9 @@ export function PreferencesOverlaySheets(
                   pressed ? styles.terreiroMenuItemPressed : null,
                 ]}
               >
-                <Text style={[styles.terreiroMenuItemText, { color: textPrimary }]}>
+                <Text
+                  style={[styles.terreiroMenuItemText, { color: textPrimary }]}
+                >
                   Gerenciar acessos
                 </Text>
               </Pressable>
@@ -2019,7 +2029,9 @@ export function PreferencesOverlaySheets(
                   pressed ? styles.terreiroMenuItemPressed : null,
                 ]}
               >
-                <Text style={[styles.terreiroMenuItemText, { color: textPrimary }]}>
+                <Text
+                  style={[styles.terreiroMenuItemText, { color: textPrimary }]}
+                >
                   Editar terreiro
                 </Text>
               </Pressable>
@@ -2037,7 +2049,12 @@ export function PreferencesOverlaySheets(
                   pressed ? styles.terreiroMenuItemPressed : null,
                 ]}
               >
-                <Text style={[styles.terreiroMenuItemText, { color: colors.danger }]}>
+                <Text
+                  style={[
+                    styles.terreiroMenuItemText,
+                    { color: colors.danger },
+                  ]}
+                >
                   Sair do papel de admin
                 </Text>
               </Pressable>
@@ -2056,7 +2073,9 @@ export function PreferencesOverlaySheets(
                 pressed ? styles.terreiroMenuItemPressed : null,
               ]}
             >
-              <Text style={[styles.terreiroMenuItemText, { color: colors.danger }]}>
+              <Text
+                style={[styles.terreiroMenuItemText, { color: colors.danger }]}
+              >
                 Sair do papel de editor(a)
               </Text>
             </Pressable>
@@ -2080,7 +2099,8 @@ export function PreferencesOverlaySheets(
             style={[
               styles.leaveRoleCard,
               {
-                backgroundColor: variant === "light" ? colors.paper100 : colors.forest900,
+                backgroundColor:
+                  variant === "light" ? colors.paper100 : colors.forest900,
                 borderColor: dividerColor,
               },
             ]}
@@ -2088,7 +2108,8 @@ export function PreferencesOverlaySheets(
               (e as any)?.stopPropagation?.();
             }}
           >
-            <Text style={[styles.leaveRoleTitle, { color: textPrimary }]}
+            <Text
+              style={[styles.leaveRoleTitle, { color: textPrimary }]}
               numberOfLines={2}
             >
               {leaveRoleTarget?.role === "admin"
@@ -2096,11 +2117,13 @@ export function PreferencesOverlaySheets(
                 : "Sair do papel de editor(a)?"}
             </Text>
 
-            <Text style={[styles.leaveRoleBody, { color: textSecondary }]}
+            <Text
+              style={[styles.leaveRoleBody, { color: textSecondary }]}
               numberOfLines={6}
             >
-              Você perderá acesso de gestão deste terreiro. Para confirmar, digite
-              {" \"sair\""} abaixo.
+              Você perderá acesso de gestão deste terreiro. Para confirmar,
+              digite
+              {' "sair"'} abaixo.
             </Text>
 
             {leaveRoleTarget ? (
@@ -2119,7 +2142,11 @@ export function PreferencesOverlaySheets(
               editable={!leaveRoleBusy}
               style={[
                 styles.leaveRoleInput,
-                { color: textPrimary, borderColor: inputBorder, backgroundColor: inputBg },
+                {
+                  color: textPrimary,
+                  borderColor: inputBorder,
+                  backgroundColor: inputBg,
+                },
               ]}
             />
 
