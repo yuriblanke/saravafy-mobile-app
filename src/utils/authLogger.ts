@@ -201,7 +201,7 @@ async function getInferredSessionUserInfo(): Promise<{
     const { data, error } = await supabase.auth.getSession();
     if (error) {
       console.warn(
-        "[AuthLogger] Falha ao inferir sessão (getSession):", 
+        "[AuthLogger] Falha ao inferir sessão (getSession):",
         error.message
       );
       // fallback seguro

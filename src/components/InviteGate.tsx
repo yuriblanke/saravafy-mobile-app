@@ -1026,12 +1026,15 @@ export function InviteGate() {
               </View>
 
               <Text style={[styles.modalBody, { color: textSecondary }]}>
-                Seu cuidado ajuda a manter as letras bem cuidadas{"\n"}
-                e a energia do canto alinhada.
+                Seu cuidado ajuda a manter as letras bem cuidadas{"\n"}e a
+                energia do canto alinhada.
               </Text>
 
               <Text style={[styles.modalMeta, { color: textSecondary }]}>
-                Acervo: <Text style={{ color: textPrimary }}>{inviteTerreiroTitle}</Text>
+                Acervo:{" "}
+                <Text style={{ color: textPrimary }}>
+                  {inviteTerreiroTitle}
+                </Text>
               </Text>
 
               {isProcessing ? (
@@ -1113,10 +1116,7 @@ export function InviteGate() {
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.tertiaryBtnText,
-                      { color: textSecondary },
-                    ]}
+                    style={[styles.tertiaryBtnText, { color: textSecondary }]}
                   >
                     Decidir depois
                   </Text>
