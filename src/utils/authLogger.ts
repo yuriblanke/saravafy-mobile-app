@@ -33,6 +33,14 @@ const recentLogs: PendingLog[] = [];
 const DEDUPE_WINDOW_MS = 1000;
 const MAX_RECENT_LOGS = 50;
 
+// Cache curto para inferir user_id via sessão atual (evita chamadas repetidas)
+const SESSION_USER_CACHE_TTL_MS = 5000;
+let sessionUserCache: {
+  cachedAt: number;
+  userId: string | null;
+  hadSession: boolean;
+} | null = null;
+
 // Memória local dos últimos eventos para debug
 const localLogHistory: Array<{
   attemptId: string;
@@ -174,6 +182,50 @@ export function clearRecentAuthLogs() {
   localLogHistory.length = 0;
 }
 
+async function getInferredSessionUserInfo(): Promise<{
+  userId: string | null;
+  hadSession: boolean;
+}> {
+  const now = Date.now();
+  if (
+    sessionUserCache &&
+    now - sessionUserCache.cachedAt <= SESSION_USER_CACHE_TTL_MS
+  ) {
+    return {
+      userId: sessionUserCache.userId,
+      hadSession: sessionUserCache.hadSession,
+    };
+  }
+
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      console.warn(
+        "[AuthLogger] Falha ao inferir sessão (getSession):", 
+        error.message
+      );
+      // fallback seguro
+      return { userId: null, hadSession: false };
+    }
+
+    const session = data.session;
+    const userId = session?.user?.id ?? null;
+    const hadSession = Boolean(session);
+
+    sessionUserCache = {
+      cachedAt: now,
+      userId,
+      hadSession,
+    };
+
+    return { userId, hadSession };
+  } catch (error) {
+    console.warn("[AuthLogger] Erro inesperado ao inferir sessão:", error);
+    // fallback seguro
+    return { userId: null, hadSession: false };
+  }
+}
+
 /**
  * Sanitiza detalhes para garantir que não contenham tokens sensíveis
  */
@@ -263,11 +315,29 @@ export async function logAuthEvent(
       return;
     }
 
+    const { userId: sessionUserId, hadSession } =
+      await getInferredSessionUserInfo();
+
+    // Inferir user_id efetivo (RLS-friendly)
+    const explicitUserId = userId ?? null;
+    let effectiveUserId: string | null = explicitUserId;
+    let inferredUserId = false;
+
+    if (!effectiveUserId && sessionUserId) {
+      effectiveUserId = sessionUserId;
+      inferredUserId = true;
+    }
+
     // Sanitizar detalhes
     const sanitizedDetails = sanitizeDetails(details);
+    const sanitizedDetailsWithDebug = {
+      ...sanitizedDetails,
+      inferredUserId,
+      hadSession,
+    };
 
     // Adicionar à memória local
-    addToLocalHistory(attemptId, event, sanitizedDetails);
+    addToLocalHistory(attemptId, event, sanitizedDetailsWithDebug);
 
     // Coletar metadados
     const deviceMetadata = collectDeviceMetadata();
@@ -276,7 +346,7 @@ export async function logAuthEvent(
     // Preparar payload
     const payload = {
       attempt_id: attemptId,
-      user_id: userId ?? null,
+      user_id: effectiveUserId,
       provider: "google",
       event,
       client_ts: new Date().toISOString(),
@@ -287,7 +357,7 @@ export async function logAuthEvent(
       network_type: networkInfo.network_type,
       network_details: networkInfo.network_details,
       browser_details: null, // Pode ser preenchido futuramente
-      details: sanitizedDetails,
+      details: sanitizedDetailsWithDebug,
     };
 
     // Inserir no Supabase (best-effort)
