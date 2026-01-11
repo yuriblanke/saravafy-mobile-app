@@ -20,7 +20,11 @@ import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext"
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
-import { useMyEditableTerreirosQuery } from "@/src/queries/me";
+import {
+  type MyTerreiroRole,
+  type MyTerreiroWithRole,
+  useMyTerreirosWithRoleQuery,
+} from "@/src/queries/me";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +35,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
+  Modal,
   Pressable,
   StyleSheet,
   Switch,
@@ -89,7 +94,7 @@ function isColumnMissingError(message: string, columnName: string) {
 
 function getInviteRoleLabel(role: InviteRole): string {
   if (role === "admin") return "Admin";
-  if (role === "editor") return "Editora";
+  if (role === "editor") return "Editor";
   if (role === "member") return "Membro";
   return "Seguidora";
 }
@@ -439,17 +444,21 @@ export function PreferencesOverlaySheets(
     };
   }, []);
 
-  const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
-  const myEditableTerreiros = useMemo(
-    () => myEditableTerreirosQuery.data ?? [],
-    [myEditableTerreirosQuery.data]
+  const myTerreirosQuery = useMyTerreirosWithRoleQuery(userId);
+  const myTerreiros = useMemo<MyTerreiroWithRole[]>(
+    () => myTerreirosQuery.data ?? [],
+    [myTerreirosQuery.data]
   );
 
-  // Mostrar TODOS os terreiros editáveis (admin + editor), não apenas admins
-  const myAdminTerreiros = useMemo(
-    () => myEditableTerreiros,
-    [myEditableTerreiros]
-  );
+  const [terreiroMenuTarget, setTerreiroMenuTarget] =
+    useState<MyTerreiroWithRole | null>(null);
+
+  const closeTerreiroMenu = () => setTerreiroMenuTarget(null);
+
+  const openTerreiroMenu = (item: MyTerreiroWithRole) => {
+    if (item.role !== "admin" && item.role !== "editor") return;
+    setTerreiroMenuTarget(item);
+  };
 
   const curatorInviteQuery = useQuery({
     queryKey: normalizedUserEmail
@@ -565,6 +574,150 @@ export function PreferencesOverlaySheets(
   const [inviteProcessingKey, setInviteProcessingKey] = useState<string | null>(
     null
   );
+
+  const [leaveRoleTarget, setLeaveRoleTarget] = useState<
+    | {
+        terreiroId: string;
+        terreiroTitle: string;
+        role: Exclude<MyTerreiroRole, "member">;
+      }
+    | null
+  >(null);
+  const [leaveRoleConfirmText, setLeaveRoleConfirmText] = useState("");
+  const [leaveRoleBusy, setLeaveRoleBusy] = useState(false);
+
+  const isLeaveRoleModalOpen = !!leaveRoleTarget;
+  const canConfirmLeaveRole =
+    leaveRoleConfirmText.trim().toLowerCase() === "sair";
+
+  const isCannotRemoveLastAdminError = (error: unknown) => {
+    const anyErr = error as any;
+    const msg = typeof anyErr?.message === "string" ? anyErr.message : "";
+    return msg.includes("cannot_remove_last_admin");
+  };
+
+  const countActiveAdmins = async (terreiroId: string): Promise<number | null> => {
+    try {
+      let res: any = await supabase
+        .from("terreiro_members")
+        .select("user_id", { count: "exact", head: true })
+        .eq("terreiro_id", terreiroId)
+        .eq("role", "admin")
+        .eq("status", "active");
+
+      if (res.error && isColumnMissingError(res.error.message, "status")) {
+        res = await supabase
+          .from("terreiro_members")
+          .select("user_id", { count: "exact", head: true })
+          .eq("terreiro_id", terreiroId)
+          .eq("role", "admin");
+      }
+
+      if (res.error) return null;
+
+      const count = typeof res.count === "number" ? res.count : null;
+      return count;
+    } catch {
+      return null;
+    }
+  };
+
+  const requestLeaveRole = async (item: MyTerreiroWithRole) => {
+    if (!userId) return;
+    if (item.role !== "admin" && item.role !== "editor") return;
+
+    if (item.role === "admin") {
+      const count = await countActiveAdmins(item.id);
+      if (count === 1) {
+        showToast(
+          "Defina outra pessoa admin em Gerenciar acessos antes de sair."
+        );
+        return;
+      }
+    }
+
+    setLeaveRoleConfirmText("");
+    setLeaveRoleTarget({
+      terreiroId: item.id,
+      terreiroTitle: item.title,
+      role: item.role,
+    });
+  };
+
+  const closeLeaveRoleModal = () => {
+    if (leaveRoleBusy) return;
+    setLeaveRoleTarget(null);
+    setLeaveRoleConfirmText("");
+  };
+
+  const confirmLeaveRole = async () => {
+    if (!userId) return;
+    if (!leaveRoleTarget) return;
+    if (!canConfirmLeaveRole) return;
+
+    setLeaveRoleBusy(true);
+    try {
+      const rpc = await supabase.rpc("fn_remove_terreiro_member", {
+        p_terreiro_id: leaveRoleTarget.terreiroId,
+        p_user_id: userId,
+      });
+
+      if (rpc.error) {
+        if (isCannotRemoveLastAdminError(rpc.error)) {
+          showToast(
+            "Defina outra pessoa admin em Gerenciar acessos antes de sair."
+          );
+          return;
+        }
+
+        showToast(getFriendlyActionError(rpc.error.message));
+        return;
+      }
+
+      // Optimistic: remove from list immediately
+      queryClient.setQueryData(
+        userId ? queryKeys.me.terreirosWithRole(userId) : [],
+        (prev: any) => {
+          const arr = Array.isArray(prev) ? prev : [];
+          return arr.filter(
+            (t: any) => String(t?.id ?? "") !== leaveRoleTarget.terreiroId
+          );
+        }
+      );
+
+      // Invalidate related caches
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreirosWithRole(userId),
+      });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.membership(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
+      queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiroAccessIds(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.editableTerreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.withRole(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.accountable(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.editableByUserPrefix(userId),
+      });
+
+      showToast(
+        leaveRoleTarget.role === "admin"
+          ? "Você deixou de ser admin deste terreiro."
+          : "Você deixou de ser editor(a) deste terreiro."
+      );
+      closeLeaveRoleModal();
+    } finally {
+      setLeaveRoleBusy(false);
+    }
+  };
 
   const pendingCuratorInvite = curatorInviteQuery.data ?? null;
   const pendingTerreiroInvites = terreiroInvitesQuery.data ?? [];
@@ -722,11 +875,56 @@ export function PreferencesOverlaySheets(
       if (res?.data === false)
         throw new Error("accept_terreiro_invite returned false");
 
+      // Optimistic: remove invite from list immediately
+      if (normalizedUserEmail) {
+        queryClient.setQueryData(
+          queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail),
+          (prev: any) => {
+            const arr = Array.isArray(prev) ? prev : [];
+            return arr.filter((i: any) => String(i?.id ?? "") !== invite.id);
+          }
+        );
+      }
+
+      // Optimistic: add terreiro to "Meus terreiros" immediately (when applicable)
+      if (
+        invite.role === "admin" ||
+        invite.role === "editor" ||
+        invite.role === "member"
+      ) {
+        queryClient.setQueryData(
+          queryKeys.me.terreirosWithRole(userId),
+          (prev: any) => {
+            const arr = Array.isArray(prev) ? prev : [];
+            const already = arr.some(
+              (t: any) => String(t?.id ?? "") === invite.terreiro_id
+            );
+            if (already) return arr;
+            return [
+              ...arr,
+              {
+                id: invite.terreiro_id,
+                title: invite.terreiro_title || "Terreiro",
+                cover_image_url: null,
+                role:
+                  invite.role === "admin"
+                    ? "admin"
+                    : invite.role === "editor"
+                    ? "editor"
+                    : "member",
+              },
+            ];
+          }
+        );
+      }
+
       let warmOk = true;
-      try {
-        await fetchTerreirosQueAdministro(userId);
-      } catch {
-        warmOk = false;
+      if (invite.role === "admin" || invite.role === "editor") {
+        try {
+          await fetchTerreirosQueAdministro(userId);
+        } catch {
+          warmOk = false;
+        }
       }
 
       if (normalizedUserEmail) {
@@ -742,6 +940,9 @@ export function PreferencesOverlaySheets(
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreirosWithRole(userId),
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreiroAccessIds(userId),
@@ -799,6 +1000,17 @@ export function PreferencesOverlaySheets(
       if (res?.data === false)
         throw new Error("reject_terreiro_invite returned false");
 
+      // Optimistic: remove invite from list immediately
+      if (normalizedUserEmail) {
+        queryClient.setQueryData(
+          queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail),
+          (prev: any) => {
+            const arr = Array.isArray(prev) ? prev : [];
+            return arr.filter((i: any) => String(i?.id ?? "") !== invite.id);
+          }
+        );
+      }
+
       if (normalizedUserEmail) {
         queryClient.invalidateQueries({
           queryKey:
@@ -813,6 +1025,9 @@ export function PreferencesOverlaySheets(
         });
         queryClient.invalidateQueries({
           queryKey: queryKeys.me.terreiros(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.terreirosWithRole(userId),
         });
         queryClient.invalidateQueries({
           queryKey: queryKeys.me.terreiroAccessIds(userId),
@@ -861,14 +1076,14 @@ export function PreferencesOverlaySheets(
     if (__DEV__) {
       console.info("[PrefsDebug] visible", {
         userId,
-        dataCount: myEditableTerreiros.length,
-        isFetching: myEditableTerreirosQuery.isFetching,
+        dataCount: myTerreiros.length,
+        isFetching: myTerreirosQuery.isFetching,
       });
     }
   }, [
     isOpen,
-    myEditableTerreiros.length,
-    myEditableTerreirosQuery.isFetching,
+    myTerreiros.length,
+    myTerreirosQuery.isFetching,
     userId,
   ]);
 
@@ -906,7 +1121,9 @@ export function PreferencesOverlaySheets(
           isOpen &&
           !isEditProfileOpen &&
           !isCuratorAdminOpen &&
-          !isCurimbaExplainerOpen
+          !isCurimbaExplainerOpen &&
+          !terreiroMenuTarget &&
+          !isLeaveRoleModalOpen
         }
         variant={variant}
         onClose={() => {
@@ -1203,11 +1420,11 @@ export function PreferencesOverlaySheets(
 
           <PreferencesSection title="Meus terreiros" variant={variant}>
             <View style={styles.pagesList}>
-              {!userId ? null : myEditableTerreirosQuery.isError ? (
+              {!userId ? null : myTerreirosQuery.isError ? (
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    void myEditableTerreirosQuery.refetch();
+                    void myTerreirosQuery.refetch();
                   }}
                   style={({ pressed }) => [
                     styles.retryRow,
@@ -1219,17 +1436,16 @@ export function PreferencesOverlaySheets(
                     Tentar novamente
                   </Text>
                 </Pressable>
-              ) : myEditableTerreirosQuery.isFetching &&
-                myAdminTerreiros.length === 0 ? (
+              ) : myTerreirosQuery.isFetching && myTerreiros.length === 0 ? (
                 <Text style={[styles.helperText, { color: textSecondary }]}>
                   Carregando terreiros…
                 </Text>
-              ) : myAdminTerreiros.length === 0 ? (
+              ) : myTerreiros.length === 0 ? (
                 <Text style={[styles.helperText, { color: textSecondary }]}>
-                  Você ainda não é Admin ou Editora de nenhum terreiro.
+                  Você ainda não participa de nenhum terreiro.
                 </Text>
               ) : (
-                myAdminTerreiros.map((t) => (
+                myTerreiros.map((t) => (
                   <PreferencesPageItem
                     key={t.id}
                     variant={variant}
@@ -1239,12 +1455,46 @@ export function PreferencesOverlaySheets(
                     subtitle={
                       <View style={{ marginTop: 4 }}>
                         <Badge
-                          label={t.role === "admin" ? "Admin" : "Editora"}
+                          label={
+                            t.role === "admin"
+                              ? "Admin"
+                              : t.role === "editor"
+                              ? "Editor"
+                              : "Membro"
+                          }
                           variant={variant}
-                          appearance={t.role === "admin" ? "primary" : "secondary"}
+                          appearance={
+                            t.role === "admin" ? "primary" : "secondary"
+                          }
                           style={{ alignSelf: "flex-start" }}
                         />
                       </View>
+                    }
+                    showEditButton={false}
+                    rightAccessory={
+                      t.role === "admin" || t.role === "editor" ? (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Mais ações"
+                          hitSlop={12}
+                          onPress={(e) => {
+                            // Prevent row press.
+                            (e as any)?.stopPropagation?.();
+                            void Haptics.selectionAsync().catch(() => undefined);
+                            openTerreiroMenu(t);
+                          }}
+                          style={({ pressed }) => [
+                            styles.terreiroMenuBtn,
+                            pressed ? styles.terreiroMenuBtnPressed : null,
+                          ]}
+                        >
+                          <Ionicons
+                            name="ellipsis-vertical"
+                            size={18}
+                            color={textMuted}
+                          />
+                        </Pressable>
+                      ) : null
                     }
                     onPress={() => {
                       closePreferences();
@@ -1255,14 +1505,6 @@ export function PreferencesOverlaySheets(
                           params: { terreiroId: t.id, terreiroTitle: t.title },
                         });
                       }, 0);
-                    }}
-                    onPressEdit={() => {
-                      // Do NOT close preferences. We'll keep isOpen=true, but
-                      // PreferencesModal hides itself while this modal route is active.
-                      router.push({
-                        pathname: "/terreiro-editor" as any,
-                        params: { mode: "edit", terreiroId: t.id },
-                      });
                     }}
                   />
                 ))
@@ -1586,6 +1828,220 @@ export function PreferencesOverlaySheets(
       >
         <View />
       </BottomSheet>
+
+      <BottomSheet
+        visible={
+          uiEnabled &&
+          isOpen &&
+          !!terreiroMenuTarget &&
+          !isEditProfileOpen &&
+          !isCuratorAdminOpen &&
+          !isCurimbaExplainerOpen
+        }
+        variant={variant}
+        onClose={closeTerreiroMenu}
+        snapPoints={[280]}
+      >
+        <View style={styles.terreiroMenuSheet}>
+          <Text style={[styles.terreiroMenuTitle, { color: textPrimary }]}>
+            Ações do terreiro
+          </Text>
+
+          {terreiroMenuTarget ? (
+            <Text
+              style={[styles.terreiroMenuHint, { color: textSecondary }]}
+              numberOfLines={2}
+            >
+              {terreiroMenuTarget.title}
+            </Text>
+          ) : null}
+
+          {terreiroMenuTarget?.role === "admin" ? (
+            <>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const t = terreiroMenuTarget;
+                  if (!t) return;
+                  closeTerreiroMenu();
+                  closeThen(() => {
+                    router.push({
+                      pathname: "/access-manager" as any,
+                      params: { terreiroId: t.id, terreiroTitle: t.title },
+                    });
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.terreiroMenuItem,
+                  pressed ? styles.terreiroMenuItemPressed : null,
+                ]}
+              >
+                <Text style={[styles.terreiroMenuItemText, { color: textPrimary }]}>
+                  Gerenciar acessos
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const t = terreiroMenuTarget;
+                  if (!t) return;
+                  closeTerreiroMenu();
+                  closeThen(() => {
+                    router.push({
+                      pathname: "/terreiro-editor" as any,
+                      params: { mode: "edit", terreiroId: t.id },
+                    });
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.terreiroMenuItem,
+                  pressed ? styles.terreiroMenuItemPressed : null,
+                ]}
+              >
+                <Text style={[styles.terreiroMenuItemText, { color: textPrimary }]}>
+                  Editar terreiro
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const t = terreiroMenuTarget;
+                  if (!t) return;
+                  closeTerreiroMenu();
+                  void requestLeaveRole(t);
+                }}
+                style={({ pressed }) => [
+                  styles.terreiroMenuItem,
+                  pressed ? styles.terreiroMenuItemPressed : null,
+                ]}
+              >
+                <Text style={[styles.terreiroMenuItemText, { color: colors.danger }]}>
+                  Sair do papel de admin
+                </Text>
+              </Pressable>
+            </>
+          ) : terreiroMenuTarget?.role === "editor" ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                const t = terreiroMenuTarget;
+                if (!t) return;
+                closeTerreiroMenu();
+                void requestLeaveRole(t);
+              }}
+              style={({ pressed }) => [
+                styles.terreiroMenuItem,
+                pressed ? styles.terreiroMenuItemPressed : null,
+              ]}
+            >
+              <Text style={[styles.terreiroMenuItemText, { color: colors.danger }]}>
+                Sair do papel de editor(a)
+              </Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </BottomSheet>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={uiEnabled && isOpen && isLeaveRoleModalOpen}
+        onRequestClose={closeLeaveRoleModal}
+      >
+        <Pressable
+          style={styles.leaveRoleBackdrop}
+          onPress={() => {
+            closeLeaveRoleModal();
+          }}
+        >
+          <Pressable
+            style={[
+              styles.leaveRoleCard,
+              {
+                backgroundColor: variant === "light" ? colors.paper100 : colors.forest900,
+                borderColor: dividerColor,
+              },
+            ]}
+            onPress={(e) => {
+              (e as any)?.stopPropagation?.();
+            }}
+          >
+            <Text style={[styles.leaveRoleTitle, { color: textPrimary }]}
+              numberOfLines={2}
+            >
+              {leaveRoleTarget?.role === "admin"
+                ? "Sair do papel de admin?"
+                : "Sair do papel de editor(a)?"}
+            </Text>
+
+            <Text style={[styles.leaveRoleBody, { color: textSecondary }]}
+              numberOfLines={6}
+            >
+              Você perderá acesso de gestão deste terreiro. Para confirmar, digite
+              {" \"sair\""} abaixo.
+            </Text>
+
+            {leaveRoleTarget ? (
+              <Text style={[styles.leaveRoleHint, { color: textSecondary }]}>
+                {leaveRoleTarget.terreiroTitle}
+              </Text>
+            ) : null}
+
+            <TextInput
+              value={leaveRoleConfirmText}
+              onChangeText={setLeaveRoleConfirmText}
+              placeholder='Digite "sair"'
+              placeholderTextColor={textSecondary}
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!leaveRoleBusy}
+              style={[
+                styles.leaveRoleInput,
+                { color: textPrimary, borderColor: inputBorder, backgroundColor: inputBg },
+              ]}
+            />
+
+            <View style={styles.leaveRoleActionsRow}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={closeLeaveRoleModal}
+                disabled={leaveRoleBusy}
+                style={({ pressed }) => [
+                  styles.leaveRoleBtn,
+                  styles.leaveRoleBtnSecondary,
+                  { borderColor: dividerColor },
+                  pressed ? styles.leaveRoleBtnPressed : null,
+                  leaveRoleBusy ? styles.leaveRoleBtnDisabled : null,
+                ]}
+              >
+                <Text style={[styles.leaveRoleBtnText, { color: textPrimary }]}>
+                  Cancelar
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void confirmLeaveRole()}
+                disabled={leaveRoleBusy || !canConfirmLeaveRole}
+                style={({ pressed }) => [
+                  styles.leaveRoleBtn,
+                  styles.leaveRoleBtnDanger,
+                  pressed ? styles.leaveRoleBtnPressed : null,
+                  leaveRoleBusy || !canConfirmLeaveRole
+                    ? styles.leaveRoleBtnDisabled
+                    : null,
+                ]}
+              >
+                <Text style={styles.leaveRoleBtnTextDanger}>
+                  {leaveRoleBusy ? "Saindo…" : "Sair"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <CurimbaExplainerBottomSheet
         visible={uiEnabled && isCurimbaExplainerOpen}
@@ -1942,5 +2398,117 @@ const styles = StyleSheet.create({
   },
   inviteBtnDisabled: {
     opacity: 0.6,
+  },
+
+  terreiroMenuBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 6,
+  },
+  terreiroMenuBtnPressed: {
+    opacity: 0.7,
+  },
+  terreiroMenuSheet: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
+    gap: 8,
+  },
+  terreiroMenuTitle: {
+    fontSize: 15,
+    fontWeight: "900",
+  },
+  terreiroMenuHint: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.9,
+    marginBottom: 6,
+  },
+  terreiroMenuItem: {
+    minHeight: 44,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    alignItems: "flex-start",
+    justifyContent: "center",
+  },
+  terreiroMenuItemPressed: {
+    opacity: 0.8,
+  },
+  terreiroMenuItemText: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+
+  leaveRoleBackdrop: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.55)",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+  },
+  leaveRoleCard: {
+    width: "100%",
+    maxWidth: 520,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.lg,
+    gap: 10,
+  },
+  leaveRoleTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  leaveRoleBody: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.92,
+  },
+  leaveRoleHint: {
+    fontSize: 13,
+    fontWeight: "800",
+    opacity: 0.95,
+  },
+  leaveRoleInput: {
+    minHeight: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+    paddingHorizontal: 12,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  leaveRoleActionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 4,
+  },
+  leaveRoleBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  leaveRoleBtnSecondary: {
+    borderWidth: 2,
+  },
+  leaveRoleBtnDanger: {
+    backgroundColor: colors.danger,
+  },
+  leaveRoleBtnPressed: {
+    opacity: 0.82,
+  },
+  leaveRoleBtnDisabled: {
+    opacity: 0.55,
+  },
+  leaveRoleBtnText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  leaveRoleBtnTextDanger: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "900",
   },
 });

@@ -5,6 +5,8 @@ export const queryKeys = {
     terreiros: (userId: string) => ["me", "terreiros", userId] as const,
     terreiroAccessIds: (userId: string) =>
       ["me", "terreiroAccessIds", userId] as const,
+    terreirosWithRole: (userId: string) =>
+      ["me", "terreirosWithRole", userId] as const,
     editableTerreiros: (userId: string) =>
       ["me", "editableTerreiros", userId] as const,
     permissions: (userId: string) => ["me", "permissions", userId] as const,

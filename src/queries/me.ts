@@ -162,6 +162,17 @@ export type MyEditableTerreiro = {
   role: EditableTerreiroRole;
 };
 
+// NOTE: "follower" is not currently part of the terreiro_members access model
+// in the known schema/policies. We intentionally do NOT infer follower here.
+export type MyTerreiroRole = "admin" | "editor" | "member";
+
+export type MyTerreiroWithRole = {
+  id: string;
+  title: string;
+  cover_image_url: string | null;
+  role: MyTerreiroRole;
+};
+
 function safeLocaleCompare(a: string, b: string) {
   return a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 }
@@ -169,6 +180,12 @@ function safeLocaleCompare(a: string, b: string) {
 type TerreiroMemberEditableRow = {
   terreiro_id: string;
   role: EditableTerreiroRole;
+  status?: string | null;
+};
+
+type TerreiroMemberRoleRow = {
+  terreiro_id: string;
+  role: string;
   status?: string | null;
 };
 
@@ -185,8 +202,9 @@ async function fetchMyEditableTerreiros(params: {
   const { userId } = params;
   const allowedRoles = ["admin", "editor"] as const;
 
-  // 1) memberships (admin/editor) - NOT filtering by status to include newly accepted invites
-  let usedStatusFilter = false;
+  // 1) memberships (admin/editor)
+  // Prefer status='active' when the column exists. When it doesn't, we accept all.
+  let usedStatusFilter = true;
   let members: any;
 
   if (Array.isArray(params.editableTerreiroIds)) {
@@ -197,16 +215,40 @@ async function fetchMyEditableTerreiros(params: {
 
     members = await supabase
       .from("terreiro_members")
-      .select("terreiro_id, role")
+      .select("terreiro_id, role, status")
       .eq("user_id", userId)
       .in("role", [...allowedRoles])
-      .in("terreiro_id", ids);
+      .in("terreiro_id", ids)
+      .eq("status", "active");
   } else {
     members = await supabase
       .from("terreiro_members")
-      .select("terreiro_id, role")
+      .select("terreiro_id, role, status")
       .eq("user_id", userId)
-      .in("role", [...allowedRoles]);
+      .in("role", [...allowedRoles])
+      .eq("status", "active");
+  }
+
+  if (members.error && isColumnMissingError(members.error, "status")) {
+    usedStatusFilter = false;
+    if (Array.isArray(params.editableTerreiroIds)) {
+      const ids = params.editableTerreiroIds.filter(Boolean);
+      if (ids.length === 0) {
+        return [];
+      }
+      members = await supabase
+        .from("terreiro_members")
+        .select("terreiro_id, role")
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles])
+        .in("terreiro_id", ids);
+    } else {
+      members = await supabase
+        .from("terreiro_members")
+        .select("terreiro_id, role")
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles]);
+    }
   }
 
   if (members.error) {
@@ -291,6 +333,128 @@ async function fetchMyEditableTerreiros(params: {
   }
 
   return merged;
+}
+
+async function fetchMyTerreirosWithRole(params: {
+  userId: string;
+}): Promise<MyTerreiroWithRole[]> {
+  const { userId } = params;
+  const allowedRoles = ["admin", "editor", "member"] as const;
+
+  // 1) memberships (admin/editor/member) + status=active
+  let members: any = await supabase
+    .from("terreiro_members")
+    .select("terreiro_id, role, status")
+    .eq("user_id", userId)
+    .in("role", [...allowedRoles])
+    .eq("status", "active");
+
+  if (members.error && isColumnMissingError(members.error, "status")) {
+    members = await supabase
+      .from("terreiro_members")
+      .select("terreiro_id, role")
+      .eq("user_id", userId)
+      .in("role", [...allowedRoles]);
+  }
+
+  if (members.error) {
+    const message =
+      typeof members.error.message === "string" && members.error.message.trim()
+        ? members.error.message
+        : "Erro ao carregar terreiros do usuário.";
+    throw new Error(message);
+  }
+
+  const memberRows = (members.data ?? []) as TerreiroMemberRoleRow[];
+  const roleByTerreiroId = new Map<string, MyTerreiroRole>();
+  for (const row of memberRows) {
+    const terreiroId =
+      typeof row?.terreiro_id === "string" ? row.terreiro_id : "";
+    const rawRole = typeof row?.role === "string" ? row.role : "";
+    if (!terreiroId) continue;
+    if (rawRole !== "admin" && rawRole !== "editor" && rawRole !== "member") {
+      continue;
+    }
+
+    // Prefer strongest role if duplicates happen
+    const prev = roleByTerreiroId.get(terreiroId);
+    const next = rawRole as MyTerreiroRole;
+    if (!prev) {
+      roleByTerreiroId.set(terreiroId, next);
+      continue;
+    }
+
+    if (prev === "member" && (next === "admin" || next === "editor")) {
+      roleByTerreiroId.set(terreiroId, next);
+      continue;
+    }
+    if (prev === "editor" && next === "admin") {
+      roleByTerreiroId.set(terreiroId, next);
+      continue;
+    }
+  }
+
+  const terreiroIds = Array.from(roleByTerreiroId.keys());
+  if (terreiroIds.length === 0) return [];
+
+  // 2) terreiros data (minimal fields for rendering)
+  let terreiros: any = await supabase
+    .from("terreiros")
+    .select("id, title, cover_image_url")
+    .in("id", terreiroIds);
+
+  if (
+    terreiros.error &&
+    isColumnMissingError(terreiros.error, "cover_image_url")
+  ) {
+    terreiros = await supabase
+      .from("terreiros")
+      .select("id, title")
+      .in("id", terreiroIds);
+  }
+
+  if (terreiros.error) {
+    const message =
+      typeof terreiros.error.message === "string" &&
+      terreiros.error.message.trim()
+        ? terreiros.error.message
+        : "Erro ao carregar dados dos terreiros.";
+    throw new Error(message);
+  }
+
+  const terreiroRows = (terreiros.data ?? []) as TerreiroMinimalRow[];
+
+  return terreiroRows
+    .map((t) => {
+      const id = typeof t?.id === "string" ? t.id : "";
+      const title = typeof t?.title === "string" ? t.title : "";
+      if (!id || !title) return null;
+      const role = roleByTerreiroId.get(id);
+      if (!role) return null;
+
+      return {
+        id,
+        title,
+        cover_image_url:
+          typeof t.cover_image_url === "string" ? t.cover_image_url : null,
+        role,
+      } satisfies MyTerreiroWithRole;
+    })
+    .filter((x): x is MyTerreiroWithRole => !!x)
+    .sort((a, b) => safeLocaleCompare(a.title, b.title));
+}
+
+export function useMyTerreirosWithRoleQuery(userId: string | null) {
+  return useQuery({
+    queryKey: userId ? queryKeys.me.terreirosWithRole(userId) : [],
+    enabled: !!userId,
+    staleTime: 60_000,
+    queryFn: async () => {
+      if (!userId) return [] as MyTerreiroWithRole[];
+      return fetchMyTerreirosWithRole({ userId });
+    },
+    placeholderData: (prev) => prev,
+  });
 }
 
 export function useMyEditableTerreirosQuery(userId: string | null) {

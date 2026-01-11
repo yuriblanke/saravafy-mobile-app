@@ -16,7 +16,7 @@ export type AccessRoleCopy = {
 
 export function getAccessRoleLabel(role: AccessRole): string {
   if (role === "admin") return "Admin";
-  if (role === "editor") return "Editora";
+  if (role === "editor") return "Editor";
   return "Membro";
 }
 
@@ -27,7 +27,7 @@ export const ACCESS_ROLE_COPY: Record<AccessRole, AccessRoleCopy> = {
       {
         title: "Pode:",
         items: [
-          "Convidar pessoas como Admin, Editora ou Membro",
+          "Convidar pessoas como Admin, Editor ou Membro",
           "Criar, editar e organizar coleções",
           "Criar e editar tags customizadas (usadas para adicionar o médium que traz a entidade)",
           "Definir se o terreiro é público ou privado",
