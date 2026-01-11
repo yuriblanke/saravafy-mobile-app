@@ -166,7 +166,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const pathname = usePathname();
   const segments = useSegments() as string[];
   const tabController = useTabController();
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const { effectiveTheme } = usePreferences();
   const { openPreferences } = usePreferencesOverlay();
 
@@ -599,6 +599,9 @@ export function PreferencesOverlaySheets(
   const [leaveRoleConfirmText, setLeaveRoleConfirmText] = useState("");
   const [leaveRoleBusy, setLeaveRoleBusy] = useState(false);
 
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
+
   const isLeaveRoleModalOpen = !!leaveRoleTarget;
   const canConfirmLeaveRole =
     leaveRoleConfirmText.trim().toLowerCase() === "sair";
@@ -661,6 +664,23 @@ export function PreferencesOverlaySheets(
     if (leaveRoleBusy) return;
     setLeaveRoleTarget(null);
     setLeaveRoleConfirmText("");
+  };
+
+  const closeLogoutConfirm = () => {
+    if (logoutBusy) return;
+    setIsLogoutConfirmOpen(false);
+  };
+
+  const confirmLogout = async () => {
+    if (logoutBusy) return;
+    setLogoutBusy(true);
+    try {
+      await signOut();
+    } finally {
+      setLogoutBusy(false);
+      setIsLogoutConfirmOpen(false);
+      router.replace("/login");
+    }
   };
 
   const confirmLeaveRole = async () => {
@@ -1617,20 +1637,7 @@ export function PreferencesOverlaySheets(
               accessibilityRole="button"
               onPress={() => {
                 closePreferences();
-                Alert.alert("Sair", "Deseja sair da sua conta?", [
-                  { text: "Cancelar", style: "cancel" },
-                  {
-                    text: "Sair",
-                    style: "destructive",
-                    onPress: async () => {
-                      try {
-                        await signOut();
-                      } finally {
-                        router.replace("/login");
-                      }
-                    },
-                  },
-                ]);
+                setIsLogoutConfirmOpen(true);
               }}
               style={({ pressed }) => [
                 styles.logoutRow,
@@ -1642,6 +1649,94 @@ export function PreferencesOverlaySheets(
           </View>
         </View>
       </BottomSheet>
+
+      <Modal
+        transparent
+        animationType="fade"
+        visible={uiEnabled && isLogoutConfirmOpen}
+        onRequestClose={closeLogoutConfirm}
+      >
+        <Pressable style={styles.leaveRoleBackdrop} onPress={closeLogoutConfirm}>
+          <Pressable
+            style={[
+              styles.leaveRoleCard,
+              {
+                backgroundColor:
+                  variant === "light" ? colors.paper100 : colors.forest900,
+                borderColor: dividerColor,
+              },
+            ]}
+            onPress={(e) => {
+              (e as any)?.stopPropagation?.();
+            }}
+          >
+            <View style={styles.logoutHeaderRow}>
+              <View
+                style={[
+                  styles.logoutIconWrap,
+                  {
+                    borderColor: dividerColor,
+                    backgroundColor:
+                      variant === "light"
+                        ? "rgba(220, 38, 38, 0.10)"
+                        : "rgba(248, 113, 113, 0.12)",
+                  },
+                ]}
+              >
+                <Ionicons name="log-out-outline" size={18} color={colors.danger} />
+              </View>
+
+              <View style={styles.logoutHeaderTextCol}>
+                <Text style={[styles.leaveRoleTitle, { color: textPrimary }]}>
+                  Sair do Saravafy
+                </Text>
+                <Text
+                  style={[styles.logoutBody, { color: textSecondary }]}
+                  numberOfLines={4}
+                >
+                  Você será desconectada(o) desta conta neste dispositivo. Você
+                  pode entrar novamente quando quiser.
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.leaveRoleActionsRow}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={closeLogoutConfirm}
+                disabled={logoutBusy}
+                style={({ pressed }) => [
+                  styles.leaveRoleBtn,
+                  styles.leaveRoleBtnSecondary,
+                  { borderColor: dividerColor },
+                  pressed ? styles.leaveRoleBtnPressed : null,
+                  logoutBusy ? styles.leaveRoleBtnDisabled : null,
+                ]}
+              >
+                <Text style={[styles.leaveRoleBtnText, { color: textPrimary }]}>
+                  Cancelar
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => void confirmLogout()}
+                disabled={logoutBusy}
+                style={({ pressed }) => [
+                  styles.leaveRoleBtn,
+                  styles.leaveRoleBtnDanger,
+                  pressed ? styles.leaveRoleBtnPressed : null,
+                  logoutBusy ? styles.leaveRoleBtnDisabled : null,
+                ]}
+              >
+                <Text style={styles.leaveRoleBtnTextDanger}>
+                  {logoutBusy ? "Saindo…" : "Sair"}
+                </Text>
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <BottomSheet
         visible={uiEnabled && isCuratorAdminOpen}
@@ -2535,5 +2630,29 @@ const styles = StyleSheet.create({
     color: colors.paper50,
     fontSize: 13,
     fontWeight: "900",
+  },
+
+  logoutHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  logoutIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  logoutHeaderTextCol: {
+    flex: 1,
+    gap: 6,
+  },
+  logoutBody: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.92,
+    lineHeight: 18,
   },
 });

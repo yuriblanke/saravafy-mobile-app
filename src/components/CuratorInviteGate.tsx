@@ -671,10 +671,7 @@ export function CuratorInviteGate() {
                   ]}
                 >
                   <Text
-                    style={[
-                      styles.tertiaryBtnText,
-                      { color: textSecondary },
-                    ]}
+                    style={[styles.tertiaryBtnText, { color: textSecondary }]}
                   >
                     Decidir depois
                   </Text>
