@@ -932,6 +932,15 @@ export function InviteGate() {
     return title;
   }, [currentInvite?.terreiro_title]);
 
+  const inviteRoleLabel = useMemo(() => {
+    const role = currentInvite?.role;
+    if (role === "admin") return "Admin do Terreiro";
+    if (role === "editor") return "Editor";
+    if (role === "member") return "Membro";
+    if (role === "follower") return "Seguidor";
+    return "";
+  }, [currentInvite?.role]);
+
   const bannerText = useMemo(() => {
     return "Convite";
   }, []);
@@ -940,6 +949,7 @@ export function InviteGate() {
     setIsModalVisible(false);
     setActionError(null);
     setDebugInfo(null);
+    setIsBannerVisible(pendingInvitesRef.current.length > 0);
   }, []);
 
   useEffect(() => {
@@ -1011,30 +1021,43 @@ export function InviteGate() {
               </Text>
 
               <Text style={[styles.modalLead, { color: textSecondary }]}>
-                Você foi convidada(o) a zelar pelo acervo do Saravafy.
+                Você foi convidada(o) a colaborar com este terreiro no Saravafy.
               </Text>
 
               <View
                 style={[
-                  styles.rolePill,
+                  styles.infoBlock,
                   { borderColor: inputBorder, backgroundColor: inputBg },
                 ]}
               >
-                <Text style={[styles.rolePillText, { color: textPrimary }]}>
-                  Guardiã(o) do Acervo
-                </Text>
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: textSecondary }]}>
+                    Terreiro
+                  </Text>
+                  <Text
+                    style={[styles.infoValue, { color: textPrimary }]}
+                    numberOfLines={1}
+                  >
+                    {inviteTerreiroTitle}
+                  </Text>
+                </View>
+
+                <View style={styles.infoRow}>
+                  <Text style={[styles.infoLabel, { color: textSecondary }]}>
+                    Papel
+                  </Text>
+                  <Text
+                    style={[styles.infoValue, { color: textPrimary }]}
+                    numberOfLines={1}
+                  >
+                    {inviteRoleLabel}
+                  </Text>
+                </View>
               </View>
 
               <Text style={[styles.modalBody, { color: textSecondary }]}>
-                Seu cuidado ajuda a manter as letras bem cuidadas{"\n"}e a
-                energia do canto alinhada.
-              </Text>
-
-              <Text style={[styles.modalMeta, { color: textSecondary }]}>
-                Acervo:{" "}
-                <Text style={{ color: textPrimary }}>
-                  {inviteTerreiroTitle}
-                </Text>
+                Seu papel ajuda a manter os pontos, informações e a organização
+                do terreiro sempre bem cuidados.
               </Text>
 
               {isProcessing ? (
@@ -1203,33 +1226,40 @@ const styles = StyleSheet.create({
     opacity: 0.92,
     lineHeight: 18,
     textAlign: "center",
-    marginBottom: spacing.md,
+    marginBottom: spacing.sm,
   },
-  rolePill: {
+  infoBlock: {
     alignSelf: "center",
-    borderRadius: 999,
+    width: "100%",
+    maxWidth: 420,
     borderWidth: StyleSheet.hairlineWidth,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
+    borderRadius: radii.md,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
     marginBottom: spacing.md,
   },
-  rolePillText: {
-    fontSize: 13,
+  infoRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+  },
+  infoLabel: {
+    fontSize: 12,
     fontWeight: "900",
-    letterSpacing: 0.2,
+  },
+  infoValue: {
+    flex: 1,
+    minWidth: 0,
+    textAlign: "right",
+    fontSize: 12,
+    fontWeight: "900",
   },
   modalBody: {
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.92,
     lineHeight: 18,
-    textAlign: "center",
-  },
-  modalMeta: {
-    marginTop: spacing.md,
-    fontSize: 12,
-    fontWeight: "700",
-    opacity: 0.9,
     textAlign: "center",
   },
   modalError: {
