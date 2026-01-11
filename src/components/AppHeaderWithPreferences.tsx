@@ -677,6 +677,7 @@ export function PreferencesOverlaySheets(
     } finally {
       setLogoutBusy(false);
       setIsLogoutConfirmOpen(false);
+      closePreferences();
       router.replace("/login");
     }
   };
@@ -1167,7 +1168,8 @@ export function PreferencesOverlaySheets(
           !isCuratorAdminOpen &&
           !isCurimbaExplainerOpen &&
           !terreiroMenuTarget &&
-          !isLeaveRoleModalOpen
+          !isLeaveRoleModalOpen &&
+          !isLogoutConfirmOpen
         }
         variant={variant}
         onClose={() => {
@@ -1637,7 +1639,6 @@ export function PreferencesOverlaySheets(
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                closePreferences();
                 setIsLogoutConfirmOpen(true);
               }}
               style={({ pressed }) => [
