@@ -16,6 +16,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { AppState } from "react-native";
 
 // Garante que o fluxo de OAuth seja completado corretamente ao retornar do navegador
 WebBrowser.maybeCompleteAuthSession();
@@ -34,6 +35,7 @@ interface AuthContextType {
   authInProgress: boolean;
   authError: string | null;
   signInWithGoogle: () => Promise<void>;
+  retryGoogleLogin: () => Promise<void>;
   signOut: () => Promise<void>;
   clearAuthError: () => void;
   getRecentAuthLogs: () => any[];
@@ -64,6 +66,77 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // Marca se o login foi concluído (para cancelar watchdog)
   const loginCompletedRef = useRef(false);
 
+  // OAuth watchdog robusto (à prova de background)
+  const oauthBrowserOpenStartedAtMsRef = useRef<number | null>(null);
+  const oauthFlowStateRef = useRef<
+    "IDLE" | "BROWSER_OPENED" | "COMPLETED"
+  >("IDLE");
+  const oauthCompletedRef = useRef(false);
+
+  const lastAppStateRef = useRef<string>(AppState.currentState ?? "unknown");
+  const backgroundLoggedForAttemptIdRef = useRef<string | null>(null);
+  const timeoutReportedRef = useRef<
+    Record<string, { timer?: boolean; resume?: boolean }>
+  >({});
+
+  const clearOAuthWatchdogRefs = useCallback(() => {
+    oauthBrowserOpenStartedAtMsRef.current = null;
+    oauthFlowStateRef.current = "IDLE";
+    oauthCompletedRef.current = false;
+    backgroundLoggedForAttemptIdRef.current = null;
+    timeoutReportedRef.current = {};
+
+    if (watchdogTimerRef.current) {
+      clearTimeout(watchdogTimerRef.current);
+      watchdogTimerRef.current = null;
+    }
+  }, []);
+
+  const concludeOAuthFlow = useCallback(
+    async (
+      outcome:
+        | "cancel"
+        | "dismiss"
+        | "deeplink_success"
+        | "session_established"
+        | "other",
+      details?: Record<string, any>
+    ) => {
+      const attempt = currentAttemptRef.current;
+      if (oauthCompletedRef.current) return;
+
+       const lastState = oauthFlowStateRef.current;
+      oauthCompletedRef.current = true;
+      oauthFlowStateRef.current = "COMPLETED";
+      loginCompletedRef.current = true;
+
+      if (watchdogTimerRef.current) {
+        clearTimeout(watchdogTimerRef.current);
+        watchdogTimerRef.current = null;
+      }
+
+      setAuthInProgress(false);
+
+      const startedAt = oauthBrowserOpenStartedAtMsRef.current;
+      const elapsedMs = startedAt ? Date.now() - startedAt : null;
+
+      // Log de conclusão (sem tokens/codes/URLs)
+      await attempt?.log("oauth_flow_concluded", {
+        outcome,
+        elapsedMs,
+        lastState,
+        ...(details ?? {}),
+      });
+
+      // Limpa refs de watchdog/timestamps para a tentativa atual
+      oauthBrowserOpenStartedAtMsRef.current = null;
+      oauthFlowStateRef.current = "IDLE";
+      backgroundLoggedForAttemptIdRef.current = null;
+      timeoutReportedRef.current = {};
+    },
+    []
+  );
+
   // Função para processar deep links
   const processDeepLink = useCallback(async (url: string) => {
     const attempt = currentAttemptRef.current;
@@ -73,11 +146,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Evita reprocessar a mesma URL (initialURL + evento, ou re-emissão do Dev Client)
     if (lastProcessedUrlRef.current === url) {
       if (__DEV__) {
-        console.info("[AuthLink] ignorado: URL repetida", { url });
+        console.info("[AuthLink] ignorado: URL repetida", classifyUrl(url));
       }
+      const urlInfo = classifyUrl(url);
       await attempt?.log("deep_link_ignored", {
         reason: "duplicate",
-        url: url.substring(0, 100),
+        urlKind: urlInfo.urlKind,
+        urlHost: urlInfo.urlHost,
+        urlPath: urlInfo.urlPath,
       });
       return;
     }
@@ -95,7 +171,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     // Exemplo: exp+saravafy://expo-development-client/?url=http%3A%2F%2F192.168.1.73%3A8081
     if (url.includes("expo-development-client")) {
       if (__DEV__) {
-        console.info("[AuthLink] ignorado: URL do Expo Dev Client", { url });
+        console.info(
+          "[AuthLink] ignorado: URL do Expo Dev Client",
+          classifyUrl(url)
+        );
       }
       await attempt?.log("deep_link_ignored", {
         reason: "dev_client",
@@ -104,7 +183,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
-    console.log("Processando deep link:", url);
+    if (__DEV__) {
+      console.log("Processando deep link:", classifyUrl(url));
+    }
 
     try {
       const parseParams = (raw: string): Record<string, string> => {
@@ -154,8 +235,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...fragmentParams,
       };
 
-      console.log("Deep link recebido:", url);
-      console.log("mergedParams keys:", Object.keys(mergedParams));
+      if (__DEV__) {
+        console.log("Deep link recebido:", urlInfo);
+        console.log("mergedParams keys:", Object.keys(mergedParams));
+      }
 
       const oauthError = mergedParams.error;
       const oauthErrorDescription = mergedParams.error_description;
@@ -225,16 +308,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           userId: data.session?.user?.id,
         });
 
-        // Marcar login como concluído
-        loginCompletedRef.current = true;
-        if (watchdogTimerRef.current) {
-          clearTimeout(watchdogTimerRef.current);
-          watchdogTimerRef.current = null;
-        }
+        await concludeOAuthFlow("deeplink_success", {
+          method: "exchangeCodeForSession",
+        });
 
         setSession(data.session);
         setUser(data.session?.user ?? null);
-        setAuthInProgress(false);
         setAuthError(null);
 
         // Atualizar userId na tentativa
@@ -278,16 +357,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
           userId: data.session?.user?.id,
         });
 
-        // Marcar login como concluído
-        loginCompletedRef.current = true;
-        if (watchdogTimerRef.current) {
-          clearTimeout(watchdogTimerRef.current);
-          watchdogTimerRef.current = null;
-        }
+        await concludeOAuthFlow("deeplink_success", {
+          method: "setSession",
+        });
 
         setSession(data.session);
         setUser(data.session?.user ?? null);
-        setAuthInProgress(false);
         setAuthError(null);
 
         // Atualizar userId na tentativa
@@ -302,12 +377,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       // Não deveria cair aqui, mas mantém log defensivo.
-      console.log("Callback recebido, mas sem code/tokens:", {
-        url,
-        mergedParamsKeys: Object.keys(mergedParams),
-        hasAccessToken,
-        hasRefreshToken,
-      });
+      if (__DEV__) {
+        console.log("Callback recebido, mas sem code/tokens:", {
+          urlKind: urlInfo.urlKind,
+          urlHost: urlInfo.urlHost,
+          urlPath: urlInfo.urlPath,
+          mergedParamsKeys: Object.keys(mergedParams),
+          hasAccessToken,
+          hasRefreshToken,
+        });
+      }
     } catch (error) {
       // Qualquer erro não tratado aqui pode derrubar o app no Dev Client.
       console.error("[AuthLink] Erro ao processar deep link:", error);
@@ -315,6 +394,75 @@ export function AuthProvider({ children }: AuthProviderProps) {
         error: String(error),
       });
     }
+  }, [concludeOAuthFlow]);
+
+  // Listener de AppState (robusto para watchdog em background)
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => {
+      const prev = lastAppStateRef.current;
+      lastAppStateRef.current = next;
+
+      const attempt = currentAttemptRef.current;
+      const attemptId = attempt?.attemptId ?? null;
+
+      // Logar transição para background uma vez por attempt após abrir o browser
+      if (
+        attemptId &&
+        oauthFlowStateRef.current === "BROWSER_OPENED" &&
+        !oauthCompletedRef.current &&
+        (next === "background" || next === "inactive") &&
+        backgroundLoggedForAttemptIdRef.current !== attemptId
+      ) {
+        backgroundLoggedForAttemptIdRef.current = attemptId;
+        void attempt?.log("oauth_appstate_backgrounded", {
+          appStateTransition: `${prev}->${next}`,
+          atMs: Date.now(),
+        });
+      }
+
+      // Ao voltar para active, verificar timeout "on resume"
+      if (next === "active") {
+        if (
+          attemptId &&
+          oauthFlowStateRef.current === "BROWSER_OPENED" &&
+          !oauthCompletedRef.current
+        ) {
+          const startedAt = oauthBrowserOpenStartedAtMsRef.current;
+          const elapsedMs = startedAt ? Date.now() - startedAt : null;
+
+          const already = timeoutReportedRef.current[attemptId]?.resume;
+          if (!already && elapsedMs !== null && elapsedMs >= 15000) {
+            timeoutReportedRef.current[attemptId] = {
+              ...(timeoutReportedRef.current[attemptId] ?? {}),
+              resume: true,
+            };
+
+            void attempt?.log("oauth_timeout_on_resume", {
+              elapsedMs,
+              lastState: "BROWSER_OPENED",
+              appStateTransition: `${prev}->active`,
+            });
+
+            oauthCompletedRef.current = true;
+            oauthFlowStateRef.current = "COMPLETED";
+            loginCompletedRef.current = true;
+            if (watchdogTimerRef.current) {
+              clearTimeout(watchdogTimerRef.current);
+              watchdogTimerRef.current = null;
+            }
+
+            setAuthError(
+              "Não conseguimos voltar do Google para o app. Tente novamente. Se persistir, atualize o Chrome e o Android System WebView."
+            );
+            setAuthInProgress(false);
+          }
+        }
+      }
+    });
+
+    return () => {
+      sub.remove();
+    };
   }, []);
 
   // Verificar sessão inicial e configurar listener
@@ -365,7 +513,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       Linking.getInitialURL()
         .then((url) => {
-          console.log("getInitialURL retornou:", url);
+          if (__DEV__) {
+            console.log("getInitialURL retornou:", url ? classifyUrl(url) : null);
+          }
 
           const urlInfo = url ? classifyUrl(url) : null;
           void bootAttempt.log("boot_get_initial_url_result", {
@@ -374,7 +524,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
           });
 
           if (url) {
-            console.log("App aberto com URL inicial:", url);
+            if (__DEV__) {
+              console.log("App aberto com URL inicial:", classifyUrl(url));
+            }
             void processDeepLink(url);
           } else {
             console.log("Nenhuma URL inicial encontrada");
@@ -417,12 +569,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       // Se obteve sessão válida, marcar login como concluído
       if (session?.user) {
-        loginCompletedRef.current = true;
-        if (watchdogTimerRef.current) {
-          clearTimeout(watchdogTimerRef.current);
-          watchdogTimerRef.current = null;
-        }
-        setAuthInProgress(false);
+        // Concluir por SESSION_ESTABLISHED (cancela watchdog e evita loading infinito)
+        void concludeOAuthFlow("session_established", {
+          authEvent: event,
+        });
+
         setAuthError(null);
 
         // Atualizar userId se houver tentativa em andamento
@@ -437,7 +588,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
     void bootAttempt.log("boot_linking_listener_registered", {});
 
     const urlSubscription = Linking.addEventListener("url", ({ url }) => {
-      console.log("🔗 DEEP LINK CAPTURADO:", url);
+      if (__DEV__) {
+        console.log("🔗 DEEP LINK CAPTURADO:", classifyUrl(url));
+      }
       processDeepLink(url);
     });
     console.log("Listener de deep links registrado!");
@@ -464,6 +617,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const attempt = new AuthAttempt();
       currentAttemptRef.current = attempt;
       loginCompletedRef.current = false;
+
+      // Reset watchdog refs para esta tentativa
+      oauthBrowserOpenStartedAtMsRef.current = null;
+      oauthFlowStateRef.current = "IDLE";
+      oauthCompletedRef.current = false;
+      backgroundLoggedForAttemptIdRef.current = null;
+      timeoutReportedRef.current = {};
 
       setAuthInProgress(true);
       setAuthError(null);
@@ -496,7 +656,13 @@ export function AuthProvider({ children }: AuthProviderProps) {
         },
       });
 
-      console.log("Resposta Supabase:", { data, error });
+      if (__DEV__) {
+        console.log("Resposta Supabase (OAuth):", {
+          hasUrl: !!data?.url,
+          hasError: !!error,
+          errorMessage: error?.message ?? null,
+        });
+      }
 
       if (error) {
         console.error("Erro ao fazer login:", error.message);
@@ -522,29 +688,60 @@ export function AuthProvider({ children }: AuthProviderProps) {
         hasUrl: !!data.url,
       });
 
-      console.log("Abrindo navegador com URL:", data.url);
+      if (__DEV__) {
+        console.log("Abrindo navegador para OAuth (url omitida)");
+      }
 
       // Iniciar watchdog de 12s
       const startTime = Date.now();
       watchdogTimerRef.current = setTimeout(async () => {
-        if (!loginCompletedRef.current) {
+        const attemptId = attempt.attemptId;
+        const appStateNow = AppState.currentState ?? "unknown";
+        if (!loginCompletedRef.current && !oauthCompletedRef.current) {
           const elapsedMs = Date.now() - startTime;
-          console.warn("[AuthWatchdog] Timeout: login não concluído em 12s");
 
-          await attempt.log("oauth_timeout", {
-            elapsedMs,
-            redirectHost: redirectInfo.urlHost,
-            redirectPath: redirectInfo.urlPath,
-          });
+          // Logar apenas se estiver active (best-effort)
+          if (appStateNow === "active") {
+            const already = timeoutReportedRef.current[attemptId]?.timer;
+            if (!already) {
+              timeoutReportedRef.current[attemptId] = {
+                ...(timeoutReportedRef.current[attemptId] ?? {}),
+                timer: true,
+              };
+
+              console.warn(
+                "[AuthWatchdog] Timeout (timer): login não concluído em 12s"
+              );
+
+              await attempt.log("oauth_timeout_timer", {
+                elapsedMs,
+                lastState: oauthFlowStateRef.current,
+                appState: appStateNow,
+                redirectHost: redirectInfo.urlHost,
+                redirectPath: redirectInfo.urlPath,
+              });
+            }
+          }
 
           setAuthInProgress(false);
           setAuthError(
-            "O login demorou mais do que o esperado. Por favor, tente novamente."
+            "Não conseguimos voltar do Google para o app. Tente novamente. Se persistir, atualize o Chrome e o Android System WebView."
           );
+
+          oauthCompletedRef.current = true;
+          oauthFlowStateRef.current = "COMPLETED";
+          loginCompletedRef.current = true;
         }
       }, 12000);
 
-      await attempt.log("oauth_browser_open_start", {});
+      // Marcar estado assim que o browser abrir (refs para watchdog on-resume)
+      oauthBrowserOpenStartedAtMsRef.current = Date.now();
+      oauthFlowStateRef.current = "BROWSER_OPENED";
+      oauthCompletedRef.current = false;
+
+      await attempt.log("oauth_browser_open_start", {
+        oauth_browser_open_started_at_ms: oauthBrowserOpenStartedAtMsRef.current,
+      });
 
       // Abre o navegador e aguarda retorno para o redirectUri
       const result = await WebBrowser.openAuthSessionAsync(
@@ -563,6 +760,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
         urlKind: resultUrlInfo?.urlKind,
       });
 
+      // Se não foi success, consideramos concluído (cancel/dismiss)
+      if (result.type !== "success") {
+        const outcome =
+          result.type === "cancel"
+            ? "cancel"
+            : result.type === "dismiss"
+            ? "dismiss"
+            : "other";
+
+        await concludeOAuthFlow(outcome, {
+          browserResultType: result.type,
+        });
+      }
+
       // Processar o callback retornado pelo browser (pode vir com `code` ou tokens)
       if (
         result.type === "success" &&
@@ -570,17 +781,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         typeof result.url === "string"
       ) {
         await processDeepLink(result.url);
-      } else if (result.type === "cancel" || result.type === "dismiss") {
-        // Usuário cancelou
-        loginCompletedRef.current = true;
-        if (watchdogTimerRef.current) {
-          clearTimeout(watchdogTimerRef.current);
-          watchdogTimerRef.current = null;
-        }
-        setAuthInProgress(false);
-        await attempt.log("oauth_browser_cancelled", {
-          type: result.type,
-        });
       }
 
       // Não aguarda o resultado - deixa o listener onAuthStateChange processar
@@ -594,14 +794,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
       });
 
       loginCompletedRef.current = true;
-      if (watchdogTimerRef.current) {
-        clearTimeout(watchdogTimerRef.current);
-        watchdogTimerRef.current = null;
-      }
+      clearOAuthWatchdogRefs();
 
       setAuthInProgress(false);
       setAuthError(`Erro inesperado: ${String(error)}`);
     }
+  };
+
+  const retryGoogleLogin = async () => {
+    // Limpar flags/refs + erro, e tentar de novo
+    clearOAuthWatchdogRefs();
+    loginCompletedRef.current = false;
+    setAuthError(null);
+    setAuthInProgress(false);
+    await signInWithGoogle();
   };
 
   // Fazer logout
@@ -618,10 +824,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       loginCompletedRef.current = false;
       currentAttemptRef.current = null;
 
-      if (watchdogTimerRef.current) {
-        clearTimeout(watchdogTimerRef.current);
-        watchdogTimerRef.current = null;
-      }
+      clearOAuthWatchdogRefs();
     } catch (error) {
       console.error("Erro ao fazer logout:", error);
     }
@@ -641,6 +844,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         authInProgress,
         authError,
         signInWithGoogle,
+        retryGoogleLogin,
         signOut,
         clearAuthError,
         getRecentAuthLogs,

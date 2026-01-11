@@ -162,26 +162,31 @@ saravafy://auth/callback
 ## Resumo rápido
 
 DEV local (USB):
+
 ```sh
 npm run android:dev
 ```
 
 Start Dev Client:
+
 ```sh
 npm run start:dev
 ```
 
 Build DEV (EAS):
+
 ```sh
 npx eas build -p android --profile development
 ```
 
 Build PREVIEW (EAS):
+
 ```sh
 npx eas build -p android --profile preview
 ```
 
 Build PRODUÇÃO (EAS):
+
 ```sh
 npx eas build -p android --profile production
 ```

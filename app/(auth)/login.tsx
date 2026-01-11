@@ -9,7 +9,8 @@ import { supabase } from "@/lib/supabase";
 import { useEffect } from "react";
 
 export default function LoginScreen() {
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, retryGoogleLogin, authInProgress, authError } =
+    useAuth();
   const { effectiveTheme } = usePreferences();
   const variant = effectiveTheme;
 
@@ -41,6 +42,14 @@ export default function LoginScreen() {
     }
   };
 
+  const handleRetry = async () => {
+    try {
+      await retryGoogleLogin();
+    } catch (error) {
+      console.error("Erro ao tentar novamente login Google:", error);
+    }
+  };
+
   return (
     <SaravafyScreen theme={variant}>
       <View style={styles.container}>
@@ -53,13 +62,42 @@ export default function LoginScreen() {
           accessibilityRole="button"
           accessibilityLabel="Entrar com Google"
           onPress={handleLogin}
+          disabled={authInProgress}
           style={({ pressed }) => [
             styles.primaryButton,
             pressed ? styles.primaryButtonPressed : null,
+            authInProgress ? styles.primaryButtonDisabled : null,
           ]}
         >
-          <Text style={styles.primaryButtonText}>Entrar com Google</Text>
+          <Text style={styles.primaryButtonText}>
+            {authInProgress ? "Entrando…" : "Entrar com Google"}
+          </Text>
         </Pressable>
+
+        {authError ? (
+          <View style={styles.errorWrap}>
+            <Text style={[styles.errorText, { color: textSecondary }]}
+              numberOfLines={6}
+            >
+              {authError}
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Tentar novamente"
+              onPress={handleRetry}
+              disabled={authInProgress}
+              style={({ pressed }) => [
+                styles.retryButton,
+                { borderColor: colors.brass600 },
+                pressed ? styles.retryButtonPressed : null,
+                authInProgress ? styles.primaryButtonDisabled : null,
+              ]}
+            >
+              <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
       </View>
     </SaravafyScreen>
   );
@@ -102,8 +140,41 @@ const styles = StyleSheet.create({
   primaryButtonPressed: {
     opacity: 0.85,
   },
+  primaryButtonDisabled: {
+    opacity: 0.6,
+  },
   primaryButtonText: {
     color: colors.paper50,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  errorWrap: {
+    marginTop: spacing.md,
+    alignSelf: "stretch",
+    gap: spacing.sm,
+  },
+  errorText: {
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.95,
+    textAlign: "center",
+  },
+  retryButton: {
+    minHeight: 44,
+    alignSelf: "stretch",
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "transparent",
+    borderWidth: 2,
+    paddingVertical: 12,
+  },
+  retryButtonPressed: {
+    opacity: 0.85,
+  },
+  retryButtonText: {
+    color: colors.brass600,
     fontSize: 14,
     fontWeight: "800",
   },
