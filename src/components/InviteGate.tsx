@@ -51,6 +51,34 @@ function isColumnMissingError(message: string, columnName: string) {
   );
 }
 
+function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
+  const anyErr = error as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
+  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
+  const hint = typeof anyErr?.hint === "string" ? anyErr.hint : "";
+  if (code !== "PGRST202") return false;
+  return (
+    message.includes(`(${paramName})`) ||
+    message.includes(`parameter ${paramName}`) ||
+    hint.includes("invite_id")
+  );
+}
+
+async function rpcTerreiroInvite(
+  fnName: "accept_terreiro_invite" | "reject_terreiro_invite",
+  inviteId: string
+) {
+  // Prefer `p_invite_id` but fall back to `invite_id`.
+  // PostgREST requires the argument names to match the function signature.
+  let rpc: any = await supabase.rpc(fnName, { p_invite_id: inviteId });
+
+  if (rpc?.error && isRpcFunctionParamMismatch(rpc.error, "p_invite_id")) {
+    rpc = await supabase.rpc(fnName, { invite_id: inviteId });
+  }
+
+  return rpc as any;
+}
+
 type InviteGateDebug = {
   step: "refresh" | "accept:rpc" | "reject:rpc" | "reject:update_invite";
   inviteId?: string;
@@ -601,9 +629,10 @@ export function InviteGate() {
 
     try {
       // RLS estrito: aceitar precisa ser via RPC SECURITY DEFINER.
-      const rpc = await supabase.rpc("accept_terreiro_invite", {
-        p_invite_id: currentInvite.id,
-      });
+      const rpc = await rpcTerreiroInvite(
+        "accept_terreiro_invite",
+        currentInvite.id
+      );
 
       if (__DEV__) {
         console.info("[InviteGate] accept rpc", {
@@ -773,9 +802,10 @@ export function InviteGate() {
       // RLS estrito: recusar precisa ser via RPC SECURITY DEFINER.
       // NOTE: Não usar `decline_terreiro_invite` enquanto o banco estiver com
       // CHECK status=('pending'|'accepted'|'rejected') e activated_consistency.
-      const rpc = await supabase.rpc("reject_terreiro_invite", {
-        p_invite_id: currentInvite.id,
-      });
+      const rpc = await rpcTerreiroInvite(
+        "reject_terreiro_invite",
+        currentInvite.id
+      );
 
       if (__DEV__) {
         console.info("[InviteGate] reject rpc", {

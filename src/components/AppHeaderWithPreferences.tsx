@@ -92,6 +92,19 @@ function isColumnMissingError(message: string, columnName: string) {
   );
 }
 
+function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
+  const anyErr = error as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
+  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
+  const hint = typeof anyErr?.hint === "string" ? anyErr.hint : "";
+  if (code !== "PGRST202") return false;
+  return (
+    message.includes(`(${paramName})`) ||
+    message.includes(`parameter ${paramName}`) ||
+    hint.includes("invite_id")
+  );
+}
+
 function getInviteRoleLabel(role: InviteRole): string {
   if (role === "admin") return "Admin";
   if (role === "editor") return "Editor";
@@ -867,9 +880,15 @@ export function PreferencesOverlaySheets(
     if (!userId) return;
     setInviteProcessingKey(`terreiro:${invite.id}`);
     try {
-      const res: any = await supabase.rpc("accept_terreiro_invite", {
+      let res: any = await supabase.rpc("accept_terreiro_invite", {
         p_invite_id: invite.id,
       });
+
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_invite_id")) {
+        res = await supabase.rpc("accept_terreiro_invite", {
+          invite_id: invite.id,
+        });
+      }
 
       if (res?.error) throw res.error;
       if (res?.data === false)
@@ -992,9 +1011,15 @@ export function PreferencesOverlaySheets(
     if (!userId) return;
     setInviteProcessingKey(`terreiro:${invite.id}`);
     try {
-      const res: any = await supabase.rpc("reject_terreiro_invite", {
+      let res: any = await supabase.rpc("reject_terreiro_invite", {
         p_invite_id: invite.id,
       });
+
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_invite_id")) {
+        res = await supabase.rpc("reject_terreiro_invite", {
+          invite_id: invite.id,
+        });
+      }
 
       if (res?.error) throw res.error;
       if (res?.data === false)
