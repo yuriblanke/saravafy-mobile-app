@@ -445,8 +445,9 @@ export function PreferencesOverlaySheets(
     [myEditableTerreirosQuery.data]
   );
 
+  // Mostrar TODOS os terreiros editáveis (admin + editor), não apenas admins
   const myAdminTerreiros = useMemo(
-    () => myEditableTerreiros.filter((t) => t.role === "admin"),
+    () => myEditableTerreiros,
     [myEditableTerreiros]
   );
 
@@ -1225,7 +1226,7 @@ export function PreferencesOverlaySheets(
                 </Text>
               ) : myAdminTerreiros.length === 0 ? (
                 <Text style={[styles.helperText, { color: textSecondary }]}>
-                  Você ainda não é Admin em nenhum terreiro.
+                  Você ainda não é Admin ou Editora de nenhum terreiro.
                 </Text>
               ) : (
                 myAdminTerreiros.map((t) => (
@@ -1235,6 +1236,16 @@ export function PreferencesOverlaySheets(
                     title={t.title}
                     avatarUrl={t.cover_image_url ?? undefined}
                     initials={getInitials(t.title)}
+                    subtitle={
+                      <View style={{ marginTop: 4 }}>
+                        <Badge
+                          label={t.role === "admin" ? "Admin" : "Editora"}
+                          variant={variant}
+                          appearance={t.role === "admin" ? "primary" : "secondary"}
+                          style={{ alignSelf: "flex-start" }}
+                        />
+                      </View>
+                    }
                     onPress={() => {
                       closePreferences();
                       void Haptics.selectionAsync().catch(() => undefined);

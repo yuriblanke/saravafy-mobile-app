@@ -9,10 +9,10 @@
  * - Dedupe/debounce para evitar spam
  */
 
-import { supabase } from '@/lib/supabase';
-import * as Crypto from 'expo-crypto';
-import * as Application from 'expo-constants';
-import { Platform } from 'react-native';
+import { supabase } from "@/lib/supabase";
+import * as Application from "expo-constants";
+import * as Crypto from "expo-crypto";
+import { Platform } from "react-native";
 
 // Tipos
 export interface AuthLogEvent {
@@ -48,7 +48,7 @@ export function generateAttemptId(): string {
   try {
     return Crypto.randomUUID();
   } catch (error) {
-    console.warn('[AuthLogger] Erro ao gerar UUID, usando fallback', error);
+    console.warn("[AuthLogger] Erro ao gerar UUID, usando fallback", error);
     // Fallback simples (não é ideal, mas funcional)
     return `${Date.now()}-${Math.random().toString(36).substring(2, 15)}`;
   }
@@ -85,7 +85,7 @@ function collectDeviceMetadata() {
       metadata.build_number = String(extra.expoClient.android.versionCode);
     }
   } catch (error) {
-    console.warn('[AuthLogger] Erro ao coletar metadados do app', error);
+    console.warn("[AuthLogger] Erro ao coletar metadados do app", error);
   }
 
   return metadata;
@@ -97,7 +97,7 @@ function collectDeviceMetadata() {
 function collectNetworkInfo() {
   // Se NetInfo não estiver disponível, retorna unknown
   return {
-    network_type: 'unknown' as const,
+    network_type: "unknown" as const,
     network_details: null,
   };
 }
@@ -121,7 +121,10 @@ function isDuplicate(attemptId: string, event: string, details: any): boolean {
   const detailsHash = hashObject(details);
 
   // Limpar logs antigos
-  while (recentLogs.length > 0 && now - recentLogs[0].timestamp > DEDUPE_WINDOW_MS) {
+  while (
+    recentLogs.length > 0 &&
+    now - recentLogs[0].timestamp > DEDUPE_WINDOW_MS
+  ) {
     recentLogs.shift();
   }
 
@@ -175,7 +178,7 @@ export function clearRecentAuthLogs() {
  * Sanitiza detalhes para garantir que não contenham tokens sensíveis
  */
 function sanitizeDetails(details: any): any {
-  if (!details || typeof details !== 'object') {
+  if (!details || typeof details !== "object") {
     return details;
   }
 
@@ -183,13 +186,13 @@ function sanitizeDetails(details: any): any {
 
   // Remover campos sensíveis (se existirem acidentalmente)
   const sensitiveFields = [
-    'access_token',
-    'refresh_token',
-    'id_token',
-    'code',
-    'token',
-    'secret',
-    'password',
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "code",
+    "token",
+    "secret",
+    "password",
   ];
 
   for (const field of sensitiveFields) {
@@ -210,14 +213,14 @@ export function classifyUrl(url: string): {
   urlPath?: string;
 } {
   try {
-    if (url.includes('expo-development-client')) {
-      return { urlKind: 'dev_client' };
+    if (url.includes("expo-development-client")) {
+      return { urlKind: "dev_client" };
     }
 
     // Verificar se tem query param 'url' (metro)
-    const hasMetroUrl = url.includes('?url=') || url.includes('&url=');
+    const hasMetroUrl = url.includes("?url=") || url.includes("&url=");
     if (hasMetroUrl) {
-      return { urlKind: 'metro' };
+      return { urlKind: "metro" };
     }
 
     // Tentar fazer parse
@@ -226,21 +229,21 @@ export function classifyUrl(url: string): {
     const path = parsed.pathname;
 
     // Verificar se é callback de auth
-    if (path.includes('auth/callback') || path.includes('/callback')) {
+    if (path.includes("auth/callback") || path.includes("/callback")) {
       return {
-        urlKind: 'auth_callback',
+        urlKind: "auth_callback",
         urlHost: host,
         urlPath: path,
       };
     }
 
     return {
-      urlKind: 'other',
+      urlKind: "other",
       urlHost: host,
       urlPath: path,
     };
   } catch (error) {
-    return { urlKind: 'invalid' };
+    return { urlKind: "invalid" };
   }
 }
 
@@ -256,7 +259,7 @@ export async function logAuthEvent(
   try {
     // Dedupe
     if (isDuplicate(attemptId, event, details)) {
-      console.info('[AuthLogger] Log duplicado ignorado', { attemptId, event });
+      console.info("[AuthLogger] Log duplicado ignorado", { attemptId, event });
       return;
     }
 
@@ -274,7 +277,7 @@ export async function logAuthEvent(
     const payload = {
       attempt_id: attemptId,
       user_id: userId ?? null,
-      provider: 'google',
+      provider: "google",
       event,
       client_ts: new Date().toISOString(),
       platform: deviceMetadata.platform,
@@ -289,20 +292,20 @@ export async function logAuthEvent(
 
     // Inserir no Supabase (best-effort)
     const { error } = await supabase
-      .from('auth_login_attempts')
+      .from("auth_login_attempts")
       .insert(payload);
 
     if (error) {
-      console.warn('[AuthLogger] Erro ao inserir log (não-crítico)', {
+      console.warn("[AuthLogger] Erro ao inserir log (não-crítico)", {
         event,
         error: error.message,
       });
     } else if (__DEV__) {
-      console.info('[AuthLogger] Log inserido', { attemptId, event });
+      console.info("[AuthLogger] Log inserido", { attemptId, event });
     }
   } catch (error) {
     // Nunca quebrar o fluxo
-    console.warn('[AuthLogger] Erro ao processar log (não-crítico)', {
+    console.warn("[AuthLogger] Erro ao processar log (não-crítico)", {
       event,
       error,
     });

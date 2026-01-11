@@ -185,8 +185,8 @@ async function fetchMyEditableTerreiros(params: {
   const { userId } = params;
   const allowedRoles = ["admin", "editor"] as const;
 
-  // 1) memberships (admin/editor) + status=active when column exists
-  let usedStatusFilter = true;
+  // 1) memberships (admin/editor) - NOT filtering by status to include newly accepted invites
+  let usedStatusFilter = false;
   let members: any;
 
   if (Array.isArray(params.editableTerreiroIds)) {
@@ -197,40 +197,16 @@ async function fetchMyEditableTerreiros(params: {
 
     members = await supabase
       .from("terreiro_members")
-      .select("terreiro_id, role, status")
+      .select("terreiro_id, role")
       .eq("user_id", userId)
       .in("role", [...allowedRoles])
-      .in("terreiro_id", ids)
-      .eq("status", "active");
+      .in("terreiro_id", ids);
   } else {
     members = await supabase
       .from("terreiro_members")
-      .select("terreiro_id, role, status")
+      .select("terreiro_id, role")
       .eq("user_id", userId)
-      .in("role", [...allowedRoles])
-      .eq("status", "active");
-  }
-
-  if (members.error && isColumnMissingError(members.error, "status")) {
-    usedStatusFilter = false;
-    if (Array.isArray(params.editableTerreiroIds)) {
-      const ids = params.editableTerreiroIds.filter(Boolean);
-      if (ids.length === 0) {
-        return [];
-      }
-      members = await supabase
-        .from("terreiro_members")
-        .select("terreiro_id, role")
-        .eq("user_id", userId)
-        .in("role", [...allowedRoles])
-        .in("terreiro_id", ids);
-    } else {
-      members = await supabase
-        .from("terreiro_members")
-        .select("terreiro_id, role")
-        .eq("user_id", userId)
-        .in("role", [...allowedRoles]);
-    }
+      .in("role", [...allowedRoles]);
   }
 
   if (members.error) {

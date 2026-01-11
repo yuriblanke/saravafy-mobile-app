@@ -105,10 +105,10 @@ Para evitar loading infinito e permitir retry:
 ```typescript
 interface AuthContextType {
   // ... estados existentes
-  authInProgress: boolean      // true durante login
-  authError: string | null     // mensagem de erro amigável
-  clearAuthError: () => void   // limpar erro
-  getRecentAuthLogs: () => any[] // debug logs
+  authInProgress: boolean; // true durante login
+  authError: string | null; // mensagem de erro amigável
+  clearAuthError: () => void; // limpar erro
+  getRecentAuthLogs: () => any[]; // debug logs
 }
 ```
 
@@ -181,7 +181,7 @@ CREATE TABLE public.auth_login_attempts (
 ### Ver tentativas de um usuário específico:
 
 ```sql
-SELECT 
+SELECT
   attempt_id,
   event,
   client_ts,
@@ -195,7 +195,7 @@ LIMIT 50;
 ### Ver tentativas travadas (com timeout):
 
 ```sql
-SELECT 
+SELECT
   attempt_id,
   user_id,
   client_ts,
@@ -208,7 +208,7 @@ ORDER BY client_ts DESC;
 ### Ver fluxo completo de uma tentativa:
 
 ```sql
-SELECT 
+SELECT
   event,
   client_ts,
   details,
@@ -245,13 +245,13 @@ ORDER BY started_at DESC;
 Para acessar logs recentes em tempo de execução:
 
 ```typescript
-import { useAuth } from '@/contexts/AuthContext';
+import { useAuth } from "@/contexts/AuthContext";
 
 function DebugScreen() {
   const { getRecentAuthLogs } = useAuth();
-  
+
   const logs = getRecentAuthLogs();
-  
+
   return (
     <View>
       {logs.map((log, i) => (
@@ -286,6 +286,7 @@ function DebugScreen() {
 ## Segurança
 
 ⚠️ **IMPORTANTE**: Este sistema **NUNCA** loga:
+
 - `access_token`
 - `refresh_token`
 - `id_token`
@@ -293,6 +294,7 @@ function DebugScreen() {
 - Qualquer outro token sensível
 
 Apenas flags booleanas são logadas:
+
 - `hasCode: boolean`
 - `hasAccessToken: boolean`
 - `hasRefreshToken: boolean`
