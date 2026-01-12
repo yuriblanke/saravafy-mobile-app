@@ -21,12 +21,6 @@ import { AppState } from "react-native";
 // Garante que o fluxo de OAuth seja completado corretamente ao retornar do navegador
 WebBrowser.maybeCompleteAuthSession();
 
-// Guard global (module-scope) para garantir que a initialURL seja processada
-// no minimo uma vez por boot do runtime JS.
-// Em cenarios de loop/reload (Dev Client), isso evita reprocessar a URL do
-// expo-development-client indefinidamente.
-let didCheckInitialURLThisBoot = false;
-
 // Tipos
 interface AuthContextType {
   session: Session | null;
@@ -55,7 +49,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [authInProgress, setAuthInProgress] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
-  const lastProcessedUrlRef = useRef<string | null>(null);
 
   // Tentativa de login atual
   const currentAttemptRef = useRef<AuthAttempt | null>(null);
@@ -68,9 +61,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   // OAuth watchdog robusto (à prova de background)
   const oauthBrowserOpenStartedAtMsRef = useRef<number | null>(null);
-  const oauthFlowStateRef = useRef<
-    "IDLE" | "BROWSER_OPENED" | "COMPLETED"
-  >("IDLE");
+  const oauthFlowStateRef = useRef<"IDLE" | "BROWSER_OPENED" | "COMPLETED">(
+    "IDLE"
+  );
   const oauthCompletedRef = useRef(false);
 
   const lastAppStateRef = useRef<string>(AppState.currentState ?? "unknown");
@@ -105,7 +98,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const attempt = currentAttemptRef.current;
       if (oauthCompletedRef.current) return;
 
-       const lastState = oauthFlowStateRef.current;
+      const lastState = oauthFlowStateRef.current;
       oauthCompletedRef.current = true;
       oauthFlowStateRef.current = "COMPLETED";
       loginCompletedRef.current = true;
@@ -136,265 +129,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     },
     []
   );
-
-  // Função para processar deep links
-  const processDeepLink = useCallback(async (url: string) => {
-    const attempt = currentAttemptRef.current;
-
-    if (!url) return;
-
-    // Evita reprocessar a mesma URL (initialURL + evento, ou re-emissão do Dev Client)
-    if (lastProcessedUrlRef.current === url) {
-      if (__DEV__) {
-        console.info("[AuthLink] ignorado: URL repetida", classifyUrl(url));
-      }
-      const urlInfo = classifyUrl(url);
-      await attempt?.log("deep_link_ignored", {
-        reason: "duplicate",
-        urlKind: urlInfo.urlKind,
-        urlHost: urlInfo.urlHost,
-        urlPath: urlInfo.urlPath,
-      });
-      return;
-    }
-
-    // Classificar URL
-    const urlInfo = classifyUrl(url);
-
-    await attempt?.log("deep_link_received", {
-      urlKind: urlInfo.urlKind,
-      urlHost: urlInfo.urlHost,
-      urlPath: urlInfo.urlPath,
-    });
-
-    // 1) Ignore URLs do Expo Dev Client
-    // Exemplo: exp+saravafy://expo-development-client/?url=http%3A%2F%2F192.168.1.73%3A8081
-    if (url.includes("expo-development-client")) {
-      if (__DEV__) {
-        console.info(
-          "[AuthLink] ignorado: URL do Expo Dev Client",
-          classifyUrl(url)
-        );
-      }
-      await attempt?.log("deep_link_ignored", {
-        reason: "dev_client",
-        urlKind: urlInfo.urlKind,
-      });
-      return;
-    }
-
-    if (__DEV__) {
-      console.log("Processando deep link:", classifyUrl(url));
-    }
-
-    try {
-      const parseParams = (raw: string): Record<string, string> => {
-        const params = new URLSearchParams(raw);
-        const out: Record<string, string> = {};
-        for (const [key, value] of params.entries()) {
-          out[key] = value;
-        }
-        return out;
-      };
-
-      // 1) Query params via expo-linking
-      const parsedUrl = Linking.parse(url);
-      const queryParams = (parsedUrl.queryParams ?? {}) as Record<string, any>;
-
-      // Também pode vir a query param `url` (metro) em alguns cenários; ignore.
-      if (typeof queryParams.url === "string" && queryParams.url.length > 0) {
-        if (__DEV__) {
-          console.info(
-            "[AuthLink] ignorado: deep link com query param 'url' (provável Metro)",
-            {
-              url,
-              metroUrl: queryParams.url,
-            }
-          );
-        }
-        await attempt?.log("deep_link_ignored", {
-          reason: "metro",
-          urlKind: urlInfo.urlKind,
-        });
-        return;
-      }
-
-      // 2) Fragment params (muito comum no OAuth: #access_token=...)
-      const fragmentIndex = url.indexOf("#");
-      const fragmentRaw =
-        fragmentIndex >= 0 ? url.slice(fragmentIndex + 1) : "";
-      const fragmentParams = fragmentRaw ? parseParams(fragmentRaw) : {};
-
-      // Merge: fragment pode sobrescrever query
-      const mergedParams: Record<string, string> = {
-        ...Object.fromEntries(
-          Object.entries(queryParams)
-            .filter(([, v]) => typeof v === "string")
-            .map(([k, v]) => [k, v as string])
-        ),
-        ...fragmentParams,
-      };
-
-      if (__DEV__) {
-        console.log("Deep link recebido:", urlInfo);
-        console.log("mergedParams keys:", Object.keys(mergedParams));
-      }
-
-      const oauthError = mergedParams.error;
-      const oauthErrorDescription = mergedParams.error_description;
-      if (oauthError || oauthErrorDescription) {
-        console.error("OAuth callback retornou erro:", {
-          error: oauthError ?? "",
-          error_description: oauthErrorDescription ?? "",
-        });
-        await attempt?.log("deep_link_oauth_error", {
-          error: oauthError ?? "",
-          error_description: (oauthErrorDescription ?? "").substring(0, 200),
-        });
-        return;
-      }
-
-      const code = mergedParams.code;
-      const access_token = mergedParams.access_token;
-      const refresh_token = mergedParams.refresh_token;
-      const hasAccessToken = Boolean(access_token);
-      const hasRefreshToken = Boolean(refresh_token);
-      const hasCode = Boolean(code);
-
-      // 2) Processar callback APENAS quando houver code ou tokens reais.
-      if (!code && !(access_token && refresh_token)) {
-        if (__DEV__) {
-          console.info("[AuthLink] ignorado: callback sem code/tokens", {
-            url,
-            mergedParamsKeys: Object.keys(mergedParams),
-            hasAccessToken,
-            hasRefreshToken,
-          });
-        }
-        await attempt?.log("deep_link_ignored", {
-          reason: "not_auth_callback",
-          hasCode,
-          hasAccessToken,
-          hasRefreshToken,
-        });
-        return;
-      }
-
-      // Dedupe: daqui em diante consideramos que é um callback real.
-      lastProcessedUrlRef.current = url;
-
-      if (code) {
-        console.log(
-          "Code encontrado no callback, trocando por sessão (PKCE)..."
-        );
-
-        await attempt?.log("deep_link_exchange_code_start", { hasCode: true });
-
-        const { data, error } = await supabase.auth.exchangeCodeForSession(
-          code
-        );
-
-        if (error) {
-          console.error("Erro ao trocar code por sessão:", error.message);
-          await attempt?.log("deep_link_exchange_code_error", {
-            error: error.message,
-          });
-          return;
-        }
-
-        console.log("Sessão estabelecida via exchangeCodeForSession!");
-        await attempt?.log("deep_link_exchange_code_success", {
-          hasSession: !!data.session,
-          userId: data.session?.user?.id,
-        });
-
-        await concludeOAuthFlow("deeplink_success", {
-          method: "exchangeCodeForSession",
-        });
-
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-        setAuthError(null);
-
-        // Atualizar userId na tentativa
-        if (data.session?.user?.id) {
-          attempt?.setUserId(data.session.user.id);
-          await attempt?.log("auth_session_set", {
-            method: "exchangeCodeForSession",
-          });
-        }
-
-        return;
-      }
-
-      if (access_token && refresh_token) {
-        console.log("Tokens encontrados no callback, estabelecendo sessão...", {
-          hasAccessToken,
-          hasRefreshToken,
-        });
-
-        await attempt?.log("deep_link_set_session_start", {
-          hasAccessToken,
-          hasRefreshToken,
-        });
-
-        const { data, error } = await supabase.auth.setSession({
-          access_token,
-          refresh_token,
-        });
-
-        if (error) {
-          console.error("Erro ao estabelecer sessão:", error.message);
-          await attempt?.log("deep_link_set_session_error", {
-            error: error.message,
-          });
-          return;
-        }
-
-        console.log("Sessão estabelecida via setSession!");
-        await attempt?.log("deep_link_set_session_success", {
-          hasSession: !!data.session,
-          userId: data.session?.user?.id,
-        });
-
-        await concludeOAuthFlow("deeplink_success", {
-          method: "setSession",
-        });
-
-        setSession(data.session);
-        setUser(data.session?.user ?? null);
-        setAuthError(null);
-
-        // Atualizar userId na tentativa
-        if (data.session?.user?.id) {
-          attempt?.setUserId(data.session.user.id);
-          await attempt?.log("auth_session_set", {
-            method: "setSession",
-          });
-        }
-
-        return;
-      }
-
-      // Não deveria cair aqui, mas mantém log defensivo.
-      if (__DEV__) {
-        console.log("Callback recebido, mas sem code/tokens:", {
-          urlKind: urlInfo.urlKind,
-          urlHost: urlInfo.urlHost,
-          urlPath: urlInfo.urlPath,
-          mergedParamsKeys: Object.keys(mergedParams),
-          hasAccessToken,
-          hasRefreshToken,
-        });
-      }
-    } catch (error) {
-      // Qualquer erro não tratado aqui pode derrubar o app no Dev Client.
-      console.error("[AuthLink] Erro ao processar deep link:", error);
-      await attempt?.log("deep_link_error", {
-        error: String(error),
-      });
-    }
-  }, [concludeOAuthFlow]);
 
   // Listener de AppState (robusto para watchdog em background)
   useEffect(() => {
@@ -501,47 +235,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         });
       });
 
-    // Verificar se o app foi aberto com uma URL (deep link inicial).
-    // No Expo Dev Client isso normalmente e a URL interna
-    // exp+saravafy://expo-development-client/?url=http://...:8081
-    // e deve ser ignorada pelo handler.
-    if (!didCheckInitialURLThisBoot) {
-      didCheckInitialURLThisBoot = true;
-      console.log("Verificando URL inicial...");
-
-      void bootAttempt.log("boot_get_initial_url_start", {});
-
-      Linking.getInitialURL()
-        .then((url) => {
-          if (__DEV__) {
-            console.log("getInitialURL retornou:", url ? classifyUrl(url) : null);
-          }
-
-          const urlInfo = url ? classifyUrl(url) : null;
-          void bootAttempt.log("boot_get_initial_url_result", {
-            hasUrl: !!url,
-            urlKind: urlInfo?.urlKind,
-          });
-
-          if (url) {
-            if (__DEV__) {
-              console.log("App aberto com URL inicial:", classifyUrl(url));
-            }
-            void processDeepLink(url);
-          } else {
-            console.log("Nenhuma URL inicial encontrada");
-          }
-        })
-        .catch((error) => {
-          console.error("[AuthLink] Erro ao obter initialURL:", error);
-          void bootAttempt.log("boot_get_initial_url_error", {
-            error: String(error),
-          });
-        });
-    } else if (__DEV__) {
-      console.info("[AuthLink] skip: initialURL ja verificada neste boot");
-    }
-
     // Escutar mudanças de autenticação
     void bootAttempt.log("boot_supabase_onAuthStateChange_registered", {});
 
@@ -583,22 +276,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     });
 
-    // Listener para capturar deep links enquanto o app está aberto
-    console.log("Registrando listener de deep links...");
-    void bootAttempt.log("boot_linking_listener_registered", {});
-
-    const urlSubscription = Linking.addEventListener("url", ({ url }) => {
-      if (__DEV__) {
-        console.log("🔗 DEEP LINK CAPTURADO:", classifyUrl(url));
-      }
-      processDeepLink(url);
-    });
-    console.log("Listener de deep links registrado!");
-
     return () => {
       console.log("=== AuthContext desmontado ===");
       subscription.unsubscribe();
-      urlSubscription.remove();
 
       // Limpar watchdog se existir
       if (watchdogTimerRef.current) {
@@ -606,7 +286,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         watchdogTimerRef.current = null;
       }
     };
-  }, [processDeepLink]);
+  }, [concludeOAuthFlow]);
 
   // Fazer login com Google
   const signInWithGoogle = async () => {
@@ -740,7 +420,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       oauthCompletedRef.current = false;
 
       await attempt.log("oauth_browser_open_start", {
-        oauth_browser_open_started_at_ms: oauthBrowserOpenStartedAtMsRef.current,
+        oauth_browser_open_started_at_ms:
+          oauthBrowserOpenStartedAtMsRef.current,
       });
 
       // Abre o navegador e aguarda retorno para o redirectUri
@@ -772,15 +453,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await concludeOAuthFlow(outcome, {
           browserResultType: result.type,
         });
-      }
-
-      // Processar o callback retornado pelo browser (pode vir com `code` ou tokens)
-      if (
-        result.type === "success" &&
-        "url" in result &&
-        typeof result.url === "string"
-      ) {
-        await processDeepLink(result.url);
       }
 
       // Não aguarda o resultado - deixa o listener onAuthStateChange processar

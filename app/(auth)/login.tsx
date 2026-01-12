@@ -76,7 +76,8 @@ export default function LoginScreen() {
 
         {authError ? (
           <View style={styles.errorWrap}>
-            <Text style={[styles.errorText, { color: textSecondary }]}
+            <Text
+              style={[styles.errorText, { color: textSecondary }]}
               numberOfLines={6}
             >
               {authError}
