@@ -50,6 +50,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [authInProgress, setAuthInProgress] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
 
+  // Dedupe: evita processar o mesmo callback mais de uma vez
+  // (ex: openAuthSessionAsync retorna url + navegação /auth/callback também roda).
+  const lastHandledOAuthCallbackKeyRef = useRef<string | null>(null);
+
   // Tentativa de login atual
   const currentAttemptRef = useRef<AuthAttempt | null>(null);
 
@@ -130,6 +134,178 @@ export function AuthProvider({ children }: AuthProviderProps) {
     []
   );
 
+  const handleOAuthCallbackUrl = useCallback(
+    async (url: string) => {
+      if (!url) return;
+
+      // Ignorar URLs internas do Expo Dev Client
+      if (url.includes("expo-development-client")) return;
+
+      const attempt = currentAttemptRef.current;
+      const urlInfo = classifyUrl(url);
+
+      const parseParams = (raw: string): Record<string, string> => {
+        const params = new URLSearchParams(raw);
+        const out: Record<string, string> = {};
+        for (const [key, value] of params.entries()) out[key] = value;
+        return out;
+      };
+
+      const parsedUrl = Linking.parse(url);
+      const queryParams = (parsedUrl.queryParams ?? {}) as Record<string, any>;
+
+      // Metro às vezes injeta query param `url` (não é callback de auth)
+      if (typeof queryParams.url === "string" && queryParams.url.length > 0) {
+        return;
+      }
+
+      const fragmentIndex = url.indexOf("#");
+      const fragmentRaw = fragmentIndex >= 0 ? url.slice(fragmentIndex + 1) : "";
+      const fragmentParams = fragmentRaw ? parseParams(fragmentRaw) : {};
+
+      const mergedParams: Record<string, string> = {
+        ...Object.fromEntries(
+          Object.entries(queryParams)
+            .filter(([, v]) => typeof v === "string")
+            .map(([k, v]) => [k, v as string])
+        ),
+        ...fragmentParams,
+      };
+
+      const oauthError = mergedParams.error;
+      const oauthErrorDescription = mergedParams.error_description;
+      if (oauthError || oauthErrorDescription) {
+        await attempt?.log("deep_link_oauth_error", {
+          error: oauthError ?? "",
+          error_description: (oauthErrorDescription ?? "").substring(0, 200),
+          urlKind: urlInfo.urlKind,
+          urlHost: urlInfo.urlHost,
+          urlPath: urlInfo.urlPath,
+        });
+        setAuthInProgress(false);
+        setAuthError("Login cancelado ou recusado. Tente novamente.");
+        return;
+      }
+
+      const code = mergedParams.code;
+      const access_token = mergedParams.access_token;
+      const refresh_token = mergedParams.refresh_token;
+
+      if (!code && !(access_token && refresh_token)) return;
+
+      const callbackKey = code
+        ? `code:${code}`
+        : access_token && refresh_token
+        ? `tokens:${access_token.slice(0, 6)}:${refresh_token.slice(0, 6)}`
+        : null;
+
+      if (callbackKey && lastHandledOAuthCallbackKeyRef.current === callbackKey) {
+        return;
+      }
+      if (callbackKey) lastHandledOAuthCallbackKeyRef.current = callbackKey;
+
+      await attempt?.log("deep_link_received", {
+        urlKind: urlInfo.urlKind,
+        urlHost: urlInfo.urlHost,
+        urlPath: urlInfo.urlPath,
+        hasCode: Boolean(code),
+        hasAccessToken: Boolean(access_token),
+        hasRefreshToken: Boolean(refresh_token),
+      });
+
+      try {
+        if (code) {
+          await attempt?.log("deep_link_exchange_code_start", {
+            hasCode: true,
+          });
+
+          const { data, error } = await supabase.auth.exchangeCodeForSession(
+            code
+          );
+
+          if (error) {
+            await attempt?.log("deep_link_exchange_code_error", {
+              error: error.message,
+            });
+            setAuthInProgress(false);
+            setAuthError("Não conseguimos concluir o login. Tente novamente.");
+            return;
+          }
+
+          await attempt?.log("deep_link_exchange_code_success", {
+            hasSession: !!data.session,
+            userId: data.session?.user?.id,
+          });
+
+          await concludeOAuthFlow("deeplink_success", {
+            method: "exchangeCodeForSession",
+          });
+
+          setSession(data.session);
+          setUser(data.session?.user ?? null);
+          setAuthError(null);
+
+          if (data.session?.user?.id) {
+            attempt?.setUserId(data.session.user.id);
+            await attempt?.log("auth_session_set", {
+              method: "exchangeCodeForSession",
+            });
+          }
+
+          return;
+        }
+
+        if (access_token && refresh_token) {
+          await attempt?.log("deep_link_set_session_start", {
+            hasAccessToken: true,
+            hasRefreshToken: true,
+          });
+
+          const { data, error } = await supabase.auth.setSession({
+            access_token,
+            refresh_token,
+          });
+
+          if (error) {
+            await attempt?.log("deep_link_set_session_error", {
+              error: error.message,
+            });
+            setAuthInProgress(false);
+            setAuthError("Não conseguimos concluir o login. Tente novamente.");
+            return;
+          }
+
+          await attempt?.log("deep_link_set_session_success", {
+            hasSession: !!data.session,
+            userId: data.session?.user?.id,
+          });
+
+          await concludeOAuthFlow("deeplink_success", {
+            method: "setSession",
+          });
+
+          setSession(data.session);
+          setUser(data.session?.user ?? null);
+          setAuthError(null);
+
+          if (data.session?.user?.id) {
+            attempt?.setUserId(data.session.user.id);
+            await attempt?.log("auth_session_set", {
+              method: "setSession",
+            });
+          }
+        }
+      } catch (e) {
+        await attempt?.log("deep_link_error", {
+          error: String(e),
+        });
+        setAuthInProgress(false);
+        setAuthError("Erro inesperado ao concluir o login. Tente novamente.");
+      }
+    },
+    [concludeOAuthFlow]
+  );
+
   // Listener de AppState (robusto para watchdog em background)
   useEffect(() => {
     const sub = AppState.addEventListener("change", (next) => {
@@ -186,7 +362,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
 
             setAuthError(
-              "Não conseguimos voltar do Google para o app. Tente novamente. Se persistir, atualize o Chrome e o Android System WebView."
+              "Não conseguimos concluir o login voltando do Google para o app. Tente novamente."
             );
             setAuthInProgress(false);
           }
@@ -405,7 +581,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           setAuthInProgress(false);
           setAuthError(
-            "Não conseguimos voltar do Google para o app. Tente novamente. Se persistir, atualize o Chrome e o Android System WebView."
+            "Não conseguimos concluir o login voltando do Google para o app. Tente novamente."
           );
 
           oauthCompletedRef.current = true;
@@ -453,6 +629,16 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await concludeOAuthFlow(outcome, {
           browserResultType: result.type,
         });
+      }
+
+      // Em alguns aparelhos o callback NÃO dispara navegação por deep link,
+      // mas o openAuthSessionAsync retorna a URL. Processar aqui evita timeout.
+      if (
+        result.type === "success" &&
+        "url" in result &&
+        typeof result.url === "string"
+      ) {
+        await handleOAuthCallbackUrl(result.url);
       }
 
       // Não aguarda o resultado - deixa o listener onAuthStateChange processar
