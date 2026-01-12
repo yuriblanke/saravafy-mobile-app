@@ -410,6 +410,20 @@ function RootLayoutNav() {
     router.replace("/login");
   }, [isLoading, isReady, router, segments, user?.id]);
 
+  // Symmetric guard: se o usuário autenticou e ainda está em (auth) (ex: /login),
+  // redireciona para /(app). Isso evita casos onde o OAuth conclui a sessão via
+  // openAuthSessionAsync result.url, mas o deep link não navega para /auth/callback.
+  useEffect(() => {
+    if (isLoading) return;
+    if (!isReady) return;
+    if (!user?.id) return;
+
+    const first = segments[0];
+    if (first !== "(auth)") return;
+
+    router.replace("/(app)");
+  }, [isLoading, isReady, router, segments, user?.id]);
+
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;
 
