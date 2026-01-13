@@ -24,7 +24,13 @@ export default function AuthCallbackScreen() {
       error: asFirstString(params.error),
       error_description: asFirstString(params.error_description),
     };
-  }, [params.access_token, params.code, params.error, params.error_description, params.refresh_token]);
+  }, [
+    params.access_token,
+    params.code,
+    params.error,
+    params.error_description,
+    params.refresh_token,
+  ]);
 
   useEffect(() => {
     if (didNavigateRef.current) return;

@@ -160,7 +160,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       const fragmentIndex = url.indexOf("#");
-      const fragmentRaw = fragmentIndex >= 0 ? url.slice(fragmentIndex + 1) : "";
+      const fragmentRaw =
+        fragmentIndex >= 0 ? url.slice(fragmentIndex + 1) : "";
       const fragmentParams = fragmentRaw ? parseParams(fragmentRaw) : {};
 
       const mergedParams: Record<string, string> = {
@@ -199,7 +200,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ? `tokens:${access_token.slice(0, 6)}:${refresh_token.slice(0, 6)}`
         : null;
 
-      if (callbackKey && lastHandledOAuthCallbackKeyRef.current === callbackKey) {
+      if (
+        callbackKey &&
+        lastHandledOAuthCallbackKeyRef.current === callbackKey
+      ) {
         return;
       }
       if (callbackKey) lastHandledOAuthCallbackKeyRef.current = callbackKey;

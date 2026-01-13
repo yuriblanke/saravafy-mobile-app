@@ -145,8 +145,9 @@ export default function Terreiro() {
   const canEdit = isAdminOrEditor;
 
   const newCollectionTitleInputRef = useRef<TextInput | null>(null);
-  const [newCollectionTitleSelection, setNewCollectionTitleSelection] =
-    useState<{ start: number; end: number } | undefined>(undefined);
+  const pendingInitialTitleSelectionRef = useRef<
+    { start: number; end: number } | null
+  >(null);
 
   const [isNewCollectionSheetOpen, setIsNewCollectionSheetOpen] =
     useState(false);
@@ -243,7 +244,7 @@ export default function Terreiro() {
       setNewCollectionTitleDraft("");
       setNewCollectionError("");
       setIsSubmittingCollectionTitle(false);
-      setNewCollectionTitleSelection(undefined);
+      pendingInitialTitleSelectionRef.current = null;
     }
   }, [canEdit, isNewCollectionSheetOpen]);
 
@@ -251,6 +252,14 @@ export default function Terreiro() {
     if (!isNewCollectionSheetOpen) return;
     const id = setTimeout(() => {
       newCollectionTitleInputRef.current?.focus();
+
+      const sel = pendingInitialTitleSelectionRef.current;
+      if (sel) {
+        (newCollectionTitleInputRef.current as any)?.setNativeProps({
+          selection: sel,
+        });
+        pendingInitialTitleSelectionRef.current = null;
+      }
     }, 80);
     return () => clearTimeout(id);
   }, [isNewCollectionSheetOpen]);
@@ -427,7 +436,7 @@ export default function Terreiro() {
     setRenamingCollectionId(null);
     setNewCollectionTitleDraft("");
     setNewCollectionError("");
-    setNewCollectionTitleSelection({ start: 0, end: 0 });
+    pendingInitialTitleSelectionRef.current = null;
     setIsNewCollectionSheetOpen(true);
   };
 
@@ -440,7 +449,8 @@ export default function Terreiro() {
     setNewCollectionTitleDraft(current);
     setNewCollectionError("");
     const end = current.length;
-    setNewCollectionTitleSelection({ start: end, end });
+    // Apply selection only once after focus; do not control it during typing.
+    pendingInitialTitleSelectionRef.current = { start: end, end };
     setIsNewCollectionSheetOpen(true);
   };
 
@@ -638,7 +648,7 @@ export default function Terreiro() {
       setIsNewCollectionSheetOpen(false);
       setNewCollectionTitleDraft("");
       setNewCollectionError("");
-      setNewCollectionTitleSelection(undefined);
+      pendingInitialTitleSelectionRef.current = null;
     } finally {
       setIsSubmittingCollectionTitle(false);
     }
@@ -668,7 +678,7 @@ export default function Terreiro() {
       setRenamingCollectionId(null);
       setNewCollectionTitleDraft("");
       setNewCollectionError("");
-      setNewCollectionTitleSelection(undefined);
+      pendingInitialTitleSelectionRef.current = null;
     } finally {
       setIsSubmittingCollectionTitle(false);
     }
@@ -688,7 +698,7 @@ export default function Terreiro() {
             setRenamingCollectionId(null);
             setNewCollectionTitleDraft("");
             setNewCollectionError("");
-            setNewCollectionTitleSelection(undefined);
+            pendingInitialTitleSelectionRef.current = null;
           }}
         >
           <View style={styles.newCollectionSheet}>
@@ -721,7 +731,6 @@ export default function Terreiro() {
                 autoCorrect={false}
                 autoCapitalize="sentences"
                 returnKeyType="done"
-                selection={newCollectionTitleSelection}
                 onSubmitEditing={() => {
                   if (newCollectionSheetMode === "rename") {
                     void renameCollectionFromSheet();
