@@ -1,8 +1,3 @@
-export const radii = {
-  sm: 10,
-  md: 14,
-  lg: 18,
-  xl: 24,
-} as const;
-
-export type SaravafyRadii = typeof radii;
+// Facade: a fonte da verdade vive em @saravafy/design-tokens
+export { radii } from "@saravafy/design-tokens";
+export type { SaravafyRadii } from "@saravafy/design-tokens";

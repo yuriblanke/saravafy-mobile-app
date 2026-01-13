@@ -145,9 +145,10 @@ export default function Terreiro() {
   const canEdit = isAdminOrEditor;
 
   const newCollectionTitleInputRef = useRef<TextInput | null>(null);
-  const pendingInitialTitleSelectionRef = useRef<
-    { start: number; end: number } | null
-  >(null);
+  const pendingInitialTitleSelectionRef = useRef<{
+    start: number;
+    end: number;
+  } | null>(null);
 
   const [isNewCollectionSheetOpen, setIsNewCollectionSheetOpen] =
     useState(false);

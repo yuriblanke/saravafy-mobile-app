@@ -50,6 +50,7 @@ Requisitos atendidos:
 A landing **não é um site institucional**: ela é uma extensão do app.
 
 - Cores, tema (dark/light) e “atmosfera” (gradientes/vinheta) seguem os tokens do app (`src/theme/colors.ts`).
+- (Fonte da verdade) Tokens vivem em `@saravafy/design-tokens`; `src/theme/*` é apenas fachada.
 - O layout é propositalmente simples e centrado no CTA, mantendo consistência com a estética do mobile.
 
 ### Anti-cache (por design)

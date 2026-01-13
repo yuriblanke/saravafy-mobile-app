@@ -4,6 +4,16 @@ Este documento descreve **o único fluxo suportado e validado** para build, inst
 
 ---
 
+## Design tokens (tema)
+
+Os tokens de UI (cores, spacing, radii, shadows) agora têm **source of truth** no package:
+
+- `@saravafy/design-tokens` (repo: `saravafy-design-tokens`)
+
+No app, `src/theme/*` é apenas uma **fachada (reexports)** para evitar refatorar imports existentes.
+
+---
+
 ## Instalar Saravafy Dev (USB / Dev Client)
 
 ```sh

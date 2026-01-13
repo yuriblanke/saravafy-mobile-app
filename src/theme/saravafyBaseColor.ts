@@ -1,7 +1,3 @@
-import { colors } from "./colors";
-
-export type SaravafyTheme = "light" | "dark";
-
-export function getSaravafyBaseColor(theme: SaravafyTheme) {
-  return theme === "light" ? colors.paper50 : colors.forest900;
-}
+// Facade: a fonte da verdade vive em @saravafy/design-tokens
+export { getSaravafyBaseColor } from "@saravafy/design-tokens";
+export type { SaravafyTheme } from "@saravafy/design-tokens";
