@@ -324,22 +324,10 @@ async function uploadCoverWebpToPath(params: {
   return withCacheBust(publicUrl);
 }
 
-async function uploadCoverWebpTemp(params: {
-  draftId: string;
-  webpUri: string;
-}) {
-  const path = `terreiros/__pending__/${params.draftId}/cover.webp`;
-  return uploadCoverWebpToPath({ path, webpUri: params.webpUri });
-}
-
-async function deleteTempCoverIfPossible(draftId: string) {
-  try {
-    await supabase.storage
-      .from("terreiros-images")
-      .remove([`terreiros/__pending__/${draftId}/cover.webp`]);
-  } catch {
-    // silêncio
-  }
+function makeUniqueFileName(ext: string) {
+  const safeExt = (ext ?? "").trim().toLowerCase().replace(/^\.+/, "");
+  const finalExt = safeExt || "bin";
+  return `${Date.now()}-${Crypto.randomUUID()}.${finalExt}`;
 }
 
 async function deleteFinalCoverIfPossible(terreiroId: string) {
@@ -482,6 +470,137 @@ async function upsertPrimaryContato(payload: {
         : "Contato: não foi possível salvar."
     );
   }
+}
+
+type CreateTerreiroFlowInput = {
+  currentUserId: string;
+
+  title: string;
+  about: string | null;
+  linesOfWork: string | null;
+
+  contato: {
+    city: string;
+    stateUF: string;
+    neighborhood: string | null;
+    address: string;
+    phoneDigits: string | null;
+    phoneIsWhatsapp: boolean;
+    instagramHandle: string | null;
+  };
+
+  coverWebpUri: string | null;
+};
+
+type CreateTerreiroFlowResult = {
+  terreiroId: string;
+  coverImageUrl: string | null;
+  coverImageFailed: boolean;
+};
+
+async function createTerreiroFlow(
+  input: CreateTerreiroFlowInput
+): Promise<CreateTerreiroFlowResult> {
+  const log = (...args: unknown[]) => {
+    if (typeof __DEV__ !== "undefined" && __DEV__) {
+      // eslint-disable-next-line no-console
+      console.debug("[CreateTerreiroFlow]", ...args);
+    }
+  };
+
+  // 3.1) Criar terreiro
+  log("3.1 insert terreiros");
+  const terreiroRes = await supabase
+    .from("terreiros")
+    .insert({
+      title: input.title,
+      about: input.about,
+      lines_of_work: input.linesOfWork,
+      created_by: input.currentUserId,
+    } as any)
+    .select("id")
+    .single();
+
+  if (terreiroRes.error || !terreiroRes.data?.id) {
+    throw new Error(
+      typeof terreiroRes.error?.message === "string" &&
+        terreiroRes.error.message.trim()
+        ? `Terreiro: ${terreiroRes.error.message}`
+        : "Terreiro: não foi possível criar."
+    );
+  }
+
+  const terreiroId = terreiroRes.data.id as string;
+
+  // 3.2) Criar membership do criador como admin/active (ANTES de qualquer upload)
+  log("3.2 insert terreiro_members (admin/active)");
+  const memberRes = await supabase.from("terreiro_members").insert({
+    terreiro_id: terreiroId,
+    user_id: input.currentUserId,
+    role: "admin",
+    status: "active",
+  } as any);
+
+  if (memberRes.error) {
+    throw new Error(
+      typeof memberRes.error.message === "string" && memberRes.error.message
+        ? `Acesso: ${memberRes.error.message}`
+        : "Acesso: não foi possível criar a administração do terreiro."
+    );
+  }
+
+  // 3.3) Criar contato primário
+  log("3.3 upsert terreiros_contatos");
+  await upsertPrimaryContato({
+    terreiro_id: terreiroId,
+    city: input.contato.city,
+    state: input.contato.stateUF,
+    neighborhood: input.contato.neighborhood,
+    address: input.contato.address,
+    phone_whatsapp: input.contato.phoneDigits,
+    phone_is_whatsapp: input.contato.phoneIsWhatsapp,
+    instagram_handle: input.contato.instagramHandle,
+    is_primary: true,
+  });
+
+  // 3.4) Upload de imagem (opcional) + update cover_image_url
+  let coverImageUrl: string | null = null;
+  let coverImageFailed = false;
+
+  if (input.coverWebpUri) {
+    const fileName = makeUniqueFileName("webp");
+    const path = `terreiros/${terreiroId}/${fileName}`;
+
+    try {
+      log("3.4 upload storage", { path });
+      const uploadedUrl = await uploadCoverWebpToPath({
+        path,
+        webpUri: input.coverWebpUri,
+      });
+
+      log("3.4 update terreiros.cover_image_url");
+      const updateRes = await supabase
+        .from("terreiros")
+        .update({ cover_image_url: uploadedUrl })
+        .eq("id", terreiroId);
+
+      if (updateRes.error) {
+        throw new Error(
+          typeof updateRes.error.message === "string"
+            ? updateRes.error.message
+            : "Não foi possível salvar a URL da imagem."
+        );
+      }
+
+      coverImageUrl = uploadedUrl;
+    } catch (error) {
+      coverImageFailed = true;
+      coverImageUrl = null;
+      log("3.4 failed", error instanceof Error ? error.message : error);
+    }
+  }
+
+  return { terreiroId, coverImageUrl, coverImageFailed };
 }
 
 export default function TerreiroEditor() {
@@ -1131,6 +1250,14 @@ export default function TerreiroEditor() {
   const onSave = async () => {
     if (saving) return;
 
+    if (!user?.id) {
+      Alert.alert(
+        "Sessão",
+        "Você precisa estar logado para criar ou editar um terreiro."
+      );
+      return;
+    }
+
     const title = form.title.trim();
     if (!title) {
       Alert.alert("Faltou algo", "Nome do terreiro é obrigatório.");
@@ -1164,106 +1291,31 @@ export default function TerreiroEditor() {
       const newWebp = webpLocalUriRef.current;
 
       if (!isEdit) {
-        // CREATE (RLS): upload primeiro, depois RPC.
-        const draftId = form.id;
-
-        let tempCoverUrl: string | null = null;
-        if (newWebp) {
-          tempCoverUrl = await uploadCoverWebpTemp({
-            draftId,
-            webpUri: newWebp,
-          });
-        }
-
-        const tryRpcMinimal = async () =>
-          supabase.rpc("fn_create_terreiro", {
-            p_title: title,
-            p_about: form.about.trim() ? form.about.trim() : null,
-            p_lines_of_work: form.linesOfWork.trim()
-              ? form.linesOfWork.trim()
+        const created = await createTerreiroFlow({
+          currentUserId: user.id,
+          title,
+          about: form.about.trim() ? form.about.trim() : null,
+          linesOfWork: form.linesOfWork.trim() ? form.linesOfWork.trim() : null,
+          contato: {
+            city,
+            stateUF,
+            neighborhood: form.neighborhood.trim()
+              ? form.neighborhood.trim()
               : null,
-            p_cover_image_url: tempCoverUrl,
-          });
+            address,
+            phoneDigits: digits ? digits : null,
+            phoneIsWhatsapp: !!form.isWhatsappUi,
+            instagramHandle: instagram ? instagram : null,
+          },
+          coverWebpUri: newWebp,
+        });
 
-        const tryRpcWithRequiredAddressArgs = async () =>
-          supabase.rpc("fn_create_terreiro", {
-            p_title: title,
-            p_state: stateUF,
-            p_city: city,
-            p_address: address,
-            p_about: form.about.trim() ? form.about.trim() : null,
-            p_lines_of_work: form.linesOfWork.trim()
-              ? form.linesOfWork.trim()
-              : null,
-            p_cover_image_url: tempCoverUrl,
-          });
+        const createdId = created.terreiroId;
+        const finalCoverUrl = created.coverImageUrl;
 
-        let createdId: string | null = null;
-
-        const rpcMin = await tryRpcMinimal();
-        if (!rpcMin.error && typeof rpcMin.data === "string" && rpcMin.data) {
-          createdId = rpcMin.data;
+        if (created.coverImageFailed) {
+          showToast("Terreiro criado, mas não foi possível salvar a imagem.");
         }
-
-        if (!createdId) {
-          const rpcReq = await tryRpcWithRequiredAddressArgs();
-          if (!rpcReq.error && typeof rpcReq.data === "string" && rpcReq.data) {
-            createdId = rpcReq.data;
-          }
-
-          if (!createdId) {
-            const msg =
-              (rpcReq.error && typeof rpcReq.error.message === "string"
-                ? rpcReq.error.message
-                : "") ||
-              (rpcMin.error && typeof rpcMin.error.message === "string"
-                ? rpcMin.error.message
-                : "");
-
-            throw new Error(msg || "Não foi possível criar o terreiro.");
-          }
-        }
-
-        // Garantir o caminho final obrigatório do cover.
-        let finalCoverUrl: string | null = tempCoverUrl;
-        if (newWebp) {
-          finalCoverUrl = await uploadCoverWebp({
-            terreiroId: createdId,
-            webpUri: newWebp,
-          });
-
-          const updateRes = await supabase
-            .from("terreiros")
-            .update({ cover_image_url: finalCoverUrl })
-            .eq("id", createdId);
-
-          if (updateRes.error) {
-            throw new Error(
-              typeof updateRes.error.message === "string"
-                ? `Terreiro: ${updateRes.error.message}`
-                : "Terreiro: não foi possível finalizar a imagem."
-            );
-          }
-
-          deleteTempCoverIfPossible(draftId).catch(() => undefined);
-        }
-
-        // Gravar/atualizar contato primário via tabela dedicada.
-        const contatoPayload = {
-          terreiro_id: createdId,
-          city,
-          state: stateUF,
-          neighborhood: form.neighborhood.trim()
-            ? form.neighborhood.trim()
-            : null,
-          address,
-          phone_whatsapp: digits ? digits : null,
-          phone_is_whatsapp: !!form.isWhatsappUi,
-          instagram_handle: instagram ? instagram : null,
-          is_primary: true,
-        };
-
-        await upsertPrimaryContato(contatoPayload);
 
         applyTerreiroPatch({
           terreiroId: createdId,

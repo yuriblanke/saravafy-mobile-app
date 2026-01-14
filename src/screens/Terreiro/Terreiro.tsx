@@ -1560,8 +1560,7 @@ const styles = StyleSheet.create({
   newCollectionFiller: {
     width: "100%",
     height: 290,
-    resizeMode: "cover",
-    borderRadius: 12,
+    marginTop: spacing.lg,
   },
 
   confirmText: {
