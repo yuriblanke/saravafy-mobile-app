@@ -1559,7 +1559,7 @@ const styles = StyleSheet.create({
   },
   newCollectionFiller: {
     width: "100%",
-    height: 285,
+    height: 290,
     resizeMode: "cover",
     borderRadius: 12,
   },

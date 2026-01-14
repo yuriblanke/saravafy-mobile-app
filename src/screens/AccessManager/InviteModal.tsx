@@ -71,7 +71,10 @@ export type TerreiroRoleDefinition = {
   infoProps: InfoProps;
 };
 
-export type TerreiroRoleDefinitions = Record<AccessRole, TerreiroRoleDefinition>;
+export type TerreiroRoleDefinitions = Record<
+  AccessRole,
+  TerreiroRoleDefinition
+>;
 
 export function InviteModal(props: Props) {
   const { visible, variant, mode, onClose, onSubmit, isSubmitting } = props;
@@ -124,8 +127,7 @@ export function InviteModal(props: Props) {
       ? "Convidar gestão"
       : "Convidar membro";
 
-  const roleLabel =
-    (roleDefs && roleDefs[role]?.label) || String(role ?? "");
+  const roleLabel = (roleDefs && roleDefs[role]?.label) || String(role ?? "");
 
   const submitDisabled = isSubmitting || !emailOk;
 
@@ -241,9 +243,7 @@ export function InviteModal(props: Props) {
           </View>
         ) : (
           <View style={styles.memberFixedRow}>
-            <Text style={[styles.label, { color: textSecondary }]}>
-              Role
-            </Text>
+            <Text style={[styles.label, { color: textSecondary }]}>Role</Text>
             <View style={styles.memberFixedRight}>
               <Text style={[styles.memberFixedValue, { color: textMuted }]}>
                 Role: {roleDefs ? roleDefs.member.label : "member"}
@@ -329,7 +329,7 @@ const styles = StyleSheet.create({
   },
   filler: {
     width: "100%",
-    height: 265,
+    height: 290,
     marginTop: spacing.lg,
   },
   sheetTitle: {

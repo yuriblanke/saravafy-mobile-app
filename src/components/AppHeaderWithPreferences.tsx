@@ -2457,7 +2457,7 @@ const styles = StyleSheet.create({
   },
   curatorAdminFiller: {
     width: "100%",
-    height: 265,
+    height: 290,
     marginTop: spacing.lg,
   },
   sectionDesc: {

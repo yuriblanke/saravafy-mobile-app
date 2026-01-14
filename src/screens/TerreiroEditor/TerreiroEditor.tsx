@@ -14,7 +14,6 @@ import {
   Platform,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Switch,
   Text,
@@ -38,7 +37,6 @@ import {
 import { colors, radii, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
-import * as Clipboard from "expo-clipboard";
 import * as Crypto from "expo-crypto";
 import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
@@ -2161,7 +2159,6 @@ export default function TerreiroEditor() {
           </Pressable>
         </View>
       </BottomSheet>
-
     </View>
   );
 }
@@ -2700,7 +2697,7 @@ const styles = StyleSheet.create({
   },
   filler: {
     width: "100%",
-    height: 265,
+    height: 290,
     marginTop: spacing.lg,
   },
   bottomPad: {

@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
   },
   filler: {
     width: "100%",
-    height: 285,
+    height: 290,
     marginTop: spacing.lg,
   },
 });
