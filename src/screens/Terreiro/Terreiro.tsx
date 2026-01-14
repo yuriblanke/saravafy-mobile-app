@@ -691,7 +691,6 @@ export default function Terreiro() {
         <BottomSheet
           visible={isNewCollectionSheetOpen}
           variant={variant}
-          scrollEnabled={false}
           onClose={() => {
             if (isSubmittingCollectionTitle) return;
             setIsNewCollectionSheetOpen(false);
