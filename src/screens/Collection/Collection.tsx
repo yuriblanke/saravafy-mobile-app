@@ -140,7 +140,15 @@ export default function Collection() {
     require("@/contexts/PreferencesContext").usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
 
-  const collectionId = String(params.id ?? params.collectionId ?? "");
+  const collectionIdFromParams = Array.isArray(params.id)
+    ? params.id[0]
+    : params.id;
+  const collectionIdFromLegacyParams = Array.isArray(params.collectionId)
+    ? params.collectionId[0]
+    : params.collectionId;
+  const collectionId = String(
+    collectionIdFromParams ?? collectionIdFromLegacyParams ?? ""
+  );
   const titleFallback =
     (typeof params.collectionTitle === "string" &&
       params.collectionTitle.trim()) ||
@@ -1063,7 +1071,15 @@ export default function Collection() {
                 accessibilityRole="button"
                 accessibilityLabel="Adicionar"
                 onPress={() => {
-                  goToPontosTab();
+                  if (!collectionId) {
+                    showToast("Não foi possível abrir esta coleção.");
+                    return;
+                  }
+
+                  router.push({
+                    pathname: "/collection/[id]/add" as any,
+                    params: { id: collectionId },
+                  });
                 }}
                 style={({ pressed }) => [
                   styles.primaryActionBtn,
@@ -1175,7 +1191,7 @@ export default function Collection() {
                   accessibilityRole="button"
                   onPress={() => {
                     if (!collectionId) {
-                      goToPontosTab();
+                      showToast("Não foi possível abrir esta coleção.");
                       return;
                     }
 
