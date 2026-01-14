@@ -100,11 +100,7 @@ export function PlayerSearchModal(props: {
 
           <View style={styles.resultsArea}>
             {!canSearch ? (
-              <View style={styles.stateWrap}>
-                <Text style={[styles.stateText, { color: textSecondary }]}>
-                  Digite pelo menos 4 caracteres
-                </Text>
-              </View>
+              <View style={styles.stateWrap} />
             ) : isLoading ? (
               <View style={styles.stateWrap}>
                 <ActivityIndicator />

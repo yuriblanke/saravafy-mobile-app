@@ -111,7 +111,7 @@ export function AddMediumTagSheet(props: {
 
   const canSubmit = useMemo(() => {
     const v = normalizeInput(value);
-    return v.length > 0 && v.length <= 60;
+    return v.length >= 2 && v.length <= 60;
   }, [value]);
 
   useEffect(() => {
@@ -140,7 +140,6 @@ export function AddMediumTagSheet(props: {
 
     const raw = normalizeInput(value);
     if (raw.length < 2) {
-      showToast("Digite pelo menos 2 caracteres.");
       return;
     }
 

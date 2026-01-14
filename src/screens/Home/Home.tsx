@@ -818,13 +818,7 @@ export default function Home() {
           </View>
         </View>
 
-        {shouldShowSearchStates && !canSearch ? (
-          <View style={{ paddingHorizontal: spacing.lg }}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Digite pelo menos 4 caracteres
-            </Text>
-          </View>
-        ) : shouldShowSearchResults ? (
+        {shouldShowSearchResults ? (
           searchError ? (
             <View style={{ paddingHorizontal: spacing.lg }}>
               <Text style={[styles.bodyText, { color: textSecondary }]}>

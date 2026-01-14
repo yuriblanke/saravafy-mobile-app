@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
@@ -13,7 +14,6 @@ import {
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
 import { normalizeTag } from "@/src/utils/mergeTags";
-import { supabase } from "@/lib/supabase";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -189,7 +189,10 @@ export default function AddToCollection() {
       : colors.surfaceCardBorder;
 
   const [searchQuery, setSearchQuery] = useState("");
-  const queryHasText = useMemo(() => Boolean(searchQuery.trim()), [searchQuery]);
+  const queryHasText = useMemo(
+    () => Boolean(searchQuery.trim()),
+    [searchQuery]
+  );
 
   const collectionQuery = useQuery({
     queryKey: collectionId ? queryKeys.collections.byId(collectionId) : [],
@@ -215,7 +218,10 @@ export default function AddToCollection() {
 
       return {
         id: String((res.data as any)?.id ?? ""),
-        title: typeof (res.data as any)?.title === "string" ? (res.data as any).title : null,
+        title:
+          typeof (res.data as any)?.title === "string"
+            ? (res.data as any).title
+            : null,
       } as { id: string; title: string | null };
     },
     placeholderData: (prev) => prev,
@@ -236,7 +242,9 @@ export default function AddToCollection() {
 
   const alreadyInCollectionIds = useMemo(() => {
     const items = collectionPontosQuery.data ?? [];
-    return new Set(items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean));
+    return new Set(
+      items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean)
+    );
   }, [collectionPontosQuery.data]);
 
   // Reusa a mesma queryKey do player (e mantém o mesmo shape) para evitar
@@ -285,8 +293,10 @@ export default function AddToCollection() {
                 : row?.duration_seconds == null
                 ? null
                 : Number(row.duration_seconds),
-            audio_url: typeof row?.audio_url === "string" ? row.audio_url : null,
-            cover_url: typeof row?.cover_url === "string" ? row.cover_url : null,
+            audio_url:
+              typeof row?.audio_url === "string" ? row.audio_url : null,
+            cover_url:
+              typeof row?.cover_url === "string" ? row.cover_url : null,
             lyrics,
             tags: coerceStringArray(row?.tags),
           } satisfies PlayerPonto;
@@ -348,7 +358,9 @@ export default function AddToCollection() {
         return {
           id,
           title: String(r?.title ?? "Ponto"),
-          tags: Array.isArray(r?.tags) ? r.tags.filter((t) => typeof t === "string") : [],
+          tags: Array.isArray(r?.tags)
+            ? r.tags.filter((t) => typeof t === "string")
+            : [],
           lyrics: String(r?.lyrics ?? ""),
           lyrics_preview_6: r?.lyrics_preview_6 ?? null,
         } satisfies ListPonto;
@@ -386,7 +398,9 @@ export default function AddToCollection() {
     onMutate: async (vars) => {
       const pontoId = vars.ponto.id;
 
-      setAddingIds((prev) => (prev.includes(pontoId) ? prev : [...prev, pontoId]));
+      setAddingIds((prev) =>
+        prev.includes(pontoId) ? prev : [...prev, pontoId]
+      );
 
       const playerPonto = toPlayerPonto(vars.ponto);
       const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
@@ -425,7 +439,11 @@ export default function AddToCollection() {
       showToast(getErrorMessage(e));
     },
     onSuccess: (res) => {
-      showToast(res.alreadyExists ? "Este ponto já estava na coleção" : "Ponto adicionado à coleção");
+      showToast(
+        res.alreadyExists
+          ? "Este ponto já estava na coleção"
+          : "Ponto adicionado à coleção"
+      );
     },
     onSettled: (_data, _err, vars) => {
       const pontoId = vars?.ponto?.id;
@@ -469,11 +487,18 @@ export default function AddToCollection() {
         // erro já tratado no onError
       }
     },
-    [addMutation, alreadyInCollectionIds, collectionId, router, showToast, userId]
+    [
+      addMutation,
+      alreadyInCollectionIds,
+      collectionId,
+      router,
+      showToast,
+      userId,
+    ]
   );
 
   const Header = (
-    <View style={[styles.header, { borderColor }]}> 
+    <View style={[styles.header, { borderColor }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voltar"
@@ -488,10 +513,16 @@ export default function AddToCollection() {
       </Pressable>
 
       <View style={styles.headerTitleWrap}>
-        <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
           Adicionar a esta coleção
         </Text>
-        <Text style={[styles.headerSubtitle, { color: textSecondary }]} numberOfLines={1}>
+        <Text
+          style={[styles.headerSubtitle, { color: textSecondary }]}
+          numberOfLines={1}
+        >
           {collectionTitle}
         </Text>
       </View>
@@ -539,7 +570,9 @@ export default function AddToCollection() {
             style={styles.clearButton}
             hitSlop={10}
           >
-            <Text style={[styles.clearButtonText, { color: textMuted }]}>×</Text>
+            <Text style={[styles.clearButtonText, { color: textMuted }]}>
+              ×
+            </Text>
           </Pressable>
         ) : null}
       </View>
@@ -618,7 +651,11 @@ export default function AddToCollection() {
 
               <View style={styles.tagsRow}>
                 {item.tags.map((tag) => (
-                  <TagChip key={`${item.id}-${tag}`} label={tag} variant={variant} />
+                  <TagChip
+                    key={`${item.id}-${tag}`}
+                    label={tag}
+                    variant={variant}
+                  />
                 ))}
               </View>
 
@@ -648,20 +685,12 @@ export default function AddToCollection() {
   );
 
   const ListHeader = useMemo(() => {
-    if (shouldShowSearchStates && !canSearch) {
-      return (
-        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Digite pelo menos 4 caracteres
-          </Text>
-        </View>
-      );
-    }
-
     if (shouldShowSearchResults) {
       if (searchError) {
         return (
-          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          <View
+            style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}
+          >
             <Text style={[styles.bodyText, { color: textSecondary }]}>
               {searchError}
             </Text>
@@ -670,14 +699,18 @@ export default function AddToCollection() {
       }
       if (isSearching) {
         return (
-          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+          <View
+            style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}
+          >
             <ActivityIndicator />
           </View>
         );
       }
       if (searchedPontos.length === 0 && lastSearched) {
         return (
-          <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          <View
+            style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}
+          >
             <Text style={[styles.bodyText, { color: textSecondary }]}>
               Nenhum ponto encontrado
             </Text>
@@ -696,7 +729,9 @@ export default function AddToCollection() {
 
     return (
       <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
-        <Text style={[styles.sectionTitle, { color: textMuted }]}>Sugestões</Text>
+        <Text style={[styles.sectionTitle, { color: textMuted }]}>
+          Sugestões
+        </Text>
       </View>
     );
   }, [
@@ -713,17 +748,19 @@ export default function AddToCollection() {
 
   if (!collectionId) {
     return (
-      <View style={[styles.screen, { backgroundColor: baseBgColor }]}> 
+      <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
         {Header}
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
-          <Text style={[styles.bodyText, { color: textSecondary }]}>Coleção inválida.</Text>
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Coleção inválida.
+          </Text>
         </View>
       </View>
     );
   }
 
   return (
-    <View style={[styles.screen, { backgroundColor: baseBgColor }]}> 
+    <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
       {Header}
       {SearchBar}
 
