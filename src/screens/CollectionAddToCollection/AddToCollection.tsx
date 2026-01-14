@@ -19,7 +19,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   FlatList,
   Pressable,
   StyleSheet,
@@ -576,14 +575,6 @@ export default function AddToCollection() {
           </Pressable>
         ) : null}
       </View>
-
-      {!queryHasText && suggestionTags.length > 0 ? (
-        <View style={styles.suggestionTagsRow}>
-          {suggestionTags.map((t) => (
-            <TagChip key={`suggest-tag-${t}`} label={t} variant={variant} />
-          ))}
-        </View>
-      ) : null}
     </View>
   );
 
@@ -685,66 +676,32 @@ export default function AddToCollection() {
   );
 
   const ListHeader = useMemo(() => {
-    if (shouldShowSearchResults) {
-      if (searchError) {
-        return (
-          <View
-            style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}
-          >
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              {searchError}
-            </Text>
-          </View>
-        );
-      }
-      if (isSearching) {
-        return (
-          <View
-            style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}
-          >
-            <ActivityIndicator />
-          </View>
-        );
-      }
-      if (searchedPontos.length === 0 && lastSearched) {
-        return (
-          <View
-            style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}
-          >
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Nenhum ponto encontrado
-            </Text>
-          </View>
-        );
-      }
+    // Sem títulos de seção e sem UI de loading.
+    // Mantemos apenas feedback de erro/empty (quando houve uma busca de fato).
+    if (!shouldShowSearchResults) return null;
 
+    if (searchError) {
       return (
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
-          <Text style={[styles.sectionTitle, { color: textMuted }]}>
-            Resultados
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            {searchError}
           </Text>
         </View>
       );
     }
 
-    return (
-      <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
-        <Text style={[styles.sectionTitle, { color: textMuted }]}>
-          Sugestões
-        </Text>
-      </View>
-    );
-  }, [
-    canSearch,
-    isSearching,
-    lastSearched,
-    searchError,
-    searchedPontos.length,
-    shouldShowSearchResults,
-    shouldShowSearchStates,
-    textMuted,
-    textSecondary,
-  ]);
+    if (searchedPontos.length === 0 && lastSearched) {
+      return (
+        <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
+          <Text style={[styles.bodyText, { color: textSecondary }]}>
+            Nenhum ponto encontrado
+          </Text>
+        </View>
+      );
+    }
+
+    return null;
+  }, [lastSearched, searchError, searchedPontos.length, shouldShowSearchResults, textSecondary]);
 
   if (!collectionId) {
     return (
@@ -786,7 +743,6 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.sm,
     flexDirection: "row",
     alignItems: "center",
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
   headerIconBtn: {
     width: 40,
@@ -838,20 +794,8 @@ const styles = StyleSheet.create({
     lineHeight: 22,
     fontWeight: "600",
   },
-  suggestionTagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingTop: spacing.sm,
-  },
   listContent: {
     paddingBottom: spacing.xl,
-  },
-  sectionTitle: {
-    fontSize: 12,
-    fontWeight: "800",
-    letterSpacing: 0.8,
-    textTransform: "uppercase",
   },
   bodyText: {
     fontSize: 13,
