@@ -446,7 +446,7 @@ async function fetchMyTerreirosWithRole(params: {
 
 export function useMyTerreirosWithRoleQuery(userId: string | null) {
   return useQuery({
-    queryKey: userId ? queryKeys.me.terreirosWithRole(userId) : [],
+    queryKey: userId ? queryKeys.preferences.terreiros(userId) : [],
     enabled: !!userId,
     staleTime: 60_000,
     queryFn: async () => {
@@ -455,6 +455,11 @@ export function useMyTerreirosWithRoleQuery(userId: string | null) {
     },
     placeholderData: (prev) => prev,
   });
+}
+
+// Alias semântico: o menu Preferences consome esta lista.
+export function usePreferencesTerreirosQuery(userId: string | null) {
+  return useMyTerreirosWithRoleQuery(userId);
 }
 
 export function useMyEditableTerreirosQuery(userId: string | null) {

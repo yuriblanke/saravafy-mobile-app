@@ -130,6 +130,54 @@ export function patchTerreiroInLists(
     queryClient.setQueryData(key, next);
   }
 
+  // Patch the Preferences list (My terreiros with role) cache.
+  // We setQueryData even if it was undefined so new terreiros show immediately
+  // while the server state reconciles via invalidate.
+  const preferencesKey = queryKeys.preferences.terreiros(userId);
+  queryClient.setQueryData(preferencesKey, (prev: any) => {
+    const arr = Array.isArray(prev) ? prev : [];
+    const next = [...arr];
+    const idx = next.findIndex((t: any) => t?.id === terreiro.id);
+
+    const role =
+      terreiro.role === "admin" ||
+      terreiro.role === "editor" ||
+      terreiro.role === "member"
+        ? terreiro.role
+        : idx >= 0
+        ? next[idx]?.role
+        : "admin";
+
+    const cover = hasCoverField
+      ? typeof terreiro.coverImageUrl === "string"
+        ? terreiro.coverImageUrl
+        : null
+      : idx >= 0
+      ? next[idx]?.cover_image_url ?? null
+      : null;
+
+    if (idx >= 0) {
+      next[idx] = {
+        ...next[idx],
+        title: terreiro.name,
+        cover_image_url: cover,
+        role,
+      };
+    } else {
+      next.push({
+        id: terreiro.id,
+        title: terreiro.name,
+        cover_image_url: cover,
+        role,
+      });
+    }
+
+    next.sort((a: any, b: any) =>
+      safeLocaleCompare(String(a?.title ?? ""), String(b?.title ?? ""))
+    );
+    return next;
+  });
+
   // Patch editable terreiros list (admin/editor) if present.
   const editableKey = queryKeys.me.editableTerreiros(userId);
   const prevEditable = queryClient.getQueryData(editableKey) as any;
@@ -179,4 +227,25 @@ export function patchTerreiroInLists(
     );
     queryClient.setQueryData(editableKey, next);
   }
+}
+
+export function removeTerreiroFromLists(
+  queryClient: QueryClient,
+  params: { userId: string; terreiroId: string }
+) {
+  const { userId, terreiroId } = params;
+  if (!userId || !terreiroId) return;
+
+  const removeIfPresent = (key: readonly unknown[]) => {
+    const prev = queryClient.getQueryData(key) as any;
+    if (!Array.isArray(prev)) return;
+    queryClient.setQueryData(key, (arr: any) => {
+      const list = Array.isArray(arr) ? arr : [];
+      return list.filter((t: any) => String(t?.id ?? "") !== terreiroId);
+    });
+  };
+
+  removeIfPresent(queryKeys.preferences.terreiros(userId));
+  removeIfPresent(queryKeys.terreiros.withRole(userId));
+  removeIfPresent(queryKeys.me.editableTerreiros(userId));
 }

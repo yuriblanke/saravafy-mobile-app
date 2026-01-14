@@ -33,6 +33,7 @@ import {
   invalidateTerreiro,
   invalidateTerreiroListsForRoles,
   patchTerreiroInLists,
+  removeTerreiroFromLists,
 } from "@/src/queries/terreirosCache";
 import { colors, radii, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -490,6 +491,12 @@ type CreateTerreiroFlowInput = {
   };
 
   coverWebpUri: string | null;
+
+  /**
+   * Called after the terreiro + membership + primary contato are created,
+   * but before optional image upload. Used to update caches immediately.
+   */
+  onBaseCreated?: (terreiroId: string) => void | Promise<void>;
 };
 
 type CreateTerreiroFlowResult = {
@@ -562,6 +569,15 @@ async function createTerreiroFlow(
     instagram_handle: input.contato.instagramHandle,
     is_primary: true,
   });
+
+  // Allow UI to patch caches before the optional upload (so menus update immediately).
+  if (input.onBaseCreated) {
+    try {
+      await input.onBaseCreated(terreiroId);
+    } catch (e) {
+      log("onBaseCreated failed", e);
+    }
+  }
 
   // 3.4) Upload de imagem (opcional) + update cover_image_url
   let coverImageUrl: string | null = null;
@@ -864,6 +880,19 @@ export default function TerreiroEditor() {
       return;
     }
 
+    // Optimistic: remove immediately from Preferences + related lists.
+    const prevPreferences = queryClient.getQueryData(
+      queryKeys.preferences.terreiros(user.id)
+    );
+    const prevWithRole = queryClient.getQueryData(
+      queryKeys.terreiros.withRole(user.id)
+    );
+    const prevEditable = queryClient.getQueryData(
+      queryKeys.me.editableTerreiros(user.id)
+    );
+
+    removeTerreiroFromLists(queryClient, { userId: user.id, terreiroId: id });
+
     setDeletingTerreiro(true);
     try {
       await deleteTerreiroStorageFolder(id);
@@ -897,15 +926,36 @@ export default function TerreiroEditor() {
 
       invalidateTerreiro(queryClient, id);
       invalidateTerreiroListsForRoles(queryClient, user.id);
-      void queryClient.refetchQueries({
-        queryKey: queryKeys.terreiros.withRole(user.id),
-        type: "all",
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.preferences.terreiros(user.id),
       });
+
+      // Clear detail caches for the deleted terreiro
+      queryClient.removeQueries({ queryKey: queryKeys.terreiros.byId(id) });
+      queryClient.removeQueries({
+        queryKey: queryKeys.terreiros.collectionsByTerreiro(id),
+      });
+      queryClient.removeQueries({ queryKey: queryKeys.pontos.terreiro(id) });
+
       fetchTerreirosQueAdministro(user.id).catch(() => undefined);
 
       setDeleteModalOpen(false);
       router.replace("/(app)/(tabs)/(terreiros)" as any);
     } catch (error) {
+      // Rollback optimistic cache changes
+      queryClient.setQueryData(
+        queryKeys.preferences.terreiros(user.id),
+        prevPreferences as any
+      );
+      queryClient.setQueryData(
+        queryKeys.terreiros.withRole(user.id),
+        prevWithRole as any
+      );
+      queryClient.setQueryData(
+        queryKeys.me.editableTerreiros(user.id),
+        prevEditable as any
+      );
+
       setDeleteInlineError(
         error instanceof Error
           ? error.message
@@ -1308,6 +1358,22 @@ export default function TerreiroEditor() {
             instagramHandle: instagram ? instagram : null,
           },
           coverWebpUri: newWebp,
+          onBaseCreated: async (terreiroId) => {
+            // Update menu Preferences immediately, even while the image is still uploading.
+            patchTerreiroInLists(queryClient, {
+              userId: user.id,
+              terreiro: {
+                id: terreiroId,
+                name: title,
+                coverImageUrl: null,
+                role: "admin",
+              },
+            });
+
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.preferences.terreiros(user.id),
+            });
+          },
         });
 
         const createdId = created.terreiroId;
@@ -1340,9 +1406,8 @@ export default function TerreiroEditor() {
 
           invalidateTerreiro(queryClient, createdId);
           invalidateTerreiroListsForRoles(queryClient, user.id);
-          void queryClient.refetchQueries({
-            queryKey: queryKeys.terreiros.withRole(user.id),
-            type: "all",
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.preferences.terreiros(user.id),
           });
         }
 

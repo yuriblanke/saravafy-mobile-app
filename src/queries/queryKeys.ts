@@ -1,12 +1,17 @@
 export const queryKeys = {
+  preferences: {
+    // Terreiros visíveis no menu Preferences (admin/editor/member ativos)
+    terreiros: (userId: string) => ["preferences", "terreiros", userId] as const,
+  },
   me: {
     profile: (userId: string) => ["me", "profile", userId] as const,
     membership: (userId: string) => ["me", "membership", userId] as const,
     terreiros: (userId: string) => ["me", "terreiros", userId] as const,
     terreiroAccessIds: (userId: string) =>
       ["me", "terreiroAccessIds", userId] as const,
+    // Deprecated (mantido por compatibilidade): use queryKeys.preferences.terreiros
     terreirosWithRole: (userId: string) =>
-      ["me", "terreirosWithRole", userId] as const,
+      ["preferences", "terreiros", userId] as const,
     editableTerreiros: (userId: string) =>
       ["me", "editableTerreiros", userId] as const,
     permissions: (userId: string) => ["me", "permissions", userId] as const,

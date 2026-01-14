@@ -21,10 +21,11 @@ import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import {
-  useMyTerreirosWithRoleQuery,
+  usePreferencesTerreirosQuery,
   type MyTerreiroRole,
   type MyTerreiroWithRole,
 } from "@/src/queries/me";
+import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -425,6 +426,9 @@ export function PreferencesOverlaySheets(
   const userEmail = typeof user?.email === "string" ? user.email : null;
   const normalizedUserEmail = userEmail ? userEmail.trim().toLowerCase() : null;
 
+  // Keep Preferences terreiros list in sync for this user.
+  usePreferencesTerreirosRealtime(userId);
+
   const {
     isCurator,
     isLoading: isCuratorLoading,
@@ -456,7 +460,7 @@ export function PreferencesOverlaySheets(
     };
   }, []);
 
-  const myTerreirosQuery = useMyTerreirosWithRoleQuery(userId);
+  const myTerreirosQuery = usePreferencesTerreirosQuery(userId);
   const myTerreiros = useMemo<MyTerreiroWithRole[]>(
     () => myTerreirosQuery.data ?? [],
     [myTerreirosQuery.data]
