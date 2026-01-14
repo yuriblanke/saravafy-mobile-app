@@ -4,7 +4,6 @@ import { useTabController } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
-import { SaravafyStackScene } from "@/src/components/SaravafyStackScene";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
@@ -641,7 +640,7 @@ export default function Collection() {
   ]);
 
   return (
-    <SaravafyStackScene theme={variant} variant="stack" style={styles.screen}>
+    <View style={styles.screen}>
       <View style={styles.fixedHeader}>
         <Pressable
           accessibilityRole="button"
@@ -780,28 +779,12 @@ export default function Collection() {
                 {
                   borderColor:
                     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark,
-                  backgroundColor:
-                    variant === "light" ? colors.inputBgLight : colors.inputBgDark,
                 },
                 pressed ? styles.pressed : null,
               ]}
             >
+              <Ionicons name="reorder-three" size={18} color={textPrimary} />
               <Text style={[styles.secondaryActionText, { color: textPrimary }]}>Editar</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Compartilhar"
-              onPress={() => {
-                void handleShare();
-              }}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.iconActionBtn,
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <Ionicons name="share-outline" size={18} color={textPrimary} />
             </Pressable>
 
             <Pressable
@@ -820,6 +803,21 @@ export default function Collection() {
               ]}
             >
               <Text style={[styles.tertiaryActionText, { color: textPrimary }]}>Nome e detalhes</Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Compartilhar"
+              onPress={() => {
+                void handleShare();
+              }}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.iconActionBtn,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <Ionicons name="share-outline" size={18} color={textPrimary} />
             </Pressable>
           </View>
         </View>
@@ -1163,7 +1161,7 @@ export default function Collection() {
           />
         )}
       </ScrollView>
-    </SaravafyStackScene>
+    </View>
   );
 }
 
@@ -1262,10 +1260,13 @@ const styles = StyleSheet.create({
   secondaryActionBtn: {
     height: 40,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 2,
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    backgroundColor: "transparent",
   },
   secondaryActionText: {
     fontSize: 13,
@@ -1275,7 +1276,7 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 12,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 2,
     borderColor: colors.surfaceCardBorder,
     alignItems: "center",
     justifyContent: "center",
