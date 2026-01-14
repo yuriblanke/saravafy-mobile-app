@@ -1,6 +1,6 @@
 import { supabase } from "@/lib/supabase";
-import { useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import { queryKeys } from "./queryKeys";
 
@@ -34,9 +34,15 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
 
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: key });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.editableTerreiros(userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.terreiros.withRole(userId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.editableTerreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.permissions(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.withRole(userId),
+      });
     };
 
     channel.on(
@@ -52,9 +58,10 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
         const nextRow = (payload?.new ?? null) as MemberChangeRow | null;
         const oldRow = (payload?.old ?? null) as MemberChangeRow | null;
 
-        const terreiroIdRaw =
-          (nextRow?.terreiro_id ?? oldRow?.terreiro_id) as unknown;
-        const terreiroId = typeof terreiroIdRaw === "string" ? terreiroIdRaw : "";
+        const terreiroIdRaw = (nextRow?.terreiro_id ??
+          oldRow?.terreiro_id) as unknown;
+        const terreiroId =
+          typeof terreiroIdRaw === "string" ? terreiroIdRaw : "";
         if (!terreiroId) {
           invalidate();
           return;
@@ -85,7 +92,9 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
         // Otherwise, upsert a minimal placeholder immediately and let the refetch fill title/cover.
         queryClient.setQueryData(key, (prev: any) => {
           const arr = Array.isArray(prev) ? prev : [];
-          const idx = arr.findIndex((t: any) => String(t?.id ?? "") === terreiroId);
+          const idx = arr.findIndex(
+            (t: any) => String(t?.id ?? "") === terreiroId
+          );
           const next = [...arr];
           if (idx >= 0) {
             next[idx] = {
@@ -102,9 +111,13 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
           }
 
           next.sort((a: any, b: any) =>
-            String(a?.title ?? "").localeCompare(String(b?.title ?? ""), "pt-BR", {
-              sensitivity: "base",
-            })
+            String(a?.title ?? "").localeCompare(
+              String(b?.title ?? ""),
+              "pt-BR",
+              {
+                sensitivity: "base",
+              }
+            )
           );
           return next;
         });

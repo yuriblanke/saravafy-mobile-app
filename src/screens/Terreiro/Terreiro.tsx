@@ -773,7 +773,12 @@ export default function Terreiro() {
               </Text>
             </Pressable>
 
-            <Image source={fillerPng} style={styles.newCollectionFiller} />
+            <Image
+              source={fillerPng}
+              style={styles.newCollectionFiller}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+            />
           </View>
         </BottomSheet>
 

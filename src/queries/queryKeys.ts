@@ -1,7 +1,8 @@
 export const queryKeys = {
   preferences: {
     // Terreiros visíveis no menu Preferences (admin/editor/member ativos)
-    terreiros: (userId: string) => ["preferences", "terreiros", userId] as const,
+    terreiros: (userId: string) =>
+      ["preferences", "terreiros", userId] as const,
   },
   me: {
     profile: (userId: string) => ["me", "profile", userId] as const,

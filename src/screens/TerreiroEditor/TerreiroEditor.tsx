@@ -531,7 +531,7 @@ async function createTerreiroFlow(
   if (terreiroRes.error || !terreiroRes.data?.id) {
     throw new Error(
       typeof terreiroRes.error?.message === "string" &&
-        terreiroRes.error.message.trim()
+      terreiroRes.error.message.trim()
         ? `Terreiro: ${terreiroRes.error.message}`
         : "Terreiro: não foi possível criar."
     );
