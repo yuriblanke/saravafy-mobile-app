@@ -82,3 +82,7 @@ export function useTabController(): TabControllerContextValue {
   }
   return ctx;
 }
+
+export function useTabControllerOptional(): TabControllerContextValue | null {
+  return useContext(TabControllerContext);
+}

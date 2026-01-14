@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
-import { useTabController } from "@/contexts/TabControllerContext";
+import { useTabControllerOptional } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
@@ -101,7 +101,7 @@ function getLyricsPreview(lyrics: string, maxLines = 4) {
 export default function Collection() {
   const router = useRouter();
   const segments = useSegments() as string[];
-  const tabController = useTabController();
+  const tabController = useTabControllerOptional();
   const params = useLocalSearchParams();
   const { shouldBlockPress } = useGestureBlock();
   const queryClient = useQueryClient();
@@ -144,7 +144,7 @@ export default function Collection() {
 
   const isInTabs = segments.includes("(tabs)");
   const goToPontosTab = useCallback(() => {
-    if (isInTabs) {
+    if (isInTabs && tabController) {
       tabController.goToTab("pontos");
       return;
     }
