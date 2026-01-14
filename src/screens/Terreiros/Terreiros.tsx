@@ -3,7 +3,10 @@ import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { SaravafyStackScene } from "@/src/components/SaravafyStackScene";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import { useTerreirosWithRoleQuery } from "@/src/queries/terreirosWithRole";
+import {
+  type TerreiroListItem,
+  useTerreirosWithRoleQuery,
+} from "@/src/queries/terreirosWithRole";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -18,7 +21,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { type TerreiroListItem } from "./data/terreiros";
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
@@ -429,8 +431,24 @@ export default function Terreiros() {
 
   const filteredTerreiros = useMemo(() => {
     const q = normalize(searchQuery);
-    if (!q) return terreiros;
-    return terreiros.filter((t) => matchesTerreiroQuery(t, q));
+    const base = q
+      ? terreiros.filter((t) => matchesTerreiroQuery(t, q))
+      : terreiros;
+
+    // Não mutate o array vindo do react-query/cache.
+    return [...base].sort((a, b) => {
+      const aCount = typeof a.membersCount === "number" ? a.membersCount : 0;
+      const bCount = typeof b.membersCount === "number" ? b.membersCount : 0;
+      const byMembers = bCount - aCount;
+      if (byMembers !== 0) return byMembers;
+
+      const byName = normalize(a.name ?? "").localeCompare(
+        normalize(b.name ?? "")
+      );
+      if (byName !== 0) return byName;
+
+      return String(a.id).localeCompare(String(b.id));
+    });
   }, [terreiros, searchQuery]);
 
   return (

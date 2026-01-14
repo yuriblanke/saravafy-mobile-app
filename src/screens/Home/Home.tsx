@@ -14,6 +14,7 @@ import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
@@ -28,6 +29,7 @@ import React, {
 } from "react";
 import {
   Alert,
+  ActivityIndicator,
   FlatList,
   Image,
   Pressable,
@@ -328,6 +330,36 @@ export default function Home() {
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const {
+    canSearch,
+    isLoading: isSearching,
+    results: searchResults,
+    error: searchError,
+    lastSearched,
+  } = usePontosSearch(searchQuery, { enabled: true, limit: 20, offset: 0 });
+
+  const queryHasText = useMemo(() => Boolean(searchQuery.trim()), [searchQuery]);
+
+  type PontoListItem = Ponto & {
+    lyrics_preview_6?: string | null;
+    score?: number | null;
+  };
+
+  const searchedPontos: PontoListItem[] = useMemo(() => {
+    if (!queryHasText || !canSearch) return [];
+    return searchResults.map((r) => {
+      return {
+        id: r.id,
+        title: r.title,
+        artist: null,
+        tags: r.tags,
+        lyrics: r.lyrics,
+        lyrics_preview_6: r.lyrics_preview_6,
+        score: r.score,
+      } satisfies PontoListItem;
+    });
+  }, [canSearch, queryHasText, searchResults]);
 
   const lastRefreshAtRef = useRef<number>(0);
 
@@ -703,10 +735,11 @@ export default function Home() {
     userId,
   ]);
 
-  const filteredPontos = useMemo(
-    () => pontos.filter((p) => matchesQuery(p, searchQuery)),
-    [pontos, searchQuery]
-  );
+  const shouldShowSearchStates = queryHasText;
+  const shouldShowSearchResults = queryHasText && canSearch;
+  const listData: PontoListItem[] = shouldShowSearchResults
+    ? searchedPontos
+    : (pontos as PontoListItem[]);
 
   if (isLoading) {
     return (
@@ -785,10 +818,165 @@ export default function Home() {
           </View>
         </View>
 
-        {isLoading ? (
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Carregando…
-          </Text>
+        {shouldShowSearchStates && !canSearch ? (
+          <View style={{ paddingHorizontal: spacing.lg }}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>
+              Digite pelo menos 4 caracteres
+            </Text>
+          </View>
+        ) : shouldShowSearchResults ? (
+          searchError ? (
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                {searchError}
+              </Text>
+            </View>
+          ) : isSearching ? (
+            <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+              <ActivityIndicator />
+            </View>
+          ) : searchedPontos.length === 0 && lastSearched ? (
+            <View style={{ paddingHorizontal: spacing.lg }}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Nenhum ponto encontrado
+              </Text>
+            </View>
+          ) : (
+            <FlatList
+              key={variant}
+              data={listData}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+              extraData={variant}
+              renderItem={({ item }) => (
+                <View style={styles.cardGap}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      const now = Date.now();
+                      if (shouldBlockPress()) {
+                        if (__DEV__) {
+                          console.log("[PressGuard] blocked", {
+                            screen: "Home",
+                            now,
+                          });
+                        }
+                        return;
+                      }
+                      if (__DEV__) {
+                        console.log("[PressGuard] allowed", {
+                          screen: "Home",
+                          now,
+                        });
+                      }
+                      if (__DEV__) {
+                        console.log("[Navigation] click -> /player", {
+                          screen: "Home",
+                          now,
+                          initialPontoId: item.id,
+                        });
+                      }
+                      router.push({
+                        pathname: "/player",
+                        params: {
+                          source: "all",
+                          q: searchQuery,
+                          initialPontoId: item.id,
+                        },
+                      });
+                    }}
+                  >
+                    <SurfaceCard variant={variant} style={styles.cardContainer}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.cardTitle,
+                            { color: textPrimary, flex: 1 },
+                          ]}
+                          numberOfLines={2}
+                          ellipsizeMode="tail"
+                        >
+                          {item.title}
+                        </Text>
+
+                        <View style={styles.cardHeaderActions}>
+                          {canEditPontos ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Editar ponto"
+                              style={styles.addToCollectionBtn}
+                              hitSlop={10}
+                              onPress={(e) => {
+                                e.stopPropagation();
+                                setEditingPonto(item);
+                                setEditModalVisible(true);
+                              }}
+                            >
+                              <Ionicons
+                                name="pencil"
+                                size={18}
+                                color={
+                                  variant === "light"
+                                    ? colors.brass500
+                                    : colors.brass600
+                                }
+                              />
+                            </Pressable>
+                          ) : null}
+
+                          {user ? (
+                            <Pressable
+                              accessibilityRole="button"
+                              accessibilityLabel="Adicionar à coleção"
+                              style={styles.addToCollectionBtn}
+                              hitSlop={10}
+                              onPress={(e) => {
+                                // Evita abrir o player quando a intenção é adicionar
+                                // à coleção.
+                                e.stopPropagation();
+
+                                openAddToCollectionSheet(item);
+                              }}
+                            >
+                              <Ionicons
+                                name="add"
+                                size={18}
+                                color={
+                                  variant === "light"
+                                    ? colors.brass500
+                                    : colors.brass600
+                                }
+                              />
+                            </Pressable>
+                          ) : null}
+                        </View>
+                      </View>
+
+                      <View style={styles.tagsRow}>
+                        {item.tags.map((tag) => (
+                          <TagChip key={tag} label={tag} variant={variant} />
+                        ))}
+                      </View>
+                      <Text
+                        style={[styles.cardPreview, { color: textSecondary }]}
+                        numberOfLines={6}
+                        ellipsizeMode="tail"
+                      >
+                        {item.lyrics_preview_6 ?? getLyricsPreview(item.lyrics, 6)}
+                      </Text>
+                    </SurfaceCard>
+                  </Pressable>
+                </View>
+              )}
+            />
+          )
         ) : loadError ? (
           <View style={styles.errorBlock}>
             <Text style={[styles.bodyText, { color: textSecondary }]}>
@@ -827,7 +1015,7 @@ export default function Home() {
               </Text>
             </Pressable>
           </View>
-        ) : filteredPontos.length === 0 ? (
+        ) : listData.length === 0 ? (
           <View style={{ paddingHorizontal: spacing.lg }}>
             <Text style={[styles.bodyText, { color: textSecondary }]}>
               Nenhum ponto encontrado.
@@ -836,7 +1024,7 @@ export default function Home() {
         ) : (
           <FlatList
             key={variant}
-            data={filteredPontos}
+            data={listData}
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"

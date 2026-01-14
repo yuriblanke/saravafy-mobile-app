@@ -34,9 +34,7 @@ Tipo desconhecido → volta para `/(app)` e mostra toast amigável.
 
 ## Landing web (fallback)
 
-A landing está em:
-
-- `web-landing/`
+Esta landing web (fallback) foi movida para um **repositório dedicado** (fora deste repo).
 
 Requisitos atendidos:
 
@@ -61,7 +59,7 @@ Para evitar o botão “Instalar app” apontar para URLs antigas, a landing **n
 - Não usa Service Worker.
 - Cada leitura do `app_install_url` é feita via rede.
 
-Detalhes de implementação (em `web-landing/index.html`):
+Detalhes de implementação (no repo da landing):
 
 - O fetch para `public_app_config` usa `cache: "no-store"`.
 - Envia headers anti-cache: `Cache-Control: no-store, no-cache, must-revalidate, max-age=0` e `Pragma: no-cache`.
@@ -79,11 +77,9 @@ Detalhes de implementação (em `web-landing/index.html`):
 
 A landing usa o REST do Supabase (público) e precisa de:
 
-- `web-landing/config.js` com:
+- Um `config.js` (ou equivalente) com:
   - `window.SARAVAFY_SUPABASE_URL`
   - `window.SARAVAFY_SUPABASE_ANON_KEY`
-
-Existe um template em `web-landing/config.example.js`.
 
 ## Publicação dos arquivos .well-known
 
@@ -91,11 +87,6 @@ Os seguintes arquivos precisam ser publicados no domínio:
 
 - `/.well-known/apple-app-site-association`
 - `/.well-known/assetlinks.json`
-
-No repo eles estão em:
-
-- `web-landing/.well-known/apple-app-site-association`
-- `web-landing/.well-known/assetlinks.json`
 
 ### Preencher placeholders
 
@@ -117,9 +108,9 @@ Em `app.config.ts`:
 
 ## Deploy da landing
 
-Esse repo só inclui os arquivos estáticos. Para servir corretamente:
+Esse repo não inclui mais os arquivos estáticos da landing. Para servir corretamente:
 
-- O host precisa servir `web-landing/index.html` como fallback para rotas `/l/*` (rewrite) para o roteamento simples funcionar.
+- O host precisa servir o `index.html` da landing como fallback para rotas `/l/*` (rewrite) para o roteamento simples funcionar.
 - Os arquivos em `.well-known/` precisam ser servidos exatamente nesses paths.
 
 ## Checklist de validação manual

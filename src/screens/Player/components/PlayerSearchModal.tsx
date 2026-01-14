@@ -1,9 +1,10 @@
-import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import { usePontosSearch } from "@/src/hooks/usePontosSearch";
+import type { PontosSearchResult } from "@/src/services/pontosSearch";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -15,18 +16,7 @@ import {
   View,
 } from "react-native";
 
-export type PlayerSearchResult = {
-  id: string;
-  title: string;
-  tags: string[];
-  lyrics: string;
-  lyrics_preview_6: string | null;
-  score: number | null;
-};
-
-function normalizeForGate(value: string) {
-  return value.toLowerCase().trim().replace(/\s+/g, " ");
-}
+export type PlayerSearchResult = PontosSearchResult;
 
 export function PlayerSearchModal(props: {
   visible: boolean;
@@ -36,12 +26,13 @@ export function PlayerSearchModal(props: {
   const { visible, onClose, variant } = props;
 
   const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [results, setResults] = useState<PlayerSearchResult[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [lastSearched, setLastSearched] = useState<string | null>(null);
-
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const {
+    canSearch,
+    isLoading,
+    results,
+    error,
+    lastSearched,
+  } = usePontosSearch(query, { enabled: visible, limit: 20, offset: 0 });
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -55,93 +46,6 @@ export function PlayerSearchModal(props: {
       : colors.surfaceCardBorder;
   const bg =
     variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
-
-  const queryNorm = useMemo(() => normalizeForGate(query), [query]);
-  const canSearch = queryNorm.length >= 4;
-
-  useEffect(() => {
-    if (!visible) return;
-
-    if (debounceRef.current) {
-      clearTimeout(debounceRef.current);
-      debounceRef.current = null;
-    }
-
-    setError(null);
-
-    if (!canSearch) {
-      setResults([]);
-      setIsLoading(false);
-      setLastSearched(null);
-      return;
-    }
-
-    debounceRef.current = setTimeout(() => {
-      const currentQuery = query;
-      setIsLoading(true);
-      setLastSearched(currentQuery);
-
-      (async () => {
-        try {
-          const { data, error } = await supabase.rpc("search_pontos", {
-            p_query: currentQuery,
-            p_limit: 20,
-            p_offset: 0,
-          });
-
-          if (error) {
-            throw new Error(
-              typeof error.message === "string" && error.message.trim()
-                ? error.message
-                : "Erro ao buscar pontos."
-            );
-          }
-
-          const rows = Array.isArray(data) ? (data as any[]) : [];
-          const mapped: PlayerSearchResult[] = rows
-            .map((r) => {
-              const tags = Array.isArray(r.tags)
-                ? r.tags.filter((t: unknown) => typeof t === "string")
-                : [];
-              return {
-                id: String(r.id ?? ""),
-                title: String(r.title ?? ""),
-                tags,
-                lyrics: String(r.lyrics ?? ""),
-                lyrics_preview_6:
-                  r.lyrics_preview_6 == null
-                    ? null
-                    : String(r.lyrics_preview_6),
-                score: typeof r.score === "number" ? r.score : null,
-              };
-            })
-            .filter((r) => Boolean(r.id));
-
-          // Evita aplicar resultado se a query mudou entre o debounce e a resposta
-          if (currentQuery !== query) return;
-
-          setResults(mapped);
-          setError(null);
-        } catch (e) {
-          if (currentQuery !== query) return;
-
-          const message = e instanceof Error ? e.message : String(e);
-          setResults([]);
-          setError(message);
-        } finally {
-          if (currentQuery !== query) return;
-          setIsLoading(false);
-        }
-      })();
-    }, 300);
-
-    return () => {
-      if (debounceRef.current) {
-        clearTimeout(debounceRef.current);
-        debounceRef.current = null;
-      }
-    };
-  }, [query, canSearch, visible]);
 
   // Ao fechar, não mexe no estado do player. Aqui mantemos a query/resultados
   // (o requisito não pede reset).

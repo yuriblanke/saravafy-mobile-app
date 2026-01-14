@@ -33,6 +33,7 @@ export type TerreiroListItem = {
   id: string;
   name: string;
   role?: TerreiroTabRole;
+  membersCount: number;
   about?: string;
   linesOfWork?: string;
   city?: string;
@@ -177,6 +178,7 @@ export async function fetchTerreirosWithRole(
     if (!id) return null;
 
     const members = (t?.terreiro_members ?? []) as TerreiroMemberRow[];
+    const membersCount = members.length;
     const match =
       typeof userId === "string" && userId
         ? members.find((m) => m?.user_id === userId)
@@ -195,6 +197,7 @@ export async function fetchTerreirosWithRole(
       id,
       name: typeof t?.title === "string" ? t.title : "Terreiro",
       role,
+      membersCount,
       about:
         typeof t?.about === "string" && t.about.trim()
           ? t.about.trim()

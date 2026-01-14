@@ -18,8 +18,10 @@ import {
   putCollectionEditDraft,
 } from "@/src/screens/CollectionEdit/draftStore";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
+import { CollectionNameDetailsSheet } from "@/src/screens/Collection/CollectionNameDetailsSheet";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
@@ -32,20 +34,27 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  Animated,
   FlatList,
+  Image,
   Pressable,
+  ScrollView,
   Share,
   StyleSheet,
   Text,
   View,
 } from "react-native";
+import { useQueryClient } from "@tanstack/react-query";
 
 type CollectionRow = {
   id: string;
   title?: string | null;
+  description?: string | null;
   owner_user_id?: string | null;
   owner_terreiro_id?: string | null;
   visibility?: string | null;
+  terreiro_title?: string | null;
+  terreiro_cover_image_url?: string | null;
 };
 
 function getErrorMessage(e: unknown): string {
@@ -61,6 +70,22 @@ function getErrorMessage(e: unknown): string {
   }
 
   return String(e);
+}
+
+function isColumnMissingError(error: unknown, columnName: string) {
+  const msg =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+      ? ((error as { message: string }).message ?? "")
+      : "";
+
+  const m = msg.toLowerCase();
+  return (
+    m.includes(columnName.toLowerCase()) &&
+    (m.includes("does not exist") || m.includes("column"))
+  );
 }
 
 function getLyricsPreview(lyrics: string, maxLines = 4) {
@@ -80,6 +105,7 @@ export default function Collection() {
   const tabController = useTabController();
   const params = useLocalSearchParams();
   const { shouldBlockPress } = useGestureBlock();
+  const queryClient = useQueryClient();
 
   const { user } = useAuth();
 
@@ -108,6 +134,14 @@ export default function Collection() {
   const [collection, setCollection] = useState<CollectionRow | null>(null);
   const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionError, setCollectionError] = useState<string | null>(null);
+
+  const [isNameDetailsOpen, setIsNameDetailsOpen] = useState(false);
+  const [isSavingNameDetails, setIsSavingNameDetails] = useState(false);
+  const [isDeletingCollection, setIsDeletingCollection] = useState(false);
+
+  const [h1Height, setH1Height] = useState<number | null>(null);
+  const headerTitleOpacity = useRef(new Animated.Value(0)).current;
+  const headerTitleVisibleRef = useRef(false);
 
   const isInTabs = segments.includes("(tabs)");
   const goToPontosTab = useCallback(() => {
@@ -224,14 +258,28 @@ export default function Collection() {
     setCollectionError(null);
 
     try {
-      const res = await supabase
+      const baseSelect =
+        "id, title, description, owner_terreiro_id, owner_user_id, visibility, terreiros:owner_terreiro_id (title, cover_image_url)";
+
+      const res: any = await supabase
         .from("collections")
-        .select("id, title, owner_terreiro_id, owner_user_id, visibility")
+        .select(baseSelect)
         .eq("id", collectionId)
         .single();
 
-      if (res.error) {
-        const anyErr = res.error as any;
+      const finalRes: any =
+        res.error && isColumnMissingError(res.error, "description")
+          ? await supabase
+              .from("collections")
+              .select(
+                "id, title, owner_terreiro_id, owner_user_id, visibility, terreiros:owner_terreiro_id (title, cover_image_url)"
+              )
+              .eq("id", collectionId)
+              .single()
+          : res;
+
+      if (finalRes.error) {
+        const anyErr = finalRes.error as any;
         const message =
           typeof anyErr?.message === "string" && anyErr.message.trim()
             ? anyErr.message
@@ -242,7 +290,27 @@ export default function Collection() {
         throw new Error(extra ? `${message} (${extra})` : message);
       }
 
-      setCollection(res.data as any);
+      const row = (finalRes.data ?? null) as any;
+      const terreiroTitle =
+        typeof row?.terreiros?.title === "string" ? row.terreiros.title : null;
+      const terreiroCover =
+        typeof row?.terreiros?.cover_image_url === "string"
+          ? row.terreiros.cover_image_url
+          : null;
+
+      setCollection({
+        id: String(row?.id ?? ""),
+        title: typeof row?.title === "string" ? row.title : null,
+        description:
+          typeof row?.description === "string" ? row.description : null,
+        owner_terreiro_id:
+          typeof row?.owner_terreiro_id === "string" ? row.owner_terreiro_id : null,
+        owner_user_id:
+          typeof row?.owner_user_id === "string" ? row.owner_user_id : null,
+        visibility: typeof row?.visibility === "string" ? row.visibility : null,
+        terreiro_title: terreiroTitle,
+        terreiro_cover_image_url: terreiroCover,
+      });
     } catch (e) {
       if (__DEV__) {
         console.info("[Collection] erro ao carregar collection", {
@@ -275,6 +343,16 @@ export default function Collection() {
   const title =
     (typeof collection?.title === "string" && collection.title.trim()) ||
     titleFallback;
+
+  const terreiroTitle =
+    (typeof collection?.terreiro_title === "string" &&
+      collection.terreiro_title.trim()) ||
+    (terreiroId ? "Terreiro" : "Coleção pessoal");
+  const terreiroCoverImageUrl =
+    typeof collection?.terreiro_cover_image_url === "string" &&
+    collection.terreiro_cover_image_url.trim()
+      ? collection.terreiro_cover_image_url.trim()
+      : null;
 
   const canEditCollection =
     (!!user?.id &&
@@ -347,9 +425,224 @@ export default function Collection() {
   const isLoading = (collectionLoading || pontosLoading) && !hasCachedPontos;
   const error = collectionError || pontosError;
 
+  const pontosCountText = `${orderedItems.length} ponto(s)`;
+
+  const setHeaderTitleVisible = useCallback(
+    (visible: boolean) => {
+      if (headerTitleVisibleRef.current === visible) return;
+      headerTitleVisibleRef.current = visible;
+
+      Animated.timing(headerTitleOpacity, {
+        toValue: visible ? 1 : 0,
+        duration: 160,
+        useNativeDriver: true,
+      }).start();
+    },
+    [headerTitleOpacity]
+  );
+
+  const onScroll = useCallback(
+    (y: number) => {
+      // Mostra o título pequeno no header apenas depois que o H1
+      // já "passou" visualmente do topo (tipo Spotify).
+      const base = typeof h1Height === "number" && h1Height > 0 ? h1Height : 44;
+      const threshold = Math.max(0, base - 8);
+      setHeaderTitleVisible(y >= threshold);
+    },
+    [h1Height, setHeaderTitleVisible]
+  );
+
+  const openNameDetails = useCallback(() => {
+    setIsNameDetailsOpen(true);
+  }, []);
+
+  const saveNameDetails = useCallback(
+    async (next: { title: string; description: string }) => {
+      if (!collectionId) return;
+      if (shouldBlockPress()) return;
+
+      if (!canEditCollection) {
+        showToast("Você não tem permissão para editar esta coleção.");
+        return;
+      }
+
+      const nextTitle = String(next.title ?? "").trim();
+      if (nextTitle.length < 2) {
+        showToast("Nome muito curto.");
+        return;
+      }
+
+      setIsSavingNameDetails(true);
+
+      try {
+        const updatePayload: any = {
+          title: nextTitle,
+          description: String(next.description ?? ""),
+        };
+
+        let req: any = supabase.from("collections").update(updatePayload).eq("id", collectionId);
+
+        // Guard extra para evitar deletar/alterar fora do escopo permitido.
+        if (user?.id && collection?.owner_user_id === user.id) {
+          req = req.eq("owner_user_id", user.id);
+        } else if (terreiroId) {
+          req = req.eq("owner_terreiro_id", terreiroId);
+        }
+
+        const res: any = await req.select("id, title, description").single();
+
+        // Compat: se coluna description não existe, re-tenta só com title.
+        if (res.error && isColumnMissingError(res.error, "description")) {
+          const res2: any = await supabase
+            .from("collections")
+            .update({ title: nextTitle })
+            .eq("id", collectionId)
+            .select("id, title")
+            .single();
+
+          if (res2.error) {
+            throw new Error(
+              typeof res2.error.message === "string" && res2.error.message.trim()
+                ? res2.error.message
+                : "Não foi possível salvar."
+            );
+          }
+
+          setCollection((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  title: typeof res2.data?.title === "string" ? res2.data.title : nextTitle,
+                }
+              : prev
+          );
+          showToast("Nome atualizado.");
+          setIsNameDetailsOpen(false);
+        } else {
+          if (res.error) {
+            throw new Error(
+              typeof res.error.message === "string" && res.error.message.trim()
+                ? res.error.message
+                : "Não foi possível salvar."
+            );
+          }
+
+          setCollection((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  title:
+                    typeof res.data?.title === "string" ? res.data.title : nextTitle,
+                  description:
+                    typeof res.data?.description === "string"
+                      ? res.data.description
+                      : String(next.description ?? ""),
+                }
+              : prev
+          );
+
+          showToast("Coleção atualizada.");
+          setIsNameDetailsOpen(false);
+        }
+
+        if (user?.id) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.collections.accountable(user.id),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.collections.editableByUserPrefix(user.id),
+          });
+        }
+        if (terreiroId) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
+          });
+        }
+      } catch (e) {
+        showToast(getErrorMessage(e));
+      } finally {
+        setIsSavingNameDetails(false);
+      }
+    },
+    [
+      canEditCollection,
+      collection?.owner_user_id,
+      collectionId,
+      queryClient,
+      shouldBlockPress,
+      showToast,
+      terreiroId,
+      user?.id,
+    ]
+  );
+
+  const deleteCollection = useCallback(async () => {
+    if (!collectionId) return;
+    if (shouldBlockPress()) return;
+
+    if (!canEditCollection) {
+      showToast("Você não tem permissão para apagar esta coleção.");
+      return;
+    }
+
+    setIsDeletingCollection(true);
+    try {
+      let req: any = supabase.from("collections").delete().eq("id", collectionId);
+
+      if (user?.id && collection?.owner_user_id === user.id) {
+        req = req.eq("owner_user_id", user.id);
+      } else if (terreiroId) {
+        req = req.eq("owner_terreiro_id", terreiroId);
+      }
+
+      const res: any = await req;
+      if (res.error) {
+        throw new Error(
+          typeof res.error.message === "string" && res.error.message.trim()
+            ? res.error.message
+            : "Não foi possível excluir a coleção."
+        );
+      }
+
+      if (user?.id) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.accountable(user.id),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.editableByUserPrefix(user.id),
+        });
+      }
+      if (terreiroId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
+        });
+      }
+      queryClient.removeQueries({ queryKey: queryKeys.collections.byId(collectionId) });
+      queryClient.removeQueries({ queryKey: queryKeys.collections.pontos(collectionId) });
+
+      setIsNameDetailsOpen(false);
+      showToast("Coleção apagada.");
+      router.back();
+    } catch (e) {
+      showToast(getErrorMessage(e));
+    } finally {
+      setIsDeletingCollection(false);
+    }
+  }, [
+    canEditCollection,
+    collection?.owner_user_id,
+    collectionId,
+    queryClient,
+    router,
+    shouldBlockPress,
+    showToast,
+    terreiroId,
+    user?.id,
+  ]);
+
   return (
     <SaravafyStackScene theme={variant} variant="stack" style={styles.screen}>
-      <View style={styles.collectionHeader}>
+      <View style={styles.fixedHeader}>
         <Pressable
           accessibilityRole="button"
           onPress={() => router.back()}
@@ -359,45 +652,37 @@ export default function Collection() {
           <Ionicons name="chevron-back" size={22} color={textPrimary} />
         </Pressable>
 
-        <Text
-          style={[styles.headerTitle, { color: textPrimary }]}
-          numberOfLines={1}
+        <Animated.View
+          style={[styles.headerInlineTitleWrap, { opacity: headerTitleOpacity }]}
+          pointerEvents="none"
         >
-          {title}
-        </Text>
-
-        <View style={styles.headerRight}>
-          {canEditCollection ? (
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Editar"
-              onPress={openEdit}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.headerActionBtn,
-                pressed ? styles.headerActionBtnPressed : null,
-              ]}
-            >
-              <Ionicons name="reorder-three" size={18} color={textPrimary} />
-              <Text style={[styles.headerActionText, { color: textPrimary }]}>
-                Editar
-              </Text>
-            </Pressable>
-          ) : null}
-
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Compartilhar"
-            onPress={() => {
-              void handleShare();
-            }}
-            hitSlop={10}
-            style={styles.headerIconBtn}
+          <Text
+            style={[styles.headerInlineTitle, { color: textPrimary }]}
+            numberOfLines={1}
           >
-            <Ionicons name="share-outline" size={18} color={textPrimary} />
-          </Pressable>
-        </View>
+            {title}
+          </Text>
+        </Animated.View>
+
+        <View style={styles.headerRightSpacer} />
       </View>
+
+      <CollectionNameDetailsSheet
+        visible={isNameDetailsOpen}
+        variant={variant}
+        initialTitle={title}
+        initialDescription={collection?.description ?? ""}
+        canEdit={canEditCollection}
+        isSaving={isSavingNameDetails}
+        isDeleting={isDeletingCollection}
+        onClose={() => setIsNameDetailsOpen(false)}
+        onSave={(next) => {
+          void saveNameDetails(next);
+        }}
+        onDelete={() => {
+          void deleteCollection();
+        }}
+      />
 
       <AddMediumTagSheet
         visible={!!mediumTargetPontoId}
@@ -418,87 +703,196 @@ export default function Collection() {
         onClose={() => setDeleteTarget(null)}
       />
 
-      {isLoading ? (
-        <View style={styles.center}>
-          <ActivityIndicator />
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Carregando…
-          </Text>
-        </View>
-      ) : error ? (
-        <View style={styles.center}>
-          <Text style={[styles.bodyText, { color: textSecondary }]}>
-            {error}
-          </Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => {
-              loadCollection();
-              reloadPontos();
-              membership.reload();
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        scrollEventThrottle={16}
+        onScroll={(e) => {
+          onScroll(e.nativeEvent.contentOffset.y);
+        }}
+      >
+        <View style={styles.titleBlock}>
+          <Text
+            style={[styles.h1, { color: textPrimary }]}
+            onLayout={(e) => {
+              setH1Height(e.nativeEvent.layout.height);
             }}
-            style={({ pressed }) => [
-              styles.retryBtn,
-              pressed && styles.retryBtnPressed,
-              variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
-            ]}
           >
-            <Text style={[styles.retryText, { color: textPrimary }]}>
-              Tentar novamente
+            {title}
+          </Text>
+
+          <View style={styles.terreiroRow}>
+            <View
+              style={[
+                styles.terreiroAvatar,
+                {
+                  backgroundColor:
+                    variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg,
+                  borderColor:
+                    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder,
+                },
+              ]}
+            >
+              {terreiroCoverImageUrl ? (
+                <Image
+                  source={{ uri: terreiroCoverImageUrl }}
+                  style={styles.terreiroAvatarImg}
+                  resizeMode="cover"
+                  accessibilityIgnoresInvertColors
+                />
+              ) : (
+                <Ionicons
+                  name={terreiroId ? "home-outline" : "person-outline"}
+                  size={16}
+                  color={textMuted}
+                />
+              )}
+            </View>
+
+            <Text style={[styles.terreiroName, { color: textSecondary }]} numberOfLines={1}>
+              {terreiroTitle}
             </Text>
-          </Pressable>
-        </View>
-      ) : pontosEmpty ? (
-        <SurfaceCard variant={variant} style={styles.emptyCard}>
-          <View style={styles.emptyContent}>
-            <Ionicons
-              name="albums-outline"
-              size={48}
-              color={variant === "light" ? colors.forest500 : colors.forest400}
-              style={{ marginBottom: spacing.lg }}
-            />
-            <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-              Esta coleção ainda não tem pontos
-            </Text>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Para montar esta coleção, procure pontos e adicione os que fazem
-              sentido aqui.
-            </Text>
+          </View>
+
+          <Text style={[styles.countText, { color: textMuted }]}>{pontosCountText}</Text>
+
+          <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="button"
+              accessibilityLabel="Adicionar"
               onPress={() => {
                 goToPontosTab();
               }}
               style={({ pressed }) => [
-                styles.ctaButton,
-                pressed && styles.retryBtnPressed,
-                variant === "light"
-                  ? styles.ctaButtonLight
-                  : styles.ctaButtonDark,
+                styles.primaryActionBtn,
+                pressed ? styles.pressed : null,
               ]}
             >
-              <Ionicons
-                name="search"
-                size={18}
-                color={variant === "light" ? colors.brass500 : colors.brass600}
-                style={{ marginRight: 8 }}
-              />
-              <Text
-                style={
-                  variant === "light" ? styles.ctaTextLight : styles.ctaTextDark
-                }
-              >
-                Buscar pontos
-              </Text>
+              <Text style={styles.primaryActionText}>Adicionar</Text>
             </Pressable>
-            <Text style={[styles.emptyHint, { color: textMuted }]}>
-              Ao abrir um ponto, toque em “Adicionar à coleção” e selecione esta
-              coleção.
-            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Editar"
+              onPress={openEdit}
+              style={({ pressed }) => [
+                styles.secondaryActionBtn,
+                {
+                  borderColor:
+                    variant === "light" ? colors.inputBorderLight : colors.inputBorderDark,
+                  backgroundColor:
+                    variant === "light" ? colors.inputBgLight : colors.inputBgDark,
+                },
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <Text style={[styles.secondaryActionText, { color: textPrimary }]}>Editar</Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Compartilhar"
+              onPress={() => {
+                void handleShare();
+              }}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.iconActionBtn,
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <Ionicons name="share-outline" size={18} color={textPrimary} />
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Nome e detalhes"
+              onPress={openNameDetails}
+              style={({ pressed }) => [
+                styles.tertiaryActionBtn,
+                {
+                  borderColor:
+                    variant === "light" ? colors.inputBorderLight : colors.inputBorderDark,
+                  backgroundColor:
+                    variant === "light" ? colors.inputBgLight : colors.inputBgDark,
+                },
+                pressed ? styles.pressed : null,
+              ]}
+            >
+              <Text style={[styles.tertiaryActionText, { color: textPrimary }]}>Nome e detalhes</Text>
+            </Pressable>
           </View>
-        </SurfaceCard>
-      ) : isMembersOnly && !isMember ? (
-        <View style={styles.gateWrap}>
+        </View>
+
+        {isLoading ? (
+          <View style={styles.centerInScroll}>
+            <ActivityIndicator />
+            <Text style={[styles.bodyText, { color: textSecondary }]}>Carregando…</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.centerInScroll}>
+            <Text style={[styles.bodyText, { color: textSecondary }]}>{error}</Text>
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                loadCollection();
+                reloadPontos();
+                membership.reload();
+              }}
+              style={({ pressed }) => [
+                styles.retryBtn,
+                pressed && styles.retryBtnPressed,
+                variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
+              ]}
+            >
+              <Text style={[styles.retryText, { color: textPrimary }]}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : pontosEmpty ? (
+          <SurfaceCard variant={variant} style={styles.emptyCard}>
+            <View style={styles.emptyContent}>
+              <Ionicons
+                name="albums-outline"
+                size={48}
+                color={variant === "light" ? colors.forest500 : colors.forest400}
+                style={{ marginBottom: spacing.lg }}
+              />
+              <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+                Esta coleção ainda não tem pontos
+              </Text>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Para montar esta coleção, procure pontos e adicione os que fazem
+                sentido aqui.
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  goToPontosTab();
+                }}
+                style={({ pressed }) => [
+                  styles.ctaButton,
+                  pressed && styles.retryBtnPressed,
+                  variant === "light" ? styles.ctaButtonLight : styles.ctaButtonDark,
+                ]}
+              >
+                <Ionicons
+                  name="search"
+                  size={18}
+                  color={variant === "light" ? colors.brass500 : colors.brass600}
+                  style={{ marginRight: 8 }}
+                />
+                <Text style={variant === "light" ? styles.ctaTextLight : styles.ctaTextDark}>
+                  Buscar pontos
+                </Text>
+              </Pressable>
+              <Text style={[styles.emptyHint, { color: textMuted }]}>
+                Ao abrir um ponto, toque em “Adicionar à coleção” e selecione esta
+                coleção.
+              </Text>
+            </View>
+          </SurfaceCard>
+        ) : isMembersOnly && !isMember ? (
+          <View style={styles.gateWrap}>
           <SurfaceCard variant={variant} style={styles.gateCard}>
             <Text style={[styles.gateTitle, { color: textPrimary }]}>
               Coleção exclusiva para membros
@@ -641,150 +1035,134 @@ export default function Collection() {
             </View>
           </SurfaceCard>
         </View>
-      ) : (
-        <FlatList
-          data={orderedItems}
-          keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-          contentContainerStyle={[
-            styles.listContent,
-            { paddingBottom: spacing.xl },
-          ]}
-          renderItem={({ item }) => {
-            const preview = getLyricsPreview(item.ponto.lyrics);
-            return (
-              <View style={styles.cardGap}>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    const now = Date.now();
-                    if (shouldBlockPress()) {
+        ) : (
+          <FlatList
+            data={orderedItems}
+            scrollEnabled={false}
+            keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
+            contentContainerStyle={[styles.listContent, { paddingBottom: spacing.xl }]}
+            renderItem={({ item }) => {
+              const preview = getLyricsPreview(item.ponto.lyrics);
+              return (
+                <View style={styles.cardGap}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      const now = Date.now();
+                      if (shouldBlockPress()) {
+                        if (__DEV__) {
+                          console.log("[PressGuard] blocked", {
+                            screen: "Collection",
+                            now,
+                          });
+                        }
+                        return;
+                      }
+
                       if (__DEV__) {
-                        console.log("[PressGuard] blocked", {
+                        console.log("[PressGuard] allowed", {
                           screen: "Collection",
                           now,
                         });
                       }
-                      return;
-                    }
 
-                    if (__DEV__) {
-                      console.log("[PressGuard] allowed", {
-                        screen: "Collection",
-                        now,
+                      if (__DEV__) {
+                        console.log("[Navigation] click -> /player", {
+                          screen: "Collection",
+                          now,
+                          collectionId,
+                          initialPontoId: item.ponto.id,
+                        });
+                      }
+
+                      router.push({
+                        pathname: "/player",
+                        params: {
+                          collectionId,
+                          initialPontoId: item.ponto.id,
+                          terreiroId: terreiroId || undefined,
+                        },
                       });
-                    }
+                    }}
+                  >
+                    <SurfaceCard variant={variant}>
+                      <Text style={[styles.itemTitle, { color: textPrimary }]} numberOfLines={2}>
+                        {item.ponto.title}
+                      </Text>
 
-                    if (__DEV__) {
-                      console.log("[Navigation] click -> /player", {
-                        screen: "Collection",
-                        now,
-                        collectionId,
-                        initialPontoId: item.ponto.id,
-                      });
-                    }
+                      {(() => {
+                        const mediumTags = canSeeMediumTags
+                          ? customTagsMap[item.ponto.id] ?? []
+                          : [];
+                        const pointTags = Array.isArray(item.ponto.tags)
+                          ? item.ponto.tags
+                          : [];
 
-                    router.push({
-                      pathname: "/player",
-                      params: {
-                        collectionId,
-                        initialPontoId: item.ponto.id,
-                        terreiroId: terreiroId || undefined,
-                      },
-                    });
-                  }}
-                >
-                  <SurfaceCard variant={variant}>
-                    <Text
-                      style={[styles.itemTitle, { color: textPrimary }]}
-                      numberOfLines={2}
-                    >
-                      {item.ponto.title}
-                    </Text>
+                        const hasAnyTags = mediumTags.length > 0 || pointTags.length > 0;
+                        if (!hasAnyTags) return null;
 
-                    {(() => {
-                      const mediumTags = canSeeMediumTags
-                        ? customTagsMap[item.ponto.id] ?? []
-                        : [];
-                      const pointTags = Array.isArray(item.ponto.tags)
-                        ? item.ponto.tags
-                        : [];
-
-                      const hasAnyTags =
-                        mediumTags.length > 0 || pointTags.length > 0;
-                      if (!hasAnyTags) return null;
-
-                      return (
-                        <View style={styles.tagsWrap}>
-                          {canEditCustomTags && !!terreiroId ? (
-                            <TagPlusChip
-                              variant={variant}
-                              accessibilityLabel="Adicionar médium"
-                              onPress={() =>
-                                setMediumTargetPontoId(item.ponto.id)
-                              }
-                            />
-                          ) : null}
-                          {mediumTags.map((t) => (
-                            <Pressable
-                              key={`medium-${item.ponto.id}-${t.id}`}
-                              accessibilityRole={
-                                canEditCustomTags ? "button" : undefined
-                              }
-                              accessibilityLabel={
-                                canEditCustomTags
-                                  ? `Remover médium ${t.tagText}`
-                                  : undefined
-                              }
-                              onLongPress={
-                                canEditCustomTags
-                                  ? () =>
-                                      setDeleteTarget({
-                                        pontoId: item.ponto.id,
-                                        tagId: t.id,
-                                        tagLabel: t.tagText,
-                                      })
-                                  : undefined
-                              }
-                              delayLongPress={350}
-                              disabled={!canEditCustomTags}
-                              style={({ pressed }) => [
-                                pressed && canEditCustomTags
-                                  ? { opacity: 0.75 }
-                                  : null,
-                              ]}
-                            >
-                              <TagChip
-                                label={t.tagText}
+                        return (
+                          <View style={styles.tagsWrap}>
+                            {canEditCustomTags && !!terreiroId ? (
+                              <TagPlusChip
                                 variant={variant}
-                                kind="custom"
-                                tone="medium"
+                                accessibilityLabel="Adicionar médium"
+                                onPress={() => setMediumTargetPontoId(item.ponto.id)}
                               />
-                            </Pressable>
-                          ))}
-                          {pointTags.map((t) => (
-                            <TagChip
-                              key={`ponto-${item.ponto.id}-${t}`}
-                              label={t}
-                              variant={variant}
-                            />
-                          ))}
-                        </View>
-                      );
-                    })()}
+                            ) : null}
+                            {mediumTags.map((t) => (
+                              <Pressable
+                                key={`medium-${item.ponto.id}-${t.id}`}
+                                accessibilityRole={canEditCustomTags ? "button" : undefined}
+                                accessibilityLabel={
+                                  canEditCustomTags ? `Remover médium ${t.tagText}` : undefined
+                                }
+                                onLongPress={
+                                  canEditCustomTags
+                                    ? () =>
+                                        setDeleteTarget({
+                                          pontoId: item.ponto.id,
+                                          tagId: t.id,
+                                          tagLabel: t.tagText,
+                                        })
+                                    : undefined
+                                }
+                                delayLongPress={350}
+                                disabled={!canEditCustomTags}
+                                style={({ pressed }) => [
+                                  pressed && canEditCustomTags ? { opacity: 0.75 } : null,
+                                ]}
+                              >
+                                <TagChip
+                                  label={t.tagText}
+                                  variant={variant}
+                                  kind="custom"
+                                  tone="medium"
+                                />
+                              </Pressable>
+                            ))}
+                            {pointTags.map((t) => (
+                              <TagChip
+                                key={`ponto-${item.ponto.id}-${t}`}
+                                label={t}
+                                variant={variant}
+                              />
+                            ))}
+                          </View>
+                        );
+                      })()}
 
-                    <Text
-                      style={[styles.preview, { color: textSecondary }]}
-                      numberOfLines={6}
-                    >
-                      {preview}
-                    </Text>
-                  </SurfaceCard>
-                </Pressable>
-              </View>
-            );
-          }}
-        />
-      )}
+                      <Text style={[styles.preview, { color: textSecondary }]} numberOfLines={6}>
+                        {preview}
+                      </Text>
+                    </SurfaceCard>
+                  </Pressable>
+                </View>
+              );
+            }}
+          />
+        )}
+      </ScrollView>
     </SaravafyStackScene>
   );
 }
@@ -793,17 +1171,11 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
-  collectionHeader: {
+  fixedHeader: {
     height: 52,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-  },
-  headerRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
   },
   headerIconBtn: {
     width: 36,
@@ -811,33 +1183,130 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  headerActionBtn: {
+  headerInlineTitleWrap: {
+    flex: 1,
+    paddingHorizontal: spacing.sm,
+  },
+  headerInlineTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  headerRightSpacer: {
+    width: 36,
     height: 36,
-    paddingHorizontal: 8,
+  },
+  scroll: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 0,
+  },
+  titleBlock: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.md,
+    gap: spacing.sm,
+  },
+  h1: {
+    fontSize: 24,
+    fontWeight: "900",
+    lineHeight: 30,
+  },
+  terreiroRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.sm,
+  },
+  terreiroAvatar: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    overflow: "hidden",
   },
-  headerActionBtnPressed: {
-    opacity: 0.7,
+  terreiroAvatarImg: {
+    width: 24,
+    height: 24,
   },
-  headerActionText: {
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  headerTitle: {
+  terreiroName: {
+    fontSize: 13,
+    fontWeight: "800",
     flex: 1,
-    fontSize: 15,
+  },
+  countText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    flexWrap: "wrap",
+    marginTop: spacing.xs,
+  },
+  primaryActionBtn: {
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.brass600,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  primaryActionText: {
+    color: colors.paper50,
+    fontSize: 13,
     fontWeight: "900",
-    textAlign: "center",
-    paddingHorizontal: spacing.sm,
+  },
+  secondaryActionBtn: {
+    height: 40,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  secondaryActionText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  iconActionBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.surfaceCardBorder,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tertiaryActionBtn: {
+    height: 40,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tertiaryActionText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  pressed: {
+    opacity: 0.85,
   },
   center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
     paddingHorizontal: spacing.lg,
+    gap: spacing.md,
+  },
+  centerInScroll: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
     gap: spacing.md,
   },
   bodyText: {
