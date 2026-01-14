@@ -45,6 +45,11 @@ import {
   useEditableCollections,
   type EditableCollection,
 } from "@/src/queries/collections";
+import {
+  incrementCollectionPontosCountInTerreiroLists,
+  removePontoFromCollectionPontosList,
+  upsertPontoInCollectionPontosList,
+} from "@/src/queries/collectionsCache";
 import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import {
   cancelQueries,
@@ -132,6 +137,7 @@ export default function Home() {
       collectionId: string;
       pontoId: string;
       addedBy: string;
+      pontoSnapshot?: Ponto | null;
     }) => {
       const res = await addPontoToCollection(vars);
       if (!res.ok) {
@@ -144,10 +150,16 @@ export default function Home() {
 
       const now = new Date().toISOString();
 
+      const pontoSnapshot = vars.pontoSnapshot;
+      const shouldPatchPontosList =
+        !!pontoSnapshot && typeof pontoSnapshot?.id === "string";
+
       const filters = [
         { queryKey: queryKeys.collections.accountable(userId) },
         { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
         { queryKey: queryKeys.collections.byId(vars.collectionId) },
+        { queryKey: queryKeys.collections.pontos(vars.collectionId) },
+        { queryKey: ["terreiros", "collectionsByTerreiro"] },
       ];
 
       await cancelQueries(queryClient, filters);
@@ -175,7 +187,63 @@ export default function Home() {
         }
       );
 
-      return { snapshot };
+      let didInsertPonto = false;
+      let didIncrementCount = false;
+
+      if (shouldPatchPontosList && pontoSnapshot) {
+        const mappedPonto = {
+          id: String(pontoSnapshot.id ?? ""),
+          title:
+            (typeof (pontoSnapshot as any).title === "string" &&
+              (pontoSnapshot as any).title.trim()) ||
+            "Ponto",
+          artist:
+            typeof (pontoSnapshot as any).artist === "string"
+              ? (pontoSnapshot as any).artist
+              : null,
+          duration_seconds:
+            typeof (pontoSnapshot as any).duration_seconds === "number"
+              ? (pontoSnapshot as any).duration_seconds
+              : null,
+          audio_url:
+            typeof (pontoSnapshot as any).audio_url === "string"
+              ? (pontoSnapshot as any).audio_url
+              : null,
+          cover_url:
+            typeof (pontoSnapshot as any).cover_url === "string"
+              ? (pontoSnapshot as any).cover_url
+              : null,
+          lyrics:
+            typeof (pontoSnapshot as any).lyrics === "string"
+              ? (pontoSnapshot as any).lyrics
+              : "",
+          tags: Array.isArray((pontoSnapshot as any).tags)
+            ? ((pontoSnapshot as any).tags as any[]).filter(
+                (t) => typeof t === "string"
+              )
+            : [],
+        };
+
+        const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
+          collectionId: vars.collectionId,
+          ponto: mappedPonto,
+        });
+        didInsertPonto = didInsert;
+
+        if (didInsertPonto) {
+          incrementCollectionPontosCountInTerreiroLists(queryClient, {
+            collectionId: vars.collectionId,
+            delta: 1,
+          });
+          didIncrementCount = true;
+        }
+      }
+
+      return {
+        snapshot,
+        didInsertPonto,
+        didIncrementCount,
+      };
     },
     onError: (err, _vars, ctx) => {
       if (ctx?.snapshot) {
@@ -187,6 +255,24 @@ export default function Home() {
           ? err.message
           : "Erro ao adicionar ponto à coleção.";
       setAddError(__DEV__ ? msg : "Erro ao adicionar ponto à coleção.");
+    },
+    onSuccess: (data, vars, ctx) => {
+      // Se já existia, desfaz o optimistic específico (mantém updated_at patch).
+      if (data?.alreadyExists) {
+        if (ctx?.didInsertPonto) {
+          removePontoFromCollectionPontosList(queryClient, {
+            collectionId: vars.collectionId,
+            pontoId: vars.pontoId,
+          });
+        }
+
+        if (ctx?.didIncrementCount) {
+          incrementCollectionPontosCountInTerreiroLists(queryClient, {
+            collectionId: vars.collectionId,
+            delta: -1,
+          });
+        }
+      }
     },
     onSettled: (_data, _err, vars) => {
       if (!userId) return;
@@ -200,6 +286,15 @@ export default function Home() {
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.collections.byId(vars.collectionId),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.pontos(vars.collectionId),
+      });
+
+      // Atualiza contadores em todas as listas por-terreiro.
+      queryClient.invalidateQueries({
+        queryKey: ["terreiros", "collectionsByTerreiro"],
       });
     },
   });
@@ -1054,6 +1149,7 @@ export default function Home() {
                                 collectionId: c.id,
                                 pontoId: selectedPonto.id,
                                 addedBy: userId,
+                                pontoSnapshot: selectedPonto,
                               });
                             } catch (e) {
                               setIsAdding(false);

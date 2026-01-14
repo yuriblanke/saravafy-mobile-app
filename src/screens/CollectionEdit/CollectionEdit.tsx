@@ -1,6 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import {
+  incrementCollectionPontosCountInTerreiroLists,
+  setCollectionPontosList,
+} from "@/src/queries/collectionsCache";
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
   consumeCollectionEditDraft,
@@ -155,9 +159,42 @@ export default function EditCollectionPointsScreen() {
         userId: user.id,
       });
 
+      // Patch imediato do cache de pontos da coleção (evita flicker/estado stale ao voltar).
+      const snapshotItems = snapshotRef.current?.orderedItems ?? [];
+      const byId = new Map(snapshotItems.map((it) => [it.ponto.id, it]));
+      const nextItems = orderedIds
+        .map((id, idx) => {
+          const it = byId.get(id);
+          if (!it) return null;
+          return { ...it, position: idx + 1 };
+        })
+        .filter(Boolean) as typeof snapshotItems;
+
+      setCollectionPontosList(queryClient, {
+        collectionId,
+        items: nextItems,
+      });
+
+      // Atualiza contadores na biblioteca (listas por-terreiro) se houver remoções.
+      const delta = nextItems.length - originalPontoIds.length;
+      if (delta !== 0) {
+        incrementCollectionPontosCountInTerreiroLists(queryClient, {
+          collectionId,
+          delta,
+        });
+      }
+
       markCollectionPontosDirty(collectionId);
       queryClient.invalidateQueries({
         queryKey: queryKeys.collections.byId(collectionId),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.pontos(collectionId),
+      });
+
+      queryClient.invalidateQueries({
+        queryKey: ["terreiros", "collectionsByTerreiro"],
       });
     },
     [collectionId, originalPontoIds, queryClient, user?.id]

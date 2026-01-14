@@ -116,12 +116,27 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
           if (!isInScope) return;
 
           if (ownerTerreiroId === scopeTerreiroId) {
+            // Biblioteca do terreiro (cards + contagem)
+            queryClient.invalidateQueries({
+              queryKey:
+                queryKeys.terreiros.collectionsByTerreiro(scopeTerreiroId),
+            });
+
+            // Mantém compatibilidade com listas legadas ainda usadas em algumas telas.
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.terreiro(scopeTerreiroId),
             });
           }
 
           if (myUserId) {
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.collections.accountable(myUserId),
+            });
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.collections.editableByUserPrefix(myUserId),
+            });
+
+            // Compat (legado)
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.available({
                 userId: myUserId,
@@ -144,14 +159,33 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.byId(collectionId),
             });
+
+            // Pontos ordenados da coleção (player/Collection screen)
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.collections.pontos(collectionId),
+            });
           }
 
-          // Sem owner direto: invalida listas do terreiro atual.
+          // Sem owner direto no join: invalida biblioteca do terreiro atual (contadores).
+          queryClient.invalidateQueries({
+            queryKey:
+              queryKeys.terreiros.collectionsByTerreiro(scopeTerreiroId),
+          });
+
+          // Compat (legado)
           queryClient.invalidateQueries({
             queryKey: queryKeys.collections.terreiro(scopeTerreiroId),
           });
 
           if (myUserId) {
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.collections.accountable(myUserId),
+            });
+            queryClient.invalidateQueries({
+              queryKey: queryKeys.collections.editableByUserPrefix(myUserId),
+            });
+
+            // Compat (legado)
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.available({
                 userId: myUserId,
