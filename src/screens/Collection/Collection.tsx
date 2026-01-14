@@ -1174,7 +1174,15 @@ export default function Collection() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => {
-                    goToPontosTab();
+                    if (!collectionId) {
+                      goToPontosTab();
+                      return;
+                    }
+
+                    router.push({
+                      pathname: "/collection/[id]/add" as any,
+                      params: { id: collectionId },
+                    });
                   }}
                   style={({ pressed }) => [
                     styles.ctaButton,
@@ -1203,8 +1211,7 @@ export default function Collection() {
                   </Text>
                 </Pressable>
                 <Text style={[styles.emptyHint, { color: textMuted }]}>
-                  Ao abrir um ponto, toque em “Adicionar à coleção” e selecione
-                  esta coleção.
+                  Dica: você pode adicionar direto pela busca.
                 </Text>
               </View>
             </SurfaceCard>
