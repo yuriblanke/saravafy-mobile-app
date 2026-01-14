@@ -1,7 +1,13 @@
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -61,7 +67,9 @@ export function CollectionNameDetailsSheet({
   useEffect(() => {
     if (!visible) return;
     setTitle(initialTitle);
-    setDescription(typeof initialDescription === "string" ? initialDescription : "");
+    setDescription(
+      typeof initialDescription === "string" ? initialDescription : ""
+    );
     requestAnimationFrame(() => {
       nameRef.current?.focus();
     });
@@ -76,18 +84,14 @@ export function CollectionNameDetailsSheet({
     if (!canEdit) return;
     if (isSaving || isDeleting) return;
 
-    Alert.alert(
-      "Apagar coleção?",
-      "Esta coleção será excluída.",
-      [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Apagar",
-          style: "default",
-          onPress: () => onDelete(),
-        },
-      ]
-    );
+    Alert.alert("Apagar coleção?", "Esta coleção será excluída.", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Apagar",
+        style: "default",
+        onPress: () => onDelete(),
+      },
+    ]);
   }, [canEdit, isDeleting, isSaving, onDelete]);
 
   return (
@@ -116,10 +120,14 @@ export function CollectionNameDetailsSheet({
               pressed ? styles.pressed : null,
             ]}
           >
-            <Text style={[styles.sheetHeaderCancel, { color: textSecondary }]}>Cancelar</Text>
+            <Text style={[styles.sheetHeaderCancel, { color: textSecondary }]}>
+              Cancelar
+            </Text>
           </Pressable>
 
-          <Text style={[styles.sheetHeaderTitle, { color: textPrimary }]}>Nome e detalhes</Text>
+          <Text style={[styles.sheetHeaderTitle, { color: textPrimary }]}>
+            Nome e detalhes
+          </Text>
 
           <Pressable
             accessibilityRole="button"
@@ -165,8 +173,12 @@ export function CollectionNameDetailsSheet({
               styles.input,
               {
                 color: textPrimary,
-                borderColor: isLight ? colors.inputBorderLight : colors.inputBorderDark,
-                backgroundColor: isLight ? colors.inputBgLight : colors.inputBgDark,
+                borderColor: isLight
+                  ? colors.inputBorderLight
+                  : colors.inputBorderDark,
+                backgroundColor: isLight
+                  ? colors.inputBgLight
+                  : colors.inputBgDark,
               },
             ]}
             autoCapitalize="sentences"
@@ -176,7 +188,9 @@ export function CollectionNameDetailsSheet({
             returnKeyType="next"
           />
 
-          <Text style={[styles.label, { color: textSecondary }]}>Descrição</Text>
+          <Text style={[styles.label, { color: textSecondary }]}>
+            Descrição
+          </Text>
           <TextInput
             value={description}
             onChangeText={setDescription}
@@ -187,8 +201,12 @@ export function CollectionNameDetailsSheet({
               styles.multiline,
               {
                 color: textPrimary,
-                borderColor: isLight ? colors.inputBorderLight : colors.inputBorderDark,
-                backgroundColor: isLight ? colors.inputBgLight : colors.inputBgDark,
+                borderColor: isLight
+                  ? colors.inputBorderLight
+                  : colors.inputBorderDark,
+                backgroundColor: isLight
+                  ? colors.inputBgLight
+                  : colors.inputBgDark,
               },
             ]}
             multiline
@@ -209,7 +227,9 @@ export function CollectionNameDetailsSheet({
             ]}
           >
             <Ionicons name="trash-outline" size={18} color={textSecondary} />
-            <Text style={[styles.deleteText, { color: textSecondary }]}>Apagar coleção</Text>
+            <Text style={[styles.deleteText, { color: textSecondary }]}>
+              Apagar coleção
+            </Text>
             {isDeleting ? (
               <View style={{ marginLeft: "auto" }}>
                 <ActivityIndicator />
@@ -218,7 +238,9 @@ export function CollectionNameDetailsSheet({
           </Pressable>
 
           {!canEdit ? (
-            <Text style={[styles.noEditHint, { color: textSecondary }]}>Você não tem permissão para editar esta coleção.</Text>
+            <Text style={[styles.noEditHint, { color: textSecondary }]}>
+              Você não tem permissão para editar esta coleção.
+            </Text>
           ) : null}
         </View>
       </View>

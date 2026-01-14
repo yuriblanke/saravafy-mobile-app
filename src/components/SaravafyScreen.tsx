@@ -16,6 +16,7 @@ type Props = ViewProps & {
   theme?: "dark" | "light";
   variant?: "tabs" | "stack" | "focus";
   edges?: Array<"top" | "bottom" | "left" | "right">;
+  safeAreaScrimEdges?: Array<"top" | "bottom" | "left" | "right">;
 };
 
 export function SaravafyScreen({
@@ -24,6 +25,7 @@ export function SaravafyScreen({
   theme = "dark",
   variant = "tabs",
   edges: _edges = ["top", "bottom"],
+  safeAreaScrimEdges: _scrimEdges,
   ...rest
 }: Props) {
   const isLight = theme === "light";
@@ -31,6 +33,7 @@ export function SaravafyScreen({
   const insets = useGlobalSafeAreaInsets();
 
   const edges = _edges;
+  const scrimEdges = _scrimEdges ?? edges;
   const padTop = edges.includes("top") ? insets.top : 0;
   const padBottom = edges.includes("bottom") ? insets.bottom : 0;
   const padLeft = edges.includes("left") ? insets.left : 0;
@@ -50,7 +53,7 @@ export function SaravafyScreen({
       <SaravafyBackgroundLayers theme={theme} variant={variant} />
 
       {/* Scrim somente nas faixas de safe-area */}
-      {insets.top ? (
+      {insets.top && scrimEdges.includes("top") ? (
         <View
           pointerEvents="none"
           style={[
@@ -59,7 +62,7 @@ export function SaravafyScreen({
           ]}
         />
       ) : null}
-      {insets.bottom ? (
+      {insets.bottom && scrimEdges.includes("bottom") ? (
         <View
           pointerEvents="none"
           style={[
@@ -68,7 +71,7 @@ export function SaravafyScreen({
           ]}
         />
       ) : null}
-      {insets.left ? (
+      {insets.left && scrimEdges.includes("left") ? (
         <View
           pointerEvents="none"
           style={[
@@ -77,7 +80,7 @@ export function SaravafyScreen({
           ]}
         />
       ) : null}
-      {insets.right ? (
+      {insets.right && scrimEdges.includes("right") ? (
         <View
           pointerEvents="none"
           style={[

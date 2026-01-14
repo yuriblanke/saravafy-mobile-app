@@ -7,22 +7,25 @@ import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
+import { CollectionNameDetailsSheet } from "@/src/screens/Collection/CollectionNameDetailsSheet";
 import {
   consumeCollectionPontosDirty,
   putCollectionEditDraft,
 } from "@/src/screens/CollectionEdit/draftStore";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
-import { CollectionNameDetailsSheet } from "@/src/screens/Collection/CollectionNameDetailsSheet";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
-import { queryKeys } from "@/src/queries/queryKeys";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import React, {
   useCallback,
@@ -43,7 +46,6 @@ import {
   Text,
   View,
 } from "react-native";
-import { useQueryClient } from "@tanstack/react-query";
 
 type CollectionRow = {
   id: string;
@@ -55,6 +57,30 @@ type CollectionRow = {
   terreiro_title?: string | null;
   terreiro_cover_image_url?: string | null;
 };
+
+function hexToRgba(input: string, alpha: number) {
+  const raw = String(input ?? "").trim();
+  if (!raw) return `rgba(0,0,0,${alpha})`;
+
+  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
+  const norm =
+    hex.length === 3
+      ? hex
+          .split("")
+          .map((c) => c + c)
+          .join("")
+      : hex;
+
+  if (norm.length !== 6) return `rgba(0,0,0,${alpha})`;
+
+  const r = parseInt(norm.slice(0, 2), 16);
+  const g = parseInt(norm.slice(2, 4), 16);
+  const b = parseInt(norm.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return `rgba(0,0,0,${alpha})`;
+
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r},${g},${b},${a})`;
+}
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
@@ -77,7 +103,7 @@ function isColumnMissingError(error: unknown, columnName: string) {
     typeof error === "object" &&
     "message" in error &&
     typeof (error as { message?: unknown }).message === "string"
-      ? ((error as { message: string }).message ?? "")
+      ? (error as { message: string }).message ?? ""
       : "";
 
   const m = msg.toLowerCase();
@@ -130,6 +156,12 @@ export default function Collection() {
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
 
+  const baseBgColor = variant === "light" ? colors.paper50 : colors.forest900;
+
+  const insets = useGlobalSafeAreaInsets();
+  const headerVisibleHeight = 52;
+  const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
+
   const [collection, setCollection] = useState<CollectionRow | null>(null);
   const [collectionLoading, setCollectionLoading] = useState(false);
   const [collectionError, setCollectionError] = useState<string | null>(null);
@@ -139,8 +171,15 @@ export default function Collection() {
   const [isDeletingCollection, setIsDeletingCollection] = useState(false);
 
   const [h1Height, setH1Height] = useState<number | null>(null);
+  const [titleBlockY, setTitleBlockY] = useState<number | null>(null);
+  const [terreiroRowY, setTerreiroRowY] = useState<number | null>(null);
+  const [actionsBottomY, setActionsBottomY] = useState<number | null>(null);
+  const [pontosTopY, setPontosTopY] = useState<number | null>(null);
   const headerTitleOpacity = useRef(new Animated.Value(0)).current;
   const headerTitleVisibleRef = useRef(false);
+  const [isHeaderTitleVisible, setIsHeaderTitleVisible] = useState(false);
+  const headerGradientOpacity = useRef(new Animated.Value(0)).current;
+  const headerGradientVisibleRef = useRef(false);
 
   const isInTabs = segments.includes("(tabs)");
   const goToPontosTab = useCallback(() => {
@@ -303,7 +342,9 @@ export default function Collection() {
         description:
           typeof row?.description === "string" ? row.description : null,
         owner_terreiro_id:
-          typeof row?.owner_terreiro_id === "string" ? row.owner_terreiro_id : null,
+          typeof row?.owner_terreiro_id === "string"
+            ? row.owner_terreiro_id
+            : null,
         owner_user_id:
           typeof row?.owner_user_id === "string" ? row.owner_user_id : null,
         visibility: typeof row?.visibility === "string" ? row.visibility : null,
@@ -430,15 +471,114 @@ export default function Collection() {
     (visible: boolean) => {
       if (headerTitleVisibleRef.current === visible) return;
       headerTitleVisibleRef.current = visible;
+      setIsHeaderTitleVisible(visible);
+
+      // Comportamento assimétrico:
+      // - scroll -> header: anima (fica mais "Spotify")
+      // - header -> scroll: troca imediata (sem fade-out no header)
+      headerTitleOpacity.stopAnimation();
+      if (!visible) {
+        headerTitleOpacity.setValue(0);
+        return;
+      }
 
       Animated.timing(headerTitleOpacity, {
-        toValue: visible ? 1 : 0,
+        toValue: 1,
         duration: 160,
         useNativeDriver: true,
       }).start();
     },
     [headerTitleOpacity]
   );
+
+  const titleShareOpacity = useMemo(() => {
+    return headerTitleOpacity.interpolate({
+      inputRange: [0, 1],
+      outputRange: [1, 0],
+      extrapolate: "clamp",
+    });
+  }, [headerTitleOpacity]);
+
+  const setHeaderGradientVisible = useCallback(
+    (visible: boolean) => {
+      if (headerGradientVisibleRef.current === visible) return;
+      headerGradientVisibleRef.current = visible;
+      Animated.timing(headerGradientOpacity, {
+        toValue: visible ? 1 : 0,
+        duration: 160,
+        useNativeDriver: true,
+      }).start();
+    },
+    [headerGradientOpacity]
+  );
+
+  const headerBackdropOpacity = useMemo(() => {
+    // Quando o header entra no modo "degradê", queremos limitar a transparência
+    // a no máximo 25% (ou seja, opacidade mínima de 0.75).
+    return headerGradientOpacity.interpolate({
+      inputRange: [0, 1],
+      outputRange: [0, 0.75],
+      extrapolate: "clamp",
+    });
+  }, [headerGradientOpacity]);
+
+  const topGradientHeight = useMemo(() => {
+    const h =
+      typeof pontosTopY === "number" && pontosTopY > 0 ? pontosTopY : 220;
+    // Mantém o degradê focado no topo e garante que ele "termine" antes da lista.
+    return Math.max(160, Math.min(360, h));
+  }, [pontosTopY]);
+
+  const headerGoldColor =
+    variant === "light" ? colors.brass500 : colors.brass600;
+  const headerFgColor =
+    variant === "light"
+      ? textPrimary
+      : isHeaderTitleVisible
+      ? colors.paper50
+      : textPrimary;
+
+  const terreiroRowTopY = useMemo(() => {
+    if (typeof titleBlockY !== "number" || typeof terreiroRowY !== "number") {
+      return null;
+    }
+    return titleBlockY + terreiroRowY;
+  }, [titleBlockY, terreiroRowY]);
+
+  const headerGradientThreshold = useMemo(() => {
+    // Breakpoint ideal: quando a linha do terreiro (avatar + nome) encosta no header.
+    // Isso evita sobreposição de texto quando o header ainda está transparente.
+    if (typeof terreiroRowTopY === "number" && terreiroRowTopY > 0) {
+      return Math.max(0, terreiroRowTopY - headerTotalHeight);
+    }
+
+    // Queremos ligar o degradê do header quando o degradê do topo
+    // já não estiver mais passando por trás do header.
+    const topGradientNoLongerBehindHeader = Math.max(
+      0,
+      topGradientHeight - headerTotalHeight
+    );
+
+    if (typeof actionsBottomY === "number" && actionsBottomY > 0) {
+      const actionsBottomReachedHeader = Math.max(
+        0,
+        actionsBottomY - headerTotalHeight
+      );
+      return Math.max(
+        actionsBottomReachedHeader,
+        topGradientNoLongerBehindHeader
+      );
+    }
+    const base = typeof h1Height === "number" && h1Height > 0 ? h1Height : 44;
+    const fallback = Math.max(0, base + headerVisibleHeight);
+    return Math.max(fallback, topGradientNoLongerBehindHeader);
+  }, [
+    actionsBottomY,
+    h1Height,
+    headerTotalHeight,
+    topGradientHeight,
+    terreiroRowTopY,
+  ]);
 
   const onScroll = useCallback(
     (y: number) => {
@@ -447,8 +587,18 @@ export default function Collection() {
       const base = typeof h1Height === "number" && h1Height > 0 ? h1Height : 44;
       const threshold = Math.max(0, base - 8);
       setHeaderTitleVisible(y >= threshold);
+
+      // Header fica transparente enquanto o degradê do topo ainda passa por trás.
+      // Quando o degradê do topo já não está mais atrás do header, o header assume
+      // um degradê próprio (continuação visual).
+      setHeaderGradientVisible(y >= headerGradientThreshold);
     },
-    [h1Height, setHeaderTitleVisible]
+    [
+      h1Height,
+      headerGradientThreshold,
+      setHeaderGradientVisible,
+      setHeaderTitleVisible,
+    ]
   );
 
   const openNameDetails = useCallback(() => {
@@ -479,7 +629,10 @@ export default function Collection() {
           description: String(next.description ?? ""),
         };
 
-        let req: any = supabase.from("collections").update(updatePayload).eq("id", collectionId);
+        let req: any = supabase
+          .from("collections")
+          .update(updatePayload)
+          .eq("id", collectionId);
 
         // Guard extra para evitar deletar/alterar fora do escopo permitido.
         if (user?.id && collection?.owner_user_id === user.id) {
@@ -501,7 +654,8 @@ export default function Collection() {
 
           if (res2.error) {
             throw new Error(
-              typeof res2.error.message === "string" && res2.error.message.trim()
+              typeof res2.error.message === "string" &&
+              res2.error.message.trim()
                 ? res2.error.message
                 : "Não foi possível salvar."
             );
@@ -511,7 +665,10 @@ export default function Collection() {
             prev
               ? {
                   ...prev,
-                  title: typeof res2.data?.title === "string" ? res2.data.title : nextTitle,
+                  title:
+                    typeof res2.data?.title === "string"
+                      ? res2.data.title
+                      : nextTitle,
                 }
               : prev
           );
@@ -531,7 +688,9 @@ export default function Collection() {
               ? {
                   ...prev,
                   title:
-                    typeof res.data?.title === "string" ? res.data.title : nextTitle,
+                    typeof res.data?.title === "string"
+                      ? res.data.title
+                      : nextTitle,
                   description:
                     typeof res.data?.description === "string"
                       ? res.data.description
@@ -586,7 +745,10 @@ export default function Collection() {
 
     setIsDeletingCollection(true);
     try {
-      let req: any = supabase.from("collections").delete().eq("id", collectionId);
+      let req: any = supabase
+        .from("collections")
+        .delete()
+        .eq("id", collectionId);
 
       if (user?.id && collection?.owner_user_id === user.id) {
         req = req.eq("owner_user_id", user.id);
@@ -616,8 +778,12 @@ export default function Collection() {
           queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
         });
       }
-      queryClient.removeQueries({ queryKey: queryKeys.collections.byId(collectionId) });
-      queryClient.removeQueries({ queryKey: queryKeys.collections.pontos(collectionId) });
+      queryClient.removeQueries({
+        queryKey: queryKeys.collections.byId(collectionId),
+      });
+      queryClient.removeQueries({
+        queryKey: queryKeys.collections.pontos(collectionId),
+      });
 
       setIsNameDetailsOpen(false);
       showToast("Coleção apagada.");
@@ -640,171 +806,81 @@ export default function Collection() {
   ]);
 
   return (
-    <View style={styles.screen}>
-      <View style={styles.fixedHeader}>
-        <Pressable
-          accessibilityRole="button"
-          onPress={() => router.back()}
-          hitSlop={10}
-          style={styles.headerIconBtn}
+    <View
+      style={[
+        styles.screen,
+        {
+          backgroundColor: baseBgColor,
+        },
+      ]}
+    >
+      <View style={styles.headerAndBody}>
+        <View
+          style={[
+            styles.fixedHeader,
+            {
+              height: headerTotalHeight,
+              paddingTop: insets.top ?? 0,
+            },
+          ]}
         >
-          <Ionicons name="chevron-back" size={22} color={textPrimary} />
-        </Pressable>
-
-        <Animated.View
-          style={[styles.headerInlineTitleWrap, { opacity: headerTitleOpacity }]}
-          pointerEvents="none"
-        >
-          <Text
-            style={[styles.headerInlineTitle, { color: textPrimary }]}
-            numberOfLines={1}
-          >
-            {title}
-          </Text>
-        </Animated.View>
-
-        <View style={styles.headerRightSpacer} />
-      </View>
-
-      <CollectionNameDetailsSheet
-        visible={isNameDetailsOpen}
-        variant={variant}
-        initialTitle={title}
-        initialDescription={collection?.description ?? ""}
-        canEdit={canEditCollection}
-        isSaving={isSavingNameDetails}
-        isDeleting={isDeletingCollection}
-        onClose={() => setIsNameDetailsOpen(false)}
-        onSave={(next) => {
-          void saveNameDetails(next);
-        }}
-        onDelete={() => {
-          void deleteCollection();
-        }}
-      />
-
-      <AddMediumTagSheet
-        visible={!!mediumTargetPontoId}
-        variant={variant}
-        terreiroId={terreiroId}
-        pontoId={mediumTargetPontoId ?? ""}
-        canShowRemoveHint={canEditCustomTags}
-        onClose={() => setMediumTargetPontoId(null)}
-      />
-
-      <RemoveMediumTagSheet
-        visible={!!deleteTarget}
-        variant={variant}
-        terreiroId={terreiroId}
-        pontoId={deleteTarget?.pontoId ?? ""}
-        tagId={deleteTarget?.tagId ?? ""}
-        tagLabel={deleteTarget?.tagLabel ?? ""}
-        onClose={() => setDeleteTarget(null)}
-      />
-
-      <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
-        scrollEventThrottle={16}
-        onScroll={(e) => {
-          onScroll(e.nativeEvent.contentOffset.y);
-        }}
-      >
-        <View style={styles.titleBlock}>
-          <Text
-            style={[styles.h1, { color: textPrimary }]}
-            onLayout={(e) => {
-              setH1Height(e.nativeEvent.layout.height);
-            }}
-          >
-            {title}
-          </Text>
-
-          <View style={styles.terreiroRow}>
-            <View
+          <View pointerEvents="none" style={styles.headerGradientWrap}>
+            <Animated.View
+              pointerEvents="none"
               style={[
-                styles.terreiroAvatar,
+                StyleSheet.absoluteFill,
                 {
-                  backgroundColor:
-                    variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg,
-                  borderColor:
-                    variant === "light" ? colors.surfaceCardBorderLight : colors.surfaceCardBorder,
+                  backgroundColor: baseBgColor,
+                  opacity: headerBackdropOpacity,
                 },
               ]}
-            >
-              {terreiroCoverImageUrl ? (
-                <Image
-                  source={{ uri: terreiroCoverImageUrl }}
-                  style={styles.terreiroAvatarImg}
-                  resizeMode="cover"
-                  accessibilityIgnoresInvertColors
-                />
-              ) : (
-                <Ionicons
-                  name={terreiroId ? "home-outline" : "person-outline"}
-                  size={16}
-                  color={textMuted}
-                />
-              )}
-            </View>
+            />
 
-            <Text style={[styles.terreiroName, { color: textSecondary }]} numberOfLines={1}>
-              {terreiroTitle}
-            </Text>
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                StyleSheet.absoluteFill,
+                { opacity: headerGradientOpacity },
+              ]}
+            >
+              <LinearGradient
+                pointerEvents="none"
+                // Topo levemente dourado; o scrim semi-opaco garante que não fique transparente demais.
+                colors={[hexToRgba(headerGoldColor, 0.22), baseBgColor]}
+                locations={[0, 1]}
+                style={StyleSheet.absoluteFill}
+              />
+            </Animated.View>
           </View>
 
-          <Text style={[styles.countText, { color: textMuted }]}>{pontosCountText}</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => router.back()}
+            hitSlop={10}
+            style={styles.headerIconBtn}
+          >
+            <Ionicons name="chevron-back" size={22} color={headerFgColor} />
+          </Pressable>
 
-          <View style={styles.actionsRow}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Adicionar"
-              onPress={() => {
-                goToPontosTab();
-              }}
-              style={({ pressed }) => [
-                styles.primaryActionBtn,
-                pressed ? styles.pressed : null,
-              ]}
+          <Animated.View
+            style={[
+              styles.headerInlineTitleWrap,
+              { opacity: headerTitleOpacity },
+            ]}
+            pointerEvents="none"
+          >
+            <Text
+              style={[styles.headerInlineTitle, { color: headerFgColor }]}
+              numberOfLines={1}
             >
-              <Text style={styles.primaryActionText}>Adicionar</Text>
-            </Pressable>
+              {title}
+            </Text>
+          </Animated.View>
 
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Editar"
-              onPress={openEdit}
-              style={({ pressed }) => [
-                styles.secondaryActionBtn,
-                {
-                  borderColor:
-                    variant === "light" ? colors.inputBorderLight : colors.inputBorderDark,
-                },
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <Ionicons name="reorder-three" size={18} color={textPrimary} />
-              <Text style={[styles.secondaryActionText, { color: textPrimary }]}>Editar</Text>
-            </Pressable>
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Nome e detalhes"
-              onPress={openNameDetails}
-              style={({ pressed }) => [
-                styles.tertiaryActionBtn,
-                {
-                  borderColor:
-                    variant === "light" ? colors.inputBorderLight : colors.inputBorderDark,
-                  backgroundColor:
-                    variant === "light" ? colors.inputBgLight : colors.inputBgDark,
-                },
-                pressed ? styles.pressed : null,
-              ]}
-            >
-              <Text style={[styles.tertiaryActionText, { color: textPrimary }]}>Nome e detalhes</Text>
-            </Pressable>
-
+          <Animated.View
+            style={[styles.headerRightArea, { opacity: headerTitleOpacity }]}
+            pointerEvents={isHeaderTitleVisible ? "auto" : "none"}
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Compartilhar"
@@ -812,355 +888,626 @@ export default function Collection() {
                 void handleShare();
               }}
               hitSlop={10}
-              style={({ pressed }) => [
-                styles.iconActionBtn,
-                pressed ? styles.pressed : null,
-              ]}
+              style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={18} color={textPrimary} />
+              <Ionicons name="share-outline" size={18} color={headerFgColor} />
             </Pressable>
-          </View>
+          </Animated.View>
         </View>
 
-        {isLoading ? (
-          <View style={styles.centerInScroll}>
-            <ActivityIndicator />
-            <Text style={[styles.bodyText, { color: textSecondary }]}>Carregando…</Text>
-          </View>
-        ) : error ? (
-          <View style={styles.centerInScroll}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>{error}</Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                loadCollection();
-                reloadPontos();
-                membership.reload();
-              }}
-              style={({ pressed }) => [
-                styles.retryBtn,
-                pressed && styles.retryBtnPressed,
-                variant === "light" ? styles.retryBtnLight : styles.retryBtnDark,
-              ]}
+        <CollectionNameDetailsSheet
+          visible={isNameDetailsOpen}
+          variant={variant}
+          initialTitle={title}
+          initialDescription={collection?.description ?? ""}
+          canEdit={canEditCollection}
+          isSaving={isSavingNameDetails}
+          isDeleting={isDeletingCollection}
+          onClose={() => setIsNameDetailsOpen(false)}
+          onSave={(next) => {
+            void saveNameDetails(next);
+          }}
+          onDelete={() => {
+            void deleteCollection();
+          }}
+        />
+
+        <AddMediumTagSheet
+          visible={!!mediumTargetPontoId}
+          variant={variant}
+          terreiroId={terreiroId}
+          pontoId={mediumTargetPontoId ?? ""}
+          canShowRemoveHint={canEditCustomTags}
+          onClose={() => setMediumTargetPontoId(null)}
+        />
+
+        <RemoveMediumTagSheet
+          visible={!!deleteTarget}
+          variant={variant}
+          terreiroId={terreiroId}
+          pontoId={deleteTarget?.pontoId ?? ""}
+          tagId={deleteTarget?.tagId ?? ""}
+          tagLabel={deleteTarget?.tagLabel ?? ""}
+          onClose={() => setDeleteTarget(null)}
+        />
+
+        <ScrollView
+          style={styles.scroll}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: headerTotalHeight },
+          ]}
+          scrollEventThrottle={16}
+          onScroll={(e) => {
+            onScroll(e.nativeEvent.contentOffset.y);
+          }}
+        >
+          <LinearGradient
+            pointerEvents="none"
+            // Este degradê pertence ao conteúdo: ele scrolla pra cima e some.
+            colors={[
+              hexToRgba(headerGoldColor, 0.95),
+              hexToRgba(headerGoldColor, 0.45),
+              baseBgColor,
+            ]}
+            locations={[0, 0.55, 1]}
+            style={[
+              styles.topGradient,
+              {
+                top: -headerTotalHeight,
+                height: topGradientHeight + headerTotalHeight,
+              },
+            ]}
+          />
+
+          <View
+            style={styles.titleBlock}
+            onLayout={(e) => {
+              setTitleBlockY(e.nativeEvent.layout.y);
+            }}
+          >
+            <Animated.View
+              style={[styles.titleRow, { opacity: titleShareOpacity }]}
+              pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
             >
-              <Text style={[styles.retryText, { color: textPrimary }]}>Tentar novamente</Text>
-            </Pressable>
-          </View>
-        ) : pontosEmpty ? (
-          <SurfaceCard variant={variant} style={styles.emptyCard}>
-            <View style={styles.emptyContent}>
-              <Ionicons
-                name="albums-outline"
-                size={48}
-                color={variant === "light" ? colors.forest500 : colors.forest400}
-                style={{ marginBottom: spacing.lg }}
-              />
-              <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                Esta coleção ainda não tem pontos
+              <Text
+                style={[styles.h1, { color: textPrimary }]}
+                onLayout={(e) => {
+                  setH1Height(e.nativeEvent.layout.height);
+                }}
+              >
+                {title}
               </Text>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Para montar esta coleção, procure pontos e adicione os que fazem
-                sentido aqui.
+
+              <Animated.View
+                style={[styles.titleShareWrap, { opacity: titleShareOpacity }]}
+                pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
+              >
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Compartilhar"
+                  onPress={() => {
+                    void handleShare();
+                  }}
+                  hitSlop={10}
+                  style={styles.headerIconBtn}
+                >
+                  <Ionicons
+                    name="share-outline"
+                    size={20}
+                    color={textPrimary}
+                  />
+                </Pressable>
+              </Animated.View>
+            </Animated.View>
+
+            <View
+              style={styles.terreiroRow}
+              onLayout={(e) => {
+                setTerreiroRowY(e.nativeEvent.layout.y);
+              }}
+            >
+              <View
+                style={[
+                  styles.terreiroAvatar,
+                  {
+                    backgroundColor:
+                      variant === "light"
+                        ? colors.surfaceCardBgLight
+                        : colors.surfaceCardBg,
+                    borderColor:
+                      variant === "light"
+                        ? colors.surfaceCardBorderLight
+                        : colors.surfaceCardBorder,
+                  },
+                ]}
+              >
+                {terreiroCoverImageUrl ? (
+                  <Image
+                    source={{ uri: terreiroCoverImageUrl }}
+                    style={styles.terreiroAvatarImg}
+                    resizeMode="cover"
+                    accessibilityIgnoresInvertColors
+                  />
+                ) : (
+                  <Ionicons
+                    name={terreiroId ? "home-outline" : "person-outline"}
+                    size={16}
+                    color={textMuted}
+                  />
+                )}
+              </View>
+
+              <Text
+                style={[styles.terreiroName, { color: textSecondary }]}
+                numberOfLines={1}
+              >
+                {terreiroTitle}
               </Text>
+            </View>
+
+            <Text style={[styles.countText, { color: textMuted }]}>
+              {pontosCountText}
+            </Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.actionsRow}
+              onLayout={(e) => {
+                const { y, height } = e.nativeEvent.layout;
+                setActionsBottomY(y + height);
+              }}
+            >
               <Pressable
                 accessibilityRole="button"
+                accessibilityLabel="Adicionar"
                 onPress={() => {
                   goToPontosTab();
                 }}
                 style={({ pressed }) => [
-                  styles.ctaButton,
-                  pressed && styles.retryBtnPressed,
-                  variant === "light" ? styles.ctaButtonLight : styles.ctaButtonDark,
+                  styles.primaryActionBtn,
+                  pressed ? styles.pressed : null,
                 ]}
               >
-                <Ionicons
-                  name="search"
-                  size={18}
-                  color={variant === "light" ? colors.brass500 : colors.brass600}
-                  style={{ marginRight: 8 }}
-                />
-                <Text style={variant === "light" ? styles.ctaTextLight : styles.ctaTextDark}>
-                  Buscar pontos
+                <Ionicons name="add" size={18} color={colors.paper50} />
+                <Text style={styles.primaryActionText}>Adicionar</Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Editar"
+                onPress={openEdit}
+                style={({ pressed }) => [
+                  styles.secondaryActionBtn,
+                  {
+                    borderColor:
+                      variant === "light"
+                        ? colors.inputBorderLight
+                        : colors.inputBorderDark,
+                  },
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Ionicons name="reorder-three" size={18} color={textPrimary} />
+                <Text
+                  style={[styles.secondaryActionText, { color: textPrimary }]}
+                >
+                  Editar
                 </Text>
               </Pressable>
-              <Text style={[styles.emptyHint, { color: textMuted }]}>
-                Ao abrir um ponto, toque em “Adicionar à coleção” e selecione esta
-                coleção.
+
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Nome e detalhes"
+                onPress={openNameDetails}
+                style={({ pressed }) => [
+                  styles.secondaryActionBtn,
+                  {
+                    borderColor:
+                      variant === "light"
+                        ? colors.inputBorderLight
+                        : colors.inputBorderDark,
+                  },
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <Text
+                  style={[styles.secondaryActionText, { color: textPrimary }]}
+                >
+                  Nome e detalhes
+                </Text>
+              </Pressable>
+            </ScrollView>
+          </View>
+
+          {isLoading ? (
+            <View style={styles.centerInScroll}>
+              <ActivityIndicator />
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Carregando…
               </Text>
             </View>
-          </SurfaceCard>
-        ) : isMembersOnly && !isMember ? (
-          <View style={styles.gateWrap}>
-          <SurfaceCard variant={variant} style={styles.gateCard}>
-            <Text style={[styles.gateTitle, { color: textPrimary }]}>
-              Coleção exclusiva para membros
-            </Text>
-
-            {!isLoggedIn ? (
-              <Text style={[styles.gateBody, { color: textSecondary }]}>
-                Entre para ver esta coleção.
+          ) : error ? (
+            <View style={styles.centerInScroll}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                {error}
               </Text>
-            ) : isPendingView ? (
-              <Text style={[styles.gateBody, { color: textSecondary }]}>
-                Pedido enviado (pendente). Assim que for aprovado, você terá
-                acesso.
-              </Text>
-            ) : (
-              <Text style={[styles.gateBody, { color: textSecondary }]}>
-                Para acessar, peça para se tornar membro do terreiro.
-              </Text>
-            )}
-
-            <View style={styles.gateActions}>
-              {!isLoggedIn ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => router.replace("/login")}
-                  style={({ pressed }) => [
-                    styles.gatePrimaryBtn,
-                    pressed ? styles.gateBtnPressed : null,
-                    variant === "light"
-                      ? styles.gatePrimaryBtnLight
-                      : styles.gatePrimaryBtnDark,
-                  ]}
-                >
-                  <Text
-                    style={
-                      variant === "light"
-                        ? styles.gatePrimaryTextLight
-                        : styles.gatePrimaryTextDark
-                    }
-                  >
-                    Entrar para ver esta coleção
-                  </Text>
-                </Pressable>
-              ) : isPendingView ? (
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() =>
-                    showToast("Cancelamento de pedido: TODO (backend).")
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  loadCollection();
+                  reloadPontos();
+                  membership.reload();
+                }}
+                style={({ pressed }) => [
+                  styles.retryBtn,
+                  pressed && styles.retryBtnPressed,
+                  variant === "light"
+                    ? styles.retryBtnLight
+                    : styles.retryBtnDark,
+                ]}
+              >
+                <Text style={[styles.retryText, { color: textPrimary }]}>
+                  Tentar novamente
+                </Text>
+              </Pressable>
+            </View>
+          ) : pontosEmpty ? (
+            <SurfaceCard variant={variant} style={styles.emptyCard}>
+              <View style={styles.emptyContent}>
+                <Ionicons
+                  name="albums-outline"
+                  size={48}
+                  color={
+                    variant === "light" ? colors.forest500 : colors.forest400
                   }
-                  style={({ pressed }) => [
-                    styles.gateSecondaryBtn,
-                    pressed ? styles.gateBtnPressed : null,
-                    {
-                      borderColor:
-                        variant === "light"
-                          ? colors.surfaceCardBorderLight
-                          : colors.surfaceCardBorder,
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[styles.gateSecondaryText, { color: textPrimary }]}
-                  >
-                    Cancelar pedido
-                  </Text>
-                </Pressable>
-              ) : (
+                  style={{ marginBottom: spacing.lg }}
+                />
+                <Text style={[styles.emptyTitle, { color: textPrimary }]}>
+                  Esta coleção ainda não tem pontos
+                </Text>
+                <Text style={[styles.bodyText, { color: textSecondary }]}>
+                  Para montar esta coleção, procure pontos e adicione os que
+                  fazem sentido aqui.
+                </Text>
                 <Pressable
                   accessibilityRole="button"
-                  disabled={
-                    createRequest.isCreating ||
-                    membership.isLoading ||
-                    !terreiroId
-                  }
-                  onPress={async () => {
-                    if (!user?.id) {
-                      router.replace("/login");
-                      return;
-                    }
-
-                    if (!terreiroId) {
-                      showToast("Não foi possível identificar o terreiro.");
-                      return;
-                    }
-
-                    if (membership.data.isActiveMember) {
-                      showToast("Você já é membro deste terreiro.");
-                      return;
-                    }
-
-                    const result = await createRequest.create();
-                    if (result.ok) {
-                      showToast(
-                        result.alreadyExisted
-                          ? "Pedido já enviado (pendente)."
-                          : "Pedido enviado (pendente)."
-                      );
-                      await membership.reload();
-                      return;
-                    }
-
-                    showToast(
-                      "Não foi possível enviar o pedido agora. Tente novamente."
-                    );
+                  onPress={() => {
+                    goToPontosTab();
                   }}
                   style={({ pressed }) => [
-                    styles.gatePrimaryBtn,
-                    pressed ? styles.gateBtnPressed : null,
-                    createRequest.isCreating ? styles.gateBtnPressed : null,
+                    styles.ctaButton,
+                    pressed && styles.retryBtnPressed,
                     variant === "light"
-                      ? styles.gatePrimaryBtnLight
-                      : styles.gatePrimaryBtnDark,
+                      ? styles.ctaButtonLight
+                      : styles.ctaButtonDark,
                   ]}
                 >
+                  <Ionicons
+                    name="search"
+                    size={18}
+                    color={
+                      variant === "light" ? colors.brass500 : colors.brass600
+                    }
+                    style={{ marginRight: 8 }}
+                  />
                   <Text
                     style={
                       variant === "light"
-                        ? styles.gatePrimaryTextLight
-                        : styles.gatePrimaryTextDark
+                        ? styles.ctaTextLight
+                        : styles.ctaTextDark
                     }
                   >
-                    Se tornar membro
+                    Buscar pontos
                   </Text>
                 </Pressable>
-              )}
-            </View>
-          </SurfaceCard>
+                <Text style={[styles.emptyHint, { color: textMuted }]}>
+                  Ao abrir um ponto, toque em “Adicionar à coleção” e selecione
+                  esta coleção.
+                </Text>
+              </View>
+            </SurfaceCard>
+          ) : isMembersOnly && !isMember ? (
+            <View style={styles.gateWrap}>
+              <SurfaceCard variant={variant} style={styles.gateCard}>
+                <Text style={[styles.gateTitle, { color: textPrimary }]}>
+                  Coleção exclusiva para membros
+                </Text>
 
-          <SurfaceCard variant={variant} style={styles.lockedCard}>
-            <View style={styles.lockedRow}>
-              <Ionicons
-                name="lock-closed"
-                size={18}
-                color={textMuted}
-                style={{ marginRight: 10 }}
-              />
-              <Text style={[styles.lockedText, { color: textSecondary }]}>
-                Conteúdo disponível apenas para membros.
-              </Text>
-            </View>
-          </SurfaceCard>
-        </View>
-        ) : (
-          <FlatList
-            data={orderedItems}
-            scrollEnabled={false}
-            keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
-            contentContainerStyle={[styles.listContent, { paddingBottom: spacing.xl }]}
-            renderItem={({ item }) => {
-              const preview = getLyricsPreview(item.ponto.lyrics);
-              return (
-                <View style={styles.cardGap}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => {
-                      const now = Date.now();
-                      if (shouldBlockPress()) {
-                        if (__DEV__) {
-                          console.log("[PressGuard] blocked", {
-                            screen: "Collection",
-                            now,
-                          });
+                {!isLoggedIn ? (
+                  <Text style={[styles.gateBody, { color: textSecondary }]}>
+                    Entre para ver esta coleção.
+                  </Text>
+                ) : isPendingView ? (
+                  <Text style={[styles.gateBody, { color: textSecondary }]}>
+                    Pedido enviado (pendente). Assim que for aprovado, você terá
+                    acesso.
+                  </Text>
+                ) : (
+                  <Text style={[styles.gateBody, { color: textSecondary }]}>
+                    Para acessar, peça para se tornar membro do terreiro.
+                  </Text>
+                )}
+
+                <View style={styles.gateActions}>
+                  {!isLoggedIn ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => router.replace("/login")}
+                      style={({ pressed }) => [
+                        styles.gatePrimaryBtn,
+                        pressed ? styles.gateBtnPressed : null,
+                        variant === "light"
+                          ? styles.gatePrimaryBtnLight
+                          : styles.gatePrimaryBtnDark,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          variant === "light"
+                            ? styles.gatePrimaryTextLight
+                            : styles.gatePrimaryTextDark
                         }
-                        return;
+                      >
+                        Entrar para ver esta coleção
+                      </Text>
+                    </Pressable>
+                  ) : isPendingView ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() =>
+                        showToast("Cancelamento de pedido: TODO (backend).")
                       }
-
-                      if (__DEV__) {
-                        console.log("[PressGuard] allowed", {
-                          screen: "Collection",
-                          now,
-                        });
-                      }
-
-                      if (__DEV__) {
-                        console.log("[Navigation] click -> /player", {
-                          screen: "Collection",
-                          now,
-                          collectionId,
-                          initialPontoId: item.ponto.id,
-                        });
-                      }
-
-                      router.push({
-                        pathname: "/player",
-                        params: {
-                          collectionId,
-                          initialPontoId: item.ponto.id,
-                          terreiroId: terreiroId || undefined,
+                      style={({ pressed }) => [
+                        styles.gateSecondaryBtn,
+                        pressed ? styles.gateBtnPressed : null,
+                        {
+                          borderColor:
+                            variant === "light"
+                              ? colors.surfaceCardBorderLight
+                              : colors.surfaceCardBorder,
                         },
-                      });
-                    }}
-                  >
-                    <SurfaceCard variant={variant}>
-                      <Text style={[styles.itemTitle, { color: textPrimary }]} numberOfLines={2}>
-                        {item.ponto.title}
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.gateSecondaryText,
+                          { color: textPrimary },
+                        ]}
+                      >
+                        Cancelar pedido
                       </Text>
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={
+                        createRequest.isCreating ||
+                        membership.isLoading ||
+                        !terreiroId
+                      }
+                      onPress={async () => {
+                        if (!user?.id) {
+                          router.replace("/login");
+                          return;
+                        }
 
-                      {(() => {
-                        const mediumTags = canSeeMediumTags
-                          ? customTagsMap[item.ponto.id] ?? []
-                          : [];
-                        const pointTags = Array.isArray(item.ponto.tags)
-                          ? item.ponto.tags
-                          : [];
+                        if (!terreiroId) {
+                          showToast("Não foi possível identificar o terreiro.");
+                          return;
+                        }
 
-                        const hasAnyTags = mediumTags.length > 0 || pointTags.length > 0;
-                        if (!hasAnyTags) return null;
+                        if (membership.data.isActiveMember) {
+                          showToast("Você já é membro deste terreiro.");
+                          return;
+                        }
 
-                        return (
-                          <View style={styles.tagsWrap}>
-                            {canEditCustomTags && !!terreiroId ? (
-                              <TagPlusChip
-                                variant={variant}
-                                accessibilityLabel="Adicionar médium"
-                                onPress={() => setMediumTargetPontoId(item.ponto.id)}
-                              />
-                            ) : null}
-                            {mediumTags.map((t) => (
-                              <Pressable
-                                key={`medium-${item.ponto.id}-${t.id}`}
-                                accessibilityRole={canEditCustomTags ? "button" : undefined}
-                                accessibilityLabel={
-                                  canEditCustomTags ? `Remover médium ${t.tagText}` : undefined
-                                }
-                                onLongPress={
-                                  canEditCustomTags
-                                    ? () =>
-                                        setDeleteTarget({
-                                          pontoId: item.ponto.id,
-                                          tagId: t.id,
-                                          tagLabel: t.tagText,
-                                        })
-                                    : undefined
-                                }
-                                delayLongPress={350}
-                                disabled={!canEditCustomTags}
-                                style={({ pressed }) => [
-                                  pressed && canEditCustomTags ? { opacity: 0.75 } : null,
-                                ]}
-                              >
-                                <TagChip
-                                  label={t.tagText}
-                                  variant={variant}
-                                  kind="custom"
-                                  tone="medium"
-                                />
-                              </Pressable>
-                            ))}
-                            {pointTags.map((t) => (
-                              <TagChip
-                                key={`ponto-${item.ponto.id}-${t}`}
-                                label={t}
-                                variant={variant}
-                              />
-                            ))}
-                          </View>
+                        const result = await createRequest.create();
+                        if (result.ok) {
+                          showToast(
+                            result.alreadyExisted
+                              ? "Pedido já enviado (pendente)."
+                              : "Pedido enviado (pendente)."
+                          );
+                          await membership.reload();
+                          return;
+                        }
+
+                        showToast(
+                          "Não foi possível enviar o pedido agora. Tente novamente."
                         );
-                      })()}
-
-                      <Text style={[styles.preview, { color: textSecondary }]} numberOfLines={6}>
-                        {preview}
+                      }}
+                      style={({ pressed }) => [
+                        styles.gatePrimaryBtn,
+                        pressed ? styles.gateBtnPressed : null,
+                        createRequest.isCreating ? styles.gateBtnPressed : null,
+                        variant === "light"
+                          ? styles.gatePrimaryBtnLight
+                          : styles.gatePrimaryBtnDark,
+                      ]}
+                    >
+                      <Text
+                        style={
+                          variant === "light"
+                            ? styles.gatePrimaryTextLight
+                            : styles.gatePrimaryTextDark
+                        }
+                      >
+                        Se tornar membro
                       </Text>
-                    </SurfaceCard>
-                  </Pressable>
+                    </Pressable>
+                  )}
                 </View>
-              );
-            }}
-          />
-        )}
-      </ScrollView>
+              </SurfaceCard>
+
+              <SurfaceCard variant={variant} style={styles.lockedCard}>
+                <View style={styles.lockedRow}>
+                  <Ionicons
+                    name="lock-closed"
+                    size={18}
+                    color={textMuted}
+                    style={{ marginRight: 10 }}
+                  />
+                  <Text style={[styles.lockedText, { color: textSecondary }]}>
+                    Conteúdo disponível apenas para membros.
+                  </Text>
+                </View>
+              </SurfaceCard>
+            </View>
+          ) : (
+            <View
+              onLayout={(e) => {
+                setPontosTopY(e.nativeEvent.layout.y);
+              }}
+            >
+              <FlatList
+                data={orderedItems}
+                scrollEnabled={false}
+                keyExtractor={(it) => `${it.position}-${it.ponto.id}`}
+                contentContainerStyle={[
+                  styles.listContent,
+                  { paddingBottom: spacing.xl },
+                ]}
+                renderItem={({ item }) => {
+                  const preview = getLyricsPreview(item.ponto.lyrics);
+                  return (
+                    <View style={styles.cardGap}>
+                      <Pressable
+                        accessibilityRole="button"
+                        onPress={() => {
+                          const now = Date.now();
+                          if (shouldBlockPress()) {
+                            if (__DEV__) {
+                              console.log("[PressGuard] blocked", {
+                                screen: "Collection",
+                                now,
+                              });
+                            }
+                            return;
+                          }
+
+                          if (__DEV__) {
+                            console.log("[PressGuard] allowed", {
+                              screen: "Collection",
+                              now,
+                            });
+                          }
+
+                          if (__DEV__) {
+                            console.log("[Navigation] click -> /player", {
+                              screen: "Collection",
+                              now,
+                              collectionId,
+                              initialPontoId: item.ponto.id,
+                            });
+                          }
+
+                          router.push({
+                            pathname: "/player",
+                            params: {
+                              collectionId,
+                              initialPontoId: item.ponto.id,
+                              terreiroId: terreiroId || undefined,
+                            },
+                          });
+                        }}
+                      >
+                        <SurfaceCard variant={variant}>
+                          <Text
+                            style={[styles.itemTitle, { color: textPrimary }]}
+                            numberOfLines={2}
+                          >
+                            {item.ponto.title}
+                          </Text>
+
+                          {(() => {
+                            const mediumTags = canSeeMediumTags
+                              ? customTagsMap[item.ponto.id] ?? []
+                              : [];
+                            const pointTags = Array.isArray(item.ponto.tags)
+                              ? item.ponto.tags
+                              : [];
+
+                            const hasAnyTags =
+                              mediumTags.length > 0 || pointTags.length > 0;
+                            if (!hasAnyTags) return null;
+
+                            return (
+                              <View style={styles.tagsWrap}>
+                                {canEditCustomTags && !!terreiroId ? (
+                                  <TagPlusChip
+                                    variant={variant}
+                                    accessibilityLabel="Adicionar médium"
+                                    onPress={() =>
+                                      setMediumTargetPontoId(item.ponto.id)
+                                    }
+                                  />
+                                ) : null}
+                                {mediumTags.map((t) => (
+                                  <Pressable
+                                    key={`medium-${item.ponto.id}-${t.id}`}
+                                    accessibilityRole={
+                                      canEditCustomTags ? "button" : undefined
+                                    }
+                                    accessibilityLabel={
+                                      canEditCustomTags
+                                        ? `Remover médium ${t.tagText}`
+                                        : undefined
+                                    }
+                                    onLongPress={
+                                      canEditCustomTags
+                                        ? () =>
+                                            setDeleteTarget({
+                                              pontoId: item.ponto.id,
+                                              tagId: t.id,
+                                              tagLabel: t.tagText,
+                                            })
+                                        : undefined
+                                    }
+                                    delayLongPress={350}
+                                    disabled={!canEditCustomTags}
+                                    style={({ pressed }) => [
+                                      pressed && canEditCustomTags
+                                        ? { opacity: 0.75 }
+                                        : null,
+                                    ]}
+                                  >
+                                    <TagChip
+                                      label={t.tagText}
+                                      variant={variant}
+                                      kind="custom"
+                                      tone="medium"
+                                    />
+                                  </Pressable>
+                                ))}
+                                {pointTags.map((t) => (
+                                  <TagChip
+                                    key={`ponto-${item.ponto.id}-${t}`}
+                                    label={t}
+                                    variant={variant}
+                                  />
+                                ))}
+                              </View>
+                            );
+                          })()}
+
+                          <Text
+                            style={[styles.preview, { color: textSecondary }]}
+                            numberOfLines={6}
+                          >
+                            {preview}
+                          </Text>
+                        </SurfaceCard>
+                      </Pressable>
+                    </View>
+                  );
+                }}
+              />
+            </View>
+          )}
+        </ScrollView>
+      </View>
     </View>
   );
 }
@@ -1169,11 +1516,33 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
   },
+  headerAndBody: {
+    flex: 1,
+    position: "relative",
+  },
+  topGradient: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+  },
   fixedHeader: {
     height: 52,
     paddingHorizontal: spacing.lg,
     flexDirection: "row",
     alignItems: "center",
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+  },
+  headerGradientWrap: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
   },
   headerIconBtn: {
     width: 36,
@@ -1189,6 +1558,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
   },
+  headerRightArea: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   headerRightSpacer: {
     width: 36,
     height: 36,
@@ -1198,6 +1573,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 0,
+    position: "relative",
   },
   titleBlock: {
     paddingHorizontal: spacing.lg,
@@ -1205,10 +1581,22 @@ const styles = StyleSheet.create({
     paddingBottom: spacing.md,
     gap: spacing.sm,
   },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  titleShareWrap: {
+    width: 36,
+    height: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   h1: {
     fontSize: 24,
     fontWeight: "900",
     lineHeight: 30,
+    flex: 1,
   },
   terreiroRow: {
     flexDirection: "row",
@@ -1241,8 +1629,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
-    flexWrap: "wrap",
     marginTop: spacing.xs,
+    paddingRight: spacing.lg,
   },
   primaryActionBtn: {
     height: 40,
@@ -1251,6 +1639,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     alignItems: "center",
     justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
   },
   primaryActionText: {
     color: colors.paper50,
