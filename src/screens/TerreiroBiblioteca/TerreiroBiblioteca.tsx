@@ -494,14 +494,16 @@ export default function TerreiroBiblioteca() {
   const spacerHeight = useDerivedValue(() => {
     // Altura reservada no conteúdo para manter o topo do primeiro item sempre
     // abaixo da borda inferior VISUAL da cover overlay.
-    const reserved = coverTopOffset + imageSize.value + coverBottomGap;
+    // IMPORTANTE: coverTopOffset JÁ está aplicado no wrapper (paddingTop),
+    // então o spacer só precisa reservar imageSize + gap + ajuste de translateY.
+    const reserved = imageSize.value + coverBottomGap;
     const h = reserved + imageTranslateY.value; // translateY negativo reduz o espaço reservado
 
     const minSpacer = coverBottomGap; // quando a cover já subiu totalmente
-    const maxSpacer = coverTopOffset + imageMaxSize + coverBottomGap;
+    const maxSpacer = imageMaxSize + coverBottomGap;
 
     return Math.min(maxSpacer, Math.max(minSpacer, h));
-  }, [coverBottomGap, coverTopOffset, imageMaxSize]);
+  }, [coverBottomGap, imageMaxSize]);
 
   const coverSpacerStyle = useAnimatedStyle(() => {
     return {
@@ -1657,11 +1659,13 @@ function DebugCoverGuides(props: {
   }, [firstContentLayoutY, firstContentLayoutYSV]);
 
   const coverBottomY = useDerivedValue(() => {
+    // Cover visual bottom em coordenadas de tela:
+    // wrapper.top (headerTotalHeight) + wrapper.paddingTop (coverTopOffset) + imageSize + translateY
     return (
       headerTotalHeight +
       coverTopOffset +
-      imageTranslateY.value +
-      imageSize.value
+      imageSize.value +
+      imageTranslateY.value
     );
   }, [coverTopOffset, headerTotalHeight]);
 
