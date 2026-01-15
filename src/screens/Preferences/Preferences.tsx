@@ -41,9 +41,10 @@ export default function Preferences() {
     setTerreiroActionsTarget(null);
   }, []);
 
-  const openCurimbaExplainer = useCallback(() => {
+  const handleEnabledCurimba = useCallback(() => {
+    if (curimbaOnboardingDismissed) return;
     setIsCurimbaExplainerOpen(true);
-  }, []);
+  }, [curimbaOnboardingDismissed]);
 
   const closeCurimbaExplainer = useCallback(() => {
     setIsCurimbaExplainerOpen(false);
@@ -71,7 +72,7 @@ export default function Preferences() {
         <ThemeSection variant={variant} />
         <CurimbaSection
           variant={variant}
-          onOpenExplainer={openCurimbaExplainer}
+          onEnabledCurimba={handleEnabledCurimba}
         />
         <LogoutSection variant={variant} />
       </ScrollView>

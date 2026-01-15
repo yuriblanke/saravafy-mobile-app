@@ -1,4 +1,12 @@
 export const queryKeys = {
+  terreiro: {
+    members: (terreiroId: string) =>
+      ["terreiro", terreiroId, "members"] as const,
+    invites: (terreiroId: string) =>
+      ["terreiro", terreiroId, "invites"] as const,
+    membershipRequests: (terreiroId: string) =>
+      ["terreiro", terreiroId, "membershipRequests"] as const,
+  },
   preferences: {
     // Terreiros visíveis no menu Preferences (admin/editor/member ativos)
     terreiros: (userId: string) =>

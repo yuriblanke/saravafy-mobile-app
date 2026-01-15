@@ -138,9 +138,7 @@ export function ProfileSection({ variant }: Props) {
         <PreferencesSwitchItem
           variant={variant}
           title="Modo Guardião"
-          description={
-            isSaving ? "Salvando…" : "Ativa botões de gestão do acervo no app"
-          }
+          description="Ativa botões de gestão do acervo no app"
           value={curatorModeEnabled}
           onValueChange={(next) => {
             if (isSaving) return;

@@ -22,7 +22,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,6 +30,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+const fillerPng = require("@/assets/images/filler.png");
 
 type ManagementMember = {
   id: string;
@@ -127,14 +129,20 @@ export default function AccessManager() {
       showToast("Acesso restrito à administração.");
       router.back();
     }
-  }, [membershipQuery.data, membershipQuery.isLoading, router, showToast, terreiroId]);
+  }, [
+    membershipQuery.data,
+    membershipQuery.isLoading,
+    router,
+    showToast,
+    terreiroId,
+  ]);
 
   // Load data
   const membersHook = useTerreiroMembers(terreiroId);
   const invitesHook = useTerreiroInvites(terreiroId);
   const removeMemberHook = useRemoveTerreiroMember(terreiroId);
   const createInviteHook = useCreateTerreiroInvite(terreiroId);
-  const cancelInviteHook = useCancelTerreiroInvite();
+  const cancelInviteHook = useCancelTerreiroInvite(terreiroId);
   const resendInviteHook = useResendTerreiroInvite();
 
   // Management members (admin + editor only)
@@ -172,7 +180,8 @@ export default function AccessManager() {
       .filter((inv) => inv.role === "admin" || inv.role === "editor")
       .map((inv) => {
         const email = String(inv.email ?? "").trim();
-        const profile = invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
+        const profile =
+          invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
         const fullName = (profile?.full_name ?? "").trim();
         const name = fullName ? fullName : email;
         const showEmailLine = !!fullName;
@@ -201,6 +210,20 @@ export default function AccessManager() {
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
 
   const [isRoleSelectOpen, setIsRoleSelectOpen] = useState(false);
+
+  const [confirmSheet, setConfirmSheet] = useState<null | {
+    title: string;
+    body?: string;
+    confirmLabel: string;
+    confirmTone: "danger" | "primary";
+    onConfirm: () => Promise<void>;
+  }>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  const closeConfirmSheet = useCallback(() => {
+    if (isConfirming) return;
+    setConfirmSheet(null);
+  }, [isConfirming]);
 
   const openMemberMenu = (item: ManagementMember) => {
     setMemberMenuTarget(item);
@@ -237,50 +260,50 @@ export default function AccessManager() {
     (member: ManagementMember) => {
       const newRole = member.role === "admin" ? "editor" : "admin";
 
-      Alert.alert(
-        "Alterar papel na gestão",
-        "Você está prestes a alterar o papel administrativo desta pessoa no terreiro.",
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Alterar papel",
-            onPress: async () => {
-              try {
-                const res = await supabase
-                  .from("terreiro_members")
-                  .update({ role: newRole })
-                  .eq("terreiro_id", terreiroId)
-                  .eq("user_id", member.userId);
+      setConfirmSheet({
+        title: "Alterar papel na gestão",
+        body: `Você está prestes a alterar o papel administrativo desta pessoa no terreiro.\n\nNovo papel: ${getRoleLabel(
+          newRole
+        )}`,
+        confirmLabel: "Alterar papel",
+        confirmTone: "primary",
+        onConfirm: async () => {
+          setIsConfirming(true);
+          try {
+            const res = await supabase
+              .from("terreiro_members")
+              .update({ role: newRole })
+              .eq("terreiro_id", terreiroId)
+              .eq("user_id", member.userId);
 
-                if (res.error) {
-                  throw new Error(
-                    typeof res.error.message === "string"
-                      ? res.error.message
-                      : "Erro ao alterar papel"
-                  );
-                }
+            if (res.error) {
+              throw new Error(
+                typeof res.error.message === "string"
+                  ? res.error.message
+                  : "Erro ao alterar papel"
+              );
+            }
 
-                showToast("Papel atualizado com sucesso");
-                membersHook.reload();
+            showToast("Papel atualizado com sucesso");
+            membersHook.reload();
 
-                // Invalidate membership queries
-                if (user?.id) {
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.me.membership(user.id),
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.terreiros.withRole(user.id),
-                  });
-                }
-              } catch (e) {
-                showToast(
-                  e instanceof Error ? e.message : "Erro ao alterar papel"
-                );
-              }
-            },
-          },
-        ]
-      );
+            // Invalidate membership queries
+            if (user?.id) {
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.me.membership(user.id),
+              });
+              queryClient.invalidateQueries({
+                queryKey: queryKeys.terreiros.withRole(user.id),
+              });
+            }
+          } catch (e) {
+            showToast(e instanceof Error ? e.message : "Erro ao alterar papel");
+          } finally {
+            setIsConfirming(false);
+            setConfirmSheet(null);
+          }
+        },
+      });
     },
     [terreiroId, membersHook, showToast, queryClient, user?.id]
   );
@@ -292,16 +315,17 @@ export default function AccessManager() {
         ? "Esta pessoa perderá o acesso administrativo ao terreiro no Saravafy. Ela não poderá mais editar conteúdos ou gerenciar coleções.\n\nCertifique-se de que exista pelo menos uma pessoa administradora no terreiro."
         : "Esta pessoa perderá o acesso administrativo ao terreiro no Saravafy. Ela não poderá mais editar conteúdos ou gerenciar coleções.";
 
-      Alert.alert("Remover da gestão", warningText, [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Remover da gestão",
-          style: "destructive",
-          onPress: async () => {
+      setConfirmSheet({
+        title: "Remover da gestão",
+        body: warningText,
+        confirmLabel: "Remover da gestão",
+        confirmTone: "danger",
+        onConfirm: async () => {
+          setIsConfirming(true);
+          try {
             const result = await removeMemberHook.remove(member.userId);
             if (result.ok) {
               showToast("Removido da gestão com sucesso");
-              membersHook.reload();
 
               // Invalidate membership queries
               if (user?.id) {
@@ -315,35 +339,38 @@ export default function AccessManager() {
             } else {
               showToast(result.error || "Erro ao remover da gestão");
             }
-          },
+          } finally {
+            setIsConfirming(false);
+            setConfirmSheet(null);
+          }
         },
-      ]);
+      });
     },
     [removeMemberHook, membersHook, showToast, queryClient, user?.id]
   );
 
   const handleCancelInvite = useCallback(
     (invite: ManagementInvite) => {
-      Alert.alert(
-        "Cancelar convite",
-        "Este convite será cancelado e a pessoa não poderá mais acessar o terreiro como gestora.",
-        [
-          { text: "Voltar", style: "cancel" },
-          {
-            text: "Cancelar convite",
-            style: "destructive",
-            onPress: async () => {
-              const result = await cancelInviteHook.cancel(invite.id);
-              if (result.ok) {
-                showToast("Convite cancelado com sucesso");
-                invitesHook.reload();
-              } else {
-                showToast(result.error || "Erro ao cancelar convite");
-              }
-            },
-          },
-        ]
-      );
+      setConfirmSheet({
+        title: "Cancelar convite",
+        body: "Este convite será cancelado e a pessoa não poderá mais acessar o terreiro como gestora.",
+        confirmLabel: "Cancelar convite",
+        confirmTone: "danger",
+        onConfirm: async () => {
+          setIsConfirming(true);
+          try {
+            const result = await cancelInviteHook.cancel(invite.id);
+            if (result.ok) {
+              showToast("Convite cancelado com sucesso");
+            } else {
+              showToast(result.error || "Erro ao cancelar convite");
+            }
+          } finally {
+            setIsConfirming(false);
+            setConfirmSheet(null);
+          }
+        },
+      });
     },
     [cancelInviteHook, invitesHook, showToast]
   );
@@ -378,19 +405,22 @@ export default function AccessManager() {
 
       if (result.ok) {
         showToast("Convite enviado com sucesso");
-        invitesHook.reload();
         closeInviteSheet();
       } else {
         setInviteError(result.error || "Erro ao enviar convite");
       }
     } catch (e) {
-      setInviteError(
-        e instanceof Error ? e.message : "Erro ao enviar convite"
-      );
+      setInviteError(e instanceof Error ? e.message : "Erro ao enviar convite");
     } finally {
       setIsSubmittingInvite(false);
     }
-  }, [inviteEmail, inviteRole, createInviteHook, invitesHook, showToast, closeInviteSheet]);
+  }, [
+    inviteEmail,
+    inviteRole,
+    createInviteHook,
+    showToast,
+    closeInviteSheet,
+  ]);
 
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
@@ -441,6 +471,72 @@ export default function AccessManager() {
 
   return (
     <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
+      {/* Confirm sheet */}
+      <BottomSheet
+        visible={!!confirmSheet}
+        variant={variant}
+        onClose={closeConfirmSheet}
+      >
+        <View>
+          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+            {confirmSheet?.title ?? "Confirmar"}
+          </Text>
+          {confirmSheet?.body ? (
+            <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
+              {confirmSheet.body}
+            </Text>
+          ) : null}
+
+          <View style={styles.sheetActions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isConfirming}
+              onPress={closeConfirmSheet}
+              style={({ pressed }) => [
+                styles.sheetActionRow,
+                pressed ? styles.sheetActionPressed : null,
+                isConfirming ? styles.buttonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                Voltar
+              </Text>
+            </Pressable>
+
+            <Separator variant={variant} />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isConfirming}
+              onPress={() => {
+                const action = confirmSheet?.onConfirm;
+                if (!action) return;
+                void action();
+              }}
+              style={({ pressed }) => [
+                styles.sheetActionRow,
+                pressed ? styles.sheetActionPressed : null,
+                isConfirming ? styles.buttonDisabled : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sheetActionText,
+                  {
+                    color:
+                      confirmSheet?.confirmTone === "danger"
+                        ? dangerColor
+                        : textPrimary,
+                  },
+                ]}
+              >
+                {confirmSheet?.confirmLabel ?? "Confirmar"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheet>
+
       {/* Member menu */}
       <BottomSheet
         visible={!!memberMenuTarget}
@@ -500,6 +596,13 @@ export default function AccessManager() {
               </Text>
             </Pressable>
           </View>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -562,6 +665,13 @@ export default function AccessManager() {
               </Text>
             </Pressable>
           </View>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -640,6 +750,13 @@ export default function AccessManager() {
           >
             <Text style={styles.primaryButtonText}>Enviar convite</Text>
           </Pressable>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -689,6 +806,13 @@ export default function AccessManager() {
               </Text>
             </Pressable>
           </View>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -865,8 +989,12 @@ export default function AccessManager() {
                           numberOfLines={1}
                         >
                           {item.showEmailLine
-                            ? `${item.email} · ${getRoleLabel(item.role)} · Pendente · ${item.createdAtLabel}`
-                            : `${getRoleLabel(item.role)} · Pendente · ${item.createdAtLabel}`}
+                            ? `${item.email} · ${getRoleLabel(
+                                item.role
+                              )} · Pendente · ${item.createdAtLabel}`
+                            : `${getRoleLabel(item.role)} · Pendente · ${
+                                item.createdAtLabel
+                              }`}
                         </Text>
                       </View>
 
@@ -1041,6 +1169,11 @@ const styles = StyleSheet.create({
   },
   sheetActionPressed: {
     opacity: 0.75,
+  },
+  sheetFiller: {
+    width: "100%",
+    height: 290,
+    marginTop: spacing.lg,
   },
   inviteSheet: {
     paddingHorizontal: spacing.lg,

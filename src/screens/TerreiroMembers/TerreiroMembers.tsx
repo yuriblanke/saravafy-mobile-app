@@ -21,7 +21,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  Alert,
   Image,
   Pressable,
   ScrollView,
@@ -30,6 +29,8 @@ import {
   TextInput,
   View,
 } from "react-native";
+
+const fillerPng = require("@/assets/images/filler.png");
 
 type MemberItem = {
   id: string;
@@ -140,11 +141,15 @@ export default function TerreiroMembers() {
   const membersHook = useTerreiroMembers(terreiroId);
   const invitesHook = useTerreiroInvites(terreiroId);
   const requestsHook = usePendingTerreiroMembershipRequests(terreiroId);
-  const reviewMutation = useReviewTerreiroMembershipRequest();
+  const reviewMutation = useReviewTerreiroMembershipRequest(terreiroId);
   const removeMemberHook = useRemoveTerreiroMember(terreiroId);
   const createInviteHook = useCreateTerreiroInvite(terreiroId);
-  const cancelInviteHook = useCancelTerreiroInvite();
+  const cancelInviteHook = useCancelTerreiroInvite(terreiroId);
   const resendInviteHook = useResendTerreiroInvite();
+
+  const [reviewingRequestIds, setReviewingRequestIds] = useState<
+    Record<string, true>
+  >({});
 
   // Member items (exclude admins and editors)
   const memberItems = useMemo<MemberItem[]>(() => {
@@ -167,10 +172,7 @@ export default function TerreiroMembers() {
           showEmailLine,
         };
       });
-  }, [
-    membersHook.items,
-    membersHook.profilesById,
-  ]);
+  }, [membersHook.items, membersHook.profilesById]);
 
   // Invite items
   const inviteItems = useMemo<InviteItem[]>(() => {
@@ -180,7 +182,8 @@ export default function TerreiroMembers() {
       .filter((inv) => inv.role === "member")
       .map((inv) => {
         const email = String(inv.email ?? "").trim();
-        const profile = invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
+        const profile =
+          invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
         const fullName = (profile?.full_name ?? "").trim();
         const name = fullName ? fullName : email;
         const showEmailLine = !!fullName;
@@ -219,10 +222,7 @@ export default function TerreiroMembers() {
         showEmailLine,
       };
     });
-  }, [
-    requestsHook.items,
-    requestsHook.profilesById,
-  ]);
+  }, [requestsHook.items, requestsHook.profilesById]);
 
   // Actions
   const [memberMenuTarget, setMemberMenuTarget] = useState<MemberItem | null>(
@@ -268,52 +268,80 @@ export default function TerreiroMembers() {
 
   const handleRemoveMember = useCallback(
     (member: MemberItem) => {
-      Alert.alert(
-        "Remover membro?",
-        `Tem certeza que deseja remover ${member.name}?`,
-        [
-          { text: "Cancelar", style: "cancel" },
-          {
-            text: "Remover",
-            style: "destructive",
-            onPress: async () => {
-              const result = await removeMemberHook.remove(member.userId);
-              if (result.ok) {
-                showToast("Membro removido com sucesso");
-                membersHook.reload();
-              } else {
-                showToast(result.error || "Erro ao remover membro");
-              }
-            },
-          },
-        ]
-      );
+      void member;
     },
     [removeMemberHook, membersHook, showToast]
   );
 
   const handleCancelInvite = useCallback(
     (invite: InviteItem) => {
-      Alert.alert(
-        "Cancelar convite?",
-        `Cancelar convite para ${invite.email}?`,
-        [
-          { text: "Não", style: "cancel" },
-          {
-            text: "Cancelar convite",
-            style: "destructive",
-            onPress: async () => {
-              const result = await cancelInviteHook.cancel(invite.id);
-              if (result.ok) {
-                showToast("Convite cancelado com sucesso");
-                invitesHook.reload();
-              } else {
-                showToast(result.error || "Erro ao cancelar convite");
-              }
-            },
-          },
-        ]
-      );
+      void invite;
+    },
+    [cancelInviteHook, invitesHook, showToast]
+  );
+
+  const [confirmSheet, setConfirmSheet] = useState<null | {
+    title: string;
+    body?: string;
+    confirmLabel: string;
+    confirmTone: "danger" | "primary";
+    onConfirm: () => Promise<void>;
+  }>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+
+  const closeConfirmSheet = useCallback(() => {
+    if (isConfirming) return;
+    setConfirmSheet(null);
+  }, [isConfirming]);
+
+  const openConfirmRemoveMember = useCallback(
+    (member: MemberItem) => {
+      setConfirmSheet({
+        title: "Remover membro?",
+        body: `Tem certeza que deseja remover ${member.name}?`,
+        confirmLabel: "Remover",
+        confirmTone: "danger",
+        onConfirm: async () => {
+          setIsConfirming(true);
+          try {
+            const result = await removeMemberHook.remove(member.userId);
+            if (result.ok) {
+              showToast("Membro removido com sucesso");
+            } else {
+              showToast(result.error || "Erro ao remover membro");
+            }
+          } finally {
+            setIsConfirming(false);
+            setConfirmSheet(null);
+          }
+        },
+      });
+    },
+    [membersHook, removeMemberHook, showToast]
+  );
+
+  const openConfirmCancelInvite = useCallback(
+    (invite: InviteItem) => {
+      setConfirmSheet({
+        title: "Cancelar convite?",
+        body: `Cancelar convite para ${invite.email}?`,
+        confirmLabel: "Cancelar convite",
+        confirmTone: "danger",
+        onConfirm: async () => {
+          setIsConfirming(true);
+          try {
+            const result = await cancelInviteHook.cancel(invite.id);
+            if (result.ok) {
+              showToast("Convite cancelado com sucesso");
+            } else {
+              showToast(result.error || "Erro ao cancelar convite");
+            }
+          } finally {
+            setIsConfirming(false);
+            setConfirmSheet(null);
+          }
+        },
+      });
     },
     [cancelInviteHook, invitesHook, showToast]
   );
@@ -348,7 +376,6 @@ export default function TerreiroMembers() {
 
       if (result.ok) {
         showToast("Convite enviado com sucesso");
-        invitesHook.reload();
         closeInviteSheet();
       } else {
         setInviteError(result.error || "Erro ao enviar convite");
@@ -362,12 +389,12 @@ export default function TerreiroMembers() {
 
   const handleApproveRequest = useCallback(
     async (request: RequestItem) => {
+      if (reviewingRequestIds[request.id]) return;
+      setReviewingRequestIds((prev) => ({ ...prev, [request.id]: true }));
       try {
         const result = await reviewMutation.approve(request.id);
         if (result.ok) {
           showToast("Solicitação aprovada com sucesso");
-          requestsHook.reload();
-          membersHook.reload();
         } else {
           showToast(
             reviewMutation.friendlyError ||
@@ -379,18 +406,25 @@ export default function TerreiroMembers() {
         showToast(
           e instanceof Error ? e.message : "Erro ao aprovar solicitação"
         );
+      } finally {
+        setReviewingRequestIds((prev) => {
+          const next = { ...prev };
+          delete next[request.id];
+          return next;
+        });
       }
     },
-    [reviewMutation, requestsHook, membersHook, showToast]
+    [reviewMutation, reviewingRequestIds, showToast]
   );
 
   const handleRejectRequest = useCallback(
     async (request: RequestItem) => {
+      if (reviewingRequestIds[request.id]) return;
+      setReviewingRequestIds((prev) => ({ ...prev, [request.id]: true }));
       try {
         const result = await reviewMutation.reject(request.id);
         if (result.ok) {
           showToast("Solicitação recusada");
-          requestsHook.reload();
         } else {
           showToast(
             reviewMutation.friendlyError ||
@@ -402,9 +436,15 @@ export default function TerreiroMembers() {
         showToast(
           e instanceof Error ? e.message : "Erro ao recusar solicitação"
         );
+      } finally {
+        setReviewingRequestIds((prev) => {
+          const next = { ...prev };
+          delete next[request.id];
+          return next;
+        });
       }
     },
-    [reviewMutation, requestsHook, showToast]
+    [reviewMutation, reviewingRequestIds, showToast]
   );
 
   const headerVisibleHeight = 52;
@@ -452,6 +492,73 @@ export default function TerreiroMembers() {
 
   return (
     <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
+      {/* Confirm sheet */}
+      <BottomSheet
+        visible={!!confirmSheet}
+        variant={variant}
+        onClose={closeConfirmSheet}
+      >
+        <View>
+          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+            {confirmSheet?.title ?? ""}
+          </Text>
+
+          {confirmSheet?.body ? (
+            <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
+              {confirmSheet.body}
+            </Text>
+          ) : null}
+
+          <View style={styles.sheetActions}>
+            <Pressable
+              accessibilityRole="button"
+              disabled={isConfirming}
+              onPress={closeConfirmSheet}
+              style={({ pressed }) => [
+                styles.sheetActionRow,
+                pressed ? styles.sheetActionPressed : null,
+                isConfirming ? styles.buttonDisabled : null,
+              ]}
+            >
+              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                Cancelar
+              </Text>
+            </Pressable>
+
+            <Separator variant={variant} />
+
+            <Pressable
+              accessibilityRole="button"
+              disabled={isConfirming}
+              onPress={() => {
+                const action = confirmSheet?.onConfirm;
+                if (!action) return;
+                void action();
+              }}
+              style={({ pressed }) => [
+                styles.sheetActionRow,
+                pressed ? styles.sheetActionPressed : null,
+                isConfirming ? styles.buttonDisabled : null,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.sheetActionText,
+                  {
+                    color:
+                      confirmSheet?.confirmTone === "danger"
+                        ? dangerColor
+                        : textPrimary,
+                  },
+                ]}
+              >
+                {confirmSheet?.confirmLabel ?? "Confirmar"}
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      </BottomSheet>
+
       {/* Member menu */}
       <BottomSheet
         visible={!!memberMenuTarget}
@@ -475,7 +582,7 @@ export default function TerreiroMembers() {
                 const target = memberMenuTarget;
                 closeMemberMenu();
                 if (!target) return;
-                setTimeout(() => handleRemoveMember(target), 80);
+                setTimeout(() => openConfirmRemoveMember(target), 80);
               }}
               style={({ pressed }) => [
                 styles.sheetActionRow,
@@ -488,6 +595,13 @@ export default function TerreiroMembers() {
               </Text>
             </Pressable>
           </View>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -537,7 +651,7 @@ export default function TerreiroMembers() {
                 const target = inviteMenuTarget;
                 closeInviteMenu();
                 if (!target) return;
-                setTimeout(() => handleCancelInvite(target), 80);
+                setTimeout(() => openConfirmCancelInvite(target), 80);
               }}
               style={({ pressed }) => [
                 styles.sheetActionRow,
@@ -550,6 +664,13 @@ export default function TerreiroMembers() {
               </Text>
             </Pressable>
           </View>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -608,6 +729,13 @@ export default function TerreiroMembers() {
           >
             <Text style={styles.primaryButtonText}>Enviar convite</Text>
           </Pressable>
+
+          <Image
+            source={fillerPng}
+            style={styles.sheetFiller}
+            resizeMode="contain"
+            accessibilityIgnoresInvertColors
+          />
         </View>
       </BottomSheet>
 
@@ -682,7 +810,7 @@ export default function TerreiroMembers() {
                         >
                           {item.name}
                         </Text>
-                          {item.showEmailLine ? (
+                        {item.showEmailLine ? (
                           <Text
                             style={[styles.itemEmail, { color: textMuted }]}
                             numberOfLines={1}
@@ -853,7 +981,10 @@ export default function TerreiroMembers() {
                         <View
                           style={[
                             styles.requestAvatarWrap,
-                            { borderColor: inputBorder, backgroundColor: inputBg },
+                            {
+                              borderColor: inputBorder,
+                              backgroundColor: inputBg,
+                            },
                           ]}
                         >
                           {item.avatarUrl ? (
@@ -903,11 +1034,15 @@ export default function TerreiroMembers() {
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel="Recusar"
+                          disabled={!!reviewingRequestIds[item.id]}
                           onPress={() => handleRejectRequest(item)}
                           style={({ pressed }) => [
                             styles.requestButton,
                             styles.requestRejectButton,
                             { borderColor: dangerColor },
+                            reviewingRequestIds[item.id]
+                              ? styles.requestButtonDisabled
+                              : null,
                             pressed ? styles.requestButtonPressed : null,
                           ]}
                         >
@@ -924,11 +1059,15 @@ export default function TerreiroMembers() {
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel="Aprovar"
+                          disabled={!!reviewingRequestIds[item.id]}
                           onPress={() => handleApproveRequest(item)}
                           style={({ pressed }) => [
                             styles.requestButton,
                             styles.requestApproveButton,
                             { backgroundColor: accentColor },
+                            reviewingRequestIds[item.id]
+                              ? styles.requestButtonDisabled
+                              : null,
                             pressed ? styles.requestButtonPressed : null,
                           ]}
                         >
@@ -1130,6 +1269,9 @@ const styles = StyleSheet.create({
     backgroundColor: "transparent",
   },
   requestApproveButton: {},
+  requestButtonDisabled: {
+    opacity: 0.55,
+  },
   requestButtonText: {
     fontSize: 12,
     fontWeight: "900",
@@ -1163,6 +1305,11 @@ const styles = StyleSheet.create({
   },
   sheetActionPressed: {
     opacity: 0.75,
+  },
+  sheetFiller: {
+    width: "100%",
+    height: 290,
+    marginTop: spacing.lg,
   },
   inviteSheet: {
     paddingHorizontal: spacing.lg,

@@ -18,14 +18,8 @@ export function PreferencesHeader({ variant }: Props) {
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
 
   const baseBgColor = variant === "light" ? colors.paper50 : colors.forest900;
-
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
-
-  const dividerColor =
-    variant === "light"
-      ? colors.surfaceCardBorderLight
-      : colors.surfaceCardBorder;
 
   const goBack = useCallback(() => {
     router.back();
@@ -34,12 +28,11 @@ export function PreferencesHeader({ variant }: Props) {
   return (
     <View
       style={[
-        styles.wrap,
+        styles.fixedHeader,
         {
           height: headerTotalHeight,
           paddingTop: insets.top ?? 0,
           backgroundColor: baseBgColor,
-          borderBottomColor: dividerColor,
         },
       ]}
     >
@@ -49,52 +42,56 @@ export function PreferencesHeader({ variant }: Props) {
         onPress={goBack}
         hitSlop={10}
         style={({ pressed }) => [
-          styles.iconBtn,
-          pressed ? styles.iconBtnPressed : null,
+          styles.headerIconBtn,
+          pressed ? styles.headerIconBtnPressed : null,
         ]}
       >
         <Ionicons name="chevron-back" size={22} color={textPrimary} />
       </Pressable>
 
-      <Text style={[styles.title, { color: textPrimary }]} numberOfLines={1}>
-        Preferências
-      </Text>
-
-      <View style={styles.rightSpacer} />
+      <View style={styles.headerTitleWrap}>
+        <Text
+          style={[styles.headerTitle, { color: textPrimary }]}
+          numberOfLines={1}
+        >
+          Preferências
+        </Text>
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  wrap: {
+  fixedHeader: {
     position: "absolute",
     top: 0,
     left: 0,
     right: 0,
-    zIndex: 10,
+    zIndex: 50,
     flexDirection: "row",
-    alignItems: "flex-end",
+    alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingBottom: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  iconBtn: {
+  headerIconBtn: {
     width: 40,
     height: 40,
+    borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
   },
-  iconBtnPressed: {
+  headerIconBtnPressed: {
     opacity: 0.75,
   },
-  title: {
+  headerTitleWrap: {
     flex: 1,
-    fontSize: 16,
-    fontWeight: "900",
-    textAlign: "center",
+    marginLeft: 6,
+    marginRight: 6,
+    minWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
   },
-  rightSpacer: {
-    width: 40,
-    height: 40,
+  headerTitle: {
+    fontSize: 14,
+    fontWeight: "900",
   },
 });

@@ -1,9 +1,12 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { resolveProfiles, type PublicProfile } from "@/src/features/identity/resolveProfiles";
+import {
+  resolveProfiles,
+  type PublicProfile,
+} from "@/src/features/identity/resolveProfiles";
 import { queryKeys } from "@/src/queries/queryKeys";
 
 export type TerreiroAccessRole = "admin" | "editor" | "member";
@@ -290,7 +293,9 @@ export type TerreiroInviteRow = {
   created_at?: string | null;
 };
 
-function toProfileLiteMap(byId: Record<string, PublicProfile>): Record<string, ProfileLite> {
+function toProfileLiteMap(
+  byId: Record<string, PublicProfile>
+): Record<string, ProfileLite> {
   return byId as unknown as Record<string, ProfileLite>;
 }
 
@@ -301,26 +306,19 @@ function toProfileLiteEmailMap(
 }
 
 export function usePendingTerreiroMembershipRequests(terreiroId: string) {
-  const [items, setItems] = useState<PendingRequestRow[]>([]);
-  const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>(
-    {}
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: queryKeys.terreiro.membershipRequests(terreiroId || "__none__"),
+    enabled: !!terreiroId,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      if (!terreiroId) {
+        return {
+          items: [] as PendingRequestRow[],
+          profilesById: {} as Record<string, ProfileLite>,
+        };
+      }
 
-  const load = useCallback(async () => {
-    if (!terreiroId) {
-      setItems([]);
-      setProfilesById({});
-      setError(null);
-      setIsLoading(false);
-      return [] as PendingRequestRow[];
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
       const res = await supabase
         .from("terreiro_membership_requests")
         .select("id, terreiro_id, user_id, status, created_at")
@@ -337,7 +335,7 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
       }
 
       const rows = (res.data ?? []) as any[];
-      const mapped: PendingRequestRow[] = rows
+      const items: PendingRequestRow[] = rows
         .map((r) => {
           const id = typeof r?.id === "string" ? r.id : "";
           const tid = typeof r?.terreiro_id === "string" ? r.terreiro_id : "";
@@ -354,51 +352,40 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
         })
         .filter(Boolean) as PendingRequestRow[];
 
-      setItems(mapped);
-
+      let profilesById: Record<string, ProfileLite> = {};
       try {
-        const ids = mapped.map((m) => m.user_id);
+        const ids = items.map((m) => m.user_id);
         const resolved = await resolveProfiles({ userIds: ids });
-        setProfilesById(toProfileLiteMap(resolved.byId));
+        profilesById = toProfileLiteMap(resolved.byId);
       } catch {
-        setProfilesById({});
+        profilesById = {};
       }
 
-      return mapped;
-    } catch (e) {
-      setItems([]);
-      setProfilesById({});
-      setError(getErrorMessage(e));
-      return [] as PendingRequestRow[];
-    } finally {
-      setIsLoading(false);
-    }
-  }, [terreiroId]);
+      return { items, profilesById };
+    },
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const data = query.data ?? {
+    items: [] as PendingRequestRow[],
+    profilesById: {} as Record<string, ProfileLite>,
+  };
 
   return {
-    items,
-    profilesById,
-    isLoading,
-    error,
-    reload: load,
+    items: data.items,
+    profilesById: data.profilesById,
+    isLoading: query.isLoading,
+    error: query.error ? getErrorMessage(query.error) : null,
+    reload: () => query.refetch().then((r) => r.data?.items ?? []),
   };
 }
 
-export function useReviewTerreiroMembershipRequest() {
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useReviewTerreiroMembershipRequest(terreiroId: string) {
+  const queryClient = useQueryClient();
 
-  const approve = useCallback(async (requestId: string) => {
-    if (!requestId) throw new Error("Request inválida.");
+  const approveMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      if (!requestId) throw new Error("Request inválida.");
 
-    setIsProcessing(true);
-    setError(null);
-
-    try {
       const res = await supabase.rpc("approve_terreiro_membership_request", {
         request_id: requestId,
       });
@@ -407,23 +394,64 @@ export function useReviewTerreiroMembershipRequest() {
         throw new Error(res.error.message);
       }
 
-      return { ok: true, data: res.data } as const;
-    } catch (e) {
-      const msg = getErrorMessage(e);
-      setError(msg);
-      return { ok: false, error: msg } as const;
-    } finally {
-      setIsProcessing(false);
-    }
-  }, []);
+      return res.data;
+    },
+    onMutate: async (requestId) => {
+      if (!terreiroId) return {} as const;
 
-  const reject = useCallback(async (requestId: string) => {
-    if (!requestId) throw new Error("Request inválida.");
+      const requestsKey = queryKeys.terreiro.membershipRequests(terreiroId);
+      await queryClient.cancelQueries({ queryKey: requestsKey });
 
-    setIsProcessing(true);
-    setError(null);
+      const prev = queryClient.getQueryData<{
+        items: PendingRequestRow[];
+        profilesById: Record<string, ProfileLite>;
+      }>(requestsKey);
 
-    try {
+      queryClient.setQueryData(requestsKey, (old) => {
+        const prevData =
+          (old as any) ??
+          ({
+            items: [] as PendingRequestRow[],
+            profilesById: {} as Record<string, ProfileLite>,
+          } as const);
+
+        return {
+          ...prevData,
+          items: (prevData.items ?? []).filter(
+            (r: PendingRequestRow) => r.id !== requestId
+          ),
+        };
+      });
+
+      return { prev };
+    },
+    onError: (_err, _requestId, ctx) => {
+      if (!terreiroId) return;
+      const requestsKey = queryKeys.terreiro.membershipRequests(terreiroId);
+      if (ctx && "prev" in ctx) {
+        queryClient.setQueryData(requestsKey, (ctx as any).prev);
+      }
+    },
+    onSettled: async () => {
+      if (!terreiroId) return;
+      await Promise.allSettled([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiro.membershipRequests(terreiroId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiro.members(terreiroId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiro.invites(terreiroId),
+        }),
+      ]);
+    },
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (requestId: string) => {
+      if (!requestId) throw new Error("Request inválida.");
+
       const res = await supabase.rpc("reject_terreiro_membership_request", {
         request_id: requestId,
       });
@@ -432,34 +460,112 @@ export function useReviewTerreiroMembershipRequest() {
         throw new Error(res.error.message);
       }
 
-      return { ok: true, data: res.data } as const;
-    } catch (e) {
-      const msg = getErrorMessage(e);
-      setError(msg);
-      return { ok: false, error: msg } as const;
-    } finally {
-      setIsProcessing(false);
-    }
-  }, []);
+      return res.data;
+    },
+    onMutate: async (requestId) => {
+      if (!terreiroId) return {} as const;
+
+      const requestsKey = queryKeys.terreiro.membershipRequests(terreiroId);
+      await queryClient.cancelQueries({ queryKey: requestsKey });
+
+      const prev = queryClient.getQueryData<{
+        items: PendingRequestRow[];
+        profilesById: Record<string, ProfileLite>;
+      }>(requestsKey);
+
+      queryClient.setQueryData(requestsKey, (old) => {
+        const prevData =
+          (old as any) ??
+          ({
+            items: [] as PendingRequestRow[],
+            profilesById: {} as Record<string, ProfileLite>,
+          } as const);
+
+        return {
+          ...prevData,
+          items: (prevData.items ?? []).filter(
+            (r: PendingRequestRow) => r.id !== requestId
+          ),
+        };
+      });
+
+      return { prev };
+    },
+    onError: (_err, _requestId, ctx) => {
+      if (!terreiroId) return;
+      const requestsKey = queryKeys.terreiro.membershipRequests(terreiroId);
+      if (ctx && "prev" in ctx) {
+        queryClient.setQueryData(requestsKey, (ctx as any).prev);
+      }
+    },
+    onSettled: async () => {
+      if (!terreiroId) return;
+      await Promise.allSettled([
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiro.membershipRequests(terreiroId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiro.members(terreiroId),
+        }),
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.terreiro.invites(terreiroId),
+        }),
+      ]);
+    },
+  });
+
+  const approve = useCallback(
+    async (requestId: string) => {
+      try {
+        const data = await approveMutation.mutateAsync(requestId);
+        return { ok: true, data } as const;
+      } catch (e) {
+        return { ok: false, error: getErrorMessage(e) } as const;
+      }
+    },
+    [approveMutation]
+  );
+
+  const reject = useCallback(
+    async (requestId: string) => {
+      try {
+        const data = await rejectMutation.mutateAsync(requestId);
+        return { ok: true, data } as const;
+      } catch (e) {
+        return { ok: false, error: getErrorMessage(e) } as const;
+      }
+    },
+    [rejectMutation]
+  );
+
+  const lastError =
+    approveMutation.error != null
+      ? getErrorMessage(approveMutation.error)
+      : rejectMutation.error != null
+      ? getErrorMessage(rejectMutation.error)
+      : null;
 
   const friendlyError = useMemo(() => {
-    const m = (error ?? "").toLowerCase();
+    const m = (lastError ?? "").toLowerCase();
     if (!m) return null;
+    if (m.includes("not_authorized_admin_only")) {
+      return "Acesso restrito à administração.";
+    }
     if (
       m.includes("permission") ||
       m.includes("not authorized") ||
       m.includes("rls")
     ) {
-      return "Você não tem permissão para aprovar este pedido.";
+      return "Acesso restrito à administração.";
     }
     return null;
-  }, [error]);
+  }, [lastError]);
 
   return {
     approve,
     reject,
-    isProcessing,
-    error,
+    isProcessing: approveMutation.isPending || rejectMutation.isPending,
+    error: lastError,
     friendlyError,
   };
 }
@@ -525,26 +631,19 @@ export async function createTerreiroInvite(params: {
 }
 
 export function useTerreiroMembers(terreiroId: string) {
-  const [items, setItems] = useState<TerreiroMemberRow[]>([]);
-  const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>(
-    {}
-  );
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: queryKeys.terreiro.members(terreiroId || "__none__"),
+    enabled: !!terreiroId,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      if (!terreiroId) {
+        return {
+          items: [] as TerreiroMemberRow[],
+          profilesById: {} as Record<string, ProfileLite>,
+        };
+      }
 
-  const load = useCallback(async () => {
-    if (!terreiroId) {
-      setItems([]);
-      setProfilesById({});
-      setError(null);
-      setIsLoading(false);
-      return [] as TerreiroMemberRow[];
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
       let res: any = await supabase
         .from("terreiro_members")
         .select("terreiro_id, user_id, role, status, created_at")
@@ -568,7 +667,7 @@ export function useTerreiroMembers(terreiroId: string) {
       }
 
       const rows = (res.data ?? []) as any[];
-      const mapped: TerreiroMemberRow[] = rows
+      const items: TerreiroMemberRow[] = rows
         .map((r) => {
           const tid = typeof r?.terreiro_id === "string" ? r.terreiro_id : "";
           const uid = typeof r?.user_id === "string" ? r.user_id : "";
@@ -584,61 +683,47 @@ export function useTerreiroMembers(terreiroId: string) {
         })
         .filter(Boolean) as TerreiroMemberRow[];
 
-      setItems(mapped);
-
+      let profilesById: Record<string, ProfileLite> = {};
       try {
-        const ids = mapped.map((m) => m.user_id);
+        const ids = items.map((m) => m.user_id);
         const resolved = await resolveProfiles({ userIds: ids });
-        setProfilesById(toProfileLiteMap(resolved.byId));
+        profilesById = toProfileLiteMap(resolved.byId);
       } catch {
-        setProfilesById({});
+        profilesById = {};
       }
 
-      return mapped;
-    } catch (e) {
-      setItems([]);
-      setProfilesById({});
-      setError(getErrorMessage(e));
-      return [] as TerreiroMemberRow[];
-    } finally {
-      setIsLoading(false);
-    }
-  }, [terreiroId]);
+      return { items, profilesById };
+    },
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const data = query.data ?? {
+    items: [] as TerreiroMemberRow[],
+    profilesById: {} as Record<string, ProfileLite>,
+  };
 
   return {
-    items,
-    profilesById,
-    isLoading,
-    error,
-    reload: load,
+    items: data.items,
+    profilesById: data.profilesById,
+    isLoading: query.isLoading,
+    error: query.error ? getErrorMessage(query.error) : null,
+    reload: () => query.refetch().then((r) => r.data?.items ?? []),
   };
 }
 
 export function useTerreiroInvites(terreiroId: string) {
-  const [items, setItems] = useState<TerreiroInviteRow[]>([]);
-  const [profilesByEmailLower, setProfilesByEmailLower] = useState<
-    Record<string, ProfileLite>
-  >({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const query = useQuery({
+    queryKey: queryKeys.terreiro.invites(terreiroId || "__none__"),
+    enabled: !!terreiroId,
+    staleTime: 15_000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      if (!terreiroId) {
+        return {
+          items: [] as TerreiroInviteRow[],
+          profilesByEmailLower: {} as Record<string, ProfileLite>,
+        };
+      }
 
-  const load = useCallback(async () => {
-    if (!terreiroId) {
-      setItems([]);
-      setProfilesByEmailLower({});
-      setError(null);
-      setIsLoading(false);
-      return [] as TerreiroInviteRow[];
-    }
-
-    setIsLoading(true);
-    setError(null);
-
-    try {
       const res = await supabase
         .from("terreiro_invites")
         .select("id, terreiro_id, email, role, status, created_at")
@@ -654,7 +739,7 @@ export function useTerreiroInvites(terreiroId: string) {
       }
 
       const rows = (res.data ?? []) as any[];
-      const mapped: TerreiroInviteRow[] = rows
+      const items: TerreiroInviteRow[] = rows
         .map((r) => {
           const id = typeof r?.id === "string" ? r.id : "";
           const tid = typeof r?.terreiro_id === "string" ? r.terreiro_id : "";
@@ -673,136 +758,223 @@ export function useTerreiroInvites(terreiroId: string) {
         })
         .filter(Boolean) as TerreiroInviteRow[];
 
-      setItems(mapped);
-
+      let profilesByEmailLower: Record<string, ProfileLite> = {};
       try {
-        const emails = mapped.map((m) => m.email).filter(Boolean);
+        const emails = items.map((m) => m.email).filter(Boolean);
         const resolved = await resolveProfiles({ emails });
-        setProfilesByEmailLower(toProfileLiteEmailMap(resolved.byEmailLower));
+        profilesByEmailLower = toProfileLiteEmailMap(resolved.byEmailLower);
       } catch {
-        setProfilesByEmailLower({});
+        profilesByEmailLower = {};
       }
 
-      return mapped;
-    } catch (e) {
-      setItems([]);
-      setProfilesByEmailLower({});
-      setError(getErrorMessage(e));
-      return [] as TerreiroInviteRow[];
-    } finally {
-      setIsLoading(false);
-    }
-  }, [terreiroId]);
+      return { items, profilesByEmailLower };
+    },
+  });
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  const data = query.data ?? {
+    items: [] as TerreiroInviteRow[],
+    profilesByEmailLower: {} as Record<string, ProfileLite>,
+  };
 
   const pending = useMemo(
-    () => items.filter((i) => i.status === "pending"),
-    [items]
+    () => (data.items ?? []).filter((i) => i.status === "pending"),
+    [data.items]
   );
 
-  return { items, pending, profilesByEmailLower, isLoading, error, reload: load };
+  return {
+    items: data.items,
+    pending,
+    profilesByEmailLower: data.profilesByEmailLower,
+    isLoading: query.isLoading,
+    error: query.error ? getErrorMessage(query.error) : null,
+    reload: () => query.refetch().then((r) => r.data?.items ?? []),
+  };
 }
 
 export function useCreateTerreiroInvite(terreiroId: string) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const create = useCallback(
-    async (params: { email: string; role: TerreiroAccessRole }) => {
+  const mutation = useMutation({
+    mutationFn: async (params: { email: string; role: TerreiroAccessRole }) => {
       if (!terreiroId) throw new Error("Terreiro inválido.");
       if (!userId) throw new Error("Faça login para continuar.");
 
-      setIsCreating(true);
-      setError(null);
+      await createTerreiroInvite({
+        terreiroId,
+        createdBy: userId,
+        email: params.email,
+        role: params.role,
+      });
+      return true;
+    },
+    onMutate: async (params) => {
+      if (!terreiroId) return {} as const;
 
-      try {
-        await createTerreiroInvite({
-          terreiroId,
-          createdBy: userId,
-          email: params.email,
-          role: params.role,
-        });
-        return { ok: true } as const;
-      } catch (e) {
-        const msg = getErrorMessage(e);
-        setError(msg);
-        return { ok: false, error: msg } as const;
-      } finally {
-        setIsCreating(false);
+      const invitesKey = queryKeys.terreiro.invites(terreiroId);
+      await queryClient.cancelQueries({ queryKey: invitesKey });
+
+      const prev = queryClient.getQueryData<{
+        items: TerreiroInviteRow[];
+        profilesByEmailLower: Record<string, ProfileLite>;
+      }>(invitesKey);
+
+      const nowIso = new Date().toISOString();
+      const optimistic: TerreiroInviteRow = {
+        id: `optimistic-${Date.now()}`,
+        terreiro_id: terreiroId,
+        email: normalizeEmail(params.email),
+        role: params.role,
+        status: "pending",
+        created_at: nowIso,
+      };
+
+      queryClient.setQueryData(invitesKey, (old) => {
+        const prevData =
+          (old as any) ??
+          ({
+            items: [] as TerreiroInviteRow[],
+            profilesByEmailLower: {} as Record<string, ProfileLite>,
+          } as const);
+
+        return {
+          ...prevData,
+          items: [optimistic, ...(prevData.items ?? [])],
+        };
+      });
+
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (!terreiroId) return;
+      const invitesKey = queryKeys.terreiro.invites(terreiroId);
+      if (ctx && "prev" in ctx) {
+        queryClient.setQueryData(invitesKey, (ctx as any).prev);
       }
     },
-    [terreiroId, userId]
+    onSettled: async () => {
+      if (!terreiroId) return;
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiro.invites(terreiroId),
+      });
+    },
+  });
+
+  const create = useCallback(
+    async (params: { email: string; role: TerreiroAccessRole }) => {
+      try {
+        await mutation.mutateAsync(params);
+        return { ok: true } as const;
+      } catch (e) {
+        return { ok: false, error: getErrorMessage(e) } as const;
+      }
+    },
+    [mutation]
   );
 
-  return { create, isCreating, error };
+  return { create, isCreating: mutation.isPending, error: mutation.error ? getErrorMessage(mutation.error) : null };
 }
 export function useRemoveTerreiroMember(terreiroId: string) {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const [isRemoving, setIsRemoving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
-  const remove = useCallback(
-    async (memberUserId: string) => {
+  const mutation = useMutation({
+    mutationFn: async (memberUserId: string) => {
       if (!terreiroId) throw new Error("Terreiro inválido.");
       if (!userId) throw new Error("Faça login para continuar.");
       if (!memberUserId) throw new Error("Membro inválido.");
 
-      setIsRemoving(true);
-      setError(null);
+      const res = await supabase
+        .from("terreiro_members")
+        .delete()
+        .eq("terreiro_id", terreiroId)
+        .eq("user_id", memberUserId);
 
-      try {
-        const res = await supabase
-          .from("terreiro_members")
-          .delete()
-          .eq("terreiro_id", terreiroId)
-          .eq("user_id", memberUserId);
+      if (res.error) {
+        throw new Error(
+          typeof res.error.message === "string"
+            ? res.error.message
+            : "Erro ao remover membro."
+        );
+      }
 
-        if (res.error) {
-          throw new Error(
-            typeof res.error.message === "string"
-              ? res.error.message
-              : "Erro ao remover membro."
-          );
-        }
+      return true;
+    },
+    onMutate: async (memberUserId) => {
+      if (!terreiroId) return {} as const;
 
-        return { ok: true } as const;
-      } catch (e) {
-        const msg = getErrorMessage(e);
-        setError(msg);
-        return { ok: false, error: msg } as const;
-      } finally {
-        setIsRemoving(false);
+      const membersKey = queryKeys.terreiro.members(terreiroId);
+      await queryClient.cancelQueries({ queryKey: membersKey });
+
+      const prev = queryClient.getQueryData<{
+        items: TerreiroMemberRow[];
+        profilesById: Record<string, ProfileLite>;
+      }>(membersKey);
+
+      queryClient.setQueryData(membersKey, (old) => {
+        const prevData =
+          (old as any) ??
+          ({
+            items: [] as TerreiroMemberRow[],
+            profilesById: {} as Record<string, ProfileLite>,
+          } as const);
+
+        return {
+          ...prevData,
+          items: (prevData.items ?? []).filter(
+            (m: TerreiroMemberRow) => m.user_id !== memberUserId
+          ),
+        };
+      });
+
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (!terreiroId) return;
+      const membersKey = queryKeys.terreiro.members(terreiroId);
+      if (ctx && "prev" in ctx) {
+        queryClient.setQueryData(membersKey, (ctx as any).prev);
       }
     },
-    [terreiroId, userId]
+    onSettled: async () => {
+      if (!terreiroId) return;
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiro.members(terreiroId),
+      });
+    },
+  });
+
+  const remove = useCallback(
+    async (memberUserId: string) => {
+      try {
+        await mutation.mutateAsync(memberUserId);
+        return { ok: true } as const;
+      } catch (e) {
+        return { ok: false, error: getErrorMessage(e) } as const;
+      }
+    },
+    [mutation]
   );
 
-  return { remove, isRemoving, error };
+  return {
+    remove,
+    isRemoving: mutation.isPending,
+    error: mutation.error ? getErrorMessage(mutation.error) : null,
+  };
 }
 
-export function useCancelTerreiroInvite() {
-  const [isCancelling, setIsCancelling] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+export function useCancelTerreiroInvite(terreiroId: string) {
+  const queryClient = useQueryClient();
 
-  const cancel = useCallback(async (inviteId: string) => {
-    if (!inviteId) throw new Error("Convite inválido.");
+  const mutation = useMutation({
+    mutationFn: async (inviteId: string) => {
+      if (!inviteId) throw new Error("Convite inválido.");
 
-    setIsCancelling(true);
-    setError(null);
-
-    try {
-      const res = await supabase
-        .from("terreiro_invites")
-        .delete()
-        .eq("id", inviteId);
+      const res = await supabase.from("terreiro_invites").delete().eq("id", inviteId);
 
       if (res.error) {
         throw new Error(
@@ -812,17 +984,69 @@ export function useCancelTerreiroInvite() {
         );
       }
 
-      return { ok: true } as const;
-    } catch (e) {
-      const msg = getErrorMessage(e);
-      setError(msg);
-      return { ok: false, error: msg } as const;
-    } finally {
-      setIsCancelling(false);
-    }
-  }, []);
+      return true;
+    },
+    onMutate: async (inviteId) => {
+      if (!terreiroId) return {} as const;
 
-  return { cancel, isCancelling, error };
+      const invitesKey = queryKeys.terreiro.invites(terreiroId);
+      await queryClient.cancelQueries({ queryKey: invitesKey });
+
+      const prev = queryClient.getQueryData<{
+        items: TerreiroInviteRow[];
+        profilesByEmailLower: Record<string, ProfileLite>;
+      }>(invitesKey);
+
+      queryClient.setQueryData(invitesKey, (old) => {
+        const prevData =
+          (old as any) ??
+          ({
+            items: [] as TerreiroInviteRow[],
+            profilesByEmailLower: {} as Record<string, ProfileLite>,
+          } as const);
+
+        return {
+          ...prevData,
+          items: (prevData.items ?? []).filter(
+            (i: TerreiroInviteRow) => i.id !== inviteId
+          ),
+        };
+      });
+
+      return { prev };
+    },
+    onError: (_err, _vars, ctx) => {
+      if (!terreiroId) return;
+      const invitesKey = queryKeys.terreiro.invites(terreiroId);
+      if (ctx && "prev" in ctx) {
+        queryClient.setQueryData(invitesKey, (ctx as any).prev);
+      }
+    },
+    onSettled: async () => {
+      if (!terreiroId) return;
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiro.invites(terreiroId),
+      });
+    },
+  });
+
+  const cancel = useCallback(
+    async (inviteId: string) => {
+      try {
+        await mutation.mutateAsync(inviteId);
+        return { ok: true } as const;
+      } catch (e) {
+        return { ok: false, error: getErrorMessage(e) } as const;
+      }
+    },
+    [mutation]
+  );
+
+  return {
+    cancel,
+    isCancelling: mutation.isPending,
+    error: mutation.error ? getErrorMessage(mutation.error) : null,
+  };
 }
 
 export function useResendTerreiroInvite() {

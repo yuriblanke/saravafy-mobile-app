@@ -48,6 +48,8 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
     [q.data]
   );
 
+  const hasAnyTerreiro = myTerreiros.length > 0;
+
   const createTerreiroItem = userId ? (
     <Pressable
       accessibilityRole="button"
@@ -57,12 +59,26 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
           params: { mode: "create" },
         });
       }}
-      style={({ pressed }) => [
-        styles.createTerreiroBtn,
-        pressed ? styles.createTerreiroBtnPressed : null,
-      ]}
+      style={({ pressed }) =>
+        hasAnyTerreiro
+          ? [
+              styles.newTerreiroLink,
+              pressed ? styles.newTerreiroLinkPressed : null,
+            ]
+          : [
+              styles.createTerreiroBtn,
+              pressed ? styles.createTerreiroBtnPressed : null,
+            ]
+      }
     >
-      <Text style={styles.createTerreiroText}>Criar terreiro</Text>
+      {hasAnyTerreiro ? (
+        <>
+          <Ionicons name="add" size={18} color={colors.brass600} />
+          <Text style={styles.newTerreiroText}>Novo Terreiro</Text>
+        </>
+      ) : (
+        <Text style={styles.createTerreiroText}>Criar terreiro</Text>
+      )}
     </Pressable>
   ) : null;
 
@@ -193,6 +209,23 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "900",
     color: colors.paper50,
+  },
+  newTerreiroLink: {
+    alignSelf: "flex-end",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  newTerreiroLinkPressed: {
+    opacity: 0.75,
+  },
+  newTerreiroText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.brass600,
   },
   retryRow: {
     borderRadius: 14,
