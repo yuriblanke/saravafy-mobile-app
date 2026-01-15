@@ -135,12 +135,17 @@ export default function AppLayout() {
     return (
       leaf === "player" ||
       leaf === "edit" ||
-      leaf === "terreiro-editor" ||
+      leaf === "preferences" ||
+      leaf === "terreiro-members" ||
       leaf === "access-manager" ||
+      leaf === "terreiro-editor" ||
       segments.includes("review-submissions") ||
       // Player continua imersivo.
       (typeof pathname === "string" &&
         (pathname.startsWith("/player") ||
+          pathname.startsWith("/preferences") ||
+          pathname.startsWith("/terreiro-members") ||
+          pathname.startsWith("/access-manager") ||
           pathname.startsWith("/review-submissions")))
     );
   }, [pathname, segments]);
@@ -176,12 +181,23 @@ export default function AppLayout() {
                   {/* Deep links / utilitários */}
                   <Stack.Screen name="l/[tipo]/[id]" />
 
-                  {/* Modais */}
+                  {/* Full screens administrativas */}
                   <Stack.Screen
-                    name="terreiro-editor"
+                    name="preferences"
                     options={{
-                      presentation: "modal",
-                      animation: "slide_from_bottom",
+                      animation: "fade",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="terreiro-members"
+                    options={{
+                      animation: "fade",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -192,6 +208,20 @@ export default function AppLayout() {
                   />
                   <Stack.Screen
                     name="access-manager"
+                    options={{
+                      animation: "fade",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+
+                  {/* Modais */}
+                  <Stack.Screen
+                    name="terreiro-editor"
                     options={{
                       presentation: "modal",
                       animation: "slide_from_bottom",

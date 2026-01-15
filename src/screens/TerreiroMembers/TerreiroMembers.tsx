@@ -1,25 +1,24 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { Separator } from "@/src/components/Separator";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { TagChip } from "@/src/components/TagChip";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import {
   useCancelTerreiroInvite,
   useCreateTerreiroInvite,
+  usePendingTerreiroMembershipRequests,
   useRemoveTerreiroMember,
   useResendTerreiroInvite,
+  useReviewTerreiroMembershipRequest,
   useTerreiroInvites,
   useTerreiroMembers,
   useTerreiroMembershipStatus,
-  type TerreiroAccessRole,
 } from "@/src/hooks/terreiroMembership";
-import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
@@ -32,18 +31,25 @@ import {
   View,
 } from "react-native";
 
-type ManagementMember = {
+type MemberItem = {
   id: string;
   userId: string;
+  name: string;
   email: string;
-  role: "admin" | "editor";
 };
 
-type ManagementInvite = {
+type InviteItem = {
   id: string;
   email: string;
-  role: "admin" | "editor";
   createdAtLabel: string;
+};
+
+type RequestItem = {
+  id: string;
+  userId: string;
+  name: string;
+  email: string;
+  requestedAtLabel: string;
 };
 
 function formatTimeAgo(isoString: string | null): string {
@@ -66,11 +72,7 @@ function formatTimeAgo(isoString: string | null): string {
   return `${days} dias atrás`;
 }
 
-function getRoleLabel(role: "admin" | "editor"): string {
-  return role === "admin" ? "Admin" : "Editor";
-}
-
-export default function AccessManager() {
+export default function TerreiroMembers() {
   const router = useRouter();
   const params = useLocalSearchParams<{ terreiroId?: string }>();
   const terreiroId =
@@ -79,7 +81,6 @@ export default function AccessManager() {
   const { user } = useAuth();
   const { effectiveTheme } = usePreferences();
   const { showToast } = useToast();
-  const queryClient = useQueryClient();
   const insets = useGlobalSafeAreaInsets();
 
   const variant: "light" | "dark" = effectiveTheme;
@@ -101,71 +102,99 @@ export default function AccessManager() {
   const inputBorder =
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
-  // Check permissions - only admin can access
+  // Check permissions
   const membershipQuery = useTerreiroMembershipStatus(terreiroId);
   const membership = membershipQuery.data;
   const myRole = membership.role;
-  const canManage = membership.isActiveMember && myRole === "admin";
+  const canManage =
+    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
 
   // Load data
   const membersHook = useTerreiroMembers(terreiroId);
   const invitesHook = useTerreiroInvites(terreiroId);
+  const requestsHook = usePendingTerreiroMembershipRequests(terreiroId);
+  const reviewMutation = useReviewTerreiroMembershipRequest();
   const removeMemberHook = useRemoveTerreiroMember(terreiroId);
   const createInviteHook = useCreateTerreiroInvite(terreiroId);
   const cancelInviteHook = useCancelTerreiroInvite();
   const resendInviteHook = useResendTerreiroInvite();
 
-  // Management members (admin + editor only)
-  const managementMembers = useMemo<ManagementMember[]>(() => {
+  // Member items (exclude admins and editors)
+  const memberItems = useMemo<MemberItem[]>(() => {
     if (!membersHook.items) return [];
 
     return membersHook.items
-      .filter(
-        (m) =>
-          (m.role === "admin" || m.role === "editor") && m.status === "active"
-      )
+      .filter((m) => m.role === "member" && m.status === "active")
       .map((m) => {
+        const profile = membersHook.profilesById[m.user_id];
         const identity = membersHook.identityByUserId[m.user_id];
-        const email = identity?.email || m.user_id;
+        const name = profile?.name || "Sem nome";
+        const email = identity?.email || "";
 
         return {
           id: m.user_id,
           userId: m.user_id,
+          name,
           email,
-          role: m.role as "admin" | "editor",
         };
       });
-  }, [membersHook.items, membersHook.identityByUserId]);
+  }, [
+    membersHook.items,
+    membersHook.profilesById,
+    membersHook.identityByUserId,
+  ]);
 
-  // Management invites (admin + editor only)
-  const managementInvites = useMemo<ManagementInvite[]>(() => {
+  // Invite items
+  const inviteItems = useMemo<InviteItem[]>(() => {
     if (!invitesHook.pending) return [];
 
     return invitesHook.pending
-      .filter((inv) => inv.role === "admin" || inv.role === "editor")
+      .filter((inv) => inv.role === "member")
       .map((inv) => ({
         id: inv.id,
         email: inv.email,
-        role: inv.role as "admin" | "editor",
         createdAtLabel: formatTimeAgo(inv.created_at ?? null),
       }));
   }, [invitesHook.pending]);
 
-  // UI State
-  const [memberMenuTarget, setMemberMenuTarget] =
-    useState<ManagementMember | null>(null);
-  const [inviteMenuTarget, setInviteMenuTarget] =
-    useState<ManagementInvite | null>(null);
+  // Request items
+  const requestItems = useMemo<RequestItem[]>(() => {
+    if (!requestsHook.items) return [];
+
+    return requestsHook.items.map((req) => {
+      const profile = requestsHook.profilesById[req.user_id];
+      const identity = requestsHook.identityByUserId[req.user_id];
+      const name = profile?.name || "Sem nome";
+      const email = identity?.email || "";
+
+      return {
+        id: req.id,
+        userId: req.user_id,
+        name,
+        email,
+        requestedAtLabel: formatTimeAgo(req.created_at ?? null),
+      };
+    });
+  }, [
+    requestsHook.items,
+    requestsHook.profilesById,
+    requestsHook.identityByUserId,
+  ]);
+
+  // Actions
+  const [memberMenuTarget, setMemberMenuTarget] = useState<MemberItem | null>(
+    null
+  );
+  const [inviteMenuTarget, setInviteMenuTarget] = useState<InviteItem | null>(
+    null
+  );
 
   const [isInviteSheetOpen, setIsInviteSheetOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "editor">("admin");
   const [inviteError, setInviteError] = useState("");
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
 
-  const [isRoleSelectOpen, setIsRoleSelectOpen] = useState(false);
-
-  const openMemberMenu = (item: ManagementMember) => {
+  const openMemberMenu = (item: MemberItem) => {
     setMemberMenuTarget(item);
   };
 
@@ -173,7 +202,7 @@ export default function AccessManager() {
     setMemberMenuTarget(null);
   };
 
-  const openInviteMenu = (item: ManagementInvite) => {
+  const openInviteMenu = (item: InviteItem) => {
     setInviteMenuTarget(item);
   };
 
@@ -183,7 +212,6 @@ export default function AccessManager() {
 
   const openInviteSheet = () => {
     setInviteEmail("");
-    setInviteRole("admin");
     setInviteError("");
     setIsInviteSheetOpen(true);
   };
@@ -192,106 +220,42 @@ export default function AccessManager() {
     if (isSubmittingInvite) return;
     setIsInviteSheetOpen(false);
     setInviteEmail("");
-    setInviteRole("admin");
     setInviteError("");
   };
 
-  const handleToggleRole = useCallback(
-    (member: ManagementMember) => {
-      const newRole = member.role === "admin" ? "editor" : "admin";
-
+  const handleRemoveMember = useCallback(
+    (member: MemberItem) => {
       Alert.alert(
-        "Alterar papel na gestão",
-        "Você está prestes a alterar o papel administrativo desta pessoa no terreiro.",
+        "Remover membro?",
+        `Tem certeza que deseja remover ${member.name}?`,
         [
           { text: "Cancelar", style: "cancel" },
           {
-            text: "Alterar papel",
+            text: "Remover",
+            style: "destructive",
             onPress: async () => {
-              try {
-                const res = await supabase
-                  .from("terreiro_members")
-                  .update({ role: newRole })
-                  .eq("terreiro_id", terreiroId)
-                  .eq("user_id", member.userId);
-
-                if (res.error) {
-                  throw new Error(
-                    typeof res.error.message === "string"
-                      ? res.error.message
-                      : "Erro ao alterar papel"
-                  );
-                }
-
-                showToast("Papel atualizado com sucesso");
+              const result = await removeMemberHook.remove(member.userId);
+              if (result.ok) {
+                showToast("Membro removido com sucesso");
                 membersHook.reload();
-
-                // Invalidate membership queries
-                if (user?.id) {
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.me.membership(user.id),
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.terreiros.withRole(user.id),
-                  });
-                }
-              } catch (e) {
-                showToast(
-                  e instanceof Error ? e.message : "Erro ao alterar papel"
-                );
+              } else {
+                showToast(result.error || "Erro ao remover membro");
               }
             },
           },
         ]
       );
     },
-    [terreiroId, membersHook, showToast, queryClient, user?.id]
-  );
-
-  const handleRemoveMember = useCallback(
-    (member: ManagementMember) => {
-      const isRemovingAdmin = member.role === "admin";
-      const warningText = isRemovingAdmin
-        ? "Esta pessoa perderá o acesso administrativo ao terreiro no Saravafy. Ela não poderá mais editar conteúdos ou gerenciar coleções.\n\nCertifique-se de que exista pelo menos uma pessoa administradora no terreiro."
-        : "Esta pessoa perderá o acesso administrativo ao terreiro no Saravafy. Ela não poderá mais editar conteúdos ou gerenciar coleções.";
-
-      Alert.alert("Remover da gestão", warningText, [
-        { text: "Cancelar", style: "cancel" },
-        {
-          text: "Remover da gestão",
-          style: "destructive",
-          onPress: async () => {
-            const result = await removeMemberHook.remove(member.userId);
-            if (result.ok) {
-              showToast("Removido da gestão com sucesso");
-              membersHook.reload();
-
-              // Invalidate membership queries
-              if (user?.id) {
-                queryClient.invalidateQueries({
-                  queryKey: queryKeys.me.membership(user.id),
-                });
-                queryClient.invalidateQueries({
-                  queryKey: queryKeys.terreiros.withRole(user.id),
-                });
-              }
-            } else {
-              showToast(result.error || "Erro ao remover da gestão");
-            }
-          },
-        },
-      ]);
-    },
-    [removeMemberHook, membersHook, showToast, queryClient, user?.id]
+    [removeMemberHook, membersHook, showToast]
   );
 
   const handleCancelInvite = useCallback(
-    (invite: ManagementInvite) => {
+    (invite: InviteItem) => {
       Alert.alert(
-        "Cancelar convite",
-        "Este convite será cancelado e a pessoa não poderá mais acessar o terreiro como gestora.",
+        "Cancelar convite?",
+        `Cancelar convite para ${invite.email}?`,
         [
-          { text: "Voltar", style: "cancel" },
+          { text: "Não", style: "cancel" },
           {
             text: "Cancelar convite",
             style: "destructive",
@@ -312,7 +276,7 @@ export default function AccessManager() {
   );
 
   const handleResendInvite = useCallback(
-    async (invite: ManagementInvite) => {
+    async (invite: InviteItem) => {
       const result = await resendInviteHook.resend(invite.id);
       if (result.ok) {
         showToast("Convite reenviado com sucesso");
@@ -336,7 +300,7 @@ export default function AccessManager() {
     try {
       const result = await createInviteHook.create({
         email,
-        role: inviteRole,
+        role: "member",
       });
 
       if (result.ok) {
@@ -347,13 +311,58 @@ export default function AccessManager() {
         setInviteError(result.error || "Erro ao enviar convite");
       }
     } catch (e) {
-      setInviteError(
-        e instanceof Error ? e.message : "Erro ao enviar convite"
-      );
+      setInviteError(e instanceof Error ? e.message : "Erro ao enviar convite");
     } finally {
       setIsSubmittingInvite(false);
     }
-  }, [inviteEmail, inviteRole, createInviteHook, invitesHook, showToast]);
+  }, [inviteEmail, createInviteHook, invitesHook, showToast]);
+
+  const handleApproveRequest = useCallback(
+    async (request: RequestItem) => {
+      try {
+        const result = await reviewMutation.approve(request.id);
+        if (result.ok) {
+          showToast("Solicitação aprovada com sucesso");
+          requestsHook.reload();
+          membersHook.reload();
+        } else {
+          showToast(
+            reviewMutation.friendlyError ||
+              result.error ||
+              "Erro ao aprovar solicitação"
+          );
+        }
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : "Erro ao aprovar solicitação"
+        );
+      }
+    },
+    [reviewMutation, requestsHook, membersHook, showToast]
+  );
+
+  const handleRejectRequest = useCallback(
+    async (request: RequestItem) => {
+      try {
+        const result = await reviewMutation.reject(request.id);
+        if (result.ok) {
+          showToast("Solicitação recusada");
+          requestsHook.reload();
+        } else {
+          showToast(
+            reviewMutation.friendlyError ||
+              result.error ||
+              "Erro ao recusar solicitação"
+          );
+        }
+      } catch (e) {
+        showToast(
+          e instanceof Error ? e.message : "Erro ao recusar solicitação"
+        );
+      }
+    },
+    [reviewMutation, requestsHook, showToast]
+  );
 
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
@@ -385,7 +394,7 @@ export default function AccessManager() {
           </Pressable>
           <View style={styles.headerTitleWrap}>
             <Text style={[styles.headerTitle, { color: headerFgColor }]}>
-              Gestão do terreiro
+              Membros do terreiro
             </Text>
           </View>
         </View>
@@ -408,39 +417,16 @@ export default function AccessManager() {
       >
         <View>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>Ações</Text>
-          {memberMenuTarget?.email ? (
+          {memberMenuTarget?.name ? (
             <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
-              {memberMenuTarget.email}
+              {memberMenuTarget.name}
             </Text>
           ) : null}
 
           <View style={styles.sheetActions}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Alterar papel"
-              hitSlop={10}
-              onPress={() => {
-                const target = memberMenuTarget;
-                closeMemberMenu();
-                if (!target) return;
-                setTimeout(() => handleToggleRole(target), 80);
-              }}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-              ]}
-            >
-              <Ionicons name="swap-horizontal" size={18} color={textPrimary} />
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Alterar papel
-              </Text>
-            </Pressable>
-
-            <Separator variant={variant} />
-
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Remover da gestão"
+              accessibilityLabel="Remover membro"
               hitSlop={10}
               onPress={() => {
                 const target = memberMenuTarget;
@@ -453,9 +439,9 @@ export default function AccessManager() {
                 pressed ? styles.sheetActionPressed : null,
               ]}
             >
-              <Ionicons name="close-circle" size={18} color={dangerColor} />
+              <Ionicons name="person-remove" size={18} color={dangerColor} />
               <Text style={[styles.sheetActionText, { color: dangerColor }]}>
-                Remover da gestão
+                Remover membro
               </Text>
             </Pressable>
           </View>
@@ -532,7 +518,7 @@ export default function AccessManager() {
       >
         <View style={styles.inviteSheet}>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-            Convidar para gestão
+            Convidar membro
           </Text>
 
           <View
@@ -560,26 +546,6 @@ export default function AccessManager() {
             />
           </View>
 
-          <Text style={[styles.label, { color: textSecondary }]}>Papel</Text>
-          <Pressable
-            accessibilityRole="button"
-            onPress={() => setIsRoleSelectOpen(true)}
-            disabled={isSubmittingInvite}
-            style={({ pressed }) => [
-              styles.selectField,
-              {
-                borderColor: inputBorder,
-                backgroundColor: inputBg,
-              },
-              pressed ? styles.selectFieldPressed : null,
-            ]}
-          >
-            <Text style={[styles.selectValue, { color: textPrimary }]}>
-              {getRoleLabel(inviteRole)}
-            </Text>
-            <Ionicons name="chevron-down" size={18} color={textMuted} />
-          </Pressable>
-
           {inviteError ? (
             <Text style={[styles.errorText, { color: dangerColor }]}>
               {inviteError}
@@ -599,55 +565,6 @@ export default function AccessManager() {
           >
             <Text style={styles.primaryButtonText}>Enviar convite</Text>
           </Pressable>
-        </View>
-      </BottomSheet>
-
-      {/* Role select sheet */}
-      <BottomSheet
-        visible={isRoleSelectOpen}
-        variant={variant}
-        onClose={() => setIsRoleSelectOpen(false)}
-      >
-        <View>
-          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-            Escolher papel
-          </Text>
-
-          <View style={styles.sheetActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setInviteRole("admin");
-                setIsRoleSelectOpen(false);
-              }}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-              ]}
-            >
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Admin
-              </Text>
-            </Pressable>
-
-            <Separator variant={variant} />
-
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setInviteRole("editor");
-                setIsRoleSelectOpen(false);
-              }}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-              ]}
-            >
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Editor
-              </Text>
-            </Pressable>
-          </View>
         </View>
       </BottomSheet>
 
@@ -672,7 +589,7 @@ export default function AccessManager() {
         </Pressable>
         <View style={styles.headerTitleWrap}>
           <Text style={[styles.headerTitle, { color: headerFgColor }]}>
-            Gestão do terreiro
+            Membros do terreiro
           </Text>
         </View>
       </View>
@@ -685,10 +602,10 @@ export default function AccessManager() {
           { paddingTop: headerTotalHeight + spacing.lg },
         ]}
       >
-        {/* Section 1: Management members */}
+        {/* Section 1: Members */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-            Gestão do terreiro
+            Membros
           </Text>
 
           {membersHook.isLoading ? (
@@ -700,52 +617,58 @@ export default function AccessManager() {
           ) : membersHook.error ? (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: textSecondary }]}>
-                Erro ao carregar gestão
+                Erro ao carregar membros
               </Text>
             </View>
-          ) : managementMembers.length === 0 ? (
+          ) : memberItems.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: textSecondary }]}>
-                Você é a única pessoa na gestão deste terreiro.
+                Nenhum membro cadastrado ainda.
               </Text>
             </View>
           ) : (
             <View style={styles.list}>
-              {managementMembers.map((item) => (
+              {memberItems.map((item) => (
                 <View key={item.id} style={styles.listItem}>
                   <SurfaceCard variant={variant}>
                     <View style={styles.itemRow}>
                       <View style={styles.itemInfo}>
                         <Text
-                          style={[styles.itemEmail, { color: textPrimary }]}
+                          style={[styles.itemName, { color: textPrimary }]}
                           numberOfLines={1}
                         >
-                          {item.email}
+                          {item.name}
                         </Text>
-                        <Text
-                          style={[styles.itemRole, { color: textMuted }]}
-                          numberOfLines={1}
-                        >
-                          {getRoleLabel(item.role)}
-                        </Text>
+                        {item.email ? (
+                          <Text
+                            style={[styles.itemEmail, { color: textMuted }]}
+                            numberOfLines={1}
+                          >
+                            {item.email}
+                          </Text>
+                        ) : null}
                       </View>
 
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Abrir menu"
-                        hitSlop={10}
-                        onPress={() => openMemberMenu(item)}
-                        style={({ pressed }) => [
-                          styles.menuButton,
-                          pressed ? styles.menuButtonPressed : null,
-                        ]}
-                      >
-                        <Ionicons
-                          name="ellipsis-vertical"
-                          size={18}
-                          color={accentColor}
-                        />
-                      </Pressable>
+                      <View style={styles.itemActions}>
+                        <TagChip label="Membro" variant={variant} />
+
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Abrir menu"
+                          hitSlop={10}
+                          onPress={() => openMemberMenu(item)}
+                          style={({ pressed }) => [
+                            styles.menuButton,
+                            pressed ? styles.menuButtonPressed : null,
+                          ]}
+                        >
+                          <Ionicons
+                            name="ellipsis-vertical"
+                            size={18}
+                            color={accentColor}
+                          />
+                        </Pressable>
+                      </View>
                     </View>
                   </SurfaceCard>
                 </View>
@@ -754,11 +677,11 @@ export default function AccessManager() {
           )}
         </View>
 
-        {/* CTA: Invite to management */}
+        {/* CTA: Invite member */}
         <View style={styles.ctaSection}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel="Convidar para gestão"
+            accessibilityLabel="Convidar membro"
             onPress={openInviteSheet}
             style={({ pressed }) => [
               styles.secondaryButton,
@@ -768,7 +691,7 @@ export default function AccessManager() {
           >
             <Ionicons name="person-add" size={18} color={accentColor} />
             <Text style={[styles.secondaryButtonText, { color: textPrimary }]}>
-              Convidar para gestão
+              Convidar membro
             </Text>
           </Pressable>
         </View>
@@ -791,31 +714,30 @@ export default function AccessManager() {
                 Erro ao carregar convites
               </Text>
             </View>
-          ) : managementInvites.length === 0 ? (
+          ) : inviteItems.length === 0 ? (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: textSecondary }]}>
-                Nenhum convite de gestão pendente.
+                Nenhum convite pendente.
               </Text>
             </View>
           ) : (
             <View style={styles.list}>
-              {managementInvites.map((item) => (
+              {inviteItems.map((item) => (
                 <View key={item.id} style={styles.listItem}>
                   <SurfaceCard variant={variant}>
                     <View style={styles.itemRow}>
                       <View style={styles.itemInfo}>
                         <Text
-                          style={[styles.itemEmail, { color: textPrimary }]}
+                          style={[styles.itemName, { color: textPrimary }]}
                           numberOfLines={1}
                         >
                           {item.email}
                         </Text>
                         <Text
-                          style={[styles.itemRole, { color: textMuted }]}
+                          style={[styles.itemEmail, { color: textMuted }]}
                           numberOfLines={1}
                         >
-                          {getRoleLabel(item.role)} · Pendente ·{" "}
-                          {item.createdAtLabel}
+                          Pendente · {item.createdAtLabel}
                         </Text>
                       </View>
 
@@ -835,6 +757,117 @@ export default function AccessManager() {
                           color={accentColor}
                         />
                       </Pressable>
+                    </View>
+                  </SurfaceCard>
+                </View>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* Section 3: Pending requests */}
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[styles.sectionTitle, { color: textPrimary }]}>
+              Pedidos de acesso
+            </Text>
+            {requestItems.length > 0 ? (
+              <TagChip
+                label={requestItems.length.toString()}
+                variant={variant}
+                appearance="primary"
+              />
+            ) : null}
+          </View>
+
+          {requestsHook.isLoading ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: textSecondary }]}>
+                Carregando…
+              </Text>
+            </View>
+          ) : requestsHook.error ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: textSecondary }]}>
+                Erro ao carregar pedidos
+              </Text>
+            </View>
+          ) : requestItems.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Text style={[styles.emptyText, { color: textSecondary }]}>
+                Nenhum pedido de acesso no momento.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.list}>
+              {requestItems.map((item) => (
+                <View key={item.id} style={styles.listItem}>
+                  <SurfaceCard variant={variant}>
+                    <View style={styles.requestCard}>
+                      <View style={styles.requestInfo}>
+                        <Text
+                          style={[styles.itemName, { color: textPrimary }]}
+                          numberOfLines={1}
+                        >
+                          {item.name}
+                        </Text>
+                        <Text
+                          style={[styles.itemEmail, { color: textMuted }]}
+                          numberOfLines={1}
+                        >
+                          {item.email}
+                        </Text>
+                        <Text
+                          style={[styles.itemTime, { color: textMuted }]}
+                          numberOfLines={1}
+                        >
+                          {item.requestedAtLabel}
+                        </Text>
+                      </View>
+
+                      <View style={styles.requestActions}>
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Recusar"
+                          onPress={() => handleRejectRequest(item)}
+                          style={({ pressed }) => [
+                            styles.requestButton,
+                            styles.requestRejectButton,
+                            { borderColor: dangerColor },
+                            pressed ? styles.requestButtonPressed : null,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.requestButtonText,
+                              { color: dangerColor },
+                            ]}
+                          >
+                            Recusar
+                          </Text>
+                        </Pressable>
+
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Aprovar"
+                          onPress={() => handleApproveRequest(item)}
+                          style={({ pressed }) => [
+                            styles.requestButton,
+                            styles.requestApproveButton,
+                            { backgroundColor: accentColor },
+                            pressed ? styles.requestButtonPressed : null,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.requestButtonText,
+                              { color: colors.paper50 },
+                            ]}
+                          >
+                            Aprovar
+                          </Text>
+                        </Pressable>
+                      </View>
                     </View>
                   </SurfaceCard>
                 </View>
@@ -898,10 +931,15 @@ const styles = StyleSheet.create({
   section: {
     marginBottom: spacing.lg,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
   sectionTitle: {
     fontSize: 16,
     fontWeight: "900",
-    marginBottom: spacing.md,
   },
   list: {
     gap: spacing.sm,
@@ -917,13 +955,23 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
   },
-  itemEmail: {
+  itemActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  itemName: {
     fontSize: 15,
     fontWeight: "900",
   },
-  itemRole: {
+  itemEmail: {
     marginTop: 4,
     fontSize: 13,
+    fontWeight: "700",
+  },
+  itemTime: {
+    marginTop: 2,
+    fontSize: 12,
     fontWeight: "700",
   },
   menuButton: {
@@ -942,7 +990,6 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: 13,
     fontWeight: "700",
-    textAlign: "center",
   },
   ctaSection: {
     marginBottom: spacing.lg,
@@ -962,6 +1009,33 @@ const styles = StyleSheet.create({
     fontWeight: "900",
   },
   secondaryButtonPressed: {
+    opacity: 0.82,
+  },
+  requestCard: {
+    gap: spacing.md,
+  },
+  requestInfo: {},
+  requestActions: {
+    flexDirection: "row",
+    gap: spacing.sm,
+  },
+  requestButton: {
+    flex: 1,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1.5,
+  },
+  requestRejectButton: {
+    backgroundColor: "transparent",
+  },
+  requestApproveButton: {},
+  requestButtonText: {
+    fontSize: 12,
+    fontWeight: "900",
+  },
+  requestButtonPressed: {
     opacity: 0.82,
   },
   sheetTitle: {
@@ -1007,30 +1081,6 @@ const styles = StyleSheet.create({
   input: {
     fontSize: 14,
     fontWeight: "800",
-  },
-  label: {
-    marginTop: spacing.md,
-    marginBottom: spacing.xs,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  selectField: {
-    height: 44,
-    borderRadius: 12,
-    borderWidth: 1,
-    paddingHorizontal: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  selectValue: {
-    flex: 1,
-    fontSize: 14,
-    fontWeight: "800",
-  },
-  selectFieldPressed: {
-    opacity: 0.8,
   },
   errorText: {
     marginTop: spacing.sm,

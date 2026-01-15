@@ -168,7 +168,6 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const tabController = useTabController();
   const { user, signOut } = useAuth();
   const { effectiveTheme } = usePreferences();
-  const { openPreferences } = usePreferencesOverlay();
 
   const variant = effectiveTheme;
   const uiEnabled = !suspended;
@@ -299,7 +298,9 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Abrir preferências"
-          onPress={openPreferences}
+          onPress={() => {
+            router.push("/preferences" as any);
+          }}
           hitSlop={10}
           style={({ pressed }) => [
             styles.avatarTrigger,
@@ -1997,11 +1998,9 @@ export function PreferencesOverlaySheets(
                   const t = terreiroMenuTarget;
                   if (!t) return;
                   closeTerreiroMenu();
-                  closeThen(() => {
-                    router.push({
-                      pathname: "/access-manager" as any,
-                      params: { terreiroId: t.id, terreiroTitle: t.title },
-                    });
+                  router.push({
+                    pathname: "/terreiro-members" as any,
+                    params: { terreiroId: t.id },
                   });
                 }}
                 style={({ pressed }) => [
@@ -2012,7 +2011,7 @@ export function PreferencesOverlaySheets(
                 <Text
                   style={[styles.terreiroMenuItemText, { color: textPrimary }]}
                 >
-                  Gerenciar acessos
+                  Gerenciar membros
                 </Text>
               </Pressable>
 
@@ -2022,11 +2021,9 @@ export function PreferencesOverlaySheets(
                   const t = terreiroMenuTarget;
                   if (!t) return;
                   closeTerreiroMenu();
-                  closeThen(() => {
-                    router.push({
-                      pathname: "/terreiro-editor" as any,
-                      params: { mode: "edit", terreiroId: t.id },
-                    });
+                  router.push({
+                    pathname: "/access-manager" as any,
+                    params: { terreiroId: t.id, terreiroTitle: t.title },
                   });
                 }}
                 style={({ pressed }) => [
@@ -2037,7 +2034,30 @@ export function PreferencesOverlaySheets(
                 <Text
                   style={[styles.terreiroMenuItemText, { color: textPrimary }]}
                 >
-                  Editar terreiro
+                  Gerenciar gestão
+                </Text>
+              </Pressable>
+
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  const t = terreiroMenuTarget;
+                  if (!t) return;
+                  closeTerreiroMenu();
+                  router.push({
+                    pathname: "/terreiro-editor" as any,
+                    params: { mode: "edit", terreiroId: t.id },
+                  });
+                }}
+                style={({ pressed }) => [
+                  styles.terreiroMenuItem,
+                  pressed ? styles.terreiroMenuItemPressed : null,
+                ]}
+              >
+                <Text
+                  style={[styles.terreiroMenuItemText, { color: textPrimary }]}
+                >
+                  Renomear e editar detalhes
                 </Text>
               </Pressable>
 

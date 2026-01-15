@@ -267,6 +267,7 @@ export type PendingRequestRow = {
 
 export type ProfileLite = {
   id: string;
+  name?: string | null;
   full_name?: string | null;
   avatar_url?: string | null;
 };
@@ -390,6 +391,9 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
   const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>(
     {}
   );
+  const [identityByUserId, setIdentityByUserId] = useState<
+    Record<string, TerreiroMemberEmailRow>
+  >({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -397,6 +401,7 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
     if (!terreiroId) {
       setItems([]);
       setProfilesById({});
+      setIdentityByUserId({});
       setError(null);
       setIsLoading(false);
       return [] as PendingRequestRow[];
@@ -441,6 +446,21 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
 
       setItems(mapped);
 
+      // Buscar emails dos usuários
+      try {
+        const emailsByUserId = await fetchTerreiroMemberIdentity(terreiroId);
+        setIdentityByUserId(
+          Object.fromEntries(
+            Object.entries(emailsByUserId).map(([user_id, email]) => [
+              user_id,
+              { user_id, email },
+            ])
+          )
+        );
+      } catch {
+        setIdentityByUserId({});
+      }
+
       try {
         const ids = mapped.map((m) => m.user_id);
         const profiles = await fetchProfilesByIds(ids);
@@ -453,6 +473,7 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
     } catch (e) {
       setItems([]);
       setProfilesById({});
+      setIdentityByUserId({});
       setError(getErrorMessage(e));
       return [] as PendingRequestRow[];
     } finally {
@@ -464,7 +485,14 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
     load();
   }, [load]);
 
-  return { items, profilesById, isLoading, error, reload: load };
+  return {
+    items,
+    profilesById,
+    identityByUserId,
+    isLoading,
+    error,
+    reload: load,
+  };
 }
 
 export function useReviewTerreiroMembershipRequest() {
@@ -823,4 +851,126 @@ export function useCreateTerreiroInvite(terreiroId: string) {
   );
 
   return { create, isCreating, error };
+}
+export function useRemoveTerreiroMember(terreiroId: string) {
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+
+  const [isRemoving, setIsRemoving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const remove = useCallback(
+    async (memberUserId: string) => {
+      if (!terreiroId) throw new Error("Terreiro inválido.");
+      if (!userId) throw new Error("Faça login para continuar.");
+      if (!memberUserId) throw new Error("Membro inválido.");
+
+      setIsRemoving(true);
+      setError(null);
+
+      try {
+        const res = await supabase
+          .from("terreiro_members")
+          .delete()
+          .eq("terreiro_id", terreiroId)
+          .eq("user_id", memberUserId);
+
+        if (res.error) {
+          throw new Error(
+            typeof res.error.message === "string"
+              ? res.error.message
+              : "Erro ao remover membro."
+          );
+        }
+
+        return { ok: true } as const;
+      } catch (e) {
+        const msg = getErrorMessage(e);
+        setError(msg);
+        return { ok: false, error: msg } as const;
+      } finally {
+        setIsRemoving(false);
+      }
+    },
+    [terreiroId, userId]
+  );
+
+  return { remove, isRemoving, error };
+}
+
+export function useCancelTerreiroInvite() {
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const cancel = useCallback(async (inviteId: string) => {
+    if (!inviteId) throw new Error("Convite inválido.");
+
+    setIsCancelling(true);
+    setError(null);
+
+    try {
+      const res = await supabase
+        .from("terreiro_invites")
+        .delete()
+        .eq("id", inviteId);
+
+      if (res.error) {
+        throw new Error(
+          typeof res.error.message === "string"
+            ? res.error.message
+            : "Erro ao cancelar convite."
+        );
+      }
+
+      return { ok: true } as const;
+    } catch (e) {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      return { ok: false, error: msg } as const;
+    } finally {
+      setIsCancelling(false);
+    }
+  }, []);
+
+  return { cancel, isCancelling, error };
+}
+
+export function useResendTerreiroInvite() {
+  const [isResending, setIsResending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const resend = useCallback(async (inviteId: string) => {
+    if (!inviteId) throw new Error("Convite inválido.");
+
+    setIsResending(true);
+    setError(null);
+
+    try {
+      // Update the invite to trigger a new notification
+      // This is a placeholder implementation
+      // You may want to add a specific RPC or update logic here
+      const res = await supabase
+        .from("terreiro_invites")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", inviteId);
+
+      if (res.error) {
+        throw new Error(
+          typeof res.error.message === "string"
+            ? res.error.message
+            : "Erro ao reenviar convite."
+        );
+      }
+
+      return { ok: true } as const;
+    } catch (e) {
+      const msg = getErrorMessage(e);
+      setError(msg);
+      return { ok: false, error: msg } as const;
+    } finally {
+      setIsResending(false);
+    }
+  }, []);
+
+  return { resend, isResending, error };
 }
