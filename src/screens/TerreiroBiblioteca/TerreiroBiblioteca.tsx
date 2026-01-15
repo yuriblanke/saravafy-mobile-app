@@ -1222,18 +1222,6 @@ export default function TerreiroBiblioteca() {
       </BottomSheet>
 
       <View style={styles.headerAndBody}>
-        {DEBUG_COVER ? (
-          <DebugCoverGuides
-            headerTotalHeight={headerTotalHeight}
-            coverTopOffset={coverTopOffset}
-            enableLogs={DEBUG_COVER_LOGS}
-            scrollY={scrollY}
-            imageSize={imageSize}
-            imageTranslateY={imageTranslateY}
-            spacerHeight={spacerHeight}
-          />
-        ) : null}
-
         <View
           pointerEvents="none"
           style={[
@@ -1605,6 +1593,18 @@ export default function TerreiroBiblioteca() {
 
           <View style={{ height: spacing.lg }} />
         </Reanimated.ScrollView>
+
+        {DEBUG_COVER ? (
+          <DebugCoverGuides
+            headerTotalHeight={headerTotalHeight}
+            coverTopOffset={coverTopOffset}
+            enableLogs={DEBUG_COVER_LOGS}
+            scrollY={scrollY}
+            imageSize={imageSize}
+            imageTranslateY={imageTranslateY}
+            spacerHeight={spacerHeight}
+          />
+        ) : null}
       </View>
     </View>
   );
@@ -1860,8 +1860,8 @@ const styles = StyleSheet.create({
     right: 0,
     height: 2,
     // Abaixo do header (fixedHeader tem zIndex: 50)
-    zIndex: 40,
-    elevation: 40,
+    zIndex: 49,
+    elevation: 49,
   },
   debugCoverBottomLine: {
     backgroundColor: "rgba(0,255,0,0.9)",
@@ -1875,8 +1875,8 @@ const styles = StyleSheet.create({
     right: 10,
     bottom: 10,
     // Abaixo do header (fixedHeader tem zIndex: 50)
-    zIndex: 40,
-    elevation: 40,
+    zIndex: 49,
+    elevation: 49,
     backgroundColor: "rgba(0,0,0,0.72)",
     borderRadius: 10,
     paddingHorizontal: 10,
