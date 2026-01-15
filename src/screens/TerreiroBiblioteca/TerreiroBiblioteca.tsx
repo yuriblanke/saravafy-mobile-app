@@ -1597,6 +1597,7 @@ export default function TerreiroBiblioteca() {
         {DEBUG_COVER ? (
           <DebugCoverGuides
             headerTotalHeight={headerTotalHeight}
+            contentPaddingTop={headerTotalHeight}
             coverTopOffset={coverTopOffset}
             enableLogs={DEBUG_COVER_LOGS}
             scrollY={scrollY}
@@ -1612,6 +1613,7 @@ export default function TerreiroBiblioteca() {
 
 function DebugCoverGuides(props: {
   headerTotalHeight: number;
+  contentPaddingTop: number;
   coverTopOffset: number;
   enableLogs: boolean;
   scrollY: SharedValue<number>;
@@ -1621,6 +1623,7 @@ function DebugCoverGuides(props: {
 }) {
   const {
     headerTotalHeight,
+    contentPaddingTop,
     coverTopOffset,
     enableLogs,
     scrollY,
@@ -1639,8 +1642,10 @@ function DebugCoverGuides(props: {
   }, [coverTopOffset, headerTotalHeight]);
 
   const spacerBottomY = useDerivedValue(() => {
-    return headerTotalHeight - scrollY.value + spacerHeight.value;
-  }, [headerTotalHeight]);
+    return (
+      headerTotalHeight + contentPaddingTop - scrollY.value + spacerHeight.value
+    );
+  }, [contentPaddingTop, headerTotalHeight]);
 
   const deltaY = useDerivedValue(() => {
     return spacerBottomY.value - coverBottomY.value;
@@ -1648,7 +1653,8 @@ function DebugCoverGuides(props: {
 
   const coverBottomLineStyle = useAnimatedStyle(() => {
     const y = coverBottomY.value;
-    const ok = typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
+    const ok =
+      typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
     const safeY = ok ? y : -9999;
     return {
       top: safeY,
@@ -1658,7 +1664,8 @@ function DebugCoverGuides(props: {
 
   const spacerBottomLineStyle = useAnimatedStyle(() => {
     const y = spacerBottomY.value;
-    const ok = typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
+    const ok =
+      typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
     const safeY = ok ? y : -9999;
     return {
       top: safeY,
@@ -1697,6 +1704,7 @@ function DebugCoverGuides(props: {
         runOnJS(setDebugText)(
           [
             `scrollY=${v.scrollY.toFixed(1)}`,
+            `contentPadTop=${contentPaddingTop}`,
             `imageSize=${v.imageSize.toFixed(1)}`,
             `translateY=${v.translateY.toFixed(1)}`,
             `spacerH=${v.spacerHeight.toFixed(1)}`,
