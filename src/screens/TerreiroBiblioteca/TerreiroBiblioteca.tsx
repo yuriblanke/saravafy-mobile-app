@@ -318,6 +318,9 @@ export default function TerreiroBiblioteca() {
   // --- Shell de Collection (scroll/header) ---
   const [h1Height, setH1Height] = useState<number | null>(null);
   const [titleBlockY, setTitleBlockY] = useState<number | null>(null);
+  const [firstContentLayoutY, setFirstContentLayoutY] = useState<number | null>(
+    null
+  );
   const [actionsBottomY, setActionsBottomY] = useState<number | null>(null);
   const [pontosTopY, setPontosTopY] = useState<number | null>(null);
   const headerTitleOpacity = useRef(new Animated.Value(0)).current;
@@ -1353,6 +1356,15 @@ export default function TerreiroBiblioteca() {
 
           <Reanimated.View style={[styles.coverSpacer, coverSpacerStyle]} />
 
+          {DEBUG_COVER ? (
+            <View
+              style={styles.debugFirstContentMarker}
+              onLayout={(e) => {
+                setFirstContentLayoutY(e.nativeEvent.layout.y);
+              }}
+            />
+          ) : null}
+
           <View
             style={styles.titleBlock}
             onLayout={(e) => {
@@ -1604,6 +1616,7 @@ export default function TerreiroBiblioteca() {
             imageSize={imageSize}
             imageTranslateY={imageTranslateY}
             spacerHeight={spacerHeight}
+            firstContentLayoutY={firstContentLayoutY}
           />
         ) : null}
       </View>
@@ -1620,6 +1633,7 @@ function DebugCoverGuides(props: {
   imageSize: SharedValue<number>;
   imageTranslateY: SharedValue<number>;
   spacerHeight: SharedValue<number>;
+  firstContentLayoutY: number | null;
 }) {
   const {
     headerTotalHeight,
@@ -1630,7 +1644,17 @@ function DebugCoverGuides(props: {
     imageSize,
     imageTranslateY,
     spacerHeight,
+    firstContentLayoutY,
   } = props;
+
+  const firstContentLayoutYSV = useSharedValue<number>(
+    typeof firstContentLayoutY === "number" ? firstContentLayoutY : NaN
+  );
+
+  useEffect(() => {
+    firstContentLayoutYSV.value =
+      typeof firstContentLayoutY === "number" ? firstContentLayoutY : NaN;
+  }, [firstContentLayoutY, firstContentLayoutYSV]);
 
   const coverBottomY = useDerivedValue(() => {
     return (
@@ -1646,6 +1670,19 @@ function DebugCoverGuides(props: {
       headerTotalHeight + contentPaddingTop - scrollY.value + spacerHeight.value
     );
   }, [contentPaddingTop, headerTotalHeight]);
+
+  const firstContentTopY = useDerivedValue(() => {
+    return (
+      headerTotalHeight +
+      contentPaddingTop -
+      scrollY.value +
+      firstContentLayoutYSV.value
+    );
+  }, [contentPaddingTop, headerTotalHeight]);
+
+  const deltaContentY = useDerivedValue(() => {
+    return firstContentTopY.value - coverBottomY.value;
+  });
 
   const deltaY = useDerivedValue(() => {
     return spacerBottomY.value - coverBottomY.value;
@@ -1673,6 +1710,17 @@ function DebugCoverGuides(props: {
     };
   });
 
+  const firstContentTopLineStyle = useAnimatedStyle(() => {
+    const y = firstContentTopY.value;
+    const ok =
+      typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
+    const safeY = ok ? y : -9999;
+    return {
+      top: safeY,
+      opacity: ok ? 1 : 0,
+    };
+  });
+
   const [debugText, setDebugText] = useState("");
   const lastTextBucket = useSharedValue(-1);
   const lastLoggedCrossSign = useSharedValue(0);
@@ -1682,12 +1730,15 @@ function DebugCoverGuides(props: {
     () => {
       return {
         scrollY: scrollY.value,
+        firstContentLayoutY: firstContentLayoutYSV.value,
         imageSize: imageSize.value,
         spacerHeight: spacerHeight.value,
         translateY: imageTranslateY.value,
         coverBottomY: coverBottomY.value,
         spacerBottomY: spacerBottomY.value,
         deltaY: deltaY.value,
+        firstContentTopY: firstContentTopY.value,
+        deltaContentY: deltaContentY.value,
       };
     },
     (v, prev) => {
@@ -1705,12 +1756,15 @@ function DebugCoverGuides(props: {
           [
             `scrollY=${v.scrollY.toFixed(1)}`,
             `contentPadTop=${contentPaddingTop}`,
+            `firstContentLayoutY=${v.firstContentLayoutY.toFixed(1)}`,
+            `firstContentTop=${v.firstContentTopY.toFixed(1)}`,
             `imageSize=${v.imageSize.toFixed(1)}`,
             `translateY=${v.translateY.toFixed(1)}`,
             `spacerH=${v.spacerHeight.toFixed(1)}`,
             `coverBottom=${v.coverBottomY.toFixed(1)}`,
             `spacerBottom=${v.spacerBottomY.toFixed(1)}`,
             `delta=${v.deltaY.toFixed(1)}`,
+            `deltaContent=${v.deltaContentY.toFixed(1)}`,
           ].join("\n")
         );
       }
@@ -1779,6 +1833,15 @@ function DebugCoverGuides(props: {
           styles.debugGuideLine,
           styles.debugSpacerBottomLine,
           spacerBottomLineStyle,
+        ]}
+      />
+
+      <Reanimated.View
+        pointerEvents="none"
+        style={[
+          styles.debugGuideLine,
+          styles.debugFirstContentTopLine,
+          firstContentTopLineStyle,
         ]}
       />
 
@@ -1857,6 +1920,10 @@ const styles = StyleSheet.create({
   coverSpacer: {
     width: "100%",
   },
+  debugFirstContentMarker: {
+    height: 0,
+    width: "100%",
+  },
   coverBannerFallback: {
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
@@ -1876,6 +1943,9 @@ const styles = StyleSheet.create({
   },
   debugSpacerBottomLine: {
     backgroundColor: "rgba(255,0,0,0.9)",
+  },
+  debugFirstContentTopLine: {
+    backgroundColor: "rgba(0,120,255,0.9)",
   },
   debugPanel: {
     position: "absolute",
