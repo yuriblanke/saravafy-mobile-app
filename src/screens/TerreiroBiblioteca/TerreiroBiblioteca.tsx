@@ -1643,20 +1643,27 @@ function DebugCoverGuides(props: {
   });
 
   const coverBottomLineStyle = useAnimatedStyle(() => {
+    const y = coverBottomY.value;
+    const safeY = Number.isFinite(y) ? y : -9999;
     return {
-      top: coverBottomY.value,
+      top: safeY,
+      opacity: Number.isFinite(y) ? 1 : 0,
     };
   });
 
   const spacerBottomLineStyle = useAnimatedStyle(() => {
+    const y = spacerBottomY.value;
+    const safeY = Number.isFinite(y) ? y : -9999;
     return {
-      top: spacerBottomY.value,
+      top: safeY,
+      opacity: Number.isFinite(y) ? 1 : 0,
     };
   });
 
   const [debugText, setDebugText] = useState("");
-  const lastUpdateTs = useSharedValue(0);
-  const lastLogTs = useSharedValue(0);
+  const lastTextBucket = useSharedValue(-1);
+  const lastLoggedCrossSign = useSharedValue(0);
+  const lastLoggedDrifted = useSharedValue(0);
 
   useAnimatedReaction(
     () => {
@@ -1671,35 +1678,43 @@ function DebugCoverGuides(props: {
       };
     },
     (v, prev) => {
-      const now = Date.now();
-      if (now - lastUpdateTs.value < 90) return; // ~11fps
-      lastUpdateTs.value = now;
+      // Throttle update do painel por bucket de scroll (sem Date.now no worklet).
+      const bucket = Math.round(v.scrollY / 10);
+      const prevDelta = prev?.deltaY ?? 0;
 
-      runOnJS(setDebugText)(
-        [
-          `scrollY=${v.scrollY.toFixed(1)}`,
-          `imageSize=${v.imageSize.toFixed(1)}`,
-          `translateY=${v.translateY.toFixed(1)}`,
-          `spacerH=${v.spacerHeight.toFixed(1)}`,
-          `coverBottom=${v.coverBottomY.toFixed(1)}`,
-          `spacerBottom=${v.spacerBottomY.toFixed(1)}`,
-          `delta=${v.deltaY.toFixed(1)}`,
-        ].join("\n")
-      );
+      const shouldUpdateText =
+        bucket !== lastTextBucket.value || Math.abs(v.deltaY - prevDelta) >= 1;
+
+      if (shouldUpdateText) {
+        lastTextBucket.value = bucket;
+
+        runOnJS(setDebugText)(
+          [
+            `scrollY=${v.scrollY.toFixed(1)}`,
+            `imageSize=${v.imageSize.toFixed(1)}`,
+            `translateY=${v.translateY.toFixed(1)}`,
+            `spacerH=${v.spacerHeight.toFixed(1)}`,
+            `coverBottom=${v.coverBottomY.toFixed(1)}`,
+            `spacerBottom=${v.spacerBottomY.toFixed(1)}`,
+            `delta=${v.deltaY.toFixed(1)}`,
+          ].join("\n")
+        );
+      }
 
       // Logs opcionais no terminal (DEV):
       // - quando o delta cruza 0 (mudança de sinal)
-      // - ou quando |delta| passa de ~6px
-      const prevDelta = prev?.deltaY ?? 0;
+      // - ou quando |delta| passa de 12px
+      const sign = v.deltaY === 0 ? 0 : v.deltaY > 0 ? 1 : -1;
+      const prevSign =
+        prevDelta === 0 ? 0 : prevDelta > 0 ? 1 : prevDelta < 0 ? -1 : 0;
       const crossedZero =
-        (prevDelta < 0 && v.deltaY >= 0) || (prevDelta > 0 && v.deltaY <= 0);
-      const drifted = Math.abs(v.deltaY) >= 6;
-
-      if ((crossedZero || drifted) && now - lastLogTs.value >= 220) {
-        lastLogTs.value = now;
+        prevSign !== 0 && sign !== 0 && prevSign !== sign && prevSign !== sign;
+      if (crossedZero && lastLoggedCrossSign.value !== sign) {
+        lastLoggedCrossSign.value = sign;
         runOnJS(console.log)(
           [
             "[COVER DEBUG]",
+            "crossed-zero",
             `imageSize=${v.imageSize.toFixed(1)}`,
             `spacerHeight=${v.spacerHeight.toFixed(1)}`,
             `translateY=${v.translateY.toFixed(1)}`,
@@ -1707,6 +1722,25 @@ function DebugCoverGuides(props: {
             `delta=${v.deltaY.toFixed(1)}`,
           ].join(" ")
         );
+      }
+
+      const drifted = Math.abs(v.deltaY) >= 12;
+      if (drifted && lastLoggedDrifted.value === 0) {
+        lastLoggedDrifted.value = 1;
+        runOnJS(console.log)(
+          [
+            "[COVER DEBUG]",
+            "drift>=12",
+            `imageSize=${v.imageSize.toFixed(1)}`,
+            `spacerHeight=${v.spacerHeight.toFixed(1)}`,
+            `translateY=${v.translateY.toFixed(1)}`,
+            `scrollY=${v.scrollY.toFixed(1)}`,
+            `delta=${v.deltaY.toFixed(1)}`,
+          ].join(" ")
+        );
+      }
+      if (!drifted && lastLoggedDrifted.value !== 0) {
+        lastLoggedDrifted.value = 0;
       }
     },
     []
