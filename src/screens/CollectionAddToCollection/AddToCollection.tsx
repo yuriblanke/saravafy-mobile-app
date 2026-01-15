@@ -15,11 +15,14 @@ import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
 import { normalizeTag } from "@/src/utils/mergeTags";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  BackHandler,
   FlatList,
+  Platform,
   Pressable,
   StyleSheet,
   Text,
@@ -171,7 +174,41 @@ export default function AddToCollection() {
   const { user } = useAuth();
   const userId = user?.id ?? null;
 
-  const collectionId = String(params.id ?? "").trim();
+  const collectionIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
+  const collectionId = String(collectionIdParam ?? "").trim();
+
+  const goBackToCollection = useCallback(() => {
+    if (!collectionId) {
+      router.back();
+      return;
+    }
+
+    // Importante: esta tela está em outro Stack group que a tela de Collection.
+    // `router.back()` pode voltar para uma rota sem params; navegamos
+    // explicitamente para garantir que o id exista.
+    router.replace({
+      pathname: "/collection/[id]" as any,
+      params: { id: collectionId },
+    });
+  }, [collectionId, router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+
+      const onHardwareBackPress = () => {
+        goBackToCollection();
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onHardwareBackPress
+      );
+
+      return () => sub.remove();
+    }, [goBackToCollection])
+  );
 
   const baseBgColor = getSaravafyBaseColor(variant);
   const textPrimary =
@@ -465,7 +502,7 @@ export default function AddToCollection() {
     async (ponto: ListPonto) => {
       if (!collectionId) {
         showToast("Coleção inválida.");
-        router.back();
+        goBackToCollection();
         return;
       }
 
@@ -501,7 +538,7 @@ export default function AddToCollection() {
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voltar"
-        onPress={() => router.back()}
+        onPress={goBackToCollection}
         hitSlop={10}
         style={({ pressed }) => [
           styles.headerIconBtn,

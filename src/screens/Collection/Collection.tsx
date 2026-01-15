@@ -199,8 +199,11 @@ export default function Collection() {
     router.replace("/(app)/(tabs)/(pontos)" as any);
   }, [isInTabs, router, tabController]);
 
-  const terreiroIdFromParams =
-    typeof params.terreiroId === "string" ? params.terreiroId : "";
+  const terreiroIdFromParams = Array.isArray(params.terreiroId)
+    ? params.terreiroId[0]
+    : typeof params.terreiroId === "string"
+    ? params.terreiroId
+    : "";
 
   const terreiroId =
     typeof collection?.owner_terreiro_id === "string"
@@ -209,6 +212,18 @@ export default function Collection() {
   const visibility =
     typeof collection?.visibility === "string" ? collection.visibility : "";
   const isMembersOnly = !!collection && visibility === "members";
+
+  const goBackFromCollection = useCallback(() => {
+    if (terreiroId && terreiroId.trim()) {
+      router.replace({
+        pathname: "/terreiro" as any,
+        params: { terreiroId },
+      });
+      return;
+    }
+
+    router.back();
+  }, [router, terreiroId]);
 
   const membership = useTerreiroMembershipStatus(terreiroId);
   const createRequest = useCreateTerreiroMembershipRequest(
@@ -795,7 +810,7 @@ export default function Collection() {
 
       setIsNameDetailsOpen(false);
       showToast("Coleção apagada.");
-      router.back();
+      goBackFromCollection();
     } catch (e) {
       showToast(getErrorMessage(e));
     } finally {
@@ -806,6 +821,7 @@ export default function Collection() {
     collection?.owner_user_id,
     collectionId,
     queryClient,
+    goBackFromCollection,
     router,
     shouldBlockPress,
     showToast,
@@ -863,7 +879,7 @@ export default function Collection() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
+            onPress={goBackFromCollection}
             hitSlop={10}
             style={styles.headerIconBtn}
           >
