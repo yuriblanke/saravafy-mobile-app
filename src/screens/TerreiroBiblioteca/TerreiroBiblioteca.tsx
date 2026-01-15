@@ -64,6 +64,7 @@ import Reanimated, {
   useAnimatedStyle,
   useDerivedValue,
   useSharedValue,
+  type SharedValue,
 } from "react-native-reanimated";
 
 const fillerPng = require("@/assets/images/filler.png");
@@ -131,6 +132,7 @@ function isColumnMissingError(error: unknown, columnName: string) {
 
 export default function TerreiroBiblioteca() {
   const router = useRouter();
+  const DEBUG_COVER = __DEV__;
   const params = useLocalSearchParams<{
     terreiroId?: string;
     terreiroTitle?: string;
@@ -1219,6 +1221,17 @@ export default function TerreiroBiblioteca() {
       </BottomSheet>
 
       <View style={styles.headerAndBody}>
+        {DEBUG_COVER ? (
+          <DebugCoverGuides
+            headerTotalHeight={headerTotalHeight}
+            coverTopOffset={coverTopOffset}
+            scrollY={scrollY}
+            imageSize={imageSize}
+            imageTranslateY={imageTranslateY}
+            spacerHeight={spacerHeight}
+          />
+        ) : null}
+
         <View
           pointerEvents="none"
           style={[
@@ -1595,6 +1608,115 @@ export default function TerreiroBiblioteca() {
   );
 }
 
+function DebugCoverGuides(props: {
+  headerTotalHeight: number;
+  coverTopOffset: number;
+  scrollY: SharedValue<number>;
+  imageSize: SharedValue<number>;
+  imageTranslateY: SharedValue<number>;
+  spacerHeight: SharedValue<number>;
+}) {
+  const {
+    headerTotalHeight,
+    coverTopOffset,
+    scrollY,
+    imageSize,
+    imageTranslateY,
+    spacerHeight,
+  } = props;
+
+  const coverBottomY = useDerivedValue(() => {
+    return (
+      headerTotalHeight +
+      coverTopOffset +
+      imageTranslateY.value +
+      imageSize.value
+    );
+  }, [coverTopOffset, headerTotalHeight]);
+
+  const spacerBottomY = useDerivedValue(() => {
+    return headerTotalHeight - scrollY.value + spacerHeight.value;
+  }, [headerTotalHeight]);
+
+  const deltaY = useDerivedValue(() => {
+    return spacerBottomY.value - coverBottomY.value;
+  });
+
+  const coverBottomLineStyle = useAnimatedStyle(() => {
+    return {
+      top: coverBottomY.value,
+    };
+  });
+
+  const spacerBottomLineStyle = useAnimatedStyle(() => {
+    return {
+      top: spacerBottomY.value,
+    };
+  });
+
+  const [debugText, setDebugText] = useState("");
+  const lastUpdateTs = useSharedValue(0);
+
+  useAnimatedReaction(
+    () => {
+      return {
+        scrollY: scrollY.value,
+        imageSize: imageSize.value,
+        spacerHeight: spacerHeight.value,
+        translateY: imageTranslateY.value,
+        coverBottomY: coverBottomY.value,
+        spacerBottomY: spacerBottomY.value,
+        deltaY: deltaY.value,
+      };
+    },
+    (v) => {
+      const now = Date.now();
+      if (now - lastUpdateTs.value < 90) return; // ~11fps
+      lastUpdateTs.value = now;
+
+      runOnJS(setDebugText)(
+        [
+          `scrollY=${v.scrollY.toFixed(1)}`,
+          `imageSize=${v.imageSize.toFixed(1)}`,
+          `translateY=${v.translateY.toFixed(1)}`,
+          `spacerH=${v.spacerHeight.toFixed(1)}`,
+          `coverBottom=${v.coverBottomY.toFixed(1)}`,
+          `spacerBottom=${v.spacerBottomY.toFixed(1)}`,
+          `delta=${v.deltaY.toFixed(1)}`,
+        ].join("\n")
+      );
+    },
+    []
+  );
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Reanimated.View
+        pointerEvents="none"
+        style={[
+          styles.debugGuideLine,
+          styles.debugCoverBottomLine,
+          coverBottomLineStyle,
+        ]}
+      />
+
+      <Reanimated.View
+        pointerEvents="none"
+        style={[
+          styles.debugGuideLine,
+          styles.debugSpacerBottomLine,
+          spacerBottomLineStyle,
+        ]}
+      />
+
+      <View style={styles.debugPanel}>
+        <Text style={styles.debugPanelTitle}>COVER/SPACER DEBUG</Text>
+        <Text style={styles.debugPanelText}>{debugText}</Text>
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
@@ -1666,6 +1788,44 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     alignItems: "center",
     justifyContent: "center",
+  },
+  debugGuideLine: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 2,
+    zIndex: 9999,
+    elevation: 9999,
+  },
+  debugCoverBottomLine: {
+    backgroundColor: "rgba(255,0,0,0.95)",
+  },
+  debugSpacerBottomLine: {
+    backgroundColor: "rgba(0,200,255,0.95)",
+  },
+  debugPanel: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    bottom: 10,
+    zIndex: 9999,
+    elevation: 9999,
+    backgroundColor: "rgba(0,0,0,0.72)",
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+  },
+  debugPanelTitle: {
+    color: "rgba(255,255,255,0.95)",
+    fontWeight: "900",
+    fontSize: 12,
+    marginBottom: 6,
+  },
+  debugPanelText: {
+    color: "rgba(255,255,255,0.95)",
+    fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }),
+    fontSize: 12,
+    lineHeight: 16,
   },
   titleBlock: {
     paddingTop: 0,
