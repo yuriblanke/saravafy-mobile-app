@@ -29,22 +29,42 @@ import {
   loadTerreiroLibraryOrder,
 } from "@/src/utils/terreiroLibraryOrder";
 import { Ionicons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   Animated,
+  BackHandler,
   Image,
+  LayoutChangeEvent,
+  Platform,
   Pressable,
-  ScrollView,
   Share,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
+import Reanimated, {
+  Extrapolation,
+  interpolate,
+  runOnJS,
+  useAnimatedReaction,
+  useAnimatedScrollHandler,
+  useAnimatedStyle,
+  useDerivedValue,
+  useSharedValue,
+} from "react-native-reanimated";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -138,12 +158,40 @@ export default function TerreiroBiblioteca() {
 
   const baseBgColor = variant === "light" ? colors.paper50 : colors.forest900;
 
+  const { width: windowWidth } = useWindowDimensions();
+  const coverSize = useMemo(() => {
+    const contentWidth = Math.max(0, windowWidth - spacing.lg * 2);
+    // Um pouco menor que o conteúdo para dar respiro horizontal.
+    return Math.max(220, Math.round(contentWidth * 0.8));
+  }, [windowWidth]);
+
+  // --- Spotify-style cover behavior (Reanimated) ---
+  // Ajuste fino aqui, sem mexer no header/scrim.
+  const imageMaxSize = coverSize; // tamanhão inicial (quadrado)
+  const imageMinSize = 56; // tamanho mínimo (thumbnail)
+  const shrinkRange = 170; // px de scroll até atingir minSize
+  const fadeRange = 120; // px de scroll para fade
+  const fadeToOpacity = 0.15; // alvo do fade (Spotify-like)
+  const unpinOpacity = 0.6; // breakpoint para começar unpin
+  const unpinRange = 90; // px de scroll para "engolir" por baixo do header
+  // Fonte única de verdade para o offset vertical da cover.
+  // Mantemos isso no wrapper (paddingTop) e usamos o mesmo valor no spacer e no unpin.
+  const coverTopOffset = spacing.lg; // espaço entre header e imagem
+  const coverBottomGap = spacing.lg; // gap constante entre cover e o primeiro bloco de conteúdo
+
+  const fadeStart = shrinkRange;
+  const unpinStart =
+    fadeStart +
+    fadeRange * ((1 - unpinOpacity) / Math.max(0.0001, 1 - fadeToOpacity));
+
+  const scrollY = useSharedValue(0);
+
   const terreiroId =
     Array.isArray(params.terreiroId) && params.terreiroId.length > 0
       ? params.terreiroId[0]
       : typeof params.terreiroId === "string"
-        ? params.terreiroId
-        : "";
+      ? params.terreiroId
+      : "";
 
   const insets = useGlobalSafeAreaInsets();
   const headerVisibleHeight = 52;
@@ -319,7 +367,11 @@ export default function TerreiroBiblioteca() {
   const headerGoldColor =
     variant === "light" ? colors.brass500 : colors.brass600;
   const headerFgColor =
-    variant === "light" ? textPrimary : isHeaderTitleVisible ? colors.paper50 : textPrimary;
+    variant === "light"
+      ? textPrimary
+      : isHeaderTitleVisible
+      ? colors.paper50
+      : textPrimary;
 
   const headerGradientThreshold = useMemo(() => {
     const topGradientNoLongerBehindHeader = Math.max(
@@ -332,7 +384,10 @@ export default function TerreiroBiblioteca() {
         0,
         actionsBottomY - headerTotalHeight
       );
-      return Math.max(actionsBottomReachedHeader, topGradientNoLongerBehindHeader);
+      return Math.max(
+        actionsBottomReachedHeader,
+        topGradientNoLongerBehindHeader
+      );
     }
 
     return topGradientNoLongerBehindHeader;
@@ -354,25 +409,123 @@ export default function TerreiroBiblioteca() {
     return Math.max(0, titleBlockY + h1Height - headerTotalHeight - 10);
   }, [h1Height, headerTotalHeight, titleBlockY]);
 
-  const onScroll = useCallback(
-    (y: number) => {
-      const showTitle = y >= headerTitleThreshold;
-      setHeaderTitleVisible(showTitle);
+  const headerTitleThresholdSV = useSharedValue(headerTitleThreshold);
+  const headerGradientThresholdSV = useSharedValue(headerGradientThreshold);
 
-      const showGradient = y >= headerGradientThreshold;
-      setHeaderGradientVisible(showGradient);
+  useEffect(() => {
+    headerTitleThresholdSV.value = headerTitleThreshold;
+  }, [headerTitleThreshold, headerTitleThresholdSV]);
+
+  useEffect(() => {
+    headerGradientThresholdSV.value = headerGradientThreshold;
+  }, [headerGradientThreshold, headerGradientThresholdSV]);
+
+  useAnimatedReaction(
+    () => scrollY.value >= headerTitleThresholdSV.value,
+    (visible, prev) => {
+      if (prev === null || visible === prev) return;
+      runOnJS(setHeaderTitleVisible)(visible);
     },
-    [
-      headerGradientThreshold,
-      headerTitleThreshold,
-      setHeaderGradientVisible,
-      setHeaderTitleVisible,
-    ]
+    [setHeaderTitleVisible]
   );
 
+  useAnimatedReaction(
+    () => scrollY.value >= headerGradientThresholdSV.value,
+    (visible, prev) => {
+      if (prev === null || visible === prev) return;
+      runOnJS(setHeaderGradientVisible)(visible);
+    },
+    [setHeaderGradientVisible]
+  );
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      const y = e.contentOffset.y;
+      scrollY.value = y < 0 ? 0 : y;
+    },
+  });
+
+  const imageSize = useDerivedValue(() => {
+    return interpolate(
+      scrollY.value,
+      [0, shrinkRange],
+      [imageMaxSize, imageMinSize],
+      Extrapolation.CLAMP
+    );
+  }, [imageMaxSize]);
+
+  const imageOpacity = useDerivedValue(() => {
+    return interpolate(
+      scrollY.value,
+      [shrinkRange, shrinkRange + fadeRange],
+      [1, fadeToOpacity],
+      Extrapolation.CLAMP
+    );
+  });
+
+  const imageTranslateY = useDerivedValue(() => {
+    const t = interpolate(
+      scrollY.value,
+      [unpinStart, unpinStart + unpinRange],
+      [0, 1],
+      Extrapolation.CLAMP
+    );
+
+    // Depois do breakpoint, começa a "ser levada" e some por baixo do header.
+    const distance = headerTotalHeight + imageMinSize + coverTopOffset;
+    return -t * distance;
+  }, [coverTopOffset, headerTotalHeight]);
+
+  const coverOverlayStyle = useAnimatedStyle(() => {
+    return {
+      width: imageSize.value,
+      height: imageSize.value,
+      opacity: imageOpacity.value,
+      transform: [{ translateY: imageTranslateY.value }],
+    };
+  });
+
+  const spacerHeight = useDerivedValue(() => {
+    // Altura reservada no conteúdo para manter o topo do primeiro item sempre
+    // abaixo da borda inferior VISUAL da cover overlay.
+    const reserved = coverTopOffset + imageSize.value + coverBottomGap;
+    const h = reserved + imageTranslateY.value; // translateY negativo reduz o espaço reservado
+
+    const minSpacer = coverBottomGap; // quando a cover já subiu totalmente
+    const maxSpacer = coverTopOffset + imageMaxSize + coverBottomGap;
+
+    return Math.min(maxSpacer, Math.max(minSpacer, h));
+  }, [coverBottomGap, coverTopOffset, imageMaxSize]);
+
+  const coverSpacerStyle = useAnimatedStyle(() => {
+    return {
+      height: spacerHeight.value,
+    };
+  });
+
   const goBack = useCallback(() => {
-    router.back();
+    // Esta tela é fullscreen; preferimos voltar explicitamente para a lista
+    // de Terreiros para evitar cair no fallback (Pontos) dependendo do histórico.
+    router.replace("/(app)/(tabs)/(terreiros)" as any);
   }, [router]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+
+      const onHardwareBackPress = () => {
+        goBack();
+        return true;
+      };
+
+      const sub = BackHandler.addEventListener(
+        "hardwareBackPress",
+        onHardwareBackPress
+      );
+
+      return () => sub.remove();
+    }, [goBack])
+  );
 
   // --- Biblioteca (ordenação + ações) ---
   const accentColor = colors.brass600;
@@ -561,9 +714,10 @@ export default function TerreiroBiblioteca() {
     useState(false);
 
   const newCollectionTitleInputRef = useRef<TextInput | null>(null);
-  const pendingInitialTitleSelectionRef = useRef<
-    { start: number; end: number } | null
-  >(null);
+  const pendingInitialTitleSelectionRef = useRef<{
+    start: number;
+    end: number;
+  } | null>(null);
 
   const openCreateCollectionSheet = () => {
     if (!canEdit) return;
@@ -958,7 +1112,7 @@ export default function TerreiroBiblioteca() {
                 pressed ? styles.sheetActionPressed : null,
               ]}
             >
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}> 
+              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
                 Renomear
               </Text>
             </Pressable>
@@ -985,7 +1139,7 @@ export default function TerreiroBiblioteca() {
                 ]}
               >
                 <Ionicons name="trash" size={18} color={dangerColor} />
-                <Text style={[styles.sheetActionText, { color: dangerColor }]}> 
+                <Text style={[styles.sheetActionText, { color: dangerColor }]}>
                   Excluir
                 </Text>
               </Pressable>
@@ -1009,7 +1163,7 @@ export default function TerreiroBiblioteca() {
             </Text>
           ) : null}
 
-          <Text style={[styles.confirmText, { color: textSecondary }]}> 
+          <Text style={[styles.confirmText, { color: textSecondary }]}>
             Esta ação é permanente. Deseja prosseguir?
           </Text>
 
@@ -1027,7 +1181,7 @@ export default function TerreiroBiblioteca() {
               ]}
             >
               <Ionicons name="close" size={18} color={textMuted} />
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}> 
+              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
                 Cancelar
               </Text>
             </Pressable>
@@ -1056,7 +1210,7 @@ export default function TerreiroBiblioteca() {
               ]}
             >
               <Ionicons name="trash" size={18} color={dangerColor} />
-              <Text style={[styles.sheetActionText, { color: dangerColor }]}> 
+              <Text style={[styles.sheetActionText, { color: dangerColor }]}>
                 Excluir
               </Text>
             </Pressable>
@@ -1065,6 +1219,47 @@ export default function TerreiroBiblioteca() {
       </BottomSheet>
 
       <View style={styles.headerAndBody}>
+        <View
+          pointerEvents="none"
+          style={[
+            styles.coverOverlayWrap,
+            { top: headerTotalHeight, paddingTop: coverTopOffset },
+          ]}
+        >
+          <Reanimated.View
+            style={[
+              styles.coverBanner,
+              { backgroundColor: baseBgColor },
+              coverOverlayStyle,
+            ]}
+          >
+            {terreiroCoverImageUrl ? (
+              <Image
+                source={{ uri: terreiroCoverImageUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <View
+                style={[
+                  styles.coverBannerFallback,
+                  { backgroundColor: baseBgColor },
+                ]}
+              >
+                <Ionicons name="home-outline" size={40} color={textMuted} />
+              </View>
+            )}
+
+            <LinearGradient
+              pointerEvents="none"
+              colors={[hexToRgba("#000", 0.0), hexToRgba("#000", 0.25)]}
+              locations={[0, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </Reanimated.View>
+        </View>
+
         <View
           style={[
             styles.fixedHeader,
@@ -1088,7 +1283,10 @@ export default function TerreiroBiblioteca() {
 
             <Animated.View
               pointerEvents="none"
-              style={[StyleSheet.absoluteFill, { opacity: headerGradientOpacity }]}
+              style={[
+                StyleSheet.absoluteFill,
+                { opacity: headerGradientOpacity },
+              ]}
             >
               <LinearGradient
                 pointerEvents="none"
@@ -1109,7 +1307,10 @@ export default function TerreiroBiblioteca() {
           </Pressable>
 
           <Animated.View
-            style={[styles.headerInlineTitleWrap, { opacity: headerTitleOpacity }]}
+            style={[
+              styles.headerInlineTitleWrap,
+              { opacity: headerTitleOpacity },
+            ]}
             pointerEvents="none"
           >
             <Text
@@ -1121,16 +1322,14 @@ export default function TerreiroBiblioteca() {
           </Animated.View>
         </View>
 
-        <ScrollView
+        <Reanimated.ScrollView
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
             { paddingTop: headerTotalHeight },
           ]}
           scrollEventThrottle={16}
-          onScroll={(e) => {
-            onScroll(e.nativeEvent.contentOffset.y);
-          }}
+          onScroll={scrollHandler}
         >
           <LinearGradient
             pointerEvents="none"
@@ -1149,27 +1348,7 @@ export default function TerreiroBiblioteca() {
             ]}
           />
 
-          <View style={styles.coverBanner}>
-            {terreiroCoverImageUrl ? (
-              <Image
-                source={{ uri: terreiroCoverImageUrl }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="cover"
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <View style={[styles.coverBannerFallback, { backgroundColor: baseBgColor }]}>
-                <Ionicons name="home-outline" size={40} color={textMuted} />
-              </View>
-            )}
-
-            <LinearGradient
-              pointerEvents="none"
-              colors={[hexToRgba("#000", 0.0), hexToRgba("#000", 0.25)]}
-              locations={[0, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-          </View>
+          <Reanimated.View style={[styles.coverSpacer, coverSpacerStyle]} />
 
           <View
             style={styles.titleBlock}
@@ -1177,7 +1356,9 @@ export default function TerreiroBiblioteca() {
               setTitleBlockY(e.nativeEvent.layout.y);
             }}
           >
-            <Text style={[styles.kicker, { color: textMuted }]}>Biblioteca de</Text>
+            <Text style={[styles.kicker, { color: textMuted }]}>
+              Biblioteca de
+            </Text>
 
             <Animated.View
               style={[styles.titleRow, { opacity: titleShareOpacity }]}
@@ -1205,7 +1386,11 @@ export default function TerreiroBiblioteca() {
                   hitSlop={10}
                   style={styles.headerIconBtn}
                 >
-                  <Ionicons name="share-outline" size={20} color={textPrimary} />
+                  <Ionicons
+                    name="share-outline"
+                    size={20}
+                    color={textPrimary}
+                  />
                 </Pressable>
               </Animated.View>
             </Animated.View>
@@ -1216,11 +1401,11 @@ export default function TerreiroBiblioteca() {
               </Text>
             ) : null}
 
-            <ScrollView
+            <Reanimated.ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.actionsRow}
-              onLayout={(e) => {
+              onLayout={(e: LayoutChangeEvent) => {
                 const { y, height } = e.nativeEvent.layout;
                 setActionsBottomY(y + height);
               }}
@@ -1250,7 +1435,8 @@ export default function TerreiroBiblioteca() {
                     if (shouldBlockPress()) return;
                     if (!terreiroId) return;
                     router.push({
-                      pathname: "/terreiro-collections/[terreiroId]/edit" as any,
+                      pathname:
+                        "/terreiro-collections/[terreiroId]/edit" as any,
                       params: { terreiroId },
                     });
                   }}
@@ -1270,12 +1456,14 @@ export default function TerreiroBiblioteca() {
                     size={18}
                     color={textPrimary}
                   />
-                  <Text style={[styles.secondaryActionText, { color: textPrimary }]}>
+                  <Text
+                    style={[styles.secondaryActionText, { color: textPrimary }]}
+                  >
                     Editar
                   </Text>
                 </Pressable>
               ) : null}
-            </ScrollView>
+            </Reanimated.ScrollView>
           </View>
 
           <View
@@ -1401,7 +1589,7 @@ export default function TerreiroBiblioteca() {
           </View>
 
           <View style={{ height: spacing.lg }} />
-        </ScrollView>
+        </Reanimated.ScrollView>
       </View>
     </View>
   );
@@ -1459,12 +1647,20 @@ const styles = StyleSheet.create({
     left: -spacing.lg,
     right: -spacing.lg,
   },
+  coverOverlayWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    elevation: 1,
+    alignItems: "center",
+  },
   coverBanner: {
-    height: 260,
-    width: "100%",
-    borderRadius: 18,
+    borderRadius: 12,
     overflow: "hidden",
-    marginTop: spacing.lg,
+  },
+  coverSpacer: {
+    width: "100%",
   },
   coverBannerFallback: {
     ...StyleSheet.absoluteFillObject,
@@ -1472,7 +1668,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   titleBlock: {
-    paddingTop: spacing.lg,
+    paddingTop: 0,
   },
   kicker: {
     fontSize: 12,
@@ -1502,17 +1698,20 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   actionsRow: {
+    flexDirection: "row",
+    alignItems: "center",
     gap: spacing.sm,
     paddingTop: spacing.md,
     paddingBottom: spacing.sm,
   },
   primaryActionBtn: {
-    height: 44,
-    borderRadius: 999,
+    height: 40,
+    borderRadius: 12,
     paddingHorizontal: 14,
     backgroundColor: colors.brass600,
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   primaryActionText: {
@@ -1521,13 +1720,14 @@ const styles = StyleSheet.create({
     color: colors.paper50,
   },
   secondaryActionBtn: {
-    height: 44,
-    borderRadius: 999,
+    height: 40,
+    borderRadius: 12,
     paddingHorizontal: 14,
     borderWidth: 2,
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
+    justifyContent: "center",
+    gap: 6,
   },
   secondaryActionText: {
     fontSize: 13,
