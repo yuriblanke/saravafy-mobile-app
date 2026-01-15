@@ -14,14 +14,13 @@ import {
   useTerreiroInvites,
   useTerreiroMembers,
   useTerreiroMembershipStatus,
-  type TerreiroAccessRole,
 } from "@/src/hooks/terreiroMembership";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Pressable,
@@ -35,16 +34,26 @@ import {
 type ManagementMember = {
   id: string;
   userId: string;
+  name: string;
   email: string;
+  showEmailLine: boolean;
   role: "admin" | "editor";
 };
 
 type ManagementInvite = {
   id: string;
+  name: string;
   email: string;
+  showEmailLine: boolean;
   role: "admin" | "editor";
   createdAtLabel: string;
 };
+
+function normalizeEmailLower(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
 
 function formatTimeAgo(isoString: string | null): string {
   if (!isoString) return "";
@@ -107,6 +116,19 @@ export default function AccessManager() {
   const myRole = membership.role;
   const canManage = membership.isActiveMember && myRole === "admin";
 
+  useEffect(() => {
+    if (!terreiroId) return;
+    if (membershipQuery.isLoading) return;
+
+    const role = membershipQuery.data?.role ?? null;
+    const isActive = membershipQuery.data?.isActiveMember ?? false;
+
+    if (isActive && role === "editor") {
+      showToast("Acesso restrito à administração.");
+      router.back();
+    }
+  }, [membershipQuery.data, membershipQuery.isLoading, router, showToast, terreiroId]);
+
   // Load data
   const membersHook = useTerreiroMembers(terreiroId);
   const invitesHook = useTerreiroInvites(terreiroId);
@@ -125,17 +147,22 @@ export default function AccessManager() {
           (m.role === "admin" || m.role === "editor") && m.status === "active"
       )
       .map((m) => {
-        const identity = membersHook.identityByUserId[m.user_id];
-        const email = identity?.email || m.user_id;
+        const profile = membersHook.profilesById[m.user_id];
+        const email = (profile?.email ?? "").trim() || "Email indisponível";
+        const fullName = (profile?.full_name ?? "").trim();
+        const name = fullName ? fullName : email;
+        const showEmailLine = !!fullName;
 
         return {
           id: m.user_id,
           userId: m.user_id,
+          name,
           email,
+          showEmailLine,
           role: m.role as "admin" | "editor",
         };
       });
-  }, [membersHook.items, membersHook.identityByUserId]);
+  }, [membersHook.items, membersHook.profilesById]);
 
   // Management invites (admin + editor only)
   const managementInvites = useMemo<ManagementInvite[]>(() => {
@@ -143,13 +170,23 @@ export default function AccessManager() {
 
     return invitesHook.pending
       .filter((inv) => inv.role === "admin" || inv.role === "editor")
-      .map((inv) => ({
-        id: inv.id,
-        email: inv.email,
-        role: inv.role as "admin" | "editor",
-        createdAtLabel: formatTimeAgo(inv.created_at ?? null),
-      }));
-  }, [invitesHook.pending]);
+      .map((inv) => {
+        const email = String(inv.email ?? "").trim();
+        const profile = invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
+        const fullName = (profile?.full_name ?? "").trim();
+        const name = fullName ? fullName : email;
+        const showEmailLine = !!fullName;
+
+        return {
+          id: inv.id,
+          name,
+          email,
+          showEmailLine,
+          role: inv.role as "admin" | "editor",
+          createdAtLabel: formatTimeAgo(inv.created_at ?? null),
+        };
+      });
+  }, [invitesHook.pending, invitesHook.profilesByEmailLower]);
 
   // UI State
   const [memberMenuTarget, setMemberMenuTarget] =
@@ -188,13 +225,13 @@ export default function AccessManager() {
     setIsInviteSheetOpen(true);
   };
 
-  const closeInviteSheet = () => {
+  const closeInviteSheet = useCallback(() => {
     if (isSubmittingInvite) return;
     setIsInviteSheetOpen(false);
     setInviteEmail("");
     setInviteRole("admin");
     setInviteError("");
-  };
+  }, [isSubmittingInvite]);
 
   const handleToggleRole = useCallback(
     (member: ManagementMember) => {
@@ -353,7 +390,7 @@ export default function AccessManager() {
     } finally {
       setIsSubmittingInvite(false);
     }
-  }, [inviteEmail, inviteRole, createInviteHook, invitesHook, showToast]);
+  }, [inviteEmail, inviteRole, createInviteHook, invitesHook, showToast, closeInviteSheet]);
 
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
@@ -363,6 +400,10 @@ export default function AccessManager() {
   }, [router]);
 
   if (!canManage) {
+    if (membership.isActiveMember && myRole === "editor") {
+      return <View style={[styles.screen, { backgroundColor: baseBgColor }]} />;
+    }
+
     return (
       <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
         <View
@@ -720,14 +761,23 @@ export default function AccessManager() {
                           style={[styles.itemEmail, { color: textPrimary }]}
                           numberOfLines={1}
                         >
-                          {item.email}
+                          {item.name}
                         </Text>
-                        <Text
-                          style={[styles.itemRole, { color: textMuted }]}
-                          numberOfLines={1}
-                        >
-                          {getRoleLabel(item.role)}
-                        </Text>
+                        {item.showEmailLine ? (
+                          <Text
+                            style={[styles.itemRole, { color: textMuted }]}
+                            numberOfLines={1}
+                          >
+                            {item.email} · {getRoleLabel(item.role)}
+                          </Text>
+                        ) : (
+                          <Text
+                            style={[styles.itemRole, { color: textMuted }]}
+                            numberOfLines={1}
+                          >
+                            {getRoleLabel(item.role)}
+                          </Text>
+                        )}
                       </View>
 
                       <Pressable
@@ -808,14 +858,15 @@ export default function AccessManager() {
                           style={[styles.itemEmail, { color: textPrimary }]}
                           numberOfLines={1}
                         >
-                          {item.email}
+                          {item.name}
                         </Text>
                         <Text
                           style={[styles.itemRole, { color: textMuted }]}
                           numberOfLines={1}
                         >
-                          {getRoleLabel(item.role)} · Pendente ·{" "}
-                          {item.createdAtLabel}
+                          {item.showEmailLine
+                            ? `${item.email} · ${getRoleLabel(item.role)} · Pendente · ${item.createdAtLabel}`
+                            : `${getRoleLabel(item.role)} · Pendente · ${item.createdAtLabel}`}
                         </Text>
                       </View>
 

@@ -1,4 +1,3 @@
-import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -23,6 +22,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
+  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -36,21 +36,49 @@ type MemberItem = {
   userId: string;
   name: string;
   email: string;
+  showEmailLine: boolean;
 };
 
 type InviteItem = {
   id: string;
+  name: string;
   email: string;
+  showEmailLine: boolean;
   createdAtLabel: string;
 };
+
+function normalizeEmailLower(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
 
 type RequestItem = {
   id: string;
   userId: string;
   name: string;
   email: string;
+  avatarUrl: string | null;
+  initials: string;
   requestedAtLabel: string;
+  showEmailLine: boolean;
 };
+
+function getInitials(value: string | null | undefined) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "?";
+
+  const base = raw.includes("@") ? raw.split("@")[0] : raw;
+  const parts = base
+    .replace(/[^a-zA-Z0-9 ]/g, " ")
+    .split(" ")
+    .map((p) => p.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
 
 function formatTimeAgo(isoString: string | null): string {
   if (!isoString) return "";
@@ -78,7 +106,6 @@ export default function TerreiroMembers() {
   const terreiroId =
     typeof params.terreiroId === "string" ? params.terreiroId : "";
 
-  const { user } = useAuth();
   const { effectiveTheme } = usePreferences();
   const { showToast } = useToast();
   const insets = useGlobalSafeAreaInsets();
@@ -127,21 +154,22 @@ export default function TerreiroMembers() {
       .filter((m) => m.role === "member" && m.status === "active")
       .map((m) => {
         const profile = membersHook.profilesById[m.user_id];
-        const identity = membersHook.identityByUserId[m.user_id];
-        const name = profile?.name || "Sem nome";
-        const email = identity?.email || "";
+        const email = (profile?.email ?? "").trim();
+        const fullName = (profile?.full_name ?? "").trim();
+        const name = fullName ? fullName : email;
+        const showEmailLine = !!fullName && !!email;
 
         return {
           id: m.user_id,
           userId: m.user_id,
           name,
           email,
+          showEmailLine,
         };
       });
   }, [
     membersHook.items,
     membersHook.profilesById,
-    membersHook.identityByUserId,
   ]);
 
   // Invite items
@@ -150,12 +178,22 @@ export default function TerreiroMembers() {
 
     return invitesHook.pending
       .filter((inv) => inv.role === "member")
-      .map((inv) => ({
-        id: inv.id,
-        email: inv.email,
-        createdAtLabel: formatTimeAgo(inv.created_at ?? null),
-      }));
-  }, [invitesHook.pending]);
+      .map((inv) => {
+        const email = String(inv.email ?? "").trim();
+        const profile = invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
+        const fullName = (profile?.full_name ?? "").trim();
+        const name = fullName ? fullName : email;
+        const showEmailLine = !!fullName;
+
+        return {
+          id: inv.id,
+          name,
+          email,
+          showEmailLine,
+          createdAtLabel: formatTimeAgo(inv.created_at ?? null),
+        };
+      });
+  }, [invitesHook.pending, invitesHook.profilesByEmailLower]);
 
   // Request items
   const requestItems = useMemo<RequestItem[]>(() => {
@@ -163,22 +201,27 @@ export default function TerreiroMembers() {
 
     return requestsHook.items.map((req) => {
       const profile = requestsHook.profilesById[req.user_id];
-      const identity = requestsHook.identityByUserId[req.user_id];
-      const name = profile?.name || "Sem nome";
-      const email = identity?.email || "";
+      const email = (profile?.email ?? "").trim();
+      const fullName = (profile?.full_name ?? "").trim();
+      const name = fullName ? fullName : email;
+      const avatarUrl = profile?.avatar_url || null;
+      const initials = getInitials(name);
+      const showEmailLine = !!fullName && !!email;
 
       return {
         id: req.id,
         userId: req.user_id,
         name,
         email,
+        avatarUrl,
+        initials,
         requestedAtLabel: formatTimeAgo(req.created_at ?? null),
+        showEmailLine,
       };
     });
   }, [
     requestsHook.items,
     requestsHook.profilesById,
-    requestsHook.identityByUserId,
   ]);
 
   // Actions
@@ -216,12 +259,12 @@ export default function TerreiroMembers() {
     setIsInviteSheetOpen(true);
   };
 
-  const closeInviteSheet = () => {
+  const closeInviteSheet = useCallback(() => {
     if (isSubmittingInvite) return;
     setIsInviteSheetOpen(false);
     setInviteEmail("");
     setInviteError("");
-  };
+  }, [isSubmittingInvite]);
 
   const handleRemoveMember = useCallback(
     (member: MemberItem) => {
@@ -315,7 +358,7 @@ export default function TerreiroMembers() {
     } finally {
       setIsSubmittingInvite(false);
     }
-  }, [inviteEmail, createInviteHook, invitesHook, showToast]);
+  }, [inviteEmail, createInviteHook, invitesHook, showToast, closeInviteSheet]);
 
   const handleApproveRequest = useCallback(
     async (request: RequestItem) => {
@@ -639,7 +682,7 @@ export default function TerreiroMembers() {
                         >
                           {item.name}
                         </Text>
-                        {item.email ? (
+                          {item.showEmailLine ? (
                           <Text
                             style={[styles.itemEmail, { color: textMuted }]}
                             numberOfLines={1}
@@ -731,13 +774,15 @@ export default function TerreiroMembers() {
                           style={[styles.itemName, { color: textPrimary }]}
                           numberOfLines={1}
                         >
-                          {item.email}
+                          {item.name}
                         </Text>
                         <Text
                           style={[styles.itemEmail, { color: textMuted }]}
                           numberOfLines={1}
                         >
-                          Pendente · {item.createdAtLabel}
+                          {item.showEmailLine
+                            ? `${item.email} · Pendente · ${item.createdAtLabel}`
+                            : `Pendente · ${item.createdAtLabel}`}
                         </Text>
                       </View>
 
@@ -805,24 +850,53 @@ export default function TerreiroMembers() {
                   <SurfaceCard variant={variant}>
                     <View style={styles.requestCard}>
                       <View style={styles.requestInfo}>
-                        <Text
-                          style={[styles.itemName, { color: textPrimary }]}
-                          numberOfLines={1}
+                        <View
+                          style={[
+                            styles.requestAvatarWrap,
+                            { borderColor: inputBorder, backgroundColor: inputBg },
+                          ]}
                         >
-                          {item.name}
-                        </Text>
-                        <Text
-                          style={[styles.itemEmail, { color: textMuted }]}
-                          numberOfLines={1}
-                        >
-                          {item.email}
-                        </Text>
-                        <Text
-                          style={[styles.itemTime, { color: textMuted }]}
-                          numberOfLines={1}
-                        >
-                          {item.requestedAtLabel}
-                        </Text>
+                          {item.avatarUrl ? (
+                            <Image
+                              source={{ uri: item.avatarUrl }}
+                              style={styles.requestAvatarImage}
+                            />
+                          ) : (
+                            <Text
+                              style={[
+                                styles.requestAvatarInitials,
+                                { color: textPrimary },
+                              ]}
+                            >
+                              {item.initials}
+                            </Text>
+                          )}
+                        </View>
+
+                        <View style={styles.requestTextCol}>
+                          <Text
+                            style={[styles.itemName, { color: textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {item.name}
+                          </Text>
+
+                          {item.showEmailLine ? (
+                            <Text
+                              style={[styles.itemEmail, { color: textMuted }]}
+                              numberOfLines={1}
+                            >
+                              {item.email}
+                            </Text>
+                          ) : null}
+
+                          <Text
+                            style={[styles.itemTime, { color: textMuted }]}
+                            numberOfLines={1}
+                          >
+                            {item.requestedAtLabel}
+                          </Text>
+                        </View>
                       </View>
 
                       <View style={styles.requestActions}>
@@ -1014,7 +1088,32 @@ const styles = StyleSheet.create({
   requestCard: {
     gap: spacing.md,
   },
-  requestInfo: {},
+  requestInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  requestAvatarWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 999,
+    borderWidth: 2,
+    overflow: "hidden",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  requestAvatarImage: {
+    width: 44,
+    height: 44,
+  },
+  requestAvatarInitials: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  requestTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
   requestActions: {
     flexDirection: "row",
     gap: spacing.sm,

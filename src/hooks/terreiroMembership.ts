@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { resolveProfiles, type PublicProfile } from "@/src/features/identity/resolveProfiles";
 import { queryKeys } from "@/src/queries/queryKeys";
 
 export type TerreiroAccessRole = "admin" | "editor" | "member";
@@ -267,9 +268,9 @@ export type PendingRequestRow = {
 
 export type ProfileLite = {
   id: string;
-  name?: string | null;
-  full_name?: string | null;
-  avatar_url?: string | null;
+  email: string | null;
+  full_name: string | null;
+  avatar_url: string | null;
 };
 
 export type TerreiroMemberRow = {
@@ -289,101 +290,14 @@ export type TerreiroInviteRow = {
   created_at?: string | null;
 };
 
-type TerreiroMemberEmailRow = {
-  user_id: string;
-  email: string;
-};
-
-async function fetchTerreiroMemberIdentity(
-  terreiroId: string
-): Promise<Record<string, string>> {
-  const res = await supabase.rpc("fn_get_terreiro_member_identity", {
-    p_terreiro_id: terreiroId,
-  });
-
-  if (res.error) {
-    throw new Error(
-      typeof res.error.message === "string"
-        ? res.error.message
-        : "Erro ao carregar e-mails."
-    );
-  }
-
-  const rows = (res.data ?? []) as any[];
-  const map: Record<string, string> = {};
-  for (const r of rows) {
-    const uid = typeof r?.user_id === "string" ? r.user_id : "";
-    const email = typeof r?.email === "string" ? r.email : "";
-    if (!uid || !email) continue;
-    map[uid] = email;
-  }
-  return map;
+function toProfileLiteMap(byId: Record<string, PublicProfile>): Record<string, ProfileLite> {
+  return byId as unknown as Record<string, ProfileLite>;
 }
 
-async function fetchProfilesByIds(
-  ids: string[]
-): Promise<Record<string, ProfileLite>> {
-  const unique = Array.from(new Set(ids)).filter(Boolean);
-  if (unique.length === 0) return {};
-
-  const res = await supabase
-    .from("profiles")
-    .select("id, full_name, avatar_url")
-    .in("id", unique);
-
-  if (res.error) {
-    throw new Error(
-      typeof res.error.message === "string"
-        ? res.error.message
-        : "Erro ao carregar perfis."
-    );
-  }
-
-  const rows = (res.data ?? []) as any[];
-  const map: Record<string, ProfileLite> = {};
-  for (const r of rows) {
-    const id = typeof r?.id === "string" ? r.id : "";
-    if (!id) continue;
-    map[id] = {
-      id,
-      full_name: typeof r.full_name === "string" ? r.full_name : null,
-      avatar_url: typeof r.avatar_url === "string" ? r.avatar_url : null,
-    };
-  }
-  return map;
-}
-
-async function fetchDisplayProfilesByIds(
-  ids: string[]
-): Promise<Record<string, ProfileLite>> {
-  const unique = Array.from(new Set(ids)).filter(Boolean);
-  if (unique.length === 0) return {};
-
-  const res = await supabase
-    .from("profiles")
-    .select("id, full_name, avatar_url")
-    .in("id", unique);
-
-  if (res.error) {
-    throw new Error(
-      typeof res.error.message === "string"
-        ? res.error.message
-        : "Erro ao carregar perfis."
-    );
-  }
-
-  const rows = (res.data ?? []) as any[];
-  const map: Record<string, ProfileLite> = {};
-  for (const r of rows) {
-    const id = typeof r?.id === "string" ? r.id : "";
-    if (!id) continue;
-    map[id] = {
-      id,
-      full_name: typeof r.full_name === "string" ? r.full_name : null,
-      avatar_url: typeof r.avatar_url === "string" ? r.avatar_url : null,
-    };
-  }
-  return map;
+function toProfileLiteEmailMap(
+  byEmailLower: Record<string, PublicProfile>
+): Record<string, ProfileLite> {
+  return byEmailLower as unknown as Record<string, ProfileLite>;
 }
 
 export function usePendingTerreiroMembershipRequests(terreiroId: string) {
@@ -391,9 +305,6 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
   const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>(
     {}
   );
-  const [identityByUserId, setIdentityByUserId] = useState<
-    Record<string, TerreiroMemberEmailRow>
-  >({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -401,7 +312,6 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
     if (!terreiroId) {
       setItems([]);
       setProfilesById({});
-      setIdentityByUserId({});
       setError(null);
       setIsLoading(false);
       return [] as PendingRequestRow[];
@@ -446,25 +356,10 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
 
       setItems(mapped);
 
-      // Buscar emails dos usuários
-      try {
-        const emailsByUserId = await fetchTerreiroMemberIdentity(terreiroId);
-        setIdentityByUserId(
-          Object.fromEntries(
-            Object.entries(emailsByUserId).map(([user_id, email]) => [
-              user_id,
-              { user_id, email },
-            ])
-          )
-        );
-      } catch {
-        setIdentityByUserId({});
-      }
-
       try {
         const ids = mapped.map((m) => m.user_id);
-        const profiles = await fetchProfilesByIds(ids);
-        setProfilesById(profiles);
+        const resolved = await resolveProfiles({ userIds: ids });
+        setProfilesById(toProfileLiteMap(resolved.byId));
       } catch {
         setProfilesById({});
       }
@@ -473,7 +368,6 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
     } catch (e) {
       setItems([]);
       setProfilesById({});
-      setIdentityByUserId({});
       setError(getErrorMessage(e));
       return [] as PendingRequestRow[];
     } finally {
@@ -488,7 +382,6 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
   return {
     items,
     profilesById,
-    identityByUserId,
     isLoading,
     error,
     reload: load,
@@ -636,9 +529,6 @@ export function useTerreiroMembers(terreiroId: string) {
   const [profilesById, setProfilesById] = useState<Record<string, ProfileLite>>(
     {}
   );
-  const [identityByUserId, setIdentityByUserId] = useState<
-    Record<string, TerreiroMemberEmailRow>
-  >({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -646,7 +536,6 @@ export function useTerreiroMembers(terreiroId: string) {
     if (!terreiroId) {
       setItems([]);
       setProfilesById({});
-      setIdentityByUserId({});
       setError(null);
       setIsLoading(false);
       return [] as TerreiroMemberRow[];
@@ -697,21 +586,10 @@ export function useTerreiroMembers(terreiroId: string) {
 
       setItems(mapped);
 
-      // Canonical identity is ALWAYS sourced from RPC (auth.users fallback).
-      const emailsByUserId = await fetchTerreiroMemberIdentity(terreiroId);
-      setIdentityByUserId(
-        Object.fromEntries(
-          Object.entries(emailsByUserId).map(([user_id, email]) => [
-            user_id,
-            { user_id, email },
-          ])
-        )
-      );
-
       try {
         const ids = mapped.map((m) => m.user_id);
-        const profiles = await fetchDisplayProfilesByIds(ids);
-        setProfilesById(profiles);
+        const resolved = await resolveProfiles({ userIds: ids });
+        setProfilesById(toProfileLiteMap(resolved.byId));
       } catch {
         setProfilesById({});
       }
@@ -720,7 +598,6 @@ export function useTerreiroMembers(terreiroId: string) {
     } catch (e) {
       setItems([]);
       setProfilesById({});
-      setIdentityByUserId({});
       setError(getErrorMessage(e));
       return [] as TerreiroMemberRow[];
     } finally {
@@ -735,7 +612,6 @@ export function useTerreiroMembers(terreiroId: string) {
   return {
     items,
     profilesById,
-    identityByUserId,
     isLoading,
     error,
     reload: load,
@@ -744,12 +620,16 @@ export function useTerreiroMembers(terreiroId: string) {
 
 export function useTerreiroInvites(terreiroId: string) {
   const [items, setItems] = useState<TerreiroInviteRow[]>([]);
+  const [profilesByEmailLower, setProfilesByEmailLower] = useState<
+    Record<string, ProfileLite>
+  >({});
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!terreiroId) {
       setItems([]);
+      setProfilesByEmailLower({});
       setError(null);
       setIsLoading(false);
       return [] as TerreiroInviteRow[];
@@ -794,9 +674,19 @@ export function useTerreiroInvites(terreiroId: string) {
         .filter(Boolean) as TerreiroInviteRow[];
 
       setItems(mapped);
+
+      try {
+        const emails = mapped.map((m) => m.email).filter(Boolean);
+        const resolved = await resolveProfiles({ emails });
+        setProfilesByEmailLower(toProfileLiteEmailMap(resolved.byEmailLower));
+      } catch {
+        setProfilesByEmailLower({});
+      }
+
       return mapped;
     } catch (e) {
       setItems([]);
+      setProfilesByEmailLower({});
       setError(getErrorMessage(e));
       return [] as TerreiroInviteRow[];
     } finally {
@@ -813,7 +703,7 @@ export function useTerreiroInvites(terreiroId: string) {
     [items]
   );
 
-  return { items, pending, isLoading, error, reload: load };
+  return { items, pending, profilesByEmailLower, isLoading, error, reload: load };
 }
 
 export function useCreateTerreiroInvite(terreiroId: string) {

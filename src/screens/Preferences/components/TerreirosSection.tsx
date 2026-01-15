@@ -48,9 +48,29 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
     [q.data]
   );
 
+  const createTerreiroItem = userId ? (
+    <Pressable
+      accessibilityRole="button"
+      onPress={() => {
+        router.push({
+          pathname: "/terreiro-editor" as any,
+          params: { mode: "create" },
+        });
+      }}
+      style={({ pressed }) => [
+        styles.createTerreiroBtn,
+        pressed ? styles.createTerreiroBtnPressed : null,
+      ]}
+    >
+      <Text style={styles.createTerreiroText}>Criar terreiro</Text>
+    </Pressable>
+  ) : null;
+
   return (
     <PreferencesSection title="Meus terreiros" variant={variant}>
       <View style={styles.list}>
+        {createTerreiroItem}
+
         {!userId ? (
           <Text style={[styles.helper, { color: textSecondary }]}>
             Faça login para ver seus terreiros.
@@ -154,6 +174,25 @@ const styles = StyleSheet.create({
   helper: {
     fontSize: 13,
     fontWeight: "600",
+  },
+  createTerreiroBtn: {
+    minHeight: 44,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    backgroundColor: colors.brass600,
+    borderColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createTerreiroBtnPressed: {
+    opacity: 0.85,
+  },
+  createTerreiroText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.paper50,
   },
   retryRow: {
     borderRadius: 14,
