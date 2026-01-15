@@ -133,6 +133,7 @@ function isColumnMissingError(error: unknown, columnName: string) {
 export default function TerreiroBiblioteca() {
   const router = useRouter();
   const DEBUG_COVER = __DEV__;
+  const DEBUG_COVER_LOGS = false;
   const params = useLocalSearchParams<{
     terreiroId?: string;
     terreiroTitle?: string;
@@ -1225,6 +1226,7 @@ export default function TerreiroBiblioteca() {
           <DebugCoverGuides
             headerTotalHeight={headerTotalHeight}
             coverTopOffset={coverTopOffset}
+            enableLogs={DEBUG_COVER_LOGS}
             scrollY={scrollY}
             imageSize={imageSize}
             imageTranslateY={imageTranslateY}
@@ -1611,6 +1613,7 @@ export default function TerreiroBiblioteca() {
 function DebugCoverGuides(props: {
   headerTotalHeight: number;
   coverTopOffset: number;
+  enableLogs: boolean;
   scrollY: SharedValue<number>;
   imageSize: SharedValue<number>;
   imageTranslateY: SharedValue<number>;
@@ -1619,6 +1622,7 @@ function DebugCoverGuides(props: {
   const {
     headerTotalHeight,
     coverTopOffset,
+    enableLogs,
     scrollY,
     imageSize,
     imageTranslateY,
@@ -1644,19 +1648,21 @@ function DebugCoverGuides(props: {
 
   const coverBottomLineStyle = useAnimatedStyle(() => {
     const y = coverBottomY.value;
-    const safeY = Number.isFinite(y) ? y : -9999;
+    const ok = typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
+    const safeY = ok ? y : -9999;
     return {
       top: safeY,
-      opacity: Number.isFinite(y) ? 1 : 0,
+      opacity: ok ? 1 : 0,
     };
   });
 
   const spacerBottomLineStyle = useAnimatedStyle(() => {
     const y = spacerBottomY.value;
-    const safeY = Number.isFinite(y) ? y : -9999;
+    const ok = typeof y === "number" && y === y && y !== Infinity && y !== -Infinity;
+    const safeY = ok ? y : -9999;
     return {
       top: safeY,
-      opacity: Number.isFinite(y) ? 1 : 0,
+      opacity: ok ? 1 : 0,
     };
   });
 
@@ -1709,6 +1715,8 @@ function DebugCoverGuides(props: {
         prevDelta === 0 ? 0 : prevDelta > 0 ? 1 : prevDelta < 0 ? -1 : 0;
       const crossedZero =
         prevSign !== 0 && sign !== 0 && prevSign !== sign && prevSign !== sign;
+      if (!enableLogs) return;
+
       if (crossedZero && lastLoggedCrossSign.value !== sign) {
         lastLoggedCrossSign.value = sign;
         runOnJS(console.log)(
