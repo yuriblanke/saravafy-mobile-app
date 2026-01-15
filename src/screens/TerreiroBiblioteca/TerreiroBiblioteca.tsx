@@ -175,17 +175,16 @@ export default function TerreiroBiblioteca() {
   const shrinkRange = 170; // px de scroll até atingir minSize
   const fadeRange = 120; // px de scroll para fade
   const fadeToOpacity = 0.15; // alvo do fade (Spotify-like)
-  const unpinOpacity = 0.6; // breakpoint para começar unpin
-  const unpinRange = 90; // px de scroll para "engolir" por baixo do header
+  const unpinStartOffset = 20; // offset após minSize para começar unpin
+  const unpinRange = 150; // px de scroll para "engolir" por baixo do header
   // Fonte única de verdade para o offset vertical da cover.
   // Mantemos isso no wrapper (paddingTop) e usamos o mesmo valor no spacer e no unpin.
   const coverTopOffset = spacing.lg; // espaço entre header e imagem
   const coverBottomGap = spacing.lg; // gap constante entre cover e o primeiro bloco de conteúdo
 
   const fadeStart = shrinkRange;
-  const unpinStart =
-    fadeStart +
-    fadeRange * ((1 - unpinOpacity) / Math.max(0.0001, 1 - fadeToOpacity));
+  // Unpin inicia logo após atingir minSize (determinado por scrollY, não por opacidade)
+  const unpinStart = shrinkRange + unpinStartOffset;
 
   const scrollY = useSharedValue(0);
 
