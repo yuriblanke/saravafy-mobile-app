@@ -224,14 +224,24 @@ export default function TerreiroBiblioteca() {
   });
 
   const spacerHeight = useDerivedValue(() => {
-    const reserved = imageSize.value + coverBottomGap;
-    const h = reserved + imageTranslateY.value;
+    // Calcula a posição visual da cover
+    const coverVisualTop = coverTopOffset + imageTranslateY.value;
+    const coverVisualBottom = coverVisualTop + imageSize.value;
 
-    const minSpacer = coverBottomGap;
+    // Se a cover saiu completamente da área visível (acima do header no espaço do scroll)
+    // então podemos diminuir o spacer
+    if (coverVisualBottom <= 0) {
+      return coverBottomGap; // mínimo
+    }
+
+    // Caso contrário, reserva espaço para a parte visível da cover + gap
+    const visibleCoverHeight = Math.max(0, coverVisualBottom);
+    const spacer = visibleCoverHeight + coverBottomGap;
+
+    // Garante limites
     const maxSpacer = imageMaxSize + coverBottomGap;
-
-    return Math.min(maxSpacer, Math.max(minSpacer, h));
-  }, [coverBottomGap, imageMaxSize]);
+    return Math.min(maxSpacer, Math.max(coverBottomGap, spacer));
+  }, [coverBottomGap, coverTopOffset, imageMaxSize]);
 
   const coverSpacerStyle = useAnimatedStyle(() => {
     return {
