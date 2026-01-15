@@ -1,3 +1,3 @@
-import Terreiro from "@/src/screens/Terreiro/Terreiro";
+import TerreiroBiblioteca from "@/src/screens/TerreiroBiblioteca/TerreiroBiblioteca";
 
-export default Terreiro;
+export default TerreiroBiblioteca;
