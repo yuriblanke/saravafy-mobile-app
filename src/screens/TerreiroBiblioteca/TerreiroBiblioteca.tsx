@@ -43,6 +43,7 @@ import React, {
 import {
   Alert,
   Animated,
+  BackHandler,
   Image,
   Pressable,
   ScrollView,
@@ -134,6 +135,7 @@ export default function TerreiroBiblioteca() {
     terreiroTitle?: string;
     bootStart?: string;
     bootOffline?: string;
+    from?: string;
   }>();
 
   const { shouldBlockPress } = useGestureBlock();
@@ -179,6 +181,15 @@ export default function TerreiroBiblioteca() {
       : typeof params.terreiroId === "string"
       ? params.terreiroId
       : "";
+
+  const from =
+    Array.isArray(params.from) && params.from.length > 0
+      ? params.from[0]
+      : typeof params.from === "string"
+      ? params.from
+      : "";
+
+  const returnTo = typeof from === "string" ? from.trim() : "";
 
   const insets = useGlobalSafeAreaInsets();
   const headerVisibleHeight = 52;
@@ -255,7 +266,7 @@ export default function TerreiroBiblioteca() {
     if (terreiroId) return;
     if (params.bootStart === "1") return;
 
-    router.replace("/(app)/(tabs)/(pontos)" as any);
+    router.replace((returnTo || "/(app)/(tabs)/(pontos)") as any);
   }, [params.bootStart, router, terreiroId]);
 
   // Boot offline: se abrimos via snapshot e o fetch falhar, volta para Pontos.
@@ -266,7 +277,7 @@ export default function TerreiroBiblioteca() {
     if (!collectionsQuery.isError) return;
 
     clearStartPageSnapshotOnly().catch(() => undefined);
-    router.replace("/(app)/(tabs)/(pontos)" as any);
+    router.replace((returnTo || "/(app)/(tabs)/(pontos)") as any);
   }, [
     clearStartPageSnapshotOnly,
     collectionsQuery.isError,
@@ -537,8 +548,24 @@ export default function TerreiroBiblioteca() {
   });
 
   const goBack = useCallback(() => {
+    if (returnTo) {
+      router.replace(returnTo as any);
+      return;
+    }
+
     router.back();
-  }, [router]);
+  }, [returnTo, router]);
+
+  useEffect(() => {
+    if (!returnTo) return;
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      router.replace(returnTo as any);
+      return true;
+    });
+
+    return () => sub.remove();
+  }, [returnTo, router]);
 
   // --- Biblioteca (ordenação + ações) ---
   const accentColor = colors.brass600;
@@ -770,6 +797,38 @@ export default function TerreiroBiblioteca() {
     }, 80);
     return () => clearTimeout(id);
   }, [isNewCollectionSheetOpen]);
+
+  // If permissions change while the screen is open, close edit surfaces immediately.
+  useEffect(() => {
+    if (canEdit) return;
+
+    if (isCollectionActionsOpen) {
+      closeCollectionActions();
+    }
+
+    if (isConfirmDeleteCollectionOpen) {
+      closeConfirmDeleteCollection();
+    }
+
+    if (isNewCollectionSheetOpen) {
+      setIsNewCollectionSheetOpen(false);
+    }
+
+    setNewCollectionSheetMode("create");
+    setRenamingCollectionId(null);
+    setNewCollectionTitleDraft("");
+    setNewCollectionError("");
+    setIsSubmittingCollectionTitle(false);
+    pendingInitialTitleSelectionRef.current = null;
+    setIsDeletingCollection(false);
+  }, [
+    canEdit,
+    closeCollectionActions,
+    closeConfirmDeleteCollection,
+    isCollectionActionsOpen,
+    isConfirmDeleteCollectionOpen,
+    isNewCollectionSheetOpen,
+  ]);
 
   const createCollectionMutation = useMutation({
     mutationFn: async (vars: { title: string; tempId: string }) => {

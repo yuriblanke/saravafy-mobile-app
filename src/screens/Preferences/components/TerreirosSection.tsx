@@ -105,7 +105,9 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
               }
               showEditButton={false}
               rightAccessory={
-                t.role === "admin" || t.role === "editor" ? (
+                t.role === "admin" ||
+                t.role === "editor" ||
+                t.role === "member" ? (
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Mais ações"
@@ -130,7 +132,11 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
               onPress={() => {
                 router.push({
                   pathname: "/terreiro" as any,
-                  params: { terreiroId: t.id, terreiroTitle: t.title },
+                  params: {
+                    terreiroId: t.id,
+                    terreiroTitle: t.title,
+                    from: "/preferences",
+                  },
                 });
               }}
             />

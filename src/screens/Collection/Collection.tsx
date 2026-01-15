@@ -308,6 +308,13 @@ export default function Collection() {
     tagId: string;
     tagLabel: string;
   }>(null);
+
+  // If permissions change while the screen is open, close editing sheets immediately.
+  useEffect(() => {
+    if (canEditCustomTags) return;
+    if (mediumTargetPontoId) setMediumTargetPontoId(null);
+    if (deleteTarget) setDeleteTarget(null);
+  }, [canEditCustomTags, deleteTarget, mediumTargetPontoId]);
   const loadCollection = useCallback(async () => {
     if (!collectionId) {
       setCollection(null);

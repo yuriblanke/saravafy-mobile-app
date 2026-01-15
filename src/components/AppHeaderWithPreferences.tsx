@@ -34,6 +34,7 @@ import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
+  Alert,
   Image,
   Modal,
   Pressable,
@@ -454,8 +455,8 @@ export function PreferencesOverlaySheets(
 
   const curatorModeInfo = useMemo(() => {
     return {
-      accessibilityLabel: "Ver detalhes do Modo Curator",
-      title: "Modo Curator",
+      accessibilityLabel: "Ver detalhes do Modo Guardião",
+      title: "Modo Guardião",
       body: "Ativa os botões de edição do papel de pessoa guardiã do acervo ao longo de toda a plataforma.",
       sections: [],
     };
@@ -599,6 +600,8 @@ export function PreferencesOverlaySheets(
   } | null>(null);
   const [leaveRoleConfirmText, setLeaveRoleConfirmText] = useState("");
   const [leaveRoleBusy, setLeaveRoleBusy] = useState(false);
+
+  const [leaveTerreiroBusy, setLeaveTerreiroBusy] = useState(false);
 
   const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
@@ -759,6 +762,67 @@ export function PreferencesOverlaySheets(
       closeLeaveRoleModal();
     } finally {
       setLeaveRoleBusy(false);
+    }
+  };
+
+  const confirmLeaveTerreiro = async (item: MyTerreiroWithRole) => {
+    if (!userId) return;
+    if (leaveTerreiroBusy) return;
+    if (item.role !== "member") return;
+
+    setLeaveTerreiroBusy(true);
+    try {
+      const res = await supabase
+        .from("terreiro_members")
+        .delete()
+        .eq("terreiro_id", item.id)
+        .eq("user_id", userId);
+
+      if (res.error) {
+        showToast(getFriendlyActionError(res.error.message));
+        return;
+      }
+
+      // Drop membership immediately so edit permissions disappear right away.
+      queryClient.setQueryData(queryKeys.me.membership(userId), (prev: any) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        return arr.filter(
+          (r: any) => String(r?.terreiro_id ?? "") !== String(item.id)
+        );
+      });
+
+      // Invalidate related caches
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.preferences.terreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.membership(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.permissions(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiroAccessIds(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.editableTerreiros(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.withRole(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.accountable(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.editableByUserPrefix(userId),
+      });
+
+      showToast("Você saiu do terreiro.");
+    } finally {
+      setLeaveTerreiroBusy(false);
     }
   };
 
@@ -2102,6 +2166,40 @@ export function PreferencesOverlaySheets(
                 style={[styles.terreiroMenuItemText, { color: colors.danger }]}
               >
                 Sair do papel de editor(a)
+              </Text>
+            </Pressable>
+          ) : terreiroMenuTarget?.role === "member" ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                const t = terreiroMenuTarget;
+                if (!t) return;
+                closeTerreiroMenu();
+
+                Alert.alert(
+                  "Deixar de ser membro",
+                  "Você vai deixar de ser membro e perder acesso ao conteúdo e às coleções deste terreiro.",
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    {
+                      text: leaveTerreiroBusy ? "Saindo…" : "Sair",
+                      style: "destructive",
+                      onPress: () => {
+                        void confirmLeaveTerreiro(t);
+                      },
+                    },
+                  ]
+                );
+              }}
+              style={({ pressed }) => [
+                styles.terreiroMenuItem,
+                pressed ? styles.terreiroMenuItemPressed : null,
+              ]}
+            >
+              <Text
+                style={[styles.terreiroMenuItemText, { color: colors.danger }]}
+              >
+                Deixar de ser membro
               </Text>
             </Pressable>
           ) : null}

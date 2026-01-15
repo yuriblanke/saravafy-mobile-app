@@ -30,10 +30,12 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
     if (!userId) return;
 
     const key = queryKeys.preferences.terreiros(userId);
+    const membershipKey = queryKeys.me.membership(userId);
     const channel = supabase.channel(`preferences-terreiros:${userId}`);
 
     const invalidate = () => {
       queryClient.invalidateQueries({ queryKey: key });
+      queryClient.invalidateQueries({ queryKey: membershipKey });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.editableTerreiros(userId),
       });
@@ -42,6 +44,35 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.terreiros.withRole(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.terreiros.editableByUser(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.editableByUserPrefix(userId),
+      });
+    };
+
+    const setMembershipRole = (terreiroId: string, role: string | null) => {
+      queryClient.setQueryData(membershipKey, (prev: any) => {
+        const arr = Array.isArray(prev) ? prev : [];
+        const next = [...arr];
+        const idx = next.findIndex(
+          (r: any) => String(r?.terreiro_id ?? "") === terreiroId
+        );
+
+        if (!role) {
+          if (idx >= 0) next.splice(idx, 1);
+          return next;
+        }
+
+        if (idx >= 0) {
+          next[idx] = { ...next[idx], role };
+          return next;
+        }
+
+        next.push({ terreiro_id: terreiroId, role });
+        return next;
       });
     };
 
@@ -72,6 +103,8 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
             const arr = Array.isArray(prev) ? prev : [];
             return arr.filter((t: any) => String(t?.id ?? "") !== terreiroId);
           });
+
+          setMembershipRole(terreiroId, null);
           invalidate();
           return;
         }
@@ -85,6 +118,8 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
             const arr = Array.isArray(prev) ? prev : [];
             return arr.filter((t: any) => String(t?.id ?? "") !== terreiroId);
           });
+
+          setMembershipRole(terreiroId, null);
           invalidate();
           return;
         }
@@ -121,6 +156,9 @@ export function usePreferencesTerreirosRealtime(userId: string | null) {
           );
           return next;
         });
+
+        // Keep the shared membership cache in sync so permission-gated UI updates instantly.
+        setMembershipRole(terreiroId, role);
 
         invalidate();
       }

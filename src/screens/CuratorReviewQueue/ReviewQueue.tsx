@@ -56,7 +56,7 @@ export default function ReviewQueueScreen() {
     if (isCuratorLoading) return;
     if (isCurator) return;
 
-    showToast("Apenas curators acessam a fila de revisão.");
+    showToast("Apenas pessoas guardiãs do acervo acessam a fila de revisão.");
     router.replace("/");
   }, [isCurator, isCuratorLoading, router, showToast]);
 
@@ -162,7 +162,9 @@ export default function ReviewQueueScreen() {
               const submitterEmail =
                 typeof s.submitter_email === "string" ? s.submitter_email : "";
               const issuePreview =
-                typeof s.issue_details === "string" ? s.issue_details.trim() : "";
+                typeof s.issue_details === "string"
+                  ? s.issue_details.trim()
+                  : "";
 
               return (
                 <Pressable

@@ -145,6 +145,13 @@ export default function PlayerScreen() {
     tagLabel: string;
   }>(null);
 
+  // If permissions change while the screen is open, close editing sheets immediately.
+  useEffect(() => {
+    if (canEditCustomTags) return;
+    if (mediumTargetPontoId) setMediumTargetPontoId(null);
+    if (deleteTarget) setDeleteTarget(null);
+  }, [canEditCustomTags, deleteTarget, mediumTargetPontoId]);
+
   const flatListRef = useRef<FlatList<CollectionPlayerItem> | null>(null);
 
   const initialIndex = useMemo(() => {
@@ -578,7 +585,11 @@ export default function PlayerScreen() {
               <Text style={[styles.sheetOptionText, { color: textPrimary }]}>
                 Letra ou dados
               </Text>
-              <Ionicons name="chevron-forward" size={18} color={textSecondary} />
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={textSecondary}
+              />
             </Pressable>
           </View>
         </BottomSheet>

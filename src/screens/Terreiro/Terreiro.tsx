@@ -246,8 +246,25 @@ export default function Terreiro() {
       setNewCollectionError("");
       setIsSubmittingCollectionTitle(false);
       pendingInitialTitleSelectionRef.current = null;
+
+      if (isCollectionActionsOpen) {
+        setIsCollectionActionsOpen(false);
+        setCollectionActionsTarget(null);
+      }
+
+      if (isConfirmDeleteCollectionOpen) {
+        setIsConfirmDeleteCollectionOpen(false);
+        setCollectionPendingDelete(null);
+      }
+
+      setIsDeletingCollection(false);
     }
-  }, [canEdit, isNewCollectionSheetOpen]);
+  }, [
+    canEdit,
+    isCollectionActionsOpen,
+    isConfirmDeleteCollectionOpen,
+    isNewCollectionSheetOpen,
+  ]);
 
   useEffect(() => {
     if (!isNewCollectionSheetOpen) return;

@@ -45,7 +45,8 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
 
   const has = (token: string) => lower.includes(token);
 
-  if (has("not_curator")) return "Apenas curators podem revisar envios.";
+  if (has("not_curator"))
+    return "Apenas pessoas guardiãs do acervo podem revisar envios.";
   if (has("submission_not_found")) return "Envio não encontrado.";
   if (has("submission_not_pending")) return "Este envio já foi revisado.";
   if (has("missing_title")) return "Informe um título antes de aprovar.";
@@ -149,7 +150,7 @@ export default function ReviewSubmissionScreen() {
     if (isCuratorLoading) return;
     if (isCurator) return;
 
-    showToast("Apenas curators acessam a fila de revisão.");
+    showToast("Apenas pessoas guardiãs do acervo acessam a fila de revisão.");
     router.replace("/");
   }, [isCurator, isCuratorLoading, router, showToast]);
 
@@ -267,7 +268,9 @@ export default function ReviewSubmissionScreen() {
             ? submission.target_ponto_id
             : null;
         if (targetId) {
-          queryClient.invalidateQueries({ queryKey: ["collections", "pontos"] });
+          queryClient.invalidateQueries({
+            queryKey: ["collections", "pontos"],
+          });
           queryClient.invalidateQueries({ queryKey: ["pontos"] });
         }
 

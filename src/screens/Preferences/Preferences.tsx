@@ -88,6 +88,7 @@ export default function Preferences() {
         dontShowAgain={curimbaOnboardingDismissed}
         onChangeDontShowAgain={(next) => setCurimbaOnboardingDismissed(next)}
         onClose={closeCurimbaExplainer}
+        context="preferences"
       />
     </View>
   );

@@ -11,6 +11,7 @@ type Props = {
   dontShowAgain: boolean;
   onChangeDontShowAgain: (next: boolean) => void;
   onClose: () => void;
+  context?: "player" | "preferences";
 };
 
 export function CurimbaExplainerBottomSheet({
@@ -19,6 +20,7 @@ export function CurimbaExplainerBottomSheet({
   dontShowAgain,
   onChangeDontShowAgain,
   onClose,
+  context = "player",
 }: Props) {
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -54,7 +56,10 @@ export function CurimbaExplainerBottomSheet({
         <Text style={[styles.body, { color: textSecondary }]}>
           Esse modo é ideal para cantar durante a gira: o Saravafy mostra apenas
           as letras (sem carregar áudio) e mantém a tela ligada enquanto estiver
-          ativo. Você também pode ligar e desligar esse modo em Preferências.
+          ativo.
+          {context === "preferences"
+            ? " Você pode ligar e desligar este modo diretamente pela página aberta do ponto, no ícone de atabaque."
+            : " Você também pode ligar e desligar esse modo em Preferências."}
         </Text>
 
         <Pressable

@@ -554,7 +554,11 @@ export default function Terreiros() {
 
                       router.push({
                         pathname: "/terreiro" as any,
-                        params: { terreiroId: item.id, terreiroTitle: name },
+                        params: {
+                          terreiroId: item.id,
+                          terreiroTitle: name,
+                          from: "/(app)/(tabs)/(terreiros)",
+                        },
                       });
                     }}
                   />
