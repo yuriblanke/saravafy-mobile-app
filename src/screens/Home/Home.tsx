@@ -28,8 +28,8 @@ import React, {
   useState,
 } from "react";
 import {
-  Alert,
   ActivityIndicator,
+  Alert,
   FlatList,
   Image,
   Pressable,
@@ -339,7 +339,10 @@ export default function Home() {
     lastSearched,
   } = usePontosSearch(searchQuery, { enabled: true, limit: 20, offset: 0 });
 
-  const queryHasText = useMemo(() => Boolean(searchQuery.trim()), [searchQuery]);
+  const queryHasText = useMemo(
+    () => Boolean(searchQuery.trim()),
+    [searchQuery]
+  );
 
   type PontoListItem = Ponto & {
     lyrics_preview_6?: string | null;
@@ -826,7 +829,9 @@ export default function Home() {
               </Text>
             </View>
           ) : isSearching ? (
-            <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}>
+            <View
+              style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}
+            >
               <ActivityIndicator />
             </View>
           ) : searchedPontos.length === 0 && lastSearched ? (
@@ -963,7 +968,8 @@ export default function Home() {
                         numberOfLines={6}
                         ellipsizeMode="tail"
                       >
-                        {item.lyrics_preview_6 ?? getLyricsPreview(item.lyrics, 6)}
+                        {item.lyrics_preview_6 ??
+                          getLyricsPreview(item.lyrics, 6)}
                       </Text>
                     </SurfaceCard>
                   </Pressable>
@@ -1725,7 +1731,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: 28,
     height: 28,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 2,
     borderColor: colors.brass600,
   },
 

@@ -690,18 +690,27 @@ export default function AddToCollection() {
       );
     }
 
-    if (searchedPontos.length === 0 && lastSearched) {
+    // Importante: `lastSearched` é setado no início da request. Não podemos
+    // mostrar empty state enquanto ainda está carregando.
+    if (!isSearching && searchedPontos.length === 0 && lastSearched) {
       return (
         <View style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.sm }}>
           <Text style={[styles.bodyText, { color: textSecondary }]}>
-            Nenhum ponto encontrado
+            Nenhum ponto foi encontrado
           </Text>
         </View>
       );
     }
 
     return null;
-  }, [lastSearched, searchError, searchedPontos.length, shouldShowSearchResults, textSecondary]);
+  }, [
+    isSearching,
+    lastSearched,
+    searchError,
+    searchedPontos.length,
+    shouldShowSearchResults,
+    textSecondary,
+  ]);
 
   if (!collectionId) {
     return (
@@ -822,7 +831,7 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+    borderWidth: 2,
     justifyContent: "center",
     alignItems: "center",
   },
