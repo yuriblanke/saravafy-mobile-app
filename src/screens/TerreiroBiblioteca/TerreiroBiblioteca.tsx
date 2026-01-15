@@ -4,6 +4,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { JoinTerreiroButton } from "@/src/components/JoinTerreiroButton";
 import { Separator } from "@/src/components/Separator";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
@@ -161,14 +162,12 @@ export default function TerreiroBiblioteca() {
     return Math.max(220, Math.round(contentWidth * 0.8));
   }, [windowWidth]);
 
-  // Spotify-style cover animation (inside ScrollView)
+  // Pinned cover animation: image shrinks while staying pinned, then scrolls
   const imageMaxSize = coverSize;
-  const imageMinSize = 56;
-  const shrinkRange = 170; // scroll distance to reach minSize
+  const imageMinSize = Math.round(coverSize * 0.3); // 30% of original size
+  const shrinkRange = imageMaxSize - imageMinSize; // scroll distance to reach minSize
   const fadeStart = shrinkRange; // start fade when reaching min size
   const fadeRange = 60; // fade over 60px
-  const unpinStart = shrinkRange + 20; // start sliding under header
-  const unpinRange = 150; // complete slide distance
   const coverTopMargin = spacing.lg; // margin above cover
   const coverBottomMargin = spacing.lg; // margin below cover
 
@@ -204,18 +203,29 @@ export default function TerreiroBiblioteca() {
   }, [fadeRange, fadeStart]);
 
   const imageTranslateY = useDerivedValue(() => {
-    // Slide cover under header during unpin phase
-    const progress = interpolate(
-      scrollY.value,
-      [unpinStart, unpinStart + unpinRange],
-      [0, 1],
-      Extrapolation.CLAMP
-    );
+    // Pin the image while it shrinks (0 → shrinkRange)
+    // After shrinkRange, let it scroll naturally with content
+    if (scrollY.value <= shrinkRange) {
+      // Compensate scroll to keep image pinned vertically
+      return scrollY.value;
+    }
 
-    // Distance to move: negative translateY to "stick" below header
-    const stickyOffset = -(imageSize.value + coverTopMargin);
-    return progress * stickyOffset;
-  }, [coverTopMargin, unpinRange, unpinStart]);
+    // Keep compensation fixed after shrink is complete
+    return shrinkRange;
+  }, [shrinkRange]);
+
+  // Content below image should "stick" to the bottom edge of the shrinking image
+  const contentTranslateY = useDerivedValue(() => {
+    if (scrollY.value <= shrinkRange) {
+      // Keep content pinned at the same vertical position on screen
+      // The image is pinned and shrinking, so content stays at its initial position
+      // which visually looks like it's glued to the bottom edge of the image
+      return scrollY.value;
+    }
+
+    // After shrink is complete, release the pin - content scrolls normally
+    return shrinkRange;
+  }, [shrinkRange]);
 
   const coverAnimatedStyle = useAnimatedStyle(() => {
     return {
@@ -225,6 +235,12 @@ export default function TerreiroBiblioteca() {
       transform: [{ translateY: imageTranslateY.value }],
       marginTop: coverTopMargin,
       marginBottom: coverBottomMargin,
+    };
+  });
+
+  const contentAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateY: contentTranslateY.value }],
     };
   });
 
@@ -344,7 +360,6 @@ export default function TerreiroBiblioteca() {
   }, [terreiroId, terreiroName]);
 
   // --- Shell de Collection (scroll/header) ---
-  const [h1Height, setH1Height] = useState<number | null>(null);
   const [titleBlockY, setTitleBlockY] = useState<number | null>(null);
   const [actionsBottomY, setActionsBottomY] = useState<number | null>(null);
   const [pontosTopY, setPontosTopY] = useState<number | null>(null);
@@ -433,12 +448,38 @@ export default function TerreiroBiblioteca() {
   }, [headerTitleOpacity]);
 
   const headerTitleThreshold = useMemo(() => {
-    if (typeof titleBlockY !== "number" || titleBlockY <= 0) return 140;
-    if (typeof h1Height !== "number" || h1Height <= 0) return titleBlockY;
+    // Calcular posição do título manualmente ao invés de usar onLayout
+    // porque onLayout dentro de Reanimated.View com translateY retorna 0
 
-    // Mostra o título no header quando o H1 já não está mais visível.
-    return Math.max(0, titleBlockY + h1Height - headerTotalHeight - 10);
-  }, [h1Height, headerTotalHeight, titleBlockY]);
+    // Posição do título = margens da imagem + tamanho da imagem
+    // Não precisa adicionar coverBottomMargin nem spacing.lg porque o título
+    // está visualmente muito próximo da borda inferior da imagem
+    const calculatedTitleY = coverTopMargin + imageMaxSize;
+
+    if (__DEV__) {
+      console.log("[TerreiroBiblioteca] headerTitleThreshold calculated:", {
+        coverTopMargin,
+        imageMaxSize,
+        calculatedTitleY,
+        shrinkRange,
+        headerTotalHeight,
+      });
+    }
+
+    // O título deve migrar apenas DEPOIS da imagem ter encolhido completamente
+    // e o título realmente atingir o header
+    // Ajuste fino de -66px para compensar espaçamentos internos do título
+    const threshold = Math.max(
+      0,
+      calculatedTitleY + shrinkRange - headerTotalHeight - 40
+    );
+
+    if (__DEV__) {
+      console.log("[TerreiroBiblioteca] threshold final:", threshold);
+    }
+
+    return threshold;
+  }, [headerTotalHeight, shrinkRange, imageMaxSize, coverTopMargin]);
 
   const headerTitleThresholdSV = useSharedValue(headerTitleThreshold);
   const headerGradientThresholdSV = useSharedValue(headerGradientThreshold);
@@ -452,9 +493,28 @@ export default function TerreiroBiblioteca() {
   }, [headerGradientThreshold, headerGradientThresholdSV]);
 
   useAnimatedReaction(
-    () => scrollY.value >= headerTitleThresholdSV.value,
+    () => {
+      const shouldShow = scrollY.value >= headerTitleThresholdSV.value;
+
+      if (__DEV__ && scrollY.value > 0 && scrollY.value % 50 < 5) {
+        console.log("[TerreiroBiblioteca] scroll check:", {
+          scrollY: Math.round(scrollY.value),
+          threshold: Math.round(headerTitleThresholdSV.value),
+          shouldShow,
+        });
+      }
+
+      return shouldShow;
+    },
     (visible: boolean, prev: boolean | null) => {
       if (prev === null || visible === prev) return;
+
+      if (__DEV__) {
+        console.log("[TerreiroBiblioteca] title visibility changed:", {
+          visible,
+        });
+      }
+
       runOnJS(setHeaderTitleVisible)(visible);
     },
     [setHeaderTitleVisible]
@@ -1223,7 +1283,7 @@ export default function TerreiroBiblioteca() {
               styles.headerInlineTitleWrap,
               { opacity: headerTitleOpacity },
             ]}
-            pointerEvents="none"
+            pointerEvents={isHeaderTitleVisible ? "auto" : "none"}
           >
             <Text
               style={[styles.headerInlineTitle, { color: headerFgColor }]}
@@ -1231,6 +1291,23 @@ export default function TerreiroBiblioteca() {
             >
               {terreiroName}
             </Text>
+          </Animated.View>
+
+          <Animated.View
+            style={{ opacity: headerTitleOpacity }}
+            pointerEvents={isHeaderTitleVisible ? "auto" : "none"}
+          >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Compartilhar"
+              onPress={() => {
+                void handleShare();
+              }}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons name="share-outline" size={20} color={headerFgColor} />
+            </Pressable>
           </Animated.View>
         </View>
 
@@ -1293,245 +1370,269 @@ export default function TerreiroBiblioteca() {
             />
           </Reanimated.View>
 
-          <View
-            style={styles.titleBlock}
-            onLayout={(e) => {
-              setTitleBlockY(e.nativeEvent.layout.y);
-            }}
-          >
-            <Text style={[styles.kicker, { color: textMuted }]}>
-              Biblioteca de
-            </Text>
+          <Reanimated.View style={contentAnimatedStyle}>
+            <View
+              style={styles.titleBlock}
+              onLayout={(e) => {
+                const y = e.nativeEvent.layout.y;
 
-            <Animated.View
-              style={[styles.titleRow, { opacity: titleShareOpacity }]}
-              pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
-            >
-              <Text
-                style={[styles.h1, { color: textPrimary }]}
-                onLayout={(e) => {
-                  setH1Height(e.nativeEvent.layout.height);
-                }}
-              >
-                {terreiroName}
-              </Text>
+                if (__DEV__) {
+                  console.log("[TerreiroBiblioteca] titleBlock onLayout:", {
+                    y,
+                    previous: titleBlockY,
+                  });
+                }
 
-              <Animated.View
-                style={[styles.titleShareWrap, { opacity: titleShareOpacity }]}
-                pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
-              >
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Compartilhar"
-                  onPress={() => {
-                    void handleShare();
-                  }}
-                  hitSlop={10}
-                  style={styles.headerIconBtn}
-                >
-                  <Ionicons
-                    name="share-outline"
-                    size={20}
-                    color={textPrimary}
-                  />
-                </Pressable>
-              </Animated.View>
-            </Animated.View>
-
-            {collectionsCountText ? (
-              <Text style={[styles.countText, { color: textMuted }]}>
-                {collectionsCountText}
-              </Text>
-            ) : null}
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.actionsRow}
-              onLayout={(e: any) => {
-                const { y, height } = e.nativeEvent.layout;
-                setActionsBottomY(y + height);
+                setTitleBlockY(y);
               }}
             >
-              {canEdit ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Nova coleção"
-                  onPress={openCreateCollectionSheet}
-                  disabled={isSubmittingCollectionTitle}
-                  style={({ pressed }) => [
-                    styles.primaryActionBtn,
-                    pressed ? styles.pressed : null,
-                    isSubmittingCollectionTitle ? styles.disabled : null,
-                  ]}
-                >
-                  <Ionicons name="add" size={18} color={colors.paper50} />
-                  <Text style={styles.primaryActionText}>Nova coleção</Text>
-                </Pressable>
-              ) : null}
+              <Animated.Text
+                style={[
+                  styles.kicker,
+                  { color: textMuted, opacity: titleShareOpacity },
+                ]}
+              >
+                Biblioteca de
+              </Animated.Text>
 
-              {canEdit ? (
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Editar"
-                  onPress={() => {
-                    if (shouldBlockPress()) return;
-                    if (!terreiroId) return;
-                    router.push({
-                      pathname:
-                        "/terreiro-collections/[terreiroId]/edit" as any,
-                      params: { terreiroId },
-                    });
-                  }}
-                  style={({ pressed }) => [
-                    styles.secondaryActionBtn,
-                    {
-                      borderColor:
-                        variant === "light"
-                          ? colors.inputBorderLight
-                          : colors.inputBorderDark,
-                    },
-                    pressed ? styles.pressed : null,
+              <Animated.View
+                style={[styles.titleRow, { opacity: titleShareOpacity }]}
+                pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
+              >
+                <Text style={[styles.h1, { color: textPrimary }]}>
+                  {terreiroName}
+                </Text>
+
+                <Animated.View
+                  style={[
+                    styles.titleShareWrap,
+                    { opacity: titleShareOpacity },
                   ]}
+                  pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
                 >
-                  <Ionicons
-                    name="reorder-three-outline"
-                    size={18}
-                    color={textPrimary}
-                  />
-                  <Text
-                    style={[styles.secondaryActionText, { color: textPrimary }]}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Compartilhar"
+                    onPress={() => {
+                      void handleShare();
+                    }}
+                    hitSlop={10}
+                    style={styles.headerIconBtn}
                   >
-                    Editar
-                  </Text>
-                </Pressable>
+                    <Ionicons
+                      name="share-outline"
+                      size={20}
+                      color={textPrimary}
+                    />
+                  </Pressable>
+                </Animated.View>
+              </Animated.View>
+
+              {collectionsCountText ? (
+                <Text style={[styles.countText, { color: textMuted }]}>
+                  {collectionsCountText}
+                </Text>
               ) : null}
-            </ScrollView>
-          </View>
 
-          <View
-            onLayout={(e) => {
-              setPontosTopY(e.nativeEvent.layout.y);
-            }}
-          />
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.actionsRow}
+                onLayout={(e: any) => {
+                  const { y, height } = e.nativeEvent.layout;
+                  setActionsBottomY(y + height);
+                }}
+              >
+                {!membership.isActiveMember ? (
+                  <JoinTerreiroButton
+                    terreiroId={terreiroId}
+                    variant={variant}
+                  />
+                ) : null}
 
-          <View style={styles.cardsBlock}>
-            {collectionsQuery.isLoading ? (
-              <View style={styles.paddedBlock}>
-                <Text style={[styles.bodyText, { color: textSecondary }]}>
-                  Carregando…
-                </Text>
-              </View>
-            ) : collectionsQuery.isError ? (
-              <View style={styles.paddedBlock}>
-                <Text style={[styles.bodyText, { color: textSecondary }]}>
-                  Erro ao carregar as coleções.
-                </Text>
-              </View>
-            ) : orderedCollections.length === 0 ? (
-              <View style={styles.paddedBlock}>
-                <Text style={[styles.bodyText, { color: textSecondary }]}>
-                  Nenhuma coleção ainda.
-                </Text>
-              </View>
-            ) : (
-              orderedCollections.map((item) => {
-                const name =
-                  (typeof item.title === "string" && item.title.trim()) ||
-                  "Coleção";
-                const pontosCount =
-                  typeof (item as any).pontosCount === "number"
-                    ? ((item as any).pontosCount as number)
-                    : 0;
+                {canEdit ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Nova coleção"
+                    onPress={openCreateCollectionSheet}
+                    disabled={isSubmittingCollectionTitle}
+                    style={({ pressed }) => [
+                      styles.primaryActionBtn,
+                      pressed ? styles.pressed : null,
+                      isSubmittingCollectionTitle ? styles.disabled : null,
+                    ]}
+                  >
+                    <Ionicons name="add" size={18} color={colors.paper50} />
+                    <Text style={styles.primaryActionText}>Nova coleção</Text>
+                  </Pressable>
+                ) : null}
 
-                const handlePress = () => {
-                  const now = Date.now();
-                  if (shouldBlockPress()) {
+                {canEdit ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Editar"
+                    onPress={() => {
+                      if (shouldBlockPress()) return;
+                      if (!terreiroId) return;
+                      router.push({
+                        pathname:
+                          "/terreiro-collections/[terreiroId]/edit" as any,
+                        params: { terreiroId },
+                      });
+                    }}
+                    style={({ pressed }) => [
+                      styles.secondaryActionBtn,
+                      {
+                        borderColor:
+                          variant === "light"
+                            ? colors.inputBorderLight
+                            : colors.inputBorderDark,
+                      },
+                      pressed ? styles.pressed : null,
+                    ]}
+                  >
+                    <Ionicons
+                      name="reorder-three-outline"
+                      size={18}
+                      color={textPrimary}
+                    />
+                    <Text
+                      style={[
+                        styles.secondaryActionText,
+                        { color: textPrimary },
+                      ]}
+                    >
+                      Editar
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </ScrollView>
+            </View>
+
+            <View
+              onLayout={(e) => {
+                setPontosTopY(e.nativeEvent.layout.y);
+              }}
+            />
+
+            <View style={styles.cardsBlock}>
+              {collectionsQuery.isLoading ? (
+                <View style={styles.paddedBlock}>
+                  <Text style={[styles.bodyText, { color: textSecondary }]}>
+                    Carregando…
+                  </Text>
+                </View>
+              ) : collectionsQuery.isError ? (
+                <View style={styles.paddedBlock}>
+                  <Text style={[styles.bodyText, { color: textSecondary }]}>
+                    Erro ao carregar as coleções.
+                  </Text>
+                </View>
+              ) : orderedCollections.length === 0 ? (
+                <View style={styles.paddedBlock}>
+                  <Text style={[styles.bodyText, { color: textSecondary }]}>
+                    Nenhuma coleção ainda.
+                  </Text>
+                </View>
+              ) : (
+                orderedCollections.map((item) => {
+                  const name =
+                    (typeof item.title === "string" && item.title.trim()) ||
+                    "Coleção";
+                  const pontosCount =
+                    typeof (item as any).pontosCount === "number"
+                      ? ((item as any).pontosCount as number)
+                      : 0;
+
+                  const handlePress = () => {
+                    const now = Date.now();
+                    if (shouldBlockPress()) {
+                      if (__DEV__) {
+                        console.log("[PressGuard] blocked", {
+                          screen: "TerreiroBiblioteca",
+                          now,
+                        });
+                      }
+                      return;
+                    }
+
                     if (__DEV__) {
-                      console.log("[PressGuard] blocked", {
+                      console.log("[PressGuard] allowed", {
                         screen: "TerreiroBiblioteca",
                         now,
                       });
+                      console.log("[Navigation] click -> /collection/[id]", {
+                        screen: "TerreiroBiblioteca",
+                        now,
+                        collectionId: item.id,
+                      });
                     }
-                    return;
-                  }
 
-                  if (__DEV__) {
-                    console.log("[PressGuard] allowed", {
-                      screen: "TerreiroBiblioteca",
-                      now,
+                    router.push({
+                      pathname: "/collection/[id]",
+                      params: {
+                        id: item.id,
+                        collectionId: item.id,
+                        collectionTitle: name,
+                        terreiroId: terreiroId || undefined,
+                      },
                     });
-                    console.log("[Navigation] click -> /collection/[id]", {
-                      screen: "TerreiroBiblioteca",
-                      now,
-                      collectionId: item.id,
-                    });
-                  }
+                  };
 
-                  router.push({
-                    pathname: "/collection/[id]",
-                    params: {
-                      id: item.id,
-                      collectionId: item.id,
-                      collectionTitle: name,
-                      terreiroId: terreiroId || undefined,
-                    },
-                  });
-                };
-
-                return (
-                  <View key={item.id} style={styles.cardGap}>
-                    <SurfaceCard variant={variant}>
-                      <Pressable onPress={handlePress} style={{ flex: 1 }}>
-                        <View style={styles.cardHeaderRow}>
-                          <Text
-                            style={[styles.cardTitle, { color: textPrimary }]}
-                            numberOfLines={2}
-                          >
-                            {name}
-                          </Text>
-
-                          {canEdit ? (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel="Abrir menu da coleção"
-                              accessibilityHint="Opções: renomear ou excluir"
-                              hitSlop={10}
-                              onPress={() => {
-                                openCollectionActions(item);
-                              }}
-                              style={({ pressed }) => [
-                                styles.menuButton,
-                                pressed ? styles.iconButtonPressed : null,
-                              ]}
+                  return (
+                    <View key={item.id} style={styles.cardGap}>
+                      <SurfaceCard variant={variant}>
+                        <Pressable onPress={handlePress} style={{ flex: 1 }}>
+                          <View style={styles.cardHeaderRow}>
+                            <Text
+                              style={[styles.cardTitle, { color: textPrimary }]}
+                              numberOfLines={2}
                             >
-                              <Ionicons
-                                name="ellipsis-vertical"
-                                size={18}
-                                color={accentColor}
-                              />
-                            </Pressable>
-                          ) : null}
-                        </View>
+                              {name}
+                            </Text>
 
-                        <Text
-                          style={[
-                            styles.cardDescription,
-                            { color: textSecondary },
-                          ]}
-                          numberOfLines={1}
-                        >
-                          {pontosCount} pontos
-                        </Text>
-                      </Pressable>
-                    </SurfaceCard>
-                  </View>
-                );
-              })
-            )}
-          </View>
+                            {canEdit ? (
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Abrir menu da coleção"
+                                accessibilityHint="Opções: renomear ou excluir"
+                                hitSlop={10}
+                                onPress={() => {
+                                  openCollectionActions(item);
+                                }}
+                                style={({ pressed }) => [
+                                  styles.menuButton,
+                                  pressed ? styles.iconButtonPressed : null,
+                                ]}
+                              >
+                                <Ionicons
+                                  name="ellipsis-vertical"
+                                  size={18}
+                                  color={accentColor}
+                                />
+                              </Pressable>
+                            ) : null}
+                          </View>
 
-          <View style={{ height: spacing.lg }} />
+                          <Text
+                            style={[
+                              styles.cardDescription,
+                              { color: textSecondary },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            {pontosCount} pontos
+                          </Text>
+                        </Pressable>
+                      </SurfaceCard>
+                    </View>
+                  );
+                })
+              )}
+            </View>
+
+            <View style={{ height: spacing.lg }} />
+          </Reanimated.View>
         </Reanimated.ScrollView>
       </View>
     </View>
@@ -1594,6 +1695,11 @@ const styles = StyleSheet.create({
     width: "100%",
     borderRadius: 18,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
   },
   coverBannerFallback: {
     ...StyleSheet.absoluteFillObject,
@@ -1637,7 +1743,7 @@ const styles = StyleSheet.create({
   },
   primaryActionBtn: {
     height: 44,
-    borderRadius: 999,
+    borderRadius: 12,
     paddingHorizontal: 14,
     backgroundColor: colors.brass600,
     flexDirection: "row",
@@ -1651,7 +1757,7 @@ const styles = StyleSheet.create({
   },
   secondaryActionBtn: {
     height: 44,
-    borderRadius: 999,
+    borderRadius: 12,
     paddingHorizontal: 14,
     borderWidth: 2,
     flexDirection: "row",
