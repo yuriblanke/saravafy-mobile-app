@@ -161,16 +161,17 @@ export default function TerreiroBiblioteca() {
     return Math.max(220, Math.round(contentWidth * 0.8));
   }, [windowWidth]);
 
-  // Spotify-style cover animation
+  // Spotify-style cover animation (inside ScrollView)
   const imageMaxSize = coverSize;
   const imageMinSize = 56;
   const shrinkRange = 170; // scroll distance to reach minSize
-  const unpinStartOffset = 20; // offset after minSize to start unpin
-  const unpinRange = 150; // scroll distance for slide-under-header
-  const coverTopOffset = spacing.lg; // space between header and cover
-  const coverBottomGap = spacing.lg; // gap between cover and content
+  const fadeStart = shrinkRange; // start fade when reaching min size
+  const fadeRange = 60; // fade over 60px
+  const unpinStart = shrinkRange + 20; // start sliding under header
+  const unpinRange = 150; // complete slide distance
+  const coverTopMargin = spacing.lg; // margin above cover
+  const coverBottomMargin = spacing.lg; // margin below cover
 
-  const unpinStart = shrinkRange + unpinStartOffset;
   const scrollY = useSharedValue(0);
 
   const terreiroId =
@@ -196,56 +197,34 @@ export default function TerreiroBiblioteca() {
   const imageOpacity = useDerivedValue(() => {
     return interpolate(
       scrollY.value,
-      [shrinkRange, shrinkRange + 60],
+      [fadeStart, fadeStart + fadeRange],
       [1, 0.2],
       Extrapolation.CLAMP
     );
-  }, [shrinkRange]);
+  }, [fadeRange, fadeStart]);
 
   const imageTranslateY = useDerivedValue(() => {
-    const t = interpolate(
+    // Slide cover under header during unpin phase
+    const progress = interpolate(
       scrollY.value,
       [unpinStart, unpinStart + unpinRange],
       [0, 1],
       Extrapolation.CLAMP
     );
 
-    const distance = headerTotalHeight + imageMinSize + coverTopOffset;
-    return -t * distance;
-  }, [coverTopOffset, headerTotalHeight, unpinRange, unpinStart]);
+    // Distance to move: negative translateY to "stick" below header
+    const stickyOffset = -(imageSize.value + coverTopMargin);
+    return progress * stickyOffset;
+  }, [coverTopMargin, unpinRange, unpinStart]);
 
-  const coverOverlayStyle = useAnimatedStyle(() => {
+  const coverAnimatedStyle = useAnimatedStyle(() => {
     return {
       width: imageSize.value,
       height: imageSize.value,
       opacity: imageOpacity.value,
       transform: [{ translateY: imageTranslateY.value }],
-    };
-  });
-
-  const spacerHeight = useDerivedValue(() => {
-    // Calcula a posição visual da cover
-    const coverVisualTop = coverTopOffset + imageTranslateY.value;
-    const coverVisualBottom = coverVisualTop + imageSize.value;
-
-    // Se a cover saiu completamente da área visível (acima do header no espaço do scroll)
-    // então podemos diminuir o spacer
-    if (coverVisualBottom <= 0) {
-      return coverBottomGap; // mínimo
-    }
-
-    // Caso contrário, reserva espaço para a parte visível da cover + gap
-    const visibleCoverHeight = Math.max(0, coverVisualBottom);
-    const spacer = visibleCoverHeight + coverBottomGap;
-
-    // Garante limites
-    const maxSpacer = imageMaxSize + coverBottomGap;
-    return Math.min(maxSpacer, Math.max(coverBottomGap, spacer));
-  }, [coverBottomGap, coverTopOffset, imageMaxSize]);
-
-  const coverSpacerStyle = useAnimatedStyle(() => {
-    return {
-      height: spacerHeight.value,
+      marginTop: coverTopMargin,
+      marginBottom: coverBottomMargin,
     };
   });
 
@@ -1194,47 +1173,6 @@ export default function TerreiroBiblioteca() {
 
       <View style={styles.headerAndBody}>
         <View
-          pointerEvents="none"
-          style={[
-            styles.coverOverlayWrap,
-            { top: headerTotalHeight, paddingTop: coverTopOffset },
-          ]}
-        >
-          <Reanimated.View
-            style={[
-              styles.coverBanner,
-              { backgroundColor: baseBgColor },
-              coverOverlayStyle,
-            ]}
-          >
-            {terreiroCoverImageUrl ? (
-              <Image
-                source={{ uri: terreiroCoverImageUrl }}
-                style={StyleSheet.absoluteFill}
-                resizeMode="contain"
-                accessibilityIgnoresInvertColors
-              />
-            ) : (
-              <View
-                style={[
-                  styles.coverBannerFallback,
-                  { backgroundColor: baseBgColor },
-                ]}
-              >
-                <Ionicons name="home-outline" size={40} color={textMuted} />
-              </View>
-            )}
-
-            <LinearGradient
-              pointerEvents="none"
-              colors={[hexToRgba("#000", 0.0), hexToRgba("#000", 0.25)]}
-              locations={[0, 1]}
-              style={StyleSheet.absoluteFill}
-            />
-          </Reanimated.View>
-        </View>
-
-        <View
           style={[
             styles.fixedHeader,
             {
@@ -1322,7 +1260,38 @@ export default function TerreiroBiblioteca() {
             ]}
           />
 
-          <Reanimated.View style={[styles.coverSpacer, coverSpacerStyle]} />
+          <Reanimated.View
+            style={[
+              styles.coverBanner,
+              { backgroundColor: baseBgColor, alignSelf: "center" },
+              coverAnimatedStyle,
+            ]}
+          >
+            {terreiroCoverImageUrl ? (
+              <Image
+                source={{ uri: terreiroCoverImageUrl }}
+                style={StyleSheet.absoluteFill}
+                resizeMode="contain"
+                accessibilityIgnoresInvertColors
+              />
+            ) : (
+              <View
+                style={[
+                  styles.coverBannerFallback,
+                  { backgroundColor: baseBgColor },
+                ]}
+              >
+                <Ionicons name="home-outline" size={40} color={textMuted} />
+              </View>
+            )}
+
+            <LinearGradient
+              pointerEvents="none"
+              colors={[hexToRgba("#000", 0.0), hexToRgba("#000", 0.25)]}
+              locations={[0, 1]}
+              style={StyleSheet.absoluteFill}
+            />
+          </Reanimated.View>
 
           <View
             style={styles.titleBlock}
@@ -1615,17 +1584,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.lg,
-  },
-  coverOverlayWrap: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    alignItems: "center",
-  },
-  coverSpacer: {
-    width: "100%",
   },
   topGradient: {
     position: "absolute",
