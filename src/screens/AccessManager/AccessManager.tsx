@@ -414,13 +414,7 @@ export default function AccessManager() {
     } finally {
       setIsSubmittingInvite(false);
     }
-  }, [
-    inviteEmail,
-    inviteRole,
-    createInviteHook,
-    showToast,
-    closeInviteSheet,
-  ]);
+  }, [inviteEmail, inviteRole, createInviteHook, showToast, closeInviteSheet]);
 
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
@@ -596,13 +590,6 @@ export default function AccessManager() {
               </Text>
             </Pressable>
           </View>
-
-          <Image
-            source={fillerPng}
-            style={styles.sheetFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 

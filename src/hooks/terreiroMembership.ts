@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 
 import {
   resolveProfiles,
@@ -20,17 +20,31 @@ export type TerreiroMembershipStatus = {
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
+    const msg = e.message;
+    const m = msg.toLowerCase();
+    if (m.includes("cannot_remove_last_admin")) {
+      return "Não é possível remover o último admin";
+    }
+    return msg;
   }
 
   if (e && typeof e === "object") {
     const anyErr = e as any;
     if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
+      const msg = anyErr.message as string;
+      const m = msg.toLowerCase();
+      if (m.includes("cannot_remove_last_admin")) {
+        return "Não é possível remover o último admin";
+      }
+      return msg;
     }
   }
 
-  return String(e);
+  const msg = String(e);
+  if (msg.toLowerCase().includes("cannot_remove_last_admin")) {
+    return "Não é possível remover o último admin";
+  }
+  return msg;
 }
 
 function isColumnMissingError(error: unknown, columnName: string) {
@@ -874,7 +888,11 @@ export function useCreateTerreiroInvite(terreiroId: string) {
     [mutation]
   );
 
-  return { create, isCreating: mutation.isPending, error: mutation.error ? getErrorMessage(mutation.error) : null };
+  return {
+    create,
+    isCreating: mutation.isPending,
+    error: mutation.error ? getErrorMessage(mutation.error) : null,
+  };
 }
 export function useRemoveTerreiroMember(terreiroId: string) {
   const { user } = useAuth();
@@ -974,7 +992,10 @@ export function useCancelTerreiroInvite(terreiroId: string) {
     mutationFn: async (inviteId: string) => {
       if (!inviteId) throw new Error("Convite inválido.");
 
-      const res = await supabase.from("terreiro_invites").delete().eq("id", inviteId);
+      const res = await supabase
+        .from("terreiro_invites")
+        .delete()
+        .eq("id", inviteId);
 
       if (res.error) {
         throw new Error(

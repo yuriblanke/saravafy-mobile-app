@@ -1931,7 +1931,7 @@ const styles = StyleSheet.create({
   },
   newCollectionFiller: {
     width: "100%",
-    height: 220,
+    height: 290,
     marginTop: spacing.md,
   },
 

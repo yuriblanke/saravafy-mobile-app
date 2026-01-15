@@ -41,6 +41,12 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
   const canLeaveRole = canAdmin || canEditor;
   const canLeaveTerreiro = target?.role === "member";
 
+  const leaveRoleActionLabel = useMemo(() => {
+    if (target?.role === "admin") return "Sair do papel de admin";
+    if (target?.role === "editor") return "Sair do papel de editor";
+    return "Sair do papel";
+  }, [target?.role]);
+
   const snapPoints = useMemo(() => {
     if (canAdmin) return [320];
     if (canLeaveRole) return [220];
@@ -149,7 +155,11 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
       setLeaveRoleTarget(null);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      showToast(message || "Não foi possível sair do papel agora.");
+      if (String(message ?? "").toLowerCase().includes("cannot_remove_last_admin")) {
+        showToast("Não é possível remover o último admin");
+      } else {
+        showToast(message || "Não foi possível sair do papel agora.");
+      }
     } finally {
       setLeaveRoleBusy(false);
     }
@@ -361,7 +371,7 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
                     color={dangerColor}
                   />
                   <Text style={[styles.actionText, { color: dangerColor }]}>
-                    Sair do papel
+                    {leaveRoleActionLabel}
                   </Text>
                 </Pressable>
               </>

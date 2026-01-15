@@ -125,6 +125,10 @@ function getFriendlyActionError(message: string) {
     return "Não foi possível concluir agora. Verifique sua conexão e tente novamente.";
   }
 
+  if (m.includes("cannot_remove_last_admin")) {
+    return "Não é possível remover o último admin";
+  }
+
   if (
     m.includes("failed to fetch") ||
     m.includes("network") ||
@@ -613,7 +617,11 @@ export function PreferencesOverlaySheets(
   const isCannotRemoveLastAdminError = (error: unknown) => {
     const anyErr = error as any;
     const msg = typeof anyErr?.message === "string" ? anyErr.message : "";
-    return msg.includes("cannot_remove_last_admin");
+    const m = msg.toLowerCase();
+    return (
+      m.includes("não é possível remover o último admin") ||
+      m.includes("cannot_remove_last_admin")
+    );
   };
 
   const countActiveAdmins = async (
