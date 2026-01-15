@@ -1656,6 +1656,7 @@ function DebugCoverGuides(props: {
 
   const [debugText, setDebugText] = useState("");
   const lastUpdateTs = useSharedValue(0);
+  const lastLogTs = useSharedValue(0);
 
   useAnimatedReaction(
     () => {
@@ -1669,7 +1670,7 @@ function DebugCoverGuides(props: {
         deltaY: deltaY.value,
       };
     },
-    (v) => {
+    (v, prev) => {
       const now = Date.now();
       if (now - lastUpdateTs.value < 90) return; // ~11fps
       lastUpdateTs.value = now;
@@ -1685,6 +1686,28 @@ function DebugCoverGuides(props: {
           `delta=${v.deltaY.toFixed(1)}`,
         ].join("\n")
       );
+
+      // Logs opcionais no terminal (DEV):
+      // - quando o delta cruza 0 (mudança de sinal)
+      // - ou quando |delta| passa de ~6px
+      const prevDelta = prev?.deltaY ?? 0;
+      const crossedZero =
+        (prevDelta < 0 && v.deltaY >= 0) || (prevDelta > 0 && v.deltaY <= 0);
+      const drifted = Math.abs(v.deltaY) >= 6;
+
+      if ((crossedZero || drifted) && now - lastLogTs.value >= 220) {
+        lastLogTs.value = now;
+        runOnJS(console.log)(
+          [
+            "[COVER DEBUG]",
+            `imageSize=${v.imageSize.toFixed(1)}`,
+            `spacerHeight=${v.spacerHeight.toFixed(1)}`,
+            `translateY=${v.translateY.toFixed(1)}`,
+            `scrollY=${v.scrollY.toFixed(1)}`,
+            `delta=${v.deltaY.toFixed(1)}`,
+          ].join(" ")
+        );
+      }
     },
     []
   );
@@ -1794,22 +1817,24 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 2,
-    zIndex: 9999,
-    elevation: 9999,
+    // Abaixo do header (fixedHeader tem zIndex: 50)
+    zIndex: 40,
+    elevation: 40,
   },
   debugCoverBottomLine: {
-    backgroundColor: "rgba(255,0,0,0.95)",
+    backgroundColor: "rgba(0,255,0,0.9)",
   },
   debugSpacerBottomLine: {
-    backgroundColor: "rgba(0,200,255,0.95)",
+    backgroundColor: "rgba(255,0,0,0.9)",
   },
   debugPanel: {
     position: "absolute",
     left: 10,
     right: 10,
     bottom: 10,
-    zIndex: 9999,
-    elevation: 9999,
+    // Abaixo do header (fixedHeader tem zIndex: 50)
+    zIndex: 40,
+    elevation: 40,
     backgroundColor: "rgba(0,0,0,0.72)",
     borderRadius: 10,
     paddingHorizontal: 10,
