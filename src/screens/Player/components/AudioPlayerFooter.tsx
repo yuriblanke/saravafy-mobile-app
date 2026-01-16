@@ -2,7 +2,13 @@ import { getPontoAudioPlaybackUrl } from "@/src/api/pontoAudio";
 import { usePontoAudios } from "@/src/hooks/pontoAudio";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -47,8 +53,7 @@ export function AudioPlayerFooter(props: {
     variant === "light"
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
-  const bg =
-    variant === "light" ? colors.paper200 : colors.surfaceCardBg;
+  const bg = variant === "light" ? colors.paper200 : colors.surfaceCardBg;
 
   const canPlay = !!activeAudio?.id;
 
@@ -149,6 +154,21 @@ export function AudioPlayerFooter(props: {
     return "Áudio";
   }, [audiosQuery.isLoading, canPlay, curimbaEnabled]);
 
+  const metaLine = useMemo(() => {
+    const authorNameRaw = (ponto as any)?.author_name;
+    const authorName =
+      typeof authorNameRaw === "string" ? authorNameRaw.trim() : "";
+
+    const interpreterNameRaw = (activeAudio as any)?.interpreter_name;
+    const interpreterName =
+      typeof interpreterNameRaw === "string" ? interpreterNameRaw.trim() : "";
+
+    const parts: string[] = [];
+    if (authorName) parts.push(`Autor: ${authorName}`);
+    if (interpreterName) parts.push(`Intérprete: ${interpreterName}`);
+    return parts.length > 0 ? parts.join(" • ") : null;
+  }, [activeAudio, ponto]);
+
   return (
     <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
       <View style={styles.row}>
@@ -165,6 +185,14 @@ export function AudioPlayerFooter(props: {
           >
             {ponto?.title ?? ""}
           </Text>
+          {metaLine ? (
+            <Text
+              style={[styles.metaLine, { color: textSecondary }]}
+              numberOfLines={1}
+            >
+              {metaLine}
+            </Text>
+          ) : null}
         </View>
 
         <Pressable
@@ -233,7 +261,7 @@ export function AudioPlayerFooter(props: {
   );
 }
 
-const FOOTER_HEIGHT = 88;
+const FOOTER_HEIGHT = 104;
 export const AUDIO_FOOTER_HEIGHT = FOOTER_HEIGHT;
 
 const styles = StyleSheet.create({
@@ -262,6 +290,12 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 13,
     fontWeight: "800",
+  },
+  metaLine: {
+    marginTop: 2,
+    fontSize: 11,
+    fontWeight: "700",
+    opacity: 0.92,
   },
   playBtn: {
     width: 44,

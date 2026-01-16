@@ -8,6 +8,7 @@ import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
+import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
@@ -290,6 +291,11 @@ export default function Collection() {
       .map((it) => String(it?.ponto?.id ?? ""))
       .filter(Boolean);
   }, [orderedItems]);
+
+  const audioMetaQuery = useLatestPontoAudioMetaByPontoIds(pontoIds, {
+    enabled: shouldLoadPontos && pontoIds.length > 0,
+  });
+  const audioMetaByPontoId = audioMetaQuery.data ?? {};
 
   // Leituras são públicas em contexto de terreiro (sem gate de role/membership).
   const canSeeMediumTags = !!terreiroId;
@@ -1417,6 +1423,21 @@ export default function Collection() {
                 ]}
                 renderItem={({ item }) => {
                   const preview = getLyricsPreview(item.ponto.lyrics);
+                  const authorNameRaw = (item.ponto as any)?.author_name;
+                  const authorName =
+                    typeof authorNameRaw === "string"
+                      ? authorNameRaw.trim()
+                      : "";
+
+                  const interpreterNameRaw =
+                    audioMetaByPontoId[item.ponto.id]?.interpreterName;
+                  const interpreterName =
+                    typeof interpreterNameRaw === "string"
+                      ? interpreterNameRaw.trim()
+                      : "";
+
+                  const hasMeta =
+                    Boolean(authorName) || Boolean(interpreterName);
                   return (
                     <View style={styles.cardGap}>
                       <Pressable
@@ -1466,6 +1487,33 @@ export default function Collection() {
                           >
                             {item.ponto.title}
                           </Text>
+
+                          {hasMeta ? (
+                            <View style={styles.itemMetaBlock}>
+                              {authorName ? (
+                                <Text
+                                  style={[
+                                    styles.itemMetaText,
+                                    { color: textSecondary },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  Autor: {authorName}
+                                </Text>
+                              ) : null}
+                              {interpreterName ? (
+                                <Text
+                                  style={[
+                                    styles.itemMetaText,
+                                    { color: textSecondary },
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  Intérprete: {interpreterName}
+                                </Text>
+                              ) : null}
+                            </View>
+                          ) : null}
 
                           {(() => {
                             const mediumTags = canSeeMediumTags
@@ -1916,6 +1964,15 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "900",
     lineHeight: 20,
+  },
+  itemMetaBlock: {
+    paddingTop: 6,
+  },
+  itemMetaText: {
+    fontSize: 12,
+    fontWeight: "700",
+    lineHeight: 16,
+    opacity: 0.92,
   },
   tagsWrap: {
     flexDirection: "row",

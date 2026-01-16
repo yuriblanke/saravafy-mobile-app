@@ -51,7 +51,7 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      "position, pontos:ponto_id (id, title, lyrics, tags, audio_url, duration_seconds, cover_url, artist)"
+      "position, pontos:ponto_id (id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain)"
     )
     .eq("collection_id", collectionId)
     .order("position", { ascending: true });
@@ -82,14 +82,26 @@ export async function fetchCollectionPontosItems(
       const mapped: PlayerPonto = {
         id: String(ponto.id ?? ""),
         title,
-        artist: typeof ponto.artist === "string" ? ponto.artist : null,
+        artist: null,
+        author_name:
+          typeof (ponto as any).author_name === "string"
+            ? (ponto as any).author_name
+            : null,
+        is_public_domain:
+          typeof (ponto as any).is_public_domain === "boolean"
+            ? (ponto as any).is_public_domain
+            : null,
         duration_seconds:
           typeof ponto.duration_seconds === "number"
             ? ponto.duration_seconds
             : null,
-        audio_url: typeof ponto.audio_url === "string" ? ponto.audio_url : null,
+        audio_url: null,
         cover_url: typeof ponto.cover_url === "string" ? ponto.cover_url : null,
         lyrics,
+        lyrics_preview_6:
+          typeof (ponto as any).lyrics_preview_6 === "string"
+            ? (ponto as any).lyrics_preview_6
+            : null,
         tags: coerceTags(ponto.tags),
       };
 

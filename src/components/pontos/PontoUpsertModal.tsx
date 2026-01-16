@@ -35,9 +35,9 @@ import { Separator } from "@/src/components/Separator";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
-import { useQueryClient } from "@tanstack/react-query";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -46,7 +46,8 @@ export type PontoUpsertMode = "create" | "edit" | "correction";
 export type PontoUpsertInitialValues = {
   id: string;
   title: string;
-  artist?: string | null;
+  author_name?: string | null;
+  is_public_domain?: boolean | null;
   lyrics: string;
   tags: readonly string[];
 };
@@ -60,7 +61,8 @@ type Props = {
   onSuccess?: (result?: {
     id: string;
     title: string;
-    artist?: string | null;
+    author_name?: string | null;
+    is_public_domain?: boolean | null;
     lyrics: string;
     tags: string[];
   }) => void;
@@ -108,11 +110,13 @@ export function PontoUpsertModal({
   const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
-  const [artist, setArtist] = useState("");
   const [lyrics, setLyrics] = useState("");
   const [tags, setTags] = useState<string[]>([]);
   const [tagsInput, setTagsInput] = useState("");
   const [issueDetails, setIssueDetails] = useState("");
+
+  // Edit-only fields (pontos table)
+  const [isPublicDomain, setIsPublicDomain] = useState(true);
 
   // Submission-only fields (create mode)
   const [isTraditional, setIsTraditional] = useState(true);
@@ -186,8 +190,15 @@ export function PontoUpsertModal({
 
     if ((mode === "edit" || mode === "correction") && initialValues) {
       setTitle(initialValues.title ?? "");
-      setArtist(
-        typeof initialValues.artist === "string" ? initialValues.artist : ""
+      setAuthorName(
+        typeof initialValues.author_name === "string"
+          ? initialValues.author_name
+          : ""
+      );
+      setIsPublicDomain(
+        typeof initialValues.is_public_domain === "boolean"
+          ? initialValues.is_public_domain
+          : true
       );
       setLyrics(initialValues.lyrics ?? "");
       setTags(
@@ -204,7 +215,6 @@ export function PontoUpsertModal({
 
     if (mode === "create") {
       setTitle("");
-      setArtist("");
       setLyrics("");
       setTags([]);
       setTagsInput("");
@@ -212,6 +222,7 @@ export function PontoUpsertModal({
       setIsTraditional(true);
       setAuthorName("");
       setInterpreterName("");
+      setIsPublicDomain(true);
       setAttachedAudio(null);
       pendingAudioRef.current = null;
       setHasRightsConsent(false);
@@ -416,8 +427,6 @@ export function PontoUpsertModal({
     setIsSubmitting(true);
     try {
       const tagsValue = tags;
-      const artistValue = artist.trim() ? artist.trim() : null;
-
       const authorValue = authorName.trim();
       const interpreterValue = interpreterName.trim();
 
@@ -449,7 +458,6 @@ export function PontoUpsertModal({
         if (!submissionId) {
           const created = await createPontoSubmission({
             title: title.trim(),
-            artist: artistValue,
             lyrics: lyrics.trim(),
             tags: tagsValue,
             author_name: authorValue ? authorValue : null,
@@ -514,7 +522,7 @@ export function PontoUpsertModal({
           title: title.trim(),
           lyrics: lyrics.trim(),
           tags: tagsValue,
-          artist: artistValue,
+          author_name: authorValue ? authorValue : null,
           issue_details: issueDetails.trim() ? issueDetails.trim() : null,
         });
 
@@ -525,16 +533,25 @@ export function PontoUpsertModal({
 
       const pontoId = initialValues!.id;
 
+      const authorNameValue = authorValue ? authorValue : null;
+      const isPublicDomainValue = !!isPublicDomain;
+      if (!isPublicDomainValue && !authorNameValue) {
+        setErrorMessage("Preencha o Autor quando não for domínio público.");
+        setIsSubmitting(false);
+        return;
+      }
+
       const res = await supabase
         .from("pontos")
         .update({
           title: title.trim(),
-          artist: artistValue,
+          author_name: authorNameValue,
+          is_public_domain: isPublicDomainValue,
           lyrics: lyrics.trim(),
           tags,
         })
         .eq("id", pontoId)
-        .select("id, title, artist, lyrics, tags")
+        .select("id, title, author_name, is_public_domain, lyrics, tags")
         .single();
 
       if (res.error) {
@@ -549,7 +566,14 @@ export function PontoUpsertModal({
       const updated = {
         id: String(row.id ?? pontoId),
         title: typeof row.title === "string" ? row.title : title.trim(),
-        artist: typeof row.artist === "string" ? row.artist : artistValue,
+        author_name:
+          typeof row.author_name === "string"
+            ? row.author_name
+            : authorNameValue,
+        is_public_domain:
+          typeof row.is_public_domain === "boolean"
+            ? row.is_public_domain
+            : isPublicDomainValue,
         lyrics: typeof row.lyrics === "string" ? row.lyrics : lyrics.trim(),
         tags: Array.isArray(row.tags)
           ? row.tags.filter((v: any) => typeof v === "string")
@@ -873,12 +897,39 @@ export function PontoUpsertModal({
               </>
             ) : (
               <>
+                {mode === "edit" ? (
+                  <View style={styles.toggleRow}>
+                    <View style={styles.toggleTextCol}>
+                      <Text
+                        style={[styles.toggleTitle, { color: textPrimary }]}
+                      >
+                        Domínio público
+                      </Text>
+                      <Text
+                        style={[styles.toggleDesc, { color: textSecondary }]}
+                      >
+                        Se desmarcado, o campo Autor deve estar preenchido.
+                      </Text>
+                    </View>
+
+                    <Switch
+                      accessibilityLabel="Domínio público"
+                      value={isPublicDomain}
+                      onValueChange={setIsPublicDomain}
+                      trackColor={{
+                        false: colors.surfaceCardBorder,
+                        true: colors.brass600,
+                      }}
+                      thumbColor={colors.paper50}
+                    />
+                  </View>
+                ) : null}
                 <Text style={[styles.label, { color: textSecondary }]}>
                   Autor
                 </Text>
                 <TextInput
-                  value={artist}
-                  onChangeText={setArtist}
+                  value={authorName}
+                  onChangeText={setAuthorName}
                   placeholder=""
                   placeholderTextColor={textSecondary}
                   style={[

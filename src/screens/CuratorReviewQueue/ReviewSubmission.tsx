@@ -5,6 +5,7 @@ import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import {
+  extractSubmissionContentFromPayload,
   usePontoSubmissionById,
   type PendingPontoSubmission,
 } from "@/src/queries/pontoSubmissions";
@@ -127,11 +128,23 @@ export default function ReviewSubmissionScreen() {
   const hydratedRef = useRef(false);
 
   useEffect(() => {
+    hydratedRef.current = false;
+    setTitle("");
+    setAuthorName("");
+    setInterpreterName("");
+    setLyrics("");
+    setTagsText("");
+    setReviewNote("");
+    setInlineError(null);
+  }, [submissionId]);
+
+  useEffect(() => {
     if (hydratedRef.current) return;
     if (!submission) return;
 
     hydratedRef.current = true;
-    setTitle(submission.title ?? "");
+    const content = extractSubmissionContentFromPayload(submission.payload);
+    setTitle(content.title ?? "");
     setAuthorName(
       typeof submission.author_name === "string" ? submission.author_name : ""
     );
@@ -140,8 +153,8 @@ export default function ReviewSubmissionScreen() {
         ? submission.interpreter_name
         : ""
     );
-    setLyrics(submission.lyrics ?? "");
-    setTagsText((submission.tags ?? []).join(", "));
+    setLyrics(content.lyrics ?? "");
+    setTagsText((content.tags ?? []).join(", "));
     setReviewNote("");
   }, [submission]);
 
@@ -263,8 +276,7 @@ export default function ReviewSubmissionScreen() {
         // Força o Player a refletir a letra atualizada (invalidate amplo;
         // não existe queryKey por id hoje).
         const targetId =
-          typeof submission?.target_ponto_id === "string"
-            ? submission.target_ponto_id
+          typeof submission?.ponto_id === "string" ? submission.ponto_id
             : null;
         if (targetId) {
           queryClient.invalidateQueries({
@@ -299,6 +311,28 @@ export default function ReviewSubmissionScreen() {
     const finalAuthorName = sanitizeOptionalText(authorName);
     const finalInterpreterName = sanitizeOptionalText(interpreterName);
 
+    const isPublicDomain = submission?.ponto_is_public_domain !== false;
+    const authorConsentGranted = submission?.author_consent_granted === true;
+    const hasAudio = submission?.has_audio === true;
+    const interpreterConsentGranted =
+      submission?.interpreter_consent_granted === true;
+
+    if (!isPublicDomain && !authorConsentGranted) {
+      const msg =
+        "Não dá para aprovar: consentimento do autor não foi concedido.";
+      setInlineError(msg);
+      showToast(msg);
+      return;
+    }
+
+    if (hasAudio && !interpreterConsentGranted) {
+      const msg =
+        "Não dá para aprovar: consentimento do intérprete não foi concedido.";
+      setInlineError(msg);
+      showToast(msg);
+      return;
+    }
+
     const payload: RpcPayload = {
       p_submission_id: submissionId,
       p_decision: "approved",
@@ -306,11 +340,8 @@ export default function ReviewSubmissionScreen() {
       p_title: finalTitle,
       p_lyrics: finalLyrics,
       p_tags: normalizedTags,
-      p_artist: null, // compat: não é mais obrigatório
       p_author_name: finalAuthorName,
       p_interpreter_name: finalInterpreterName,
-      p_has_author_consent: null,
-      p_author_contact: null,
     };
 
     try {
@@ -450,14 +481,29 @@ export default function ReviewSubmissionScreen() {
   }
 
   const kindLabel = toKindLabel(submission.kind);
+  const content = extractSubmissionContentFromPayload(submission.payload);
   const submitterEmail =
-    typeof submission.submitter_email === "string"
-      ? submission.submitter_email
-      : "";
+    typeof content.submitter_email === "string" ? content.submitter_email : "";
   const issueDetails =
-    typeof submission.issue_details === "string"
-      ? submission.issue_details.trim()
-      : "";
+    typeof content.issue_details === "string" ? content.issue_details.trim() : "";
+
+  const isPublicDomain = submission.ponto_is_public_domain !== false;
+  const hasAudio = submission.has_audio === true;
+  const authorConsentGranted = submission.author_consent_granted === true;
+  const interpreterConsentGranted =
+    submission.interpreter_consent_granted === true;
+  const consentLine = [
+    `Domínio público: ${isPublicDomain ? "Sim" : "Não"}`,
+    !isPublicDomain
+      ? `Consentimento autor: ${authorConsentGranted ? "OK" : "pendente"}`
+      : null,
+    `Áudio: ${hasAudio ? "Sim" : "Não"}`,
+    hasAudio
+      ? `Consentimento intérprete: ${interpreterConsentGranted ? "OK" : "pendente"}`
+      : null,
+  ]
+    .filter(Boolean)
+    .join(" • ");
 
   return (
     <SafeAreaView
@@ -517,6 +563,23 @@ export default function ReviewSubmissionScreen() {
             </View>
           ) : null}
 
+          <View
+            style={[
+              styles.issueBox,
+              { backgroundColor: inputBg, borderColor: inputBorder },
+            ]}
+          >
+            <Text
+              style={[styles.issueLabel, { color: textSecondary }]}
+              numberOfLines={1}
+            >
+              Consentimentos
+            </Text>
+            <Text style={[styles.issueText, { color: textPrimary }]}>
+              {consentLine}
+            </Text>
+          </View>
+
           {inlineError ? (
             <Text style={[styles.inlineError, { color: colors.brass600 }]}>
               {inlineError}
@@ -549,7 +612,7 @@ export default function ReviewSubmissionScreen() {
             value={authorName}
             onChangeText={setAuthorName}
             editable={!isMutating}
-            placeholder="Autor"
+            placeholder={isPublicDomain ? "Autor (opcional)" : "Autor"}
             placeholderTextColor={
               variant === "light"
                 ? colors.textMutedOnLight
@@ -565,28 +628,32 @@ export default function ReviewSubmissionScreen() {
             ]}
           />
 
-          <Text style={[styles.label, { color: textSecondary }]}>
-            Intérprete
-          </Text>
-          <TextInput
-            value={interpreterName}
-            onChangeText={setInterpreterName}
-            editable={!isMutating}
-            placeholder="Intérprete"
-            placeholderTextColor={
-              variant === "light"
-                ? colors.textMutedOnLight
-                : colors.textMutedOnDark
-            }
-            style={[
-              styles.input,
-              {
-                backgroundColor: inputBg,
-                borderColor: inputBorder,
-                color: textPrimary,
-              },
-            ]}
-          />
+          {hasAudio ? (
+            <>
+              <Text style={[styles.label, { color: textSecondary }]}>
+                Intérprete
+              </Text>
+              <TextInput
+                value={interpreterName}
+                onChangeText={setInterpreterName}
+                editable={!isMutating}
+                placeholder="Intérprete"
+                placeholderTextColor={
+                  variant === "light"
+                    ? colors.textMutedOnLight
+                    : colors.textMutedOnDark
+                }
+                style={[
+                  styles.input,
+                  {
+                    backgroundColor: inputBg,
+                    borderColor: inputBorder,
+                    color: textPrimary,
+                  },
+                ]}
+              />
+            </>
+          ) : null}
 
           <Text style={[styles.label, { color: textSecondary }]}>Letra</Text>
           <TextInput

@@ -146,7 +146,9 @@ export async function uploadToSignedUpload(params: {
   mimeType: string;
 }) {
   const token =
-    typeof params.signedUpload?.token === "string" ? params.signedUpload.token : null;
+    typeof params.signedUpload?.token === "string"
+      ? params.signedUpload.token
+      : null;
 
   // Prefer Supabase helper when token is available.
   if (token) {
@@ -175,8 +177,7 @@ export async function uploadToSignedUpload(params: {
       ? params.signedUpload.signedUrl
       : null;
   if (!signedUrl) {
-    throw new Error("Resposta de upload inválida (signed URL ausente)."
-    );
+    throw new Error("Resposta de upload inválida (signed URL ausente).");
   }
 
   const blob = await (await fetch(params.fileUri)).blob();
@@ -255,9 +256,12 @@ export async function completePontoAudioUpload(params: {
 }
 
 export async function getPontoAudioPlaybackUrl(pontoAudioId: string) {
-  const data = await callFunctionPublic<PlaybackResponse>("ponto-audio-playback", {
-    ponto_audio_id: pontoAudioId,
-  });
+  const data = await callFunctionPublic<PlaybackResponse>(
+    "ponto-audio-playback",
+    {
+      ponto_audio_id: pontoAudioId,
+    }
+  );
 
   return {
     url: data.url,

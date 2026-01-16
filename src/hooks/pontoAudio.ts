@@ -2,7 +2,6 @@ import { supabase } from "@/lib/supabase";
 import {
   completePontoAudioUpload,
   initPontoAudioUpload,
-  type CompleteUploadResponse,
 } from "@/src/api/pontoAudio";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -20,6 +19,84 @@ export type PontoAudioRow = {
   upload_status: "pending" | "uploaded" | "failed" | "deleted" | string;
   is_active: boolean | null;
 };
+
+type LatestPontoAudioMetaRow = {
+  id: string;
+  ponto_id: string;
+  interpreter_name: string | null;
+  created_at: string | null;
+};
+
+function hashIds(ids: readonly string[]): string {
+  const sorted = Array.from(new Set(ids.filter(Boolean))).sort();
+  const input = sorted.join(",");
+
+  let hash = 0x811c9dc5;
+  for (let i = 0; i < input.length; i++) {
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
+  }
+
+  return (hash >>> 0).toString(36);
+}
+
+export type LatestPontoAudioMetaByPontoIdMap = Record<
+  string,
+  {
+    pontoAudioId: string;
+    interpreterName: string | null;
+    createdAt: string | null;
+  }
+>;
+
+export function useLatestPontoAudioMetaByPontoIds(
+  pontoIds: readonly string[],
+  options?: { enabled?: boolean }
+) {
+  const ids = Array.from(new Set(pontoIds.filter(Boolean)));
+  const idsHash = hashIds(ids);
+  const enabled = (options?.enabled ?? true) && ids.length > 0;
+
+  return useQuery({
+    queryKey: enabled ? queryKeys.pontoAudios.byPontoIdsHash(idsHash) : [],
+    enabled,
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ponto_audios")
+        .select("id, ponto_id, interpreter_name, created_at")
+        .in("ponto_id", ids)
+        .eq("is_active", true)
+        .eq("upload_status", "uploaded")
+        .order("created_at", { ascending: false });
+
+      if (error) throw error;
+
+      const rows = (
+        Array.isArray(data) ? data : []
+      ) as Partial<LatestPontoAudioMetaRow>[];
+
+      const map: LatestPontoAudioMetaByPontoIdMap = {};
+      for (const r of rows) {
+        const pontoId = typeof r.ponto_id === "string" ? r.ponto_id : "";
+        const id = typeof r.id === "string" ? r.id : "";
+        if (!pontoId || !id) continue;
+        if (map[pontoId]) continue; // first one is newest due to ordering
+
+        map[pontoId] = {
+          pontoAudioId: id,
+          interpreterName:
+            typeof r.interpreter_name === "string" ? r.interpreter_name : null,
+          createdAt: typeof r.created_at === "string" ? r.created_at : null,
+        };
+      }
+
+      return map;
+    },
+    placeholderData: (prev) => prev,
+  });
+}
 
 export function usePontoAudios(pontoId: string | null | undefined) {
   return useQuery({
@@ -46,7 +123,8 @@ export function usePontoAudios(pontoId: string | null | undefined) {
         ponto_id: String(r.ponto_id),
         storage_bucket:
           typeof r.storage_bucket === "string" ? r.storage_bucket : null,
-        storage_path: typeof r.storage_path === "string" ? r.storage_path : null,
+        storage_path:
+          typeof r.storage_path === "string" ? r.storage_path : null,
         mime_type: typeof r.mime_type === "string" ? r.mime_type : null,
         size_bytes: typeof r.size_bytes === "number" ? r.size_bytes : null,
         duration_ms: typeof r.duration_ms === "number" ? r.duration_ms : null,

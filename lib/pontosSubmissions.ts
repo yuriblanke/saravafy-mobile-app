@@ -2,7 +2,6 @@ import { supabase } from "@/lib/supabase";
 
 export type CreatePontoSubmissionInput = {
   title: string;
-  artist?: string | null;
   lyrics: string;
   tags?: string[];
   author_name?: string | null;
@@ -15,7 +14,7 @@ export type SubmitPontoCorrectionInput = {
   title: string;
   lyrics: string;
   tags?: string[];
-  artist?: string | null;
+  author_name?: string | null;
   issue_details?: string | null;
 };
 
@@ -24,7 +23,8 @@ export type PontoSubmissionRow = {
   created_at?: string;
   created_by?: string;
   title: string;
-  artist?: string | null;
+  author_name?: string | null;
+  interpreter_name?: string | null;
   lyrics: string;
   tags: string[];
   status?: string;
@@ -64,7 +64,6 @@ export function parseTagsInput(value: string): string[] {
 export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
   const payload = {
     title: typeof input.title === "string" ? input.title.trim() : "",
-    artist: toNullIfEmpty(input.artist),
     lyrics: typeof input.lyrics === "string" ? input.lyrics.trim() : "",
     tags: normalizeTags(input.tags ?? []),
     author_name: toNullIfEmpty(input.author_name),
@@ -78,7 +77,9 @@ export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
   const { data, error } = await supabase
     .from("pontos_submissions")
     .insert(payload)
-    .select("id, created_at, created_by, title, artist, lyrics, tags, status")
+    .select(
+      "id, created_at, created_by, title, author_name, interpreter_name, lyrics, tags, status"
+    )
     .single();
 
   if (error) throw error;
@@ -113,7 +114,7 @@ export async function submitPontoCorrection(input: SubmitPontoCorrectionInput) {
     title: typeof input.title === "string" ? input.title.trim() : "",
     lyrics: typeof input.lyrics === "string" ? input.lyrics.trim() : "",
     tags: normalizeTags(input.tags ?? []),
-    artist: toNullIfEmpty(input.artist),
+    author_name: toNullIfEmpty(input.author_name),
   };
 
   const { data, error } = await supabase

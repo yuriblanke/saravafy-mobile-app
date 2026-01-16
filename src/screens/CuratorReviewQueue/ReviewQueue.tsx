@@ -3,7 +3,10 @@ import { useToast } from "@/contexts/ToastContext";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
-import { usePendingPontoSubmissions } from "@/src/queries/pontoSubmissions";
+import {
+  extractSubmissionContentFromPayload,
+  usePendingPontoSubmissions,
+} from "@/src/queries/pontoSubmissions";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo } from "react";
@@ -142,29 +145,46 @@ export default function ReviewQueueScreen() {
           >
             {items.map((s) => {
               const dateLabel = formatDateLabel(s.created_at ?? null);
-              const title = s.title?.trim() || "(Sem título)";
-              const authorName = (
-                typeof s.author_name === "string" ? s.author_name : ""
-              )
-                .trim()
-                .slice(0, 80);
-              const interpreterName = (
-                typeof s.interpreter_name === "string" ? s.interpreter_name : ""
-              )
-                .trim()
-                .slice(0, 80);
+              const content = extractSubmissionContentFromPayload(s.payload);
+              const title = content.title?.trim() || "(Sem título)";
 
-              const peopleLine = [authorName, interpreterName]
+              const isPublicDomain = s.ponto_is_public_domain !== false;
+              const hasAudio = s.has_audio === true;
+
+              const authorName =
+                (typeof s.author_name === "string" ? s.author_name : "")
+                  .trim()
+                  .slice(0, 80);
+              const interpreterName =
+                (typeof s.interpreter_name === "string" ? s.interpreter_name : "")
+                  .trim()
+                  .slice(0, 80);
+
+              const peopleLine = [
+                !isPublicDomain && authorName ? `Autor: ${authorName}` : null,
+                hasAudio && interpreterName
+                  ? `Intérprete: ${interpreterName}`
+                  : null,
+              ]
                 .filter(Boolean)
                 .join(" — ");
 
+              const consentLine = [
+                !isPublicDomain
+                  ? s.author_consent_granted
+                    ? "Consentimento autor: OK"
+                    : "Consentimento autor: pendente"
+                  : null,
+                hasAudio
+                  ? s.interpreter_consent_granted
+                    ? "Consentimento intérprete: OK"
+                    : "Consentimento intérprete: pendente"
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" • ");
+
               const kindLabel = toKindLabel(s.kind);
-              const submitterEmail =
-                typeof s.submitter_email === "string" ? s.submitter_email : "";
-              const issuePreview =
-                typeof s.issue_details === "string"
-                  ? s.issue_details.trim()
-                  : "";
 
               return (
                 <Pressable
@@ -178,16 +198,7 @@ export default function ReviewQueueScreen() {
                   <SurfaceCard variant={variant} style={styles.card}>
                     <View style={styles.cardTopRow}>
                       <Badge label={kindLabel} variant={variant} />
-                      {submitterEmail ? (
-                        <Text
-                          style={[styles.cardMeta, { color: textSecondary }]}
-                          numberOfLines={1}
-                        >
-                          {submitterEmail}
-                        </Text>
-                      ) : (
-                        <View />
-                      )}
+                      <View />
                     </View>
 
                     <Text
@@ -206,21 +217,21 @@ export default function ReviewQueueScreen() {
                       </Text>
                     ) : null}
 
+                    {consentLine ? (
+                      <Text
+                        style={[styles.cardMeta, { color: textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {consentLine}
+                      </Text>
+                    ) : null}
+
                     {dateLabel ? (
                       <Text
                         style={[styles.cardMeta, { color: textSecondary }]}
                         numberOfLines={1}
                       >
                         Enviado em {dateLabel}
-                      </Text>
-                    ) : null}
-
-                    {issuePreview ? (
-                      <Text
-                        style={[styles.cardMeta, { color: textSecondary }]}
-                        numberOfLines={2}
-                      >
-                        {issuePreview}
                       </Text>
                     ) : null}
                   </SurfaceCard>

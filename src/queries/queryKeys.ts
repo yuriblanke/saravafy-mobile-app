@@ -93,6 +93,9 @@ export const queryKeys = {
       ["pontosSubmissions", "byId", submissionId] as const,
   },
   pontoAudios: {
-    byPontoId: (pontoId: string) => ["pontoAudios", "byPontoId", pontoId] as const,
+    byPontoId: (pontoId: string) =>
+      ["pontoAudios", "byPontoId", pontoId] as const,
+    byPontoIdsHash: (pontoIdsHash: string) =>
+      ["pontoAudios", "byPontoIds", pontoIdsHash] as const,
   },
 } as const;

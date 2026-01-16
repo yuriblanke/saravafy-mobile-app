@@ -11,10 +11,13 @@ export type PlayerPonto = {
   id: string;
   title: string;
   artist?: string | null;
+  author_name?: string | null;
+  is_public_domain?: boolean | null;
   duration_seconds?: number | null;
   audio_url?: string | null;
   cover_url?: string | null;
   lyrics: string;
+  lyrics_preview_6?: string | null;
   tags: string[];
 };
 
@@ -27,6 +30,8 @@ export type PatchablePontoFields = {
   id: string;
   title: string;
   artist?: string | null;
+  author_name?: string | null;
+  is_public_domain?: boolean | null;
   lyrics: string;
   tags: string[];
 };
@@ -107,7 +112,7 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, tags, audio_url, duration_seconds, cover_url, artist"
+          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain"
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -137,14 +142,24 @@ export function useCollectionPlayerData(
           const p: PlayerPonto = {
             id: String(row.id ?? ""),
             title,
-            artist: typeof row.artist === "string" ? row.artist : null,
+            artist: null,
+            author_name:
+              typeof row.author_name === "string" ? row.author_name : null,
+            is_public_domain:
+              typeof row.is_public_domain === "boolean"
+                ? row.is_public_domain
+                : null,
             duration_seconds:
               typeof row.duration_seconds === "number"
                 ? row.duration_seconds
                 : null,
-            audio_url: typeof row.audio_url === "string" ? row.audio_url : null,
+            audio_url: null,
             cover_url: typeof row.cover_url === "string" ? row.cover_url : null,
             lyrics,
+            lyrics_preview_6:
+              typeof row.lyrics_preview_6 === "string"
+                ? row.lyrics_preview_6
+                : null,
             tags: coerceTags(row.tags),
           };
 
@@ -216,6 +231,16 @@ export function useCollectionPlayerData(
                     updated.artist === null
                       ? updated.artist
                       : it.ponto.artist ?? null,
+                  author_name:
+                    typeof updated.author_name === "string" ||
+                    updated.author_name === null
+                      ? updated.author_name
+                      : (it.ponto as any).author_name ?? null,
+                  is_public_domain:
+                    typeof updated.is_public_domain === "boolean" ||
+                    updated.is_public_domain === null
+                      ? updated.is_public_domain
+                      : (it.ponto as any).is_public_domain ?? null,
                   lyrics: updated.lyrics,
                   tags: updated.tags,
                 },
@@ -239,6 +264,16 @@ export function useCollectionPlayerData(
                   typeof updated.artist === "string" || updated.artist === null
                     ? updated.artist
                     : p.artist ?? null,
+                author_name:
+                  typeof updated.author_name === "string" ||
+                  updated.author_name === null
+                    ? updated.author_name
+                    : (p as any).author_name ?? null,
+                is_public_domain:
+                  typeof updated.is_public_domain === "boolean" ||
+                  updated.is_public_domain === null
+                    ? updated.is_public_domain
+                    : (p as any).is_public_domain ?? null,
                 lyrics: updated.lyrics,
                 tags: updated.tags,
               }

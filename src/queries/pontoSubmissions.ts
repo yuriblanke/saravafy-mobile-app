@@ -6,17 +6,25 @@ import { queryKeys } from "./queryKeys";
 export type PendingPontoSubmission = {
   id: string;
   kind?: string | null;
-  title: string;
-  lyrics: string;
-  tags: string[];
-  artist?: string | null;
-  author_name?: string | null;
-  interpreter_name?: string | null;
-  submitter_email?: string | null;
-  issue_details?: string | null;
-  target_ponto_id?: string | null;
+  status?: string | null;
   created_at?: string | null;
   created_by?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: string | null;
+  ponto_id?: string | null;
+
+  payload?: unknown;
+
+  ponto_is_public_domain?: boolean | null;
+  author_name?: string | null;
+  author_consent_granted?: boolean | null;
+  terms_version?: string | null;
+
+  has_audio?: boolean | null;
+  interpreter_name?: string | null;
+  interpreter_consent_granted?: boolean | null;
+  audio_bucket_id?: string | null;
+  audio_object_path?: string | null;
 };
 
 function coerceTags(value: unknown): string[] {
@@ -34,6 +42,35 @@ function coerceTags(value: unknown): string[] {
   return [];
 }
 
+export function getSubmissionPayloadObject(payload: unknown): Record<string, unknown> {
+  if (!payload || typeof payload !== "object") return {};
+  if (Array.isArray(payload)) return {};
+  return payload as Record<string, unknown>;
+}
+
+export function extractSubmissionContentFromPayload(payload: unknown): {
+  title: string;
+  lyrics: string;
+  tags: string[];
+  cover_url: string | null;
+  submitter_email: string | null;
+  issue_details: string | null;
+} {
+  const obj = getSubmissionPayloadObject(payload);
+
+  const title = typeof obj.title === "string" ? obj.title : "";
+  const lyrics = typeof obj.lyrics === "string" ? obj.lyrics : "";
+  const tags = coerceTags(obj.tags);
+
+  const cover_url = typeof obj.cover_url === "string" ? obj.cover_url : null;
+  const submitter_email =
+    typeof obj.submitter_email === "string" ? obj.submitter_email : null;
+  const issue_details =
+    typeof obj.issue_details === "string" ? obj.issue_details : null;
+
+  return { title, lyrics, tags, cover_url, submitter_email, issue_details };
+}
+
 function toErrorMessage(error: unknown, fallback: string) {
   const message =
     error && typeof error === "object" && "message" in error
@@ -48,7 +85,7 @@ export async function fetchPendingPontoSubmissions(): Promise<
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, kind, title, artist, author_name, interpreter_name, lyrics, tags, submitter_email, issue_details, target_ponto_id, status, created_at, created_by"
+      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted, audio_bucket_id, audio_object_path"
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
@@ -60,21 +97,34 @@ export async function fetchPendingPontoSubmissions(): Promise<
   return (res.data ?? []).map((row: any) => ({
     id: String(row.id),
     kind: typeof row.kind === "string" ? row.kind : null,
-    title: typeof row.title === "string" ? row.title : "",
-    lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
-    tags: coerceTags(row.tags),
-    artist: typeof row.artist === "string" ? row.artist : null,
-    author_name: typeof row.author_name === "string" ? row.author_name : null,
-    interpreter_name:
-      typeof row.interpreter_name === "string" ? row.interpreter_name : null,
-    submitter_email:
-      typeof row.submitter_email === "string" ? row.submitter_email : null,
-    issue_details:
-      typeof row.issue_details === "string" ? row.issue_details : null,
-    target_ponto_id:
-      typeof row.target_ponto_id === "string" ? row.target_ponto_id : null,
+    status: typeof row.status === "string" ? row.status : null,
     created_at: typeof row.created_at === "string" ? row.created_at : null,
     created_by: typeof row.created_by === "string" ? row.created_by : null,
+    reviewed_at: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
+    reviewed_by: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
+    ponto_id: typeof row.ponto_id === "string" ? row.ponto_id : null,
+    payload: row.payload ?? null,
+    ponto_is_public_domain:
+      typeof row.ponto_is_public_domain === "boolean"
+        ? row.ponto_is_public_domain
+        : null,
+    author_name: typeof row.author_name === "string" ? row.author_name : null,
+    author_consent_granted:
+      typeof row.author_consent_granted === "boolean"
+        ? row.author_consent_granted
+        : null,
+    terms_version: typeof row.terms_version === "string" ? row.terms_version : null,
+    has_audio: typeof row.has_audio === "boolean" ? row.has_audio : null,
+    interpreter_name:
+      typeof row.interpreter_name === "string" ? row.interpreter_name : null,
+    interpreter_consent_granted:
+      typeof row.interpreter_consent_granted === "boolean"
+        ? row.interpreter_consent_granted
+        : null,
+    audio_bucket_id:
+      typeof row.audio_bucket_id === "string" ? row.audio_bucket_id : null,
+    audio_object_path:
+      typeof row.audio_object_path === "string" ? row.audio_object_path : null,
   }));
 }
 
@@ -86,7 +136,7 @@ export async function fetchPontoSubmissionById(
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, kind, title, artist, author_name, interpreter_name, lyrics, tags, submitter_email, issue_details, target_ponto_id, status, created_at, created_by"
+      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted, audio_bucket_id, audio_object_path"
     )
     .eq("id", submissionId)
     .maybeSingle();
@@ -101,21 +151,34 @@ export async function fetchPontoSubmissionById(
   return {
     id: String(row.id),
     kind: typeof row.kind === "string" ? row.kind : null,
-    title: typeof row.title === "string" ? row.title : "",
-    lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
-    tags: coerceTags(row.tags),
-    artist: typeof row.artist === "string" ? row.artist : null,
     author_name: typeof row.author_name === "string" ? row.author_name : null,
     interpreter_name:
       typeof row.interpreter_name === "string" ? row.interpreter_name : null,
-    submitter_email:
-      typeof row.submitter_email === "string" ? row.submitter_email : null,
-    issue_details:
-      typeof row.issue_details === "string" ? row.issue_details : null,
-    target_ponto_id:
-      typeof row.target_ponto_id === "string" ? row.target_ponto_id : null,
+    status: typeof row.status === "string" ? row.status : null,
     created_at: typeof row.created_at === "string" ? row.created_at : null,
     created_by: typeof row.created_by === "string" ? row.created_by : null,
+    reviewed_at: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
+    reviewed_by: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
+    ponto_id: typeof row.ponto_id === "string" ? row.ponto_id : null,
+    payload: row.payload ?? null,
+    ponto_is_public_domain:
+      typeof row.ponto_is_public_domain === "boolean"
+        ? row.ponto_is_public_domain
+        : null,
+    author_consent_granted:
+      typeof row.author_consent_granted === "boolean"
+        ? row.author_consent_granted
+        : null,
+    terms_version: typeof row.terms_version === "string" ? row.terms_version : null,
+    has_audio: typeof row.has_audio === "boolean" ? row.has_audio : null,
+    interpreter_consent_granted:
+      typeof row.interpreter_consent_granted === "boolean"
+        ? row.interpreter_consent_granted
+        : null,
+    audio_bucket_id:
+      typeof row.audio_bucket_id === "string" ? row.audio_bucket_id : null,
+    audio_object_path:
+      typeof row.audio_object_path === "string" ? row.audio_object_path : null,
   };
 }
 
@@ -139,7 +202,9 @@ export function usePontoSubmissionById(params: {
   const { submissionId, enabled } = params;
 
   return useQuery({
-    queryKey: submissionId ? queryKeys.pontosSubmissions.byId(submissionId) : [],
+    queryKey: submissionId
+      ? queryKeys.pontosSubmissions.byId(submissionId)
+      : [],
     enabled: enabled && !!submissionId,
     staleTime: 0,
     gcTime: 5 * 60 * 1000,

@@ -13,6 +13,7 @@ import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { colors, spacing } from "@/src/theme";
@@ -199,18 +200,20 @@ export default function Home() {
             (typeof (pontoSnapshot as any).title === "string" &&
               (pontoSnapshot as any).title.trim()) ||
             "Ponto",
-          artist:
-            typeof (pontoSnapshot as any).artist === "string"
-              ? (pontoSnapshot as any).artist
+          artist: null,
+          author_name:
+            typeof (pontoSnapshot as any).author_name === "string"
+              ? (pontoSnapshot as any).author_name
+              : null,
+          is_public_domain:
+            typeof (pontoSnapshot as any).is_public_domain === "boolean"
+              ? (pontoSnapshot as any).is_public_domain
               : null,
           duration_seconds:
             typeof (pontoSnapshot as any).duration_seconds === "number"
               ? (pontoSnapshot as any).duration_seconds
               : null,
-          audio_url:
-            typeof (pontoSnapshot as any).audio_url === "string"
-              ? (pontoSnapshot as any).audio_url
-              : null,
+          audio_url: null,
           cover_url:
             typeof (pontoSnapshot as any).cover_url === "string"
               ? (pontoSnapshot as any).cover_url
@@ -345,7 +348,6 @@ export default function Home() {
   );
 
   type PontoListItem = Ponto & {
-    lyrics_preview_6?: string | null;
     score?: number | null;
   };
 
@@ -355,14 +357,37 @@ export default function Home() {
       return {
         id: r.id,
         title: r.title,
-        artist: null,
         tags: r.tags,
         lyrics: r.lyrics,
         lyrics_preview_6: r.lyrics_preview_6,
+        author_name: null,
+        is_public_domain: null,
         score: r.score,
       } satisfies PontoListItem;
     });
   }, [canSearch, queryHasText, searchResults]);
+
+  const [visiblePontoIds, setVisiblePontoIds] = useState<string[]>([]);
+  const viewabilityConfig = useMemo(
+    () => ({ viewAreaCoveragePercentThreshold: 25 }),
+    []
+  );
+  const onViewableItemsChanged = useRef(
+    ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
+      const ids = viewableItems
+        .map((v) => String(v?.item?.id ?? ""))
+        .filter(Boolean);
+      setVisiblePontoIds(Array.from(new Set(ids)).slice(0, 60));
+    }
+  );
+
+  const latestAudioMetaQuery = useLatestPontoAudioMetaByPontoIds(
+    visiblePontoIds,
+    {
+      enabled: true,
+    }
+  );
+  const latestAudioMetaByPontoId = latestAudioMetaQuery.data ?? {};
 
   const lastRefreshAtRef = useRef<number>(0);
 
@@ -406,7 +431,14 @@ export default function Home() {
       return {
         id: editingPonto.id,
         title: editingPonto.title,
-        artist: editingPonto.artist ?? null,
+        author_name:
+          typeof (editingPonto as any).author_name === "string"
+            ? (editingPonto as any).author_name
+            : null,
+        is_public_domain:
+          typeof (editingPonto as any).is_public_domain === "boolean"
+            ? (editingPonto as any).is_public_domain
+            : null,
         lyrics: editingPonto.lyrics,
         tags: editingPonto.tags,
       };
@@ -848,6 +880,8 @@ export default function Home() {
               contentContainerStyle={styles.listContent}
               keyboardShouldPersistTaps="handled"
               extraData={variant}
+              viewabilityConfig={viewabilityConfig}
+              onViewableItemsChanged={onViewableItemsChanged.current}
               renderItem={({ item }) => (
                 <View style={styles.cardGap}>
                   <Pressable
@@ -958,6 +992,50 @@ export default function Home() {
                         </View>
                       </View>
 
+                      {(() => {
+                        const author =
+                          typeof (item as any).author_name === "string"
+                            ? (item as any).author_name.trim()
+                            : "";
+                        const interpreter =
+                          typeof latestAudioMetaByPontoId[item.id]
+                            ?.interpreterName === "string"
+                            ? latestAudioMetaByPontoId[
+                                item.id
+                              ]!.interpreterName!.trim()
+                            : "";
+
+                        if (!author && !interpreter) return null;
+
+                        return (
+                          <View style={styles.cardMetaBlock}>
+                            {author ? (
+                              <Text
+                                style={[
+                                  styles.cardMetaText,
+                                  { color: textMuted },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                Autor: {author}
+                              </Text>
+                            ) : null}
+
+                            {interpreter ? (
+                              <Text
+                                style={[
+                                  styles.cardMetaText,
+                                  { color: textMuted },
+                                ]}
+                                numberOfLines={1}
+                              >
+                                Intérprete: {interpreter}
+                              </Text>
+                            ) : null}
+                          </View>
+                        );
+                      })()}
+
                       <View style={styles.tagsRow}>
                         {item.tags.map((tag) => (
                           <TagChip key={tag} label={tag} variant={variant} />
@@ -1029,6 +1107,8 @@ export default function Home() {
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             extraData={variant}
+            viewabilityConfig={viewabilityConfig}
+            onViewableItemsChanged={onViewableItemsChanged.current}
             renderItem={({ item }) => (
               <View style={styles.cardGap}>
                 <Pressable
@@ -1138,6 +1218,50 @@ export default function Home() {
                         ) : null}
                       </View>
                     </View>
+
+                    {(() => {
+                      const author =
+                        typeof (item as any).author_name === "string"
+                          ? (item as any).author_name.trim()
+                          : "";
+                      const interpreter =
+                        typeof latestAudioMetaByPontoId[item.id]
+                          ?.interpreterName === "string"
+                          ? latestAudioMetaByPontoId[
+                              item.id
+                            ]!.interpreterName!.trim()
+                          : "";
+
+                      if (!author && !interpreter) return null;
+
+                      return (
+                        <View style={styles.cardMetaBlock}>
+                          {author ? (
+                            <Text
+                              style={[
+                                styles.cardMetaText,
+                                { color: textMuted },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              Autor: {author}
+                            </Text>
+                          ) : null}
+
+                          {interpreter ? (
+                            <Text
+                              style={[
+                                styles.cardMetaText,
+                                { color: textMuted },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              Intérprete: {interpreter}
+                            </Text>
+                          ) : null}
+                        </View>
+                      );
+                    })()}
 
                     <View style={styles.tagsRow}>
                       {item.tags.map((tag) => (
@@ -1567,7 +1691,14 @@ export default function Home() {
                 ? {
                     ...p,
                     title: updated.title,
-                    artist: updated.artist ?? null,
+                    author_name:
+                      typeof (updated as any).author_name === "string"
+                        ? (updated as any).author_name
+                        : null,
+                    is_public_domain:
+                      typeof (updated as any).is_public_domain === "boolean"
+                        ? (updated as any).is_public_domain
+                        : (p as any).is_public_domain ?? null,
                     lyrics: updated.lyrics,
                     tags: updated.tags,
                   }
@@ -1710,6 +1841,15 @@ const styles = StyleSheet.create({
     color: colors.textPrimaryOnLight,
     marginBottom: spacing.sm,
     letterSpacing: 0.2,
+  },
+  cardMetaBlock: {
+    gap: 2,
+    marginBottom: 6,
+  },
+  cardMetaText: {
+    fontSize: 12,
+    fontWeight: "700",
+    opacity: 0.85,
   },
   tagsRow: {
     flexDirection: "row",

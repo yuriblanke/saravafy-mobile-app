@@ -192,7 +192,14 @@ export default function PlayerScreen() {
       return {
         id: activePonto.id,
         title: activePonto.title,
-        artist: activePonto.artist ?? null,
+        author_name:
+          typeof (activePonto as any).author_name === "string"
+            ? (activePonto as any).author_name
+            : null,
+        is_public_domain:
+          typeof (activePonto as any).is_public_domain === "boolean"
+            ? (activePonto as any).is_public_domain
+            : null,
         lyrics: activePonto.lyrics,
         tags: activePonto.tags,
       };
