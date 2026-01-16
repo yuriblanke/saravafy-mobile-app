@@ -276,8 +276,7 @@ export default function ReviewSubmissionScreen() {
         // Força o Player a refletir a letra atualizada (invalidate amplo;
         // não existe queryKey por id hoje).
         const targetId =
-          typeof submission?.ponto_id === "string" ? submission.ponto_id
-            : null;
+          typeof submission?.ponto_id === "string" ? submission.ponto_id : null;
         if (targetId) {
           queryClient.invalidateQueries({
             queryKey: ["collections", "pontos"],
@@ -485,7 +484,9 @@ export default function ReviewSubmissionScreen() {
   const submitterEmail =
     typeof content.submitter_email === "string" ? content.submitter_email : "";
   const issueDetails =
-    typeof content.issue_details === "string" ? content.issue_details.trim() : "";
+    typeof content.issue_details === "string"
+      ? content.issue_details.trim()
+      : "";
 
   const isPublicDomain = submission.ponto_is_public_domain !== false;
   const hasAudio = submission.has_audio === true;
@@ -499,7 +500,9 @@ export default function ReviewSubmissionScreen() {
       : null,
     `Áudio: ${hasAudio ? "Sim" : "Não"}`,
     hasAudio
-      ? `Consentimento intérprete: ${interpreterConsentGranted ? "OK" : "pendente"}`
+      ? `Consentimento intérprete: ${
+          interpreterConsentGranted ? "OK" : "pendente"
+        }`
       : null,
   ]
     .filter(Boolean)

@@ -7,12 +7,18 @@ import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
+import { Audio } from "expo-av";
 import * as Crypto from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
-import { Audio } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   Alert,
   BackHandler,
@@ -39,7 +45,9 @@ type SelectedAudio = {
 };
 
 function normalizeExt(name: string): string {
-  const lower = String(name ?? "").trim().toLowerCase();
+  const lower = String(name ?? "")
+    .trim()
+    .toLowerCase();
   const idx = lower.lastIndexOf(".");
   if (idx === -1) return "";
   return lower.slice(idx + 1);
@@ -111,7 +119,10 @@ async function putWithProgress(params: {
 
 export default function PlayerAudioUpload() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ pontoId?: string; pontoTitle?: string }>();
+  const params = useLocalSearchParams<{
+    pontoId?: string;
+    pontoTitle?: string;
+  }>();
   const pontoId = typeof params.pontoId === "string" ? params.pontoId : "";
 
   const { user } = useAuth();
@@ -137,7 +148,9 @@ export default function PlayerAudioUpload() {
   const [interpreterName, setInterpreterName] = useState("");
   const [consentGranted, setConsentGranted] = useState(false);
 
-  const [selectedAudio, setSelectedAudio] = useState<SelectedAudio | null>(null);
+  const [selectedAudio, setSelectedAudio] = useState<SelectedAudio | null>(
+    null
+  );
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -165,7 +178,8 @@ export default function PlayerAudioUpload() {
   }, [pontoId, router, showToast]);
 
   const headerTitle = useMemo(() => {
-    const t = typeof params.pontoTitle === "string" ? params.pontoTitle.trim() : "";
+    const t =
+      typeof params.pontoTitle === "string" ? params.pontoTitle.trim() : "";
     if (t) return "Enviar áudio";
     return "Enviar áudio";
   }, [params.pontoTitle]);
@@ -181,12 +195,13 @@ export default function PlayerAudioUpload() {
   const validateSelected = useCallback((audio: SelectedAudio) => {
     const ext = normalizeExt(audio.name);
     if (!ext || !isAllowedExt(ext)) {
-      throw new Error(
-        "Formato inválido. Use mp3, m4a, aac, ogg ou wav."
-      );
+      throw new Error("Formato inválido. Use mp3, m4a, aac, ogg ou wav.");
     }
 
-    if (typeof audio.sizeBytes === "number" && audio.sizeBytes > MAX_AUDIO_BYTES) {
+    if (
+      typeof audio.sizeBytes === "number" &&
+      audio.sizeBytes > MAX_AUDIO_BYTES
+    ) {
       throw new Error("Arquivo muito grande. Máximo: 50 MB.");
     }
   }, []);
@@ -206,10 +221,13 @@ export default function PlayerAudioUpload() {
     if (!asset?.uri) return;
 
     const name =
-      typeof asset.name === "string" && asset.name.trim() ? asset.name : "audio";
+      typeof asset.name === "string" && asset.name.trim()
+        ? asset.name
+        : "audio";
     const ext = normalizeExt(name) || "m4a";
     const mimeType =
-      typeof (asset as any).mimeType === "string" && (asset as any).mimeType.trim()
+      typeof (asset as any).mimeType === "string" &&
+      (asset as any).mimeType.trim()
         ? String((asset as any).mimeType)
         : guessMimeType(ext);
 
@@ -400,7 +418,8 @@ export default function PlayerAudioUpload() {
 
       if (signed.error) {
         throw new Error(
-          typeof signed.error.message === "string" && signed.error.message.trim()
+          typeof signed.error.message === "string" &&
+          signed.error.message.trim()
             ? signed.error.message
             : "Não foi possível iniciar o upload."
         );
@@ -443,7 +462,8 @@ export default function PlayerAudioUpload() {
 
       if (insert.error) {
         throw new Error(
-          typeof insert.error.message === "string" && insert.error.message.trim()
+          typeof insert.error.message === "string" &&
+          insert.error.message.trim()
             ? insert.error.message
             : "Não foi possível registrar o envio."
         );
@@ -485,13 +505,19 @@ export default function PlayerAudioUpload() {
             accessibilityLabel="Voltar"
             onPress={goBackStep}
             hitSlop={10}
-            style={[styles.headerIconBtn, !canNavigateBack ? styles.disabled : null]}
+            style={[
+              styles.headerIconBtn,
+              !canNavigateBack ? styles.disabled : null,
+            ]}
             disabled={!canNavigateBack}
           >
             <Ionicons name="chevron-back" size={22} color={textPrimary} />
           </Pressable>
 
-          <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+          <Text
+            style={[styles.headerTitle, { color: textPrimary }]}
+            numberOfLines={1}
+          >
             {headerTitle}
           </Text>
 
@@ -500,7 +526,10 @@ export default function PlayerAudioUpload() {
             accessibilityLabel="Fechar"
             onPress={onClose}
             hitSlop={10}
-            style={[styles.headerIconBtn, !canNavigateBack ? styles.disabled : null]}
+            style={[
+              styles.headerIconBtn,
+              !canNavigateBack ? styles.disabled : null,
+            ]}
             disabled={!canNavigateBack}
           >
             <Text style={[styles.closeText, { color: textPrimary }]}>×</Text>
@@ -510,9 +539,12 @@ export default function PlayerAudioUpload() {
         <View style={styles.content}>
           {step === "intro" ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>Enviar áudio deste ponto</Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>
+                Enviar áudio deste ponto
+              </Text>
               <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Você pode gravar ou enviar um áudio cantando este ponto.\nO áudio ficará disponível para toda a comunidade após revisão.
+                Você pode gravar ou enviar um áudio cantando este ponto.\nO
+                áudio ficará disponível para toda a comunidade após revisão.
               </Text>
 
               <Pressable
@@ -521,7 +553,9 @@ export default function PlayerAudioUpload() {
                 style={({ pressed }) => [
                   styles.primaryBtn,
                   pressed ? styles.pressed : null,
-                  variant === "light" ? styles.primaryLight : styles.primaryDark,
+                  variant === "light"
+                    ? styles.primaryLight
+                    : styles.primaryDark,
                 ]}
               >
                 <Text style={styles.primaryText}>Continuar</Text>
@@ -531,17 +565,25 @@ export default function PlayerAudioUpload() {
 
           {step === "name" ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>Identificação do intérprete</Text>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>Esse nome aparecerá como intérprete do áudio.</Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>
+                Identificação do intérprete
+              </Text>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Esse nome aparecerá como intérprete do áudio.
+              </Text>
 
-              <Text style={[styles.label, { color: textSecondary }]}>Nome do intérprete</Text>
+              <Text style={[styles.label, { color: textSecondary }]}>
+                Nome do intérprete
+              </Text>
               <TextInput
                 value={interpreterName}
                 onChangeText={setInterpreterName}
                 editable={!isUploading}
                 placeholder="Ex: Maria de Oxum"
                 placeholderTextColor={
-                  variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark
+                  variant === "light"
+                    ? colors.textMutedOnLight
+                    : colors.textMutedOnDark
                 }
                 style={[
                   styles.input,
@@ -561,7 +603,9 @@ export default function PlayerAudioUpload() {
                   styles.primaryBtn,
                   pressed ? styles.pressed : null,
                   isUploading ? styles.disabled : null,
-                  variant === "light" ? styles.primaryLight : styles.primaryDark,
+                  variant === "light"
+                    ? styles.primaryLight
+                    : styles.primaryDark,
                 ]}
               >
                 <Text style={styles.primaryText}>Continuar</Text>
@@ -571,7 +615,9 @@ export default function PlayerAudioUpload() {
 
           {step === "consent" ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>Consentimento do intérprete</Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>
+                Consentimento do intérprete
+              </Text>
 
               <Pressable
                 accessibilityRole="checkbox"
@@ -580,23 +626,35 @@ export default function PlayerAudioUpload() {
                   if (isUploading) return;
                   setConsentGranted((v) => !v);
                 }}
-                style={({ pressed }) => [styles.checkboxRow, pressed ? styles.pressed : null]}
+                style={({ pressed }) => [
+                  styles.checkboxRow,
+                  pressed ? styles.pressed : null,
+                ]}
               >
                 <View
                   style={[
                     styles.checkboxBox,
                     {
-                      borderColor: consentGranted ? colors.forest700 : inputBorder,
-                      backgroundColor: consentGranted ? colors.forest700 : "transparent",
+                      borderColor: consentGranted
+                        ? colors.forest700
+                        : inputBorder,
+                      backgroundColor: consentGranted
+                        ? colors.forest700
+                        : "transparent",
                     },
                   ]}
                 >
                   {consentGranted ? (
-                    <Ionicons name="checkmark" size={16} color={colors.paper50} />
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={colors.paper50}
+                    />
                   ) : null}
                 </View>
                 <Text style={[styles.checkboxText, { color: textPrimary }]}>
-                  Declaro que sou a intérprete deste áudio e autorizo a reprodução pública no Saravafy.
+                  Declaro que sou a intérprete deste áudio e autorizo a
+                  reprodução pública no Saravafy.
                 </Text>
               </Pressable>
 
@@ -616,7 +674,10 @@ export default function PlayerAudioUpload() {
                               // Keep as Linking-free: Expo Router route not guaranteed.
                               // Use window.open on web / Linking on native by relying on Alert action.
                               // eslint-disable-next-line @typescript-eslint/no-var-requires
-                              const { Linking, Platform } = require("react-native");
+                              const {
+                                Linking,
+                                Platform,
+                              } = require("react-native");
                               if (Platform.OS === "web") {
                                 window.open(TERMS_URL, "_blank");
                               } else {
@@ -631,9 +692,14 @@ export default function PlayerAudioUpload() {
                     ]
                   );
                 }}
-                style={({ pressed }) => [styles.linkBtn, pressed ? styles.pressed : null]}
+                style={({ pressed }) => [
+                  styles.linkBtn,
+                  pressed ? styles.pressed : null,
+                ]}
               >
-                <Text style={[styles.linkText, { color: colors.brass600 }]}>Ver termos de uso</Text>
+                <Text style={[styles.linkText, { color: colors.brass600 }]}>
+                  Ver termos de uso
+                </Text>
               </Pressable>
 
               <Pressable
@@ -644,7 +710,9 @@ export default function PlayerAudioUpload() {
                   styles.primaryBtn,
                   pressed ? styles.pressed : null,
                   isUploading ? styles.disabled : null,
-                  variant === "light" ? styles.primaryLight : styles.primaryDark,
+                  variant === "light"
+                    ? styles.primaryLight
+                    : styles.primaryDark,
                 ]}
               >
                 <Text style={styles.primaryText}>Continuar</Text>
@@ -654,8 +722,12 @@ export default function PlayerAudioUpload() {
 
           {step === "upload" ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>Upload do áudio</Text>
-              <Text style={[styles.bodyText, { color: textSecondary }]}>Formatos: mp3, m4a, aac, ogg, wav • Máximo: 50 MB</Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>
+                Upload do áudio
+              </Text>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Formatos: mp3, m4a, aac, ogg, wav • Máximo: 50 MB
+              </Text>
 
               <View style={styles.row}>
                 <Pressable
@@ -691,7 +763,9 @@ export default function PlayerAudioUpload() {
                     { borderColor: inputBorder },
                   ]}
                 >
-                  <Text style={[styles.secondaryText, { color: textPrimary }]}>Enviar arquivo</Text>
+                  <Text style={[styles.secondaryText, { color: textPrimary }]}>
+                    Enviar arquivo
+                  </Text>
                 </Pressable>
               </View>
 
@@ -702,12 +776,17 @@ export default function PlayerAudioUpload() {
                     { backgroundColor: inputBg, borderColor: inputBorder },
                   ]}
                 >
-                  <Text style={[styles.fileName, { color: textPrimary }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.fileName, { color: textPrimary }]}
+                    numberOfLines={1}
+                  >
                     {selectedAudio.name}
                   </Text>
                   <Text style={[styles.fileMeta, { color: textSecondary }]}>
                     {selectedAudio.source === "record" ? "Gravação" : "Arquivo"}
-                    {selectedAudio.sizeBytes ? ` • ${formatBytes(selectedAudio.sizeBytes)}` : ""}
+                    {selectedAudio.sizeBytes
+                      ? ` • ${formatBytes(selectedAudio.sizeBytes)}`
+                      : ""}
                   </Text>
                 </View>
               ) : null}
@@ -719,9 +798,15 @@ export default function PlayerAudioUpload() {
               ) : null}
 
               {isUploading ? (
-                <View style={[styles.progressWrap, { borderColor: inputBorder }]}>
-                  <View style={[styles.progressBar, { width: progressWidth }]} />
-                  <Text style={[styles.progressLabel, { color: textSecondary }]}>
+                <View
+                  style={[styles.progressWrap, { borderColor: inputBorder }]}
+                >
+                  <View
+                    style={[styles.progressBar, { width: progressWidth }]}
+                  />
+                  <Text
+                    style={[styles.progressLabel, { color: textSecondary }]}
+                  >
                     Enviando… {progressPct}%
                   </Text>
                 </View>
@@ -735,7 +820,9 @@ export default function PlayerAudioUpload() {
                   styles.primaryBtn,
                   pressed ? styles.pressed : null,
                   isUploading || !selectedAudio ? styles.disabled : null,
-                  variant === "light" ? styles.primaryLight : styles.primaryDark,
+                  variant === "light"
+                    ? styles.primaryLight
+                    : styles.primaryDark,
                 ]}
               >
                 <Text style={styles.primaryText}>
@@ -747,9 +834,12 @@ export default function PlayerAudioUpload() {
 
           {step === "done" ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>Áudio enviado para revisão</Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>
+                Áudio enviado para revisão
+              </Text>
               <Text style={[styles.bodyText, { color: textSecondary }]}>
-                Obrigada por contribuir com o acervo.\nSeu áudio passará por uma revisão antes de ser publicado.
+                Obrigada por contribuir com o acervo.\nSeu áudio passará por uma
+                revisão antes de ser publicado.
               </Text>
 
               <Pressable
@@ -758,7 +848,9 @@ export default function PlayerAudioUpload() {
                 style={({ pressed }) => [
                   styles.primaryBtn,
                   pressed ? styles.pressed : null,
-                  variant === "light" ? styles.primaryLight : styles.primaryDark,
+                  variant === "light"
+                    ? styles.primaryLight
+                    : styles.primaryDark,
                 ]}
               >
                 <Text style={styles.primaryText}>Fechar</Text>

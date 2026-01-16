@@ -42,7 +42,9 @@ function coerceTags(value: unknown): string[] {
   return [];
 }
 
-export function getSubmissionPayloadObject(payload: unknown): Record<string, unknown> {
+export function getSubmissionPayloadObject(
+  payload: unknown
+): Record<string, unknown> {
   if (!payload || typeof payload !== "object") return {};
   if (Array.isArray(payload)) return {};
   return payload as Record<string, unknown>;
@@ -113,7 +115,8 @@ export async function fetchPendingPontoSubmissions(): Promise<
       typeof row.author_consent_granted === "boolean"
         ? row.author_consent_granted
         : null,
-    terms_version: typeof row.terms_version === "string" ? row.terms_version : null,
+    terms_version:
+      typeof row.terms_version === "string" ? row.terms_version : null,
     has_audio: typeof row.has_audio === "boolean" ? row.has_audio : null,
     interpreter_name:
       typeof row.interpreter_name === "string" ? row.interpreter_name : null,
@@ -169,7 +172,8 @@ export async function fetchPontoSubmissionById(
       typeof row.author_consent_granted === "boolean"
         ? row.author_consent_granted
         : null,
-    terms_version: typeof row.terms_version === "string" ? row.terms_version : null,
+    terms_version:
+      typeof row.terms_version === "string" ? row.terms_version : null,
     has_audio: typeof row.has_audio === "boolean" ? row.has_audio : null,
     interpreter_consent_granted:
       typeof row.interpreter_consent_granted === "boolean"

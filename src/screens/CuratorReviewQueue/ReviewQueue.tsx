@@ -151,14 +151,16 @@ export default function ReviewQueueScreen() {
               const isPublicDomain = s.ponto_is_public_domain !== false;
               const hasAudio = s.has_audio === true;
 
-              const authorName =
-                (typeof s.author_name === "string" ? s.author_name : "")
-                  .trim()
-                  .slice(0, 80);
-              const interpreterName =
-                (typeof s.interpreter_name === "string" ? s.interpreter_name : "")
-                  .trim()
-                  .slice(0, 80);
+              const authorName = (
+                typeof s.author_name === "string" ? s.author_name : ""
+              )
+                .trim()
+                .slice(0, 80);
+              const interpreterName = (
+                typeof s.interpreter_name === "string" ? s.interpreter_name : ""
+              )
+                .trim()
+                .slice(0, 80);
 
               const peopleLine = [
                 !isPublicDomain && authorName ? `Autor: ${authorName}` : null,
