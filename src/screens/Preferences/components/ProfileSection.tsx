@@ -167,7 +167,11 @@ export function ProfileSection({ variant }: Props) {
           ]}
         >
           <View style={styles.curatorRowLeft}>
-            <Ionicons name="clipboard-outline" size={18} color={textSecondary} />
+            <Ionicons
+              name="clipboard-outline"
+              size={18}
+              color={textSecondary}
+            />
             <View style={styles.curatorRowTextCol}>
               <Text style={[styles.curatorRowTitle, { color: textPrimary }]}>
                 Revisar envios
