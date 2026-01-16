@@ -1,8 +1,10 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Image,
   Modal,
   Pressable,
+  ScrollView,
   StyleSheet,
   Switch,
   Text,
@@ -11,14 +13,19 @@ import {
 } from "react-native";
 
 import { useToast } from "@/contexts/ToastContext";
+import { BottomSheet } from "@/src/components/BottomSheet";
+import { Separator } from "@/src/components/Separator";
 import {
   createPontoSubmission,
-  parseTagsInput,
   submitPontoCorrection,
 } from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { colors, spacing } from "@/src/theme";
+import { Ionicons } from "@expo/vector-icons";
+import * as DocumentPicker from "expo-document-picker";
+
+const fillerPng = require("@/assets/images/filler.png");
 
 export type PontoUpsertMode = "create" | "edit" | "correction";
 
@@ -78,13 +85,35 @@ export function PontoUpsertModal({
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
   const [lyrics, setLyrics] = useState("");
-  const [tagsText, setTagsText] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagsInput, setTagsInput] = useState("");
   const [issueDetails, setIssueDetails] = useState("");
 
   // Submission-only fields (create mode)
   const [isTraditional, setIsTraditional] = useState(true);
   const [authorName, setAuthorName] = useState("");
   const [interpreterName, setInterpreterName] = useState("");
+
+  const [attachedAudio, setAttachedAudio] = useState<null | {
+    uri: string;
+    name: string;
+    mimeType?: string | null;
+    size?: number | null;
+  }>(null);
+  const pendingAudioRef = useRef<null | {
+    uri: string;
+    name: string;
+    mimeType?: string | null;
+    size?: number | null;
+  }>(null);
+
+  const [hasRightsConsent, setHasRightsConsent] = useState(false);
+
+  const [rightsSheet, setRightsSheet] = useState<null | {
+    reason: "toggle-off" | "audio" | "submit";
+  }>(null);
+  const [rightsChecked, setRightsChecked] = useState(false);
+  const resumeSubmitAfterConsentRef = useRef(false);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -118,6 +147,8 @@ export function PontoUpsertModal({
     return title.trim().length > 0 && lyrics.trim().length > 0;
   }, [title, lyrics]);
 
+  const hasAudioAttached = !!attachedAudio;
+
   useEffect(() => {
     if (!visible) return;
 
@@ -129,7 +160,14 @@ export function PontoUpsertModal({
         typeof initialValues.artist === "string" ? initialValues.artist : ""
       );
       setLyrics(initialValues.lyrics ?? "");
-      setTagsText((initialValues.tags ?? []).join(", "));
+      setTags(
+        Array.isArray(initialValues.tags)
+          ? initialValues.tags
+              .map((t) => (typeof t === "string" ? t.trim() : ""))
+              .filter(Boolean)
+          : []
+      );
+      setTagsInput("");
       setIssueDetails("");
       return;
     }
@@ -138,13 +176,187 @@ export function PontoUpsertModal({
       setTitle("");
       setArtist("");
       setLyrics("");
-      setTagsText("");
+      setTags([]);
+      setTagsInput("");
       setIssueDetails("");
       setIsTraditional(true);
       setAuthorName("");
       setInterpreterName("");
+      setAttachedAudio(null);
+      pendingAudioRef.current = null;
+      setHasRightsConsent(false);
+      setRightsSheet(null);
+      setRightsChecked(false);
+      resumeSubmitAfterConsentRef.current = false;
     }
   }, [initialValues, mode, visible]);
+
+  const normalizeTag = useCallback((value: string) => {
+    return String(value ?? "")
+      .trim()
+      .replace(/\s+/g, " ");
+  }, []);
+
+  const addTagsFromRaw = useCallback(
+    (raw: string) => {
+      const parts = String(raw ?? "")
+        .split(",")
+        .map((t) => normalizeTag(t))
+        .filter(Boolean);
+
+      if (parts.length === 0) return;
+
+      setTags((prev) => {
+        const seen = new Set(prev.map((t) => t.toLowerCase()));
+        const next = [...prev];
+        for (const part of parts) {
+          const key = part.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          next.push(part);
+        }
+        return next;
+      });
+    },
+    [normalizeTag]
+  );
+
+  const handleTagsInputChange = useCallback(
+    (value: string) => {
+      const next = String(value ?? "");
+      if (!next.includes(",")) {
+        setTagsInput(next);
+        return;
+      }
+
+      const parts = next.split(",");
+      const toCommit = parts.slice(0, -1).join(",");
+      const rest = parts[parts.length - 1] ?? "";
+
+      addTagsFromRaw(toCommit);
+      setTagsInput(rest.replace(/^\s+/, ""));
+    },
+    [addTagsFromRaw]
+  );
+
+  const removeTagAt = useCallback((index: number) => {
+    setTags((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const openRightsSheet = useCallback(
+    (reason: "toggle-off" | "audio" | "submit") => {
+      setRightsChecked(false);
+      setRightsSheet({ reason });
+    },
+    []
+  );
+
+  const closeRightsSheet = useCallback(() => {
+    // Cancel/close behavior depends on why it opened
+    const reason = rightsSheet?.reason;
+    setRightsSheet(null);
+    setRightsChecked(false);
+
+    if (reason === "audio") {
+      // Block attach and keep previous state
+      pendingAudioRef.current = null;
+      resumeSubmitAfterConsentRef.current = false;
+      return;
+    }
+
+    if (reason === "submit") {
+      // Block submit attempt
+      resumeSubmitAfterConsentRef.current = false;
+      return;
+    }
+
+    if (reason === "toggle-off") {
+      // Keep toggle ON (no-op)
+      return;
+    }
+  }, [rightsSheet]);
+
+  const confirmRights = useCallback(() => {
+    if (!rightsChecked) return;
+
+    const reason = rightsSheet?.reason;
+    setHasRightsConsent(true);
+    setRightsSheet(null);
+    setRightsChecked(false);
+
+    if (reason === "toggle-off") {
+      setIsTraditional(false);
+      return;
+    }
+
+    if (reason === "audio") {
+      const pending = pendingAudioRef.current;
+      pendingAudioRef.current = null;
+      if (pending) setAttachedAudio(pending);
+      // Audio implies autoria/execução definida
+      setIsTraditional(false);
+      return;
+    }
+
+    if (reason === "submit") {
+      // If submission requires consent due to audio, keep consistent state
+      setIsTraditional(false);
+      if (resumeSubmitAfterConsentRef.current) {
+        resumeSubmitAfterConsentRef.current = false;
+        // Submit will be re-triggered by caller
+      }
+    }
+  }, [rightsChecked, rightsSheet]);
+
+  const handleTraditionalToggle = useCallback(
+    (nextValue: boolean) => {
+      if (mode !== "create") {
+        setIsTraditional(nextValue);
+        return;
+      }
+
+      // ON -> OFF must require explicit consent
+      if (isTraditional && nextValue === false && !hasRightsConsent) {
+        openRightsSheet("toggle-off");
+        return;
+      }
+
+      setIsTraditional(nextValue);
+    },
+    [hasRightsConsent, isTraditional, mode, openRightsSheet]
+  );
+
+  const pickAudio = useCallback(async () => {
+    if (mode !== "create") return;
+    if (isSubmitting) return;
+
+    const res = await DocumentPicker.getDocumentAsync({
+      type: "audio/*",
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+
+    if (res.canceled) return;
+    const asset = Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
+    if (!asset?.uri) return;
+
+    const picked = {
+      uri: asset.uri,
+      name: typeof asset.name === "string" && asset.name.trim() ? asset.name : "audio",
+      mimeType: (asset as any).mimeType ?? null,
+      size: typeof (asset as any).size === "number" ? (asset as any).size : null,
+    };
+
+    // Audio always requires explicit consent; if toggle is ON, it also forces OFF after confirmation.
+    if (!hasRightsConsent) {
+      pendingAudioRef.current = picked;
+      openRightsSheet("audio");
+      return;
+    }
+
+    setAttachedAudio(picked);
+    setIsTraditional(false);
+  }, [hasRightsConsent, isSubmitting, mode, openRightsSheet]);
 
   const submit = async () => {
     setErrorMessage(null);
@@ -166,24 +378,37 @@ export function PontoUpsertModal({
 
     setIsSubmitting(true);
     try {
-      const tags = tagsText.trim() ? parseTagsInput(tagsText) : [];
+      const tagsValue = tags;
       const artistValue = artist.trim() ? artist.trim() : null;
 
       const authorValue = authorName.trim();
       const interpreterValue = interpreterName.trim();
 
-      if (mode === "create" && isTraditional === false && !authorValue) {
-        setErrorMessage("Informe o autor para ponto livre.");
-        return;
+      // Regras de direitos: áudio sempre exige aceite; toggle OFF não é permitido sem aceite
+      if (mode === "create") {
+        if (hasAudioAttached && !hasRightsConsent) {
+          setIsSubmitting(false);
+          resumeSubmitAfterConsentRef.current = true;
+          openRightsSheet("submit");
+          return;
+        }
+
+        if (!isTraditional && !hasRightsConsent) {
+          setIsSubmitting(false);
+          resumeSubmitAfterConsentRef.current = true;
+          openRightsSheet("submit");
+          return;
+        }
       }
 
       if (mode === "create") {
         await createPontoSubmission({
           title: title.trim(),
           lyrics: lyrics.trim(),
-          tags,
+          tags: tagsValue,
           author_name: authorValue ? authorValue : null,
           interpreter_name: interpreterValue ? interpreterValue : null,
+          has_author_consent: hasRightsConsent ? true : null,
         });
 
         onCancel();
@@ -196,7 +421,7 @@ export function PontoUpsertModal({
           target_ponto_id: initialValues!.id,
           title: title.trim(),
           lyrics: lyrics.trim(),
-          tags,
+          tags: tagsValue,
           artist: artistValue,
           issue_details: issueDetails.trim() ? issueDetails.trim() : null,
         });
@@ -236,7 +461,7 @@ export function PontoUpsertModal({
         lyrics: typeof row.lyrics === "string" ? row.lyrics : lyrics.trim(),
         tags: Array.isArray(row.tags)
           ? row.tags.filter((v: any) => typeof v === "string")
-          : tags,
+            : tagsValue,
       };
 
       onCancel();
@@ -259,6 +484,99 @@ export function PontoUpsertModal({
     >
       <SaravafyScreen theme={variant}>
         <View style={styles.screen}>
+          <BottomSheet
+            visible={!!rightsSheet}
+            variant={variant}
+            onClose={closeRightsSheet}
+          >
+            <View>
+              <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+                Direitos de veiculação
+              </Text>
+              <Text style={[styles.sheetBody, { color: textSecondary }]}>
+                Ao enviar um ponto com autoria definida ou com áudio cantado e tocado, você declara que possui os direitos necessários para compartilhar esse conteúdo no Saravafy.
+              </Text>
+
+              <Pressable
+                accessibilityRole="checkbox"
+                accessibilityLabel="Li e estou ciente"
+                accessibilityState={{ checked: rightsChecked }}
+                onPress={() => setRightsChecked((v) => !v)}
+                style={({ pressed }) => [
+                  styles.checkboxRow,
+                  pressed ? styles.pressed : null,
+                ]}
+              >
+                <View
+                  style={[
+                    styles.checkboxBox,
+                    {
+                      borderColor:
+                        variant === "light"
+                          ? colors.inputBorderLight
+                          : colors.inputBorderDark,
+                      backgroundColor: rightsChecked
+                        ? colors.brass600
+                        : "transparent",
+                    },
+                  ]}
+                >
+                  {rightsChecked ? (
+                    <Ionicons name="checkmark" size={16} color={colors.paper50} />
+                  ) : null}
+                </View>
+                <Text style={[styles.checkboxText, { color: textPrimary }]}>
+                  Li e estou ciente
+                </Text>
+              </Pressable>
+
+              <View style={styles.sheetActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={closeRightsSheet}
+                  style={({ pressed }) => [
+                    styles.sheetActionRow,
+                    pressed ? styles.sheetActionPressed : null,
+                  ]}
+                >
+                  <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                    Cancelar
+                  </Text>
+                </Pressable>
+
+                <Separator variant={variant} />
+
+                <Pressable
+                  accessibilityRole="button"
+                  disabled={!rightsChecked}
+                  onPress={() => {
+                    const shouldResume = resumeSubmitAfterConsentRef.current;
+                    confirmRights();
+                    if (shouldResume) {
+                      setTimeout(() => {
+                        void submit();
+                      }, 0);
+                    }
+                  }}
+                  style={({ pressed }) => [
+                    styles.sheetActionRow,
+                    pressed ? styles.sheetActionPressed : null,
+                    !rightsChecked ? styles.disabled : null,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.sheetActionText,
+                      { color: rightsChecked ? colors.brass600 : textSecondary },
+                    ]}
+                  >
+                    Tenho os direitos desse ponto
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </BottomSheet>
+
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
@@ -281,25 +599,27 @@ export function PontoUpsertModal({
             <View style={styles.headerRight} />
           </View>
 
-          <View style={styles.form}>
+          <ScrollView
+            style={styles.formScroll}
+            contentContainerStyle={styles.form}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
             {mode === "create" ? (
               <View style={styles.toggleRow}>
                 <View style={styles.toggleTextCol}>
                   <Text style={[styles.toggleTitle, { color: textPrimary }]}>
                     Ponto tradicional / livre
                   </Text>
-                  <Text
-                    style={[styles.toggleDesc, { color: textSecondary }]}
-                    numberOfLines={1}
-                  >
-                    Se marcado, autor e intérprete são opcionais.
+                  <Text style={[styles.toggleDesc, { color: textSecondary }]}>
+                    Marque esta opção para pontos tradicionais, de domínio coletivo ou sem autoria definida.
                   </Text>
                 </View>
 
                 <Switch
                   accessibilityLabel="Ponto tradicional / livre"
                   value={isTraditional}
-                  onValueChange={setIsTraditional}
+                  onValueChange={handleTraditionalToggle}
                   trackColor={{
                     false: colors.surfaceCardBorder,
                     true: colors.brass600,
@@ -315,7 +635,7 @@ export function PontoUpsertModal({
             <TextInput
               value={title}
               onChangeText={setTitle}
-              placeholder="Ex: Ponto de Ogum"
+              placeholder="Ponto das Caboclas"
               placeholderTextColor={textSecondary}
               style={[
                 styles.input,
@@ -339,7 +659,11 @@ export function PontoUpsertModal({
                 <TextInput
                   value={authorName}
                   onChangeText={setAuthorName}
-                  placeholder=""
+                  placeholder={
+                    isTraditional
+                      ? "Pode deixar em branco"
+                      : "Indique o autor deste ponto"
+                  }
                   placeholderTextColor={textSecondary}
                   style={[
                     styles.input,
@@ -361,7 +685,7 @@ export function PontoUpsertModal({
                 <TextInput
                   value={interpreterName}
                   onChangeText={setInterpreterName}
-                  placeholder=""
+                  placeholder="Preencha quando enviar o áudio junto com o ponto"
                   placeholderTextColor={textSecondary}
                   style={[
                     styles.input,
@@ -376,6 +700,62 @@ export function PontoUpsertModal({
                   editable={!isSubmitting}
                   returnKeyType="next"
                 />
+
+                <View style={styles.audioBlock}>
+                  <Text style={[styles.label, { color: textSecondary }]}>
+                    Áudio (opcional)
+                  </Text>
+
+                  {attachedAudio ? (
+                    <View
+                      style={[
+                        styles.audioRow,
+                        {
+                          borderColor: inputBorder,
+                          backgroundColor: inputBg,
+                        },
+                      ]}
+                    >
+                      <Ionicons name="musical-notes" size={16} color={textPrimary} />
+                      <Text
+                        style={[styles.audioName, { color: textPrimary }]}
+                        numberOfLines={1}
+                      >
+                        {attachedAudio.name}
+                      </Text>
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Remover áudio"
+                        hitSlop={10}
+                        onPress={() => setAttachedAudio(null)}
+                        style={({ pressed }) => [
+                          styles.audioRemoveBtn,
+                          pressed ? styles.pressed : null,
+                        ]}
+                      >
+                        <Ionicons name="close" size={18} color={colors.brass600} />
+                      </Pressable>
+                    </View>
+                  ) : (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Adicionar áudio"
+                      onPress={() => {
+                        void pickAudio();
+                      }}
+                      style={({ pressed }) => [
+                        styles.audioAddBtn,
+                        { borderColor: inputBorder },
+                        pressed ? styles.pressed : null,
+                      ]}
+                    >
+                      <Ionicons name="add" size={18} color={colors.brass600} />
+                      <Text style={[styles.audioAddText, { color: textPrimary }]}>
+                        Adicionar áudio
+                      </Text>
+                    </Pressable>
+                  )}
+                </View>
               </>
             ) : (
               <>
@@ -428,25 +808,75 @@ export function PontoUpsertModal({
             />
 
             <Text style={[styles.label, { color: textSecondary }]}>
-              Tags (opcional) — separadas por vírgula
+              Tags (opcional)
             </Text>
-            <TextInput
-              value={tagsText}
-              onChangeText={setTagsText}
-              placeholder="Ex: Ogum, Exu"
-              placeholderTextColor={textSecondary}
+            <View
               style={[
-                styles.input,
+                styles.tagsInputWrap,
                 {
                   backgroundColor: inputBg,
                   borderColor: inputBorder,
-                  color: textPrimary,
                 },
               ]}
-              autoCapitalize="none"
-              autoCorrect={false}
-              editable={!isSubmitting}
-            />
+            >
+              <View style={styles.tagsFlow}>
+                {tags.map((t, idx) => (
+                  <View
+                    key={`${t}:${idx}`}
+                    style={[
+                      styles.tagChip,
+                      {
+                        borderColor:
+                          variant === "light"
+                            ? colors.inputBorderLight
+                            : colors.inputBorderDark,
+                        backgroundColor:
+                          variant === "light" ? colors.paper100 : colors.earth700,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.tagChipText, { color: textPrimary }]}>
+                      {t}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Remover tag ${t}`}
+                      hitSlop={10}
+                      onPress={() => removeTagAt(idx)}
+                      style={({ pressed }) => [
+                        styles.tagChipRemove,
+                        pressed ? styles.pressed : null,
+                      ]}
+                    >
+                      <Ionicons name="close" size={14} color={colors.brass600} />
+                    </Pressable>
+                  </View>
+                ))}
+
+                <TextInput
+                  value={tagsInput}
+                  onChangeText={handleTagsInputChange}
+                  onBlur={() => {
+                    const raw = tagsInput.trim();
+                    if (!raw) return;
+                    addTagsFromRaw(raw);
+                    setTagsInput("");
+                  }}
+                  placeholder={tags.length === 0 ? "Ogum, Exu, Preto Velho" : ""}
+                  placeholderTextColor={textSecondary}
+                  style={[styles.tagsInput, { color: textPrimary }]}
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  editable={!isSubmitting}
+                  onKeyPress={(e) => {
+                    const key = (e.nativeEvent as any).key;
+                    if (key !== "Backspace") return;
+                    if (tagsInput.length > 0) return;
+                    setTags((prev) => prev.slice(0, -1));
+                  }}
+                />
+              </View>
+            </View>
 
             {mode === "correction" ? (
               <>
@@ -512,7 +942,14 @@ export function PontoUpsertModal({
                 )}
               </Pressable>
             </View>
-          </View>
+
+            <Image
+              source={fillerPng}
+              style={styles.fillerImage}
+              resizeMode="contain"
+              accessibilityIgnoresInvertColors
+            />
+          </ScrollView>
         </View>
       </SaravafyScreen>
     </Modal>
@@ -546,10 +983,13 @@ const styles = StyleSheet.create({
   headerRight: {
     width: 64,
   },
-  form: {
+  formScroll: {
     flex: 1,
+  },
+  form: {
     paddingHorizontal: spacing.lg,
     gap: spacing.sm,
+    paddingBottom: spacing.xl,
   },
   toggleRow: {
     minHeight: 44,
@@ -574,6 +1014,54 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     opacity: 0.9,
   },
+  sheetTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  sheetBody: {
+    marginTop: spacing.sm,
+    fontSize: 13,
+    fontWeight: "700",
+    opacity: 0.95,
+  },
+  checkboxRow: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  checkboxBox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkboxText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  sheetActions: {
+    marginTop: spacing.md,
+  },
+  sheetActionRow: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  sheetActionText: {
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  sheetActionPressed: {
+    opacity: 0.75,
+  },
   label: {
     fontSize: 12,
     fontWeight: "900",
@@ -595,6 +1083,89 @@ const styles = StyleSheet.create({
     height: 96,
     paddingTop: 12,
     paddingBottom: 12,
+  },
+  audioBlock: {
+    marginTop: spacing.sm,
+  },
+  audioAddBtn: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+    paddingHorizontal: 14,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: spacing.xs,
+  },
+  audioAddText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  audioRow: {
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: spacing.xs,
+  },
+  audioName: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  audioRemoveBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagsInputWrap: {
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 10,
+  },
+  tagsFlow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+    gap: 8,
+  },
+  tagChip: {
+    height: 30,
+    borderRadius: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingLeft: 10,
+    paddingRight: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  tagChipText: {
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  tagChipRemove: {
+    width: 22,
+    height: 22,
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  tagsInput: {
+    minWidth: 80,
+    flexGrow: 1,
+    flexShrink: 1,
+    fontSize: 14,
+    fontWeight: "800",
+    paddingVertical: 6,
+    paddingHorizontal: 0,
   },
   errorText: {
     marginTop: spacing.sm,
@@ -622,5 +1193,16 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "900",
+  },
+  fillerImage: {
+    width: "100%",
+    height: 290,
+    marginTop: spacing.lg,
+  },
+  pressed: {
+    opacity: 0.85,
+  },
+  disabled: {
+    opacity: 0.55,
   },
 });

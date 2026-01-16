@@ -155,7 +155,11 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
       setLeaveRoleTarget(null);
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
-      if (String(message ?? "").toLowerCase().includes("cannot_remove_last_admin")) {
+      if (
+        String(message ?? "")
+          .toLowerCase()
+          .includes("cannot_remove_last_admin")
+      ) {
         showToast("Não é possível remover o último admin");
       } else {
         showToast(message || "Não foi possível sair do papel agora.");

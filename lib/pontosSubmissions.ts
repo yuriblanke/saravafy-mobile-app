@@ -6,6 +6,7 @@ export type CreatePontoSubmissionInput = {
   tags?: string[];
   author_name?: string | null;
   interpreter_name?: string | null;
+  has_author_consent?: boolean | null;
 };
 
 export type SubmitPontoCorrectionInput = {
@@ -65,6 +66,8 @@ export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
     tags: normalizeTags(input.tags ?? []),
     author_name: toNullIfEmpty(input.author_name),
     interpreter_name: toNullIfEmpty(input.interpreter_name),
+    has_author_consent:
+      typeof input.has_author_consent === "boolean" ? input.has_author_consent : null,
   };
 
   const { data, error } = await supabase
