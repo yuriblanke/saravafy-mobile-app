@@ -35,7 +35,7 @@ export async function fetchAllowedTerreiros(userId: string) {
       .select("terreiro_id, role, status, terreiros:terreiro_id (title)")
       .eq("user_id", userId)
       .eq("status", "active")
-      .in("role", ["admin", "editor"]);
+      .in("role", ["admin", "curimba"]);
 
     if (res.error) {
       throw new Error(

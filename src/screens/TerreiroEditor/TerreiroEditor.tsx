@@ -83,7 +83,7 @@ type TerreiroContatoDbRow = {
   is_primary: boolean | null;
 };
 
-type TerreiroRole = "admin" | "editor";
+type TerreiroRole = "admin" | "curimba";
 
 type TerreiroMemberRow = {
   terreiro_id: string;
@@ -247,7 +247,7 @@ function isValidEmail(input: string) {
 }
 
 function roleLabel(role: TerreiroRole) {
-  return role === "admin" ? "Admin" : "Editor";
+  return role === "admin" ? "Admin" : "Curimba";
 }
 
 async function ensureWebp(uri: string) {
@@ -723,7 +723,7 @@ export default function TerreiroEditor() {
 
   const [inviteFormOpen, setInviteFormOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<TerreiroRole>("editor");
+  const [inviteRole, setInviteRole] = useState<TerreiroRole>("curimba");
   const [inviteInlineError, setInviteInlineError] = useState<string>("");
   const [inviteSending, setInviteSending] = useState(false);
 
@@ -1004,7 +1004,7 @@ export default function TerreiroEditor() {
         const u = user.id;
         const match = nextMembers.find((m) => m.user_id === u);
         const role = match?.role;
-        return role === "admin" || role === "editor" ? role : null;
+        return role === "admin" || role === "curimba" ? role : null;
       })();
       setMyTerreiroRole(nextMyRole);
 
@@ -2085,11 +2085,11 @@ export default function TerreiroEditor() {
         variant={variant}
         items={[
           { key: "admin", label: "Admin", value: "admin" },
-          { key: "editor", label: "Editor", value: "editor" },
+          { key: "curimba", label: "Curimba", value: "curimba" },
         ]}
         onClose={() => setIsInviteRoleModalOpen(false)}
         onSelect={(value) => {
-          setInviteRole(value === "admin" ? "admin" : "editor");
+          setInviteRole(value === "admin" ? "admin" : "curimba");
         }}
       />
 
@@ -2235,7 +2235,7 @@ export default function TerreiroEditor() {
           <View style={styles.rolesSheetSpacer} />
 
           <Text style={[styles.rolesSheetH, { color: textPrimary }]}>
-            Editor
+            Curimba
           </Text>
           <Text style={[styles.rolesSheetP, { color: textSecondary }]}>
             Pode:

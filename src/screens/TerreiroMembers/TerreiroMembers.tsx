@@ -136,7 +136,7 @@ export default function TerreiroMembers() {
   const membership = membershipQuery.data;
   const myRole = membership.role;
   const canManage =
-    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
+    membership.isActiveMember && (myRole === "admin" || myRole === "curimba");
 
   // Load data
   const membersHook = useTerreiroMembers(terreiroId);
@@ -152,7 +152,7 @@ export default function TerreiroMembers() {
     Record<string, true>
   >({});
 
-  // Member items (exclude admins and editors)
+  // Member items (exclude admins and curimbas)
   const memberItems = useMemo<MemberItem[]>(() => {
     if (!membersHook.items) return [];
 
@@ -378,8 +378,8 @@ export default function TerreiroMembers() {
       const roleLabel =
         dup.role === "admin"
           ? "administrador"
-          : dup.role === "editor"
-            ? "editor"
+          : dup.role === "curimba"
+            ? "curimba"
             : "membro";
 
       const hint =

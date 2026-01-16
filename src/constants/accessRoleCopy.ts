@@ -1,6 +1,6 @@
 import type { InfoProps } from "@/src/components/AccessRoleInfo";
 
-export type AccessRole = "admin" | "editor" | "member";
+export type AccessRole = "admin" | "curimba" | "member";
 
 export type AccessRoleCopySectionTitle = "Pode:" | "Não pode:" | "São:";
 
@@ -16,7 +16,7 @@ export type AccessRoleCopy = {
 
 export function getAccessRoleLabel(role: AccessRole): string {
   if (role === "admin") return "Admin";
-  if (role === "editor") return "Editor";
+  if (role === "curimba") return "Curimba";
   return "Membro";
 }
 
@@ -27,7 +27,7 @@ export const ACCESS_ROLE_COPY: Record<AccessRole, AccessRoleCopy> = {
       {
         title: "Pode:",
         items: [
-          "Convidar pessoas como Admin, Editor ou Membro",
+          "Convidar pessoas como Admin, Curimba ou Membro",
           "Criar, editar e organizar coleções",
           "Criar e editar tags customizadas (usadas para adicionar o médium que traz a entidade)",
           "Definir se o terreiro é público ou privado",
@@ -35,8 +35,8 @@ export const ACCESS_ROLE_COPY: Record<AccessRole, AccessRoleCopy> = {
       },
     ],
   },
-  editor: {
-    heading: "EDITOR — Edição",
+  curimba: {
+    heading: "CURIMBA — Curimba",
     sections: [
       {
         title: "Pode:",

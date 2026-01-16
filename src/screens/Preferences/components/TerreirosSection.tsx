@@ -5,12 +5,17 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/src/components/Badge";
+import { useTerreiroInviteDecision } from "@/src/hooks/useTerreiroInviteDecision";
+import {
+  formatTerreiroMemberKindLabel,
+  formatTerreiroRoleLabel,
+} from "@/src/domain/terreiroRoles";
 import {
   PreferencesPageItem,
   PreferencesSection,
 } from "@/src/components/preferences";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
-import { usePreferencesTerreirosQuery } from "@/src/queries/me";
+import { usePreferencesTerreirosListItems } from "@/src/queries/preferencesTerreirosList";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { colors, spacing } from "@/src/theme";
 
@@ -25,6 +30,10 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
   const router = useRouter();
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const normalizedUserEmail =
+    typeof (user as any)?.email === "string"
+      ? String((user as any).email).trim().toLowerCase()
+      : null;
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -42,11 +51,20 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
 
   usePreferencesTerreirosRealtime(userId);
 
-  const q = usePreferencesTerreirosQuery(userId);
+  const { items, membershipsQuery: q } = usePreferencesTerreirosListItems({
+    userId,
+    normalizedEmail: normalizedUserEmail,
+  });
+
   const myTerreiros = useMemo<MyTerreiroWithRole[]>(
     () => (Array.isArray(q.data) ? q.data : []),
     [q.data]
   );
+
+  const inviteDecision = useTerreiroInviteDecision({
+    userId,
+    normalizedEmail: normalizedUserEmail,
+  });
 
   const hasAnyTerreiro = myTerreiros.length > 0;
 
@@ -111,72 +129,166 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
           <Text style={[styles.helper, { color: textSecondary }]}>
             Carregando terreiros…
           </Text>
-        ) : myTerreiros.length === 0 ? (
+        ) : items.length === 0 ? (
           <Text style={[styles.helper, { color: textSecondary }]}>
             Você ainda não participa de nenhum terreiro.
           </Text>
         ) : (
-          myTerreiros.map((t) => (
-            <PreferencesPageItem
-              key={t.id}
-              variant={variant}
-              title={t.title}
-              avatarUrl={t.cover_image_url ?? undefined}
-              initials={getInitials(t.title)}
-              subtitle={
-                <View style={{ marginTop: 4 }}>
-                  <Badge
-                    label={
-                      t.role === "admin"
-                        ? "Admin"
-                        : t.role === "editor"
-                        ? "Editor"
-                        : "Membro"
-                    }
-                    variant={variant}
-                    appearance={t.role === "admin" ? "primary" : "secondary"}
-                    style={{ alignSelf: "flex-start" }}
-                  />
-                </View>
-              }
-              showEditButton={false}
-              rightAccessory={
-                t.role === "admin" ||
-                t.role === "editor" ||
-                t.role === "member" ? (
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Mais ações"
-                    hitSlop={12}
-                    onPress={(e) => {
-                      (e as any)?.stopPropagation?.();
-                      onOpenActions(t);
-                    }}
-                    style={({ pressed }) => [
-                      styles.menuBtn,
-                      pressed ? styles.menuBtnPressed : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="ellipsis-vertical"
-                      size={18}
-                      color={textMuted}
+          items.map((item) => {
+            if (item.type === "invite") {
+              const invite = item.invite;
+              const terreiroTitle =
+                typeof invite.terreiro_title === "string" &&
+                invite.terreiro_title.trim()
+                  ? invite.terreiro_title.trim()
+                  : "Terreiro";
+
+              const roleLabel = formatTerreiroRoleLabel(invite.role);
+              const kindLabel =
+                invite.role === "member"
+                  ? formatTerreiroMemberKindLabel(invite.member_kind)
+                  : "";
+
+              const processing = inviteDecision.processingInviteId === invite.id;
+
+              return (
+                <View
+                  key={`invite:${invite.id}`}
+                  style={[
+                    styles.inviteCard,
+                    { borderColor: dividerColor },
+                  ]}
+                >
+                  <Text style={[styles.inviteTitle, { color: textPrimary }]}>
+                    Convite para: {terreiroTitle}
+                  </Text>
+
+                  <View style={styles.inviteBadges}>
+                    <Badge
+                      label={roleLabel}
+                      variant={variant}
+                      appearance={invite.role === "admin" ? "primary" : "secondary"}
+                      style={{ alignSelf: "flex-start" }}
                     />
-                  </Pressable>
-                ) : null
-              }
-              onPress={() => {
-                router.push({
-                  pathname: "/terreiro" as any,
-                  params: {
-                    terreiroId: t.id,
-                    terreiroTitle: t.title,
-                    from: "/preferences",
-                  },
-                });
-              }}
-            />
-          ))
+                    {invite.role === "member" && kindLabel ? (
+                      <Badge
+                        label={kindLabel}
+                        variant={variant}
+                        appearance="secondary"
+                        style={{ alignSelf: "flex-start" }}
+                      />
+                    ) : null}
+                  </View>
+
+                  <View style={styles.inviteActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Aceitar convite"
+                      disabled={processing}
+                      onPress={() => void inviteDecision.accept(invite)}
+                      style={({ pressed }) => [
+                        styles.invitePrimaryBtn,
+                        { borderColor: colors.brass600 },
+                        pressed ? styles.inviteBtnPressed : null,
+                        processing ? styles.inviteBtnDisabled : null,
+                      ]}
+                    >
+                      <Text style={styles.invitePrimaryBtnText}>Aceitar</Text>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Recusar convite"
+                      disabled={processing}
+                      onPress={() => void inviteDecision.reject(invite)}
+                      style={({ pressed }) => [
+                        styles.inviteSecondaryBtn,
+                        { borderColor: dividerColor },
+                        pressed ? styles.inviteBtnPressed : null,
+                        processing ? styles.inviteBtnDisabled : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.inviteSecondaryBtnText,
+                          { color: textPrimary },
+                        ]}
+                      >
+                        Recusar
+                      </Text>
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            }
+
+            const t = item.terreiro;
+            const roleLabel = formatTerreiroRoleLabel(t.role);
+            const kindLabel =
+              t.role === "member" ? formatTerreiroMemberKindLabel(t.member_kind) : "";
+
+            return (
+              <PreferencesPageItem
+                key={`membership:${t.id}`}
+                variant={variant}
+                title={t.title}
+                avatarUrl={t.cover_image_url ?? undefined}
+                initials={getInitials(t.title)}
+                subtitle={
+                  <View style={{ marginTop: 4, flexDirection: "row", gap: 8 }}>
+                    <Badge
+                      label={roleLabel}
+                      variant={variant}
+                      appearance={t.role === "admin" ? "primary" : "secondary"}
+                      style={{ alignSelf: "flex-start" }}
+                    />
+                    {t.role === "member" && kindLabel ? (
+                      <Badge
+                        label={kindLabel}
+                        variant={variant}
+                        appearance="secondary"
+                        style={{ alignSelf: "flex-start" }}
+                      />
+                    ) : null}
+                  </View>
+                }
+                showEditButton={false}
+                rightAccessory={
+                  t.role === "admin" || t.role === "curimba" || t.role === "member" ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Mais ações"
+                      hitSlop={12}
+                      onPress={(e) => {
+                        (e as any)?.stopPropagation?.();
+                        onOpenActions(t);
+                      }}
+                      style={({ pressed }) => [
+                        styles.menuBtn,
+                        pressed ? styles.menuBtnPressed : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name="ellipsis-vertical"
+                        size={18}
+                        color={textMuted}
+                      />
+                    </Pressable>
+                  ) : null
+                }
+                onPress={() => {
+                  router.push({
+                    pathname: "/terreiro" as any,
+                    params: {
+                      terreiroId: t.id,
+                      terreiroTitle: t.title,
+                      from: "/preferences",
+                    },
+                  });
+                }}
+              />
+            );
+          })
         )}
       </View>
     </PreferencesSection>
@@ -186,6 +298,62 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
 const styles = StyleSheet.create({
   list: {
     gap: spacing.sm,
+  },
+  inviteCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  inviteTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  inviteBadges: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  inviteActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    marginTop: 4,
+  },
+  invitePrimaryBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 2,
+    backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  invitePrimaryBtnText: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  inviteSecondaryBtn: {
+    flex: 1,
+    minHeight: 40,
+    borderRadius: 12,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  inviteSecondaryBtnText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  inviteBtnPressed: {
+    opacity: 0.82,
+  },
+  inviteBtnDisabled: {
+    opacity: 0.6,
   },
   helper: {
     fontSize: 13,

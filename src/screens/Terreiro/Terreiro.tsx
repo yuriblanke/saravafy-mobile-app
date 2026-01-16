@@ -114,7 +114,7 @@ export default function Terreiro() {
   const membership = membershipQuery.data;
   const myRole = membership.role;
   const isAdminOrEditor =
-    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
+    membership.isActiveMember && (myRole === "admin" || myRole === "curimba");
   const isAdmin = membership.isActiveMember && myRole === "admin";
 
   const wasActiveMemberRef = useRef(false);

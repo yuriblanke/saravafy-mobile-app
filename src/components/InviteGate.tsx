@@ -14,6 +14,7 @@ import {
   Text,
   View,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useInviteGates } from "@/contexts/InviteGatesContext";
@@ -26,7 +27,9 @@ import { colors, radii, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRootNavigationState, useSegments } from "expo-router";
 
-type InviteRole = "admin" | "editor" | "member" | "follower";
+type InviteRole = "admin" | "curimba" | "member" | "follower";
+
+const INVITE_GATE_SNOOZE_KEY_PREFIX = "inviteGate:snoozedInviteIds:v1:";
 
 type TerreiroInvite = {
   id: string;
@@ -63,12 +66,12 @@ async function rpcTerreiroInvite(
   fnName: "accept_terreiro_invite" | "reject_terreiro_invite",
   inviteId: string
 ) {
-  // Prefer `p_invite_id` but fall back to `invite_id`.
+  // Prefer `invite_id` (new signature) but fall back to `p_invite_id`.
   // PostgREST requires the argument names to match the function signature.
-  let rpc: any = await supabase.rpc(fnName, { p_invite_id: inviteId });
+  let rpc: any = await supabase.rpc(fnName, { invite_id: inviteId });
 
-  if (rpc?.error && isRpcFunctionParamMismatch(rpc.error, "p_invite_id")) {
-    rpc = await supabase.rpc(fnName, { invite_id: inviteId });
+  if (rpc?.error && isRpcFunctionParamMismatch(rpc.error, "invite_id")) {
+    rpc = await supabase.rpc(fnName, { p_invite_id: inviteId });
   }
 
   return rpc as any;
@@ -219,6 +222,49 @@ export function InviteGate() {
 
   const priorityInviteIdRef = useRef<string | null>(null);
 
+  const snoozedInviteIdsRef = useRef<Set<string>>(new Set());
+  const snoozeStorageKey = useMemo(() => {
+    if (!normalizedUserEmail) return null;
+    return `${INVITE_GATE_SNOOZE_KEY_PREFIX}${normalizedUserEmail}`;
+  }, [normalizedUserEmail]);
+
+  const persistSnoozedIds = useCallback(
+    async (next: Set<string>) => {
+      if (!snoozeStorageKey) return;
+      try {
+        await AsyncStorage.setItem(
+          snoozeStorageKey,
+          JSON.stringify(Array.from(next))
+        );
+      } catch {
+        // Ignore persistence failures; snooze will still work for this session.
+      }
+    },
+    [snoozeStorageKey]
+  );
+
+  const snoozeInvite = useCallback(
+    async (inviteId: string) => {
+      const next = new Set(snoozedInviteIdsRef.current);
+      next.add(inviteId);
+      snoozedInviteIdsRef.current = next;
+      await persistSnoozedIds(next);
+    },
+    [persistSnoozedIds]
+  );
+
+  const unsnoozeInvite = useCallback(
+    async (inviteId: string) => {
+      const prev = snoozedInviteIdsRef.current;
+      if (!prev.has(inviteId)) return;
+      const next = new Set(prev);
+      next.delete(inviteId);
+      snoozedInviteIdsRef.current = next;
+      await persistSnoozedIds(next);
+    },
+    [persistSnoozedIds]
+  );
+
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textSecondary =
@@ -234,6 +280,41 @@ export function InviteGate() {
   useEffect(() => {
     pendingInvitesRef.current = pendingInvites;
   }, [pendingInvites]);
+
+  useEffect(() => {
+    if (!snoozeStorageKey) {
+      snoozedInviteIdsRef.current = new Set();
+      return;
+    }
+
+    (async () => {
+      try {
+        const raw = await AsyncStorage.getItem(snoozeStorageKey);
+        const parsed = raw ? (JSON.parse(raw) as unknown) : [];
+        const list = Array.isArray(parsed)
+          ? parsed.map((v) => String(v)).filter(Boolean)
+          : [];
+        snoozedInviteIdsRef.current = new Set(list);
+
+        // Filter already-loaded queue (best-effort).
+        const filtered = pendingInvitesRef.current.filter(
+          (i) => !snoozedInviteIdsRef.current.has(i.id)
+        );
+        if (filtered.length !== pendingInvitesRef.current.length) {
+          pendingInvitesRef.current = filtered;
+          setPendingInvites(filtered);
+          setIsBannerVisible(filtered.length > 0);
+
+          if (currentInvite && snoozedInviteIdsRef.current.has(currentInvite.id)) {
+            setCurrentInvite(null);
+            setIsModalVisible(false);
+          }
+        }
+      } catch {
+        snoozedInviteIdsRef.current = new Set();
+      }
+    })();
+  }, [currentInvite, snoozeStorageKey]);
 
   useEffect(() => {
     if (!__DEV__) return;
@@ -346,7 +427,7 @@ export function InviteGate() {
         });
 
         const priorityId = priorityInviteIdRef.current;
-        const next = !priorityId
+        const ordered = !priorityId
           ? list
           : (() => {
               const idx = list.findIndex((i) => i.id === priorityId);
@@ -355,6 +436,10 @@ export function InviteGate() {
               const rest = list.filter((i) => i.id !== priorityId);
               return [head, ...rest];
             })();
+
+        const next = ordered.filter(
+          (i) => !snoozedInviteIdsRef.current.has(i.id)
+        );
 
         lastFetchAtRef.current = Date.now();
         setPendingInvites(next);
@@ -552,6 +637,10 @@ export function InviteGate() {
           const inviteId = typeof row?.id === "string" ? row.id : null;
           if (inviteId) realtimeInviteIdRef.current = inviteId;
 
+          if (inviteId && snoozedInviteIdsRef.current.has(inviteId)) {
+            return;
+          }
+
           if (appStateRef.current === "active") {
             setIsBannerVisible(true);
           }
@@ -563,7 +652,7 @@ export function InviteGate() {
             typeof row?.terreiro_id === "string" &&
             typeof row?.created_at === "string" &&
             (row?.role === "admin" ||
-              row?.role === "editor" ||
+              row?.role === "curimba" ||
               row?.role === "member" ||
               row?.role === "follower")
               ? {
@@ -667,20 +756,25 @@ export function InviteGate() {
       // 1) Atualiza o estado local imediatamente para fechar o modal/banner.
       resolveInviteLocally(currentInvite.id);
 
+      // If this invite was snoozed before, clean it up.
+      await unsnoozeInvite(currentInvite.id);
+
       // 2) Recalcula o warm cache (permissões/terreiros) para refletir o novo role
       // imediatamente, sem precisar reiniciar o app.
       let warmOk = true;
-      try {
-        await fetchTerreirosQueAdministro(userId);
-      } catch (error) {
-        warmOk = false;
-        if (__DEV__) {
-          console.info("[InviteGate] warm cache failed after accept", {
-            userId,
-            inviteId: currentInvite.id,
-            terreiroId: currentInvite.terreiro_id,
-            error: error instanceof Error ? error.message : String(error),
-          });
+      if (currentInvite.role === "admin" || currentInvite.role === "curimba") {
+        try {
+          await fetchTerreirosQueAdministro(userId);
+        } catch (error) {
+          warmOk = false;
+          if (__DEV__) {
+            console.info("[InviteGate] warm cache failed after accept", {
+              userId,
+              inviteId: currentInvite.id,
+              terreiroId: currentInvite.terreiro_id,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
         }
       }
 
@@ -783,6 +877,7 @@ export function InviteGate() {
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
+    unsnoozeInvite,
     userId,
   ]);
 
@@ -848,6 +943,9 @@ export function InviteGate() {
       }
 
       resolveInviteLocally(currentInvite.id);
+
+      // If this invite was snoozed before, clean it up.
+      await unsnoozeInvite(currentInvite.id);
 
       // Revalidar caches que dependem de memberships/terreiros (por via das dúvidas).
       if (userId) {
@@ -920,6 +1018,7 @@ export function InviteGate() {
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
+    unsnoozeInvite,
     userId,
   ]);
 
@@ -935,7 +1034,7 @@ export function InviteGate() {
   const inviteRoleLabel = useMemo(() => {
     const role = currentInvite?.role;
     if (role === "admin") return "Admin do Terreiro";
-    if (role === "editor") return "Editor";
+    if (role === "curimba") return "Curimba";
     if (role === "member") return "Membro";
     if (role === "follower") return "Seguidor";
     return "";
@@ -951,6 +1050,29 @@ export function InviteGate() {
     setDebugInfo(null);
     setIsBannerVisible(pendingInvitesRef.current.length > 0);
   }, []);
+
+  const decideLater = useCallback(() => {
+    const inviteId = currentInvite?.id;
+    if (!inviteId) {
+      closeModalNoSideEffects();
+      return;
+    }
+
+    void (async () => {
+      await snoozeInvite(inviteId);
+
+      const nextQueue = pendingInvitesRef.current.filter((i) => i.id !== inviteId);
+      pendingInvitesRef.current = nextQueue;
+      setPendingInvites(nextQueue);
+
+      setIsModalVisible(false);
+      setCurrentInvite(null);
+      setActionError(null);
+      setDebugInfo(null);
+      setIsBannerVisible(nextQueue.length > 0);
+      setShouldOpenModalWhenReady(false);
+    })();
+  }, [closeModalNoSideEffects, currentInvite?.id, snoozeInvite]);
 
   useEffect(() => {
     const active =
@@ -1131,7 +1253,7 @@ export function InviteGate() {
                   accessibilityRole="button"
                   accessibilityLabel="Decidir depois"
                   disabled={isProcessing}
-                  onPress={closeModalNoSideEffects}
+                  onPress={decideLater}
                   style={({ pressed }) => [
                     styles.tertiaryBtn,
                     pressed ? styles.tertiaryBtnPressed : null,

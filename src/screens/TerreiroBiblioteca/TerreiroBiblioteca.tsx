@@ -263,7 +263,7 @@ export default function TerreiroBiblioteca() {
   const membership = membershipQuery.data;
   const myRole = membership.role;
   const canEdit =
-    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
+    membership.isActiveMember && (myRole === "admin" || myRole === "curimba");
 
   // Se não tiver terreiroId e não for bootStart, mantém o comportamento atual de fallback.
   useEffect(() => {

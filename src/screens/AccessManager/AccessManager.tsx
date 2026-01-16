@@ -40,7 +40,7 @@ type ManagementMember = {
   name: string;
   email: string;
   showEmailLine: boolean;
-  role: "admin" | "editor";
+  role: "admin" | "curimba";
 };
 
 type ManagementInvite = {
@@ -48,7 +48,7 @@ type ManagementInvite = {
   name: string;
   email: string;
   showEmailLine: boolean;
-  role: "admin" | "editor";
+  role: "admin" | "curimba";
   createdAtLabel: string;
 };
 
@@ -78,8 +78,8 @@ function formatTimeAgo(isoString: string | null): string {
   return `${days} dias atrás`;
 }
 
-function getRoleLabel(role: "admin" | "editor"): string {
-  return role === "admin" ? "Admin" : "Editor";
+function getRoleLabel(role: "admin" | "curimba"): string {
+  return role === "admin" ? "Admin" : "Curimba";
 }
 
 export default function AccessManager() {
@@ -126,7 +126,7 @@ export default function AccessManager() {
     const role = membershipQuery.data?.role ?? null;
     const isActive = membershipQuery.data?.isActiveMember ?? false;
 
-    if (isActive && role === "editor") {
+    if (isActive && role === "curimba") {
       showToast("Acesso restrito à administração.");
       router.back();
     }
@@ -146,21 +146,21 @@ export default function AccessManager() {
   const cancelInviteHook = useCancelTerreiroInvite(terreiroId);
   const resendInviteHook = useResendTerreiroInvite();
 
-  // Management members (admin + editor only)
+  // Management members (admin + curimba only)
   const managementMembers = useMemo<ManagementMember[]>(() => {
     if (!membersHook.items) return [];
 
     return membersHook.items
       .filter(
         (m) =>
-          (m.role === "admin" || m.role === "editor") && m.status === "active"
+          (m.role === "admin" || m.role === "curimba") && m.status === "active"
       )
       .map((m) => {
         const profile = membersHook.profilesById[m.user_id];
         const email = (profile?.email ?? "").trim() || "Email indisponível";
         const fullName = (profile?.full_name ?? "").trim();
-        const name = fullName ? fullName : email;
-        const showEmailLine = !!fullName;
+        const name = fullName ? fullName : "Pessoa";
+        const showEmailLine = false;
 
         return {
           id: m.user_id,
@@ -168,31 +168,31 @@ export default function AccessManager() {
           name,
           email,
           showEmailLine,
-          role: m.role as "admin" | "editor",
+          role: m.role as "admin" | "curimba",
         };
       });
   }, [membersHook.items, membersHook.profilesById]);
 
-  // Management invites (admin + editor only)
+  // Management invites (admin + curimba only)
   const managementInvites = useMemo<ManagementInvite[]>(() => {
     if (!invitesHook.pending) return [];
 
     return invitesHook.pending
-      .filter((inv) => inv.role === "admin" || inv.role === "editor")
+      .filter((inv) => inv.role === "admin" || inv.role === "curimba")
       .map((inv) => {
         const email = String(inv.email ?? "").trim();
         const profile =
           invitesHook.profilesByEmailLower[normalizeEmailLower(email)];
         const fullName = (profile?.full_name ?? "").trim();
-        const name = fullName ? fullName : email;
-        const showEmailLine = !!fullName;
+        const name = fullName ? fullName : "Convidado";
+        const showEmailLine = false;
 
         return {
           id: inv.id,
           name,
           email,
           showEmailLine,
-          role: inv.role as "admin" | "editor",
+          role: inv.role as "admin" | "curimba",
           createdAtLabel: formatTimeAgo(inv.created_at ?? null),
         };
       });
@@ -206,7 +206,7 @@ export default function AccessManager() {
 
   const [isInviteSheetOpen, setIsInviteSheetOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteRole, setInviteRole] = useState<"admin" | "editor">("admin");
+  const [inviteRole, setInviteRole] = useState<"admin" | "curimba">("admin");
   const [inviteError, setInviteError] = useState("");
   const [isSubmittingInvite, setIsSubmittingInvite] = useState(false);
 
@@ -263,7 +263,7 @@ export default function AccessManager() {
 
   const handleToggleRole = useCallback(
     (member: ManagementMember) => {
-      const newRole = member.role === "admin" ? "editor" : "admin";
+      const newRole = member.role === "admin" ? "curimba" : "admin";
 
       setConfirmSheet({
         title: "Alterar papel na gestão",
@@ -407,12 +407,12 @@ export default function AccessManager() {
       const roleLabel =
         dup.role === "admin"
           ? "administrador"
-          : dup.role === "editor"
-          ? "editor"
+          : dup.role === "curimba"
+          ? "curimba"
           : "membro";
 
       const hint =
-        dup.role === "admin" || dup.role === "editor"
+        dup.role === "admin" || dup.role === "curimba"
           ? "Vá em Convites enviados e cancele."
           : "Vá em Membros do terreiro e cancele.";
 
@@ -459,7 +459,7 @@ export default function AccessManager() {
   }, [router]);
 
   if (!canManage) {
-    if (membership.isActiveMember && myRole === "editor") {
+    if (membership.isActiveMember && myRole === "curimba") {
       return <View style={[styles.screen, { backgroundColor: baseBgColor }]} />;
     }
 
@@ -759,7 +759,7 @@ export default function AccessManager() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                setInviteRole("editor");
+                setInviteRole("curimba");
                 setIsRoleSelectOpen(false);
               }}
               style={({ pressed }) => [
@@ -768,7 +768,7 @@ export default function AccessManager() {
               ]}
             >
               <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Editor
+                Curimba
               </Text>
             </Pressable>
           </View>

@@ -39,7 +39,7 @@ export default function EditTerreiroCollectionsScreen() {
   const membership = membershipQuery.data;
   const myRole = membership.role;
   const canEdit =
-    membership.isActiveMember && (myRole === "admin" || myRole === "editor");
+    membership.isActiveMember && (myRole === "admin" || myRole === "curimba");
 
   useEffect(() => {
     if (!terreiroId) return;

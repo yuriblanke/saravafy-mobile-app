@@ -51,7 +51,7 @@ function getInitials(value: string | null | undefined) {
 function roleLabel(role: string | null | undefined) {
   const r = typeof role === "string" ? role.trim().toLowerCase() : "";
   if (r === "admin") return "Admin";
-  if (r === "editor") return "Editor";
+  if (r === "curimba") return "Curimba";
   if (r === "member") return "Membro";
   return null;
 }
@@ -137,7 +137,7 @@ export default function TerreiroMembersList() {
 
     const r = String(membership.role);
     const next: TerreiroMembersListTier =
-      r === "admin" || r === "editor"
+      r === "admin" || r === "curimba"
         ? "admins"
         : r === "member"
         ? "members"

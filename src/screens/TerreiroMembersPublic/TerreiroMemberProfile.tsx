@@ -27,7 +27,7 @@ function getInitials(value: string | null | undefined) {
 function roleLabel(role: string | null | undefined) {
   const r = typeof role === "string" ? role.trim().toLowerCase() : "";
   if (r === "admin") return "Admin";
-  if (r === "editor") return "Editor";
+  if (r === "curimba") return "Curimba";
   if (r === "member") return "Membro";
   return null;
 }
@@ -92,7 +92,6 @@ export default function TerreiroMemberProfile() {
       typeof params.member === "string" ? params.member : null
     );
   }, [params.member]);
-
 
   const goBack = useCallback(() => {
     router.back();
@@ -186,7 +185,6 @@ export default function TerreiroMemberProfile() {
                   ) : null}
                 </View>
               </View>
-
             </SurfaceCard>
           </View>
         )}

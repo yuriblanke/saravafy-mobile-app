@@ -9,7 +9,9 @@ import {
 } from "@/src/features/identity/resolveProfiles";
 import { queryKeys } from "@/src/queries/queryKeys";
 
-export type TerreiroAccessRole = "admin" | "editor" | "member";
+export type TerreiroMemberKind = "corrente" | "assistencia";
+
+export type TerreiroAccessRole = "admin" | "curimba" | "member";
 
 export type TerreiroMembershipStatus = {
   role: TerreiroAccessRole | null;
@@ -101,7 +103,7 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
 
       // NOTE: Prefer a lista completa do usuário (shared cache), para que
       // invalidations via Realtime funcionem de forma consistente.
-      const allowedRoles = ["admin", "editor", "member"] as const;
+      const allowedRoles = ["admin", "curimba", "member"] as const;
 
       let res: any = await supabase
         .from("terreiro_members")
@@ -138,7 +140,9 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
 
           const roleRaw = r?.role;
           const role: TerreiroAccessRole | null =
-            roleRaw === "admin" || roleRaw === "editor" || roleRaw === "member"
+            roleRaw === "admin" ||
+            roleRaw === "curimba" ||
+            roleRaw === "member"
               ? roleRaw
               : null;
 
@@ -294,6 +298,7 @@ export type TerreiroMemberRow = {
   terreiro_id: string;
   user_id: string;
   role: TerreiroAccessRole | string;
+  member_kind?: TerreiroMemberKind | null;
   status?: string | null;
   created_at?: string | null;
 };
@@ -303,6 +308,7 @@ export type TerreiroInviteRow = {
   terreiro_id: string;
   email: string;
   role: TerreiroAccessRole | string;
+  member_kind?: TerreiroMemberKind | null;
   status: string;
   created_at?: string | null;
 };
@@ -588,8 +594,9 @@ export async function upsertTerreiroMemberActive(params: {
   terreiroId: string;
   userId: string;
   role: TerreiroAccessRole;
+  memberKind?: TerreiroMemberKind | null;
 }) {
-  const { terreiroId, userId, role } = params;
+  const { terreiroId, userId, role, memberKind } = params;
   if (!terreiroId || !userId) throw new Error("Membership inválida.");
 
   let res: any = await supabase.from("terreiro_members").upsert(
@@ -598,6 +605,7 @@ export async function upsertTerreiroMemberActive(params: {
       user_id: userId,
       role,
       status: "active",
+      ...(memberKind ? { member_kind: memberKind } : null),
     },
     { onConflict: "terreiro_id,user_id" }
   );
@@ -625,14 +633,19 @@ export async function createTerreiroInvite(params: {
   createdBy: string;
   email: string;
   role: TerreiroAccessRole;
+  memberKind?: TerreiroMemberKind | null;
 }) {
   const email = normalizeEmail(params.email);
   if (!email) throw new Error("Informe um e-mail válido.");
+
+  const memberKind =
+    params.role === "member" ? params.memberKind ?? "assistencia" : null;
 
   const res = await supabase.from("terreiro_invites").insert({
     terreiro_id: params.terreiroId,
     email,
     role: params.role,
+    member_kind: memberKind,
     status: "pending",
     created_by: params.createdBy,
   });
@@ -668,14 +681,14 @@ export function useTerreiroMembers(terreiroId: string) {
 
       let res: any = await supabase
         .from("terreiro_members")
-        .select("terreiro_id, user_id, role, status, created_at")
+        .select("terreiro_id, user_id, role, member_kind, status, created_at")
         .eq("terreiro_id", terreiroId)
         .order("created_at", { ascending: true });
 
       if (res.error && isColumnMissingError(res.error, "status")) {
         res = await supabase
           .from("terreiro_members")
-          .select("terreiro_id, user_id, role, created_at")
+          .select("terreiro_id, user_id, role, member_kind, created_at")
           .eq("terreiro_id", terreiroId)
           .order("created_at", { ascending: true });
       }
@@ -694,11 +707,14 @@ export function useTerreiroMembers(terreiroId: string) {
           const tid = typeof r?.terreiro_id === "string" ? r.terreiro_id : "";
           const uid = typeof r?.user_id === "string" ? r.user_id : "";
           const role = typeof r?.role === "string" ? r.role : "";
+          const memberKind =
+            typeof r?.member_kind === "string" ? r.member_kind : null;
           if (!tid || !uid) return null;
           return {
             terreiro_id: tid,
             user_id: uid,
             role,
+            member_kind: memberKind,
             status: typeof r?.status === "string" ? r.status : null,
             created_at: typeof r?.created_at === "string" ? r.created_at : null,
           };
@@ -748,7 +764,7 @@ export function useTerreiroInvites(terreiroId: string) {
 
       const res = await supabase
         .from("terreiro_invites")
-        .select("id, terreiro_id, email, role, status, created_at")
+        .select("id, terreiro_id, email, role, member_kind, status, created_at")
         .eq("terreiro_id", terreiroId)
         .order("created_at", { ascending: false });
 
@@ -767,6 +783,8 @@ export function useTerreiroInvites(terreiroId: string) {
           const tid = typeof r?.terreiro_id === "string" ? r.terreiro_id : "";
           const email = typeof r?.email === "string" ? r.email : "";
           const role = typeof r?.role === "string" ? r.role : "";
+          const memberKind =
+            typeof r?.member_kind === "string" ? r.member_kind : null;
           const status = typeof r?.status === "string" ? r.status : "";
           if (!id || !tid || !email) return null;
           return {
@@ -774,6 +792,7 @@ export function useTerreiroInvites(terreiroId: string) {
             terreiro_id: tid,
             email,
             role,
+            member_kind: memberKind,
             status,
             created_at: typeof r?.created_at === "string" ? r.created_at : null,
           };

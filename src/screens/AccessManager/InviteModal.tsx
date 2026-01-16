@@ -80,7 +80,7 @@ export function InviteModal(props: Props) {
   const { visible, variant, mode, onClose, onSubmit, isSubmitting } = props;
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<AccessRole>("editor");
+  const [role, setRole] = useState<AccessRole>("curimba");
   const [didTrySubmit, setDidTrySubmit] = useState(false);
   const [roleModalOpen, setRoleModalOpen] = useState(false);
 
@@ -93,7 +93,7 @@ export function InviteModal(props: Props) {
     if (mode === "membro") {
       setRole("member");
     } else {
-      setRole("editor");
+      setRole("curimba");
     }
   }, [mode, visible]);
 
@@ -104,7 +104,7 @@ export function InviteModal(props: Props) {
     if (!roleDefs) return [];
     return [
       { key: "admin", label: roleDefs.admin.label, value: "admin" },
-      { key: "editor", label: roleDefs.editor.label, value: "editor" },
+      { key: "curimba", label: roleDefs.curimba.label, value: "curimba" },
     ];
   }, [roleDefs]);
 
@@ -313,7 +313,7 @@ export function InviteModal(props: Props) {
         onClose={() => setRoleModalOpen(false)}
         onSelect={(value) => {
           const v = String(value) as AccessRole;
-          if (v === "admin" || v === "editor") {
+          if (v === "admin" || v === "curimba") {
             setRole(v);
           }
         }}

@@ -1,4 +1,9 @@
 import { supabase } from "@/lib/supabase";
+import {
+  normalizeTerreiroMemberKind,
+  normalizeTerreiroRole,
+  type TerreiroMemberKind,
+} from "@/src/domain/terreiroRoles";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 
@@ -61,7 +66,7 @@ export function useMyTerreiroIdsQuery(userId: string | null) {
   });
 }
 
-export type TerreiroAccessRole = "admin" | "editor" | "member";
+export type TerreiroAccessRole = "admin" | "curimba" | "member";
 
 export function useMyTerreiroAccessIdsQuery(userId: string | null) {
   return useQuery({
@@ -71,7 +76,7 @@ export function useMyTerreiroAccessIdsQuery(userId: string | null) {
     queryFn: async () => {
       if (!userId) return [] as string[];
 
-      const allowedRoles = ["admin", "editor", "member"] as const;
+      const allowedRoles = ["admin", "curimba", "editor", "member"] as const;
 
       let res: any = await supabase
         .from("terreiro_members")
@@ -117,7 +122,7 @@ export async function prefetchMyTerreiroAccessIds(
     queryKey: queryKeys.me.terreiroAccessIds(userId),
     staleTime: 60_000,
     queryFn: async () => {
-      const allowedRoles = ["admin", "editor", "member"] as const;
+      const allowedRoles = ["admin", "curimba", "editor", "member"] as const;
 
       let res: any = await supabase
         .from("terreiro_members")
@@ -153,7 +158,7 @@ export async function prefetchMyTerreiroAccessIds(
   return Array.isArray(data) ? data : [];
 }
 
-export type EditableTerreiroRole = "admin" | "editor";
+export type EditableTerreiroRole = "admin" | "curimba";
 
 export type MyEditableTerreiro = {
   id: string;
@@ -164,13 +169,14 @@ export type MyEditableTerreiro = {
 
 // NOTE: "follower" is not currently part of the terreiro_members access model
 // in the known schema/policies. We intentionally do NOT infer follower here.
-export type MyTerreiroRole = "admin" | "editor" | "member";
+export type MyTerreiroRole = "admin" | "curimba" | "member";
 
 export type MyTerreiroWithRole = {
   id: string;
   title: string;
   cover_image_url: string | null;
   role: MyTerreiroRole;
+  member_kind: TerreiroMemberKind | null;
 };
 
 function safeLocaleCompare(a: string, b: string) {
@@ -196,7 +202,7 @@ async function withTimeout<T>(
 
 type TerreiroMemberEditableRow = {
   terreiro_id: string;
-  role: EditableTerreiroRole;
+  role: string;
   status?: string | null;
 };
 
@@ -217,9 +223,9 @@ async function fetchMyEditableTerreiros(params: {
   editableTerreiroIds?: string[];
 }): Promise<MyEditableTerreiro[]> {
   const { userId } = params;
-  const allowedRoles = ["admin", "editor"] as const;
+  const allowedRoles = ["admin", "curimba", "editor"] as const;
 
-  // 1) memberships (admin/editor)
+  // 1) memberships (admin/curimba)
   // Prefer status='active' when the column exists. When it doesn't, we accept all.
   let usedStatusFilter = true;
   let members: any;
@@ -281,12 +287,12 @@ async function fetchMyEditableTerreiros(params: {
   for (const row of memberRows) {
     const terreiroId =
       typeof row?.terreiro_id === "string" ? row.terreiro_id : "";
-    const role = row?.role;
+    const role = normalizeTerreiroRole(row?.role);
     if (!terreiroId) continue;
-    if (role !== "admin" && role !== "editor") continue;
+    if (role !== "admin" && role !== "curimba") continue;
     // Prefer 'admin' if duplicates happen
     const prev = roleByTerreiroId.get(terreiroId);
-    if (!prev || prev === "editor") {
+    if (!prev || prev === "curimba") {
       roleByTerreiroId.set(terreiroId, role);
     }
   }
@@ -356,13 +362,18 @@ async function fetchMyTerreirosWithRole(params: {
   userId: string;
 }): Promise<MyTerreiroWithRole[]> {
   const { userId } = params;
-  const allowedRoles = ["admin", "editor", "member"] as const;
+  const allowedRoles = ["admin", "curimba", "editor", "member"] as const;
 
-  // 1) memberships (admin/editor/member) + status=active
+  // 1) memberships (admin/curimba/member) + status=active
+  const selectWithStatusAndKind = "terreiro_id, role, status, member_kind";
+  const selectWithStatus = "terreiro_id, role, status";
+  const selectWithKind = "terreiro_id, role, member_kind";
+  const selectBase = "terreiro_id, role";
+
   let members: any = await withTimeout(
     supabase
       .from("terreiro_members")
-      .select("terreiro_id, role, status")
+      .select(selectWithStatusAndKind)
       .eq("user_id", userId)
       .in("role", [...allowedRoles])
       .eq("status", "active"),
@@ -370,16 +381,41 @@ async function fetchMyTerreirosWithRole(params: {
     "Tempo esgotado ao carregar terreiros do usuário."
   );
 
+  if (members.error && isColumnMissingError(members.error, "member_kind")) {
+    members = await withTimeout(
+      supabase
+        .from("terreiro_members")
+        .select(selectWithStatus)
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles])
+        .eq("status", "active"),
+      15_000,
+      "Tempo esgotado ao carregar terreiros do usuário."
+    );
+  }
+
   if (members.error && isColumnMissingError(members.error, "status")) {
     members = await withTimeout(
       supabase
         .from("terreiro_members")
-        .select("terreiro_id, role")
+        .select(selectWithKind)
         .eq("user_id", userId)
         .in("role", [...allowedRoles]),
       15_000,
       "Tempo esgotado ao carregar terreiros do usuário."
     );
+
+    if (members.error && isColumnMissingError(members.error, "member_kind")) {
+      members = await withTimeout(
+        supabase
+          .from("terreiro_members")
+          .select(selectBase)
+          .eq("user_id", userId)
+          .in("role", [...allowedRoles]),
+        15_000,
+        "Tempo esgotado ao carregar terreiros do usuário."
+      );
+    }
   }
 
   if (members.error) {
@@ -390,36 +426,67 @@ async function fetchMyTerreirosWithRole(params: {
     throw new Error(message);
   }
 
-  const memberRows = (members.data ?? []) as TerreiroMemberRoleRow[];
-  const roleByTerreiroId = new Map<string, MyTerreiroRole>();
+  const memberRows = (members.data ?? []) as Array<
+    TerreiroMemberRoleRow & { member_kind?: unknown }
+  >;
+  const infoByTerreiroId = new Map<
+    string,
+    { role: MyTerreiroRole; member_kind: TerreiroMemberKind | null }
+  >();
   for (const row of memberRows) {
     const terreiroId =
       typeof row?.terreiro_id === "string" ? row.terreiro_id : "";
     const rawRole = typeof row?.role === "string" ? row.role : "";
     if (!terreiroId) continue;
-    if (rawRole !== "admin" && rawRole !== "editor" && rawRole !== "member") {
-      continue;
-    }
+    const normalized = normalizeTerreiroRole(rawRole);
+    if (!normalized) continue;
+
+    const nextKind =
+      normalized === "member"
+        ? normalizeTerreiroMemberKind(row.member_kind)
+        : null;
 
     // Prefer strongest role if duplicates happen
-    const prev = roleByTerreiroId.get(terreiroId);
-    const next = rawRole as MyTerreiroRole;
+    const prev = infoByTerreiroId.get(terreiroId);
+    const nextRole = normalized as MyTerreiroRole;
     if (!prev) {
-      roleByTerreiroId.set(terreiroId, next);
+      infoByTerreiroId.set(terreiroId, {
+        role: nextRole,
+        member_kind: nextKind,
+      });
       continue;
     }
 
-    if (prev === "member" && (next === "admin" || next === "editor")) {
-      roleByTerreiroId.set(terreiroId, next);
+    if (
+      prev.role === "member" &&
+      (nextRole === "admin" || nextRole === "curimba")
+    ) {
+      infoByTerreiroId.set(terreiroId, {
+        role: nextRole,
+        member_kind: null,
+      });
       continue;
     }
-    if (prev === "editor" && next === "admin") {
-      roleByTerreiroId.set(terreiroId, next);
+    if (prev.role === "curimba" && nextRole === "admin") {
+      infoByTerreiroId.set(terreiroId, {
+        role: nextRole,
+        member_kind: null,
+      });
       continue;
+    }
+
+    // Same role: keep member_kind if it becomes available.
+    if (prev.role === "member" && nextRole === "member" && !prev.member_kind) {
+      if (nextKind) {
+        infoByTerreiroId.set(terreiroId, {
+          role: "member",
+          member_kind: nextKind,
+        });
+      }
     }
   }
 
-  const terreiroIds = Array.from(roleByTerreiroId.keys());
+  const terreiroIds = Array.from(infoByTerreiroId.keys());
   if (terreiroIds.length === 0) return [];
 
   // 2) terreiros data (minimal fields for rendering)
@@ -459,15 +526,16 @@ async function fetchMyTerreirosWithRole(params: {
       const id = typeof t?.id === "string" ? t.id : "";
       const title = typeof t?.title === "string" ? t.title : "";
       if (!id || !title) return null;
-      const role = roleByTerreiroId.get(id);
-      if (!role) return null;
+      const info = infoByTerreiroId.get(id);
+      if (!info) return null;
 
       return {
         id,
         title,
         cover_image_url:
           typeof t.cover_image_url === "string" ? t.cover_image_url : null,
-        role,
+        role: info.role,
+        member_kind: info.role === "member" ? info.member_kind : null,
       } satisfies MyTerreiroWithRole;
     })
     .filter((x): x is MyTerreiroWithRole => !!x)

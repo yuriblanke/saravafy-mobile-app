@@ -37,13 +37,13 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
   const dangerColor = colors.danger;
 
   const canAdmin = target?.role === "admin";
-  const canEditor = target?.role === "editor";
-  const canLeaveRole = canAdmin || canEditor;
+  const canCurimba = target?.role === "curimba";
+  const canLeaveRole = canAdmin || canCurimba;
   const canLeaveTerreiro = target?.role === "member";
 
   const leaveRoleActionLabel = useMemo(() => {
     if (target?.role === "admin") return "Sair do papel de admin";
-    if (target?.role === "editor") return "Sair do papel de editor";
+    if (target?.role === "curimba") return "Sair do papel de curimba";
     return "Sair do papel";
   }, [target?.role]);
 
@@ -65,7 +65,7 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
   const leaveRoleTitle = useMemo(() => {
     if (!leaveRoleTarget) return "Sair do papel?";
     if (leaveRoleTarget.role === "admin") return "Sair do papel de admin?";
-    if (leaveRoleTarget.role === "editor") return "Sair do papel de editor(a)?";
+    if (leaveRoleTarget.role === "curimba") return "Sair do papel de curimba?";
     return "Sair do papel?";
   }, [leaveRoleTarget]);
 
@@ -75,7 +75,7 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
 
   const requestLeaveRole = useCallback(() => {
     if (!target) return;
-    if (!(target.role === "admin" || target.role === "editor")) return;
+    if (!(target.role === "admin" || target.role === "curimba")) return;
     // Close sheet first, then open modal.
     onClose();
     setTimeout(() => {
@@ -103,7 +103,7 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
 
     const t = leaveRoleTarget;
     if (!t) return;
-    if (!(t.role === "admin" || t.role === "editor")) return;
+    if (!(t.role === "admin" || t.role === "curimba")) return;
 
     setLeaveRoleBusy(true);
     try {

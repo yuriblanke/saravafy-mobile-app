@@ -17,6 +17,10 @@ import {
 } from "@/src/components/preferences";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
+import {
+  formatTerreiroMemberKindLabel,
+  formatTerreiroRoleLabel,
+} from "@/src/domain/terreiroRoles";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
@@ -25,10 +29,15 @@ import {
   type MyTerreiroRole,
   type MyTerreiroWithRole,
 } from "@/src/queries/me";
+import {
+  usePendingTerreiroInvitesForInviteeQuery,
+  type PendingTerreiroInvite,
+} from "@/src/queries/pendingTerreiroInvites";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
@@ -70,19 +79,9 @@ function getDisplayName(value: string | undefined) {
   return raw;
 }
 
-type InviteRole = "admin" | "editor" | "member" | "follower";
-
 type PendingCuratorInvite = {
   id: string;
   created_at: string;
-};
-
-type PendingTerreiroInvite = {
-  id: string;
-  terreiro_id: string;
-  role: InviteRole;
-  created_at: string;
-  terreiro_title?: string | null;
 };
 
 function isColumnMissingError(message: string, columnName: string) {
@@ -106,17 +105,59 @@ function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
   );
 }
 
-function getInviteRoleLabel(role: InviteRole): string {
-  if (role === "admin") return "Admin";
-  if (role === "editor") return "Editor";
-  if (role === "member") return "Membro";
-  return "Seguidora";
+function getInviteRoleLabel(role: unknown): string {
+  return formatTerreiroRoleLabel(role);
 }
 
 function normalizeEmail(value: string) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
+}
+
+const INVITE_GATE_SNOOZE_KEY_PREFIX = "inviteGate:snoozedInviteIds:v1:";
+
+function getInviteGateSnoozeKey(emailLower: string) {
+  return `${INVITE_GATE_SNOOZE_KEY_PREFIX}${emailLower}`;
+}
+
+async function loadInviteGateSnoozedInviteIds(emailLower: string) {
+  const key = getInviteGateSnoozeKey(emailLower);
+  const raw = await AsyncStorage.getItem(key);
+  if (!raw) return new Set<string>();
+
+  try {
+    const parsed = JSON.parse(raw);
+    const arr = Array.isArray(parsed) ? parsed : [];
+    return new Set(arr.map((x) => String(x)).filter(Boolean));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+async function saveInviteGateSnoozedInviteIds(
+  emailLower: string,
+  inviteIds: Set<string>
+) {
+  const key = getInviteGateSnoozeKey(emailLower);
+  await AsyncStorage.setItem(key, JSON.stringify(Array.from(inviteIds)));
+}
+
+async function snoozeInviteGateInviteId(emailLower: string, inviteId: string) {
+  const next = await loadInviteGateSnoozedInviteIds(emailLower);
+  next.add(inviteId);
+  await saveInviteGateSnoozedInviteIds(emailLower, next);
+  return next;
+}
+
+async function unsnoozeInviteGateInviteId(
+  emailLower: string,
+  inviteId: string
+) {
+  const next = await loadInviteGateSnoozedInviteIds(emailLower);
+  next.delete(inviteId);
+  await saveInviteGateSnoozedInviteIds(emailLower, next);
+  return next;
 }
 
 function getFriendlyActionError(message: string) {
@@ -171,7 +212,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const pathname = usePathname();
   const segments = useSegments() as string[];
   const tabController = useTabController();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
   const { effectiveTheme } = usePreferences();
 
   const variant = effectiveTheme;
@@ -478,7 +519,7 @@ export function PreferencesOverlaySheets(
   const closeTerreiroMenu = () => setTerreiroMenuTarget(null);
 
   const openTerreiroMenu = (item: MyTerreiroWithRole) => {
-    if (item.role !== "admin" && item.role !== "editor") return;
+    if (item.role !== "admin" && item.role !== "curimba") return;
     setTerreiroMenuTarget(item);
   };
 
@@ -521,76 +562,9 @@ export function PreferencesOverlaySheets(
     },
   });
 
-  const terreiroInvitesQuery = useQuery({
-    queryKey: normalizedUserEmail
-      ? queryKeys.terreiroInvites.pendingForInvitee(normalizedUserEmail)
-      : (["terreiroInvites", "pendingForInvitee", null] as const),
-    enabled: !!userId && !!normalizedUserEmail && isOpen,
-    staleTime: 0,
-    queryFn: async () => {
-      if (!normalizedUserEmail) return [] as PendingTerreiroInvite[];
-
-      const selectWithTitle =
-        "id, terreiro_id, role, created_at, terreiro:terreiros(title)";
-      const selectWithName =
-        "id, terreiro_id, role, created_at, terreiro:terreiros(name)";
-
-      let res: any = await supabase
-        .from("terreiro_invites")
-        .select(selectWithTitle)
-        .eq("status", "pending")
-        .eq("email", normalizedUserEmail)
-        .order("created_at", { ascending: true });
-
-      if (res.error && isColumnMissingError(res.error.message, "title")) {
-        res = await supabase
-          .from("terreiro_invites")
-          .select(selectWithName)
-          .eq("status", "pending")
-          .eq("email", normalizedUserEmail)
-          .order("created_at", { ascending: true });
-      }
-
-      if (res.error) {
-        if (__DEV__) {
-          console.warn(
-            "[PreferencesInvites] terreiro_invites error",
-            res.error
-          );
-        }
-        return [] as PendingTerreiroInvite[];
-      }
-
-      const rows: any[] = Array.isArray(res.data) ? res.data : [];
-      return rows
-        .map((row) => {
-          const role = String(row?.role ?? "");
-          const roleOk =
-            role === "admin" ||
-            role === "editor" ||
-            role === "member" ||
-            role === "follower";
-
-          if (!row?.id || !row?.terreiro_id || !roleOk) return null;
-
-          const terreiroTitle =
-            typeof row?.terreiro?.title === "string"
-              ? row.terreiro.title
-              : typeof row?.terreiro?.name === "string"
-              ? row.terreiro.name
-              : null;
-
-          const invite: PendingTerreiroInvite = {
-            id: String(row.id),
-            terreiro_id: String(row.terreiro_id),
-            role: role as InviteRole,
-            created_at: String(row.created_at ?? new Date().toISOString()),
-            terreiro_title: terreiroTitle,
-          };
-          return invite;
-        })
-        .filter(Boolean) as PendingTerreiroInvite[];
-    },
+  const terreiroInvitesQuery = usePendingTerreiroInvitesForInviteeQuery({
+    normalizedEmail: normalizedUserEmail,
+    enabled: !!userId && isOpen,
   });
 
   const [inviteProcessingKey, setInviteProcessingKey] = useState<string | null>(
@@ -654,7 +628,7 @@ export function PreferencesOverlaySheets(
 
   const requestLeaveRole = async (item: MyTerreiroWithRole) => {
     if (!userId) return;
-    if (item.role !== "admin" && item.role !== "editor") return;
+    if (item.role !== "admin" && item.role !== "curimba") return;
 
     if (item.role === "admin") {
       const count = await countActiveAdmins(item.id);
@@ -765,7 +739,7 @@ export function PreferencesOverlaySheets(
       showToast(
         leaveRoleTarget.role === "admin"
           ? "Você deixou de ser admin deste terreiro."
-          : "Você deixou de ser editor(a) deste terreiro."
+          : "Você deixou de ser curimba deste terreiro."
       );
       closeLeaveRoleModal();
     } finally {
@@ -835,7 +809,38 @@ export function PreferencesOverlaySheets(
   };
 
   const pendingCuratorInvite = curatorInviteQuery.data ?? null;
-  const pendingTerreiroInvites = terreiroInvitesQuery.data ?? [];
+  const pendingTerreiroInvites = useMemo(
+    () => terreiroInvitesQuery.data ?? [],
+    [terreiroInvitesQuery.data]
+  );
+
+  const [inviteGateSnoozedInviteIds, setInviteGateSnoozedInviteIds] =
+    useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!normalizedUserEmail) {
+      setInviteGateSnoozedInviteIds(new Set());
+      return;
+    }
+
+    let cancelled = false;
+    void loadInviteGateSnoozedInviteIds(normalizedUserEmail).then((ids) => {
+      if (cancelled) return;
+      setInviteGateSnoozedInviteIds(ids);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [normalizedUserEmail]);
+
+  const visiblePendingTerreiroInvites = useMemo(
+    () =>
+      pendingTerreiroInvites.filter(
+        (i) => !inviteGateSnoozedInviteIds.has(String(i?.id ?? ""))
+      ),
+    [inviteGateSnoozedInviteIds, pendingTerreiroInvites]
+  );
 
   const curatorInvitesAdminQuery = useQuery({
     queryKey: ["curatorInvites", "adminList"],
@@ -983,18 +988,27 @@ export function PreferencesOverlaySheets(
     setInviteProcessingKey(`terreiro:${invite.id}`);
     try {
       let res: any = await supabase.rpc("accept_terreiro_invite", {
-        p_invite_id: invite.id,
+        invite_id: invite.id,
       });
 
-      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_invite_id")) {
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "invite_id")) {
         res = await supabase.rpc("accept_terreiro_invite", {
-          invite_id: invite.id,
+          p_invite_id: invite.id,
         });
       }
 
       if (res?.error) throw res.error;
       if (res?.data === false)
         throw new Error("accept_terreiro_invite returned false");
+
+      if (normalizedUserEmail) {
+        setInviteGateSnoozedInviteIds((prev) => {
+          const next = new Set(prev);
+          next.delete(invite.id);
+          return next;
+        });
+        void unsnoozeInviteGateInviteId(normalizedUserEmail, invite.id);
+      }
 
       // Optimistic: remove invite from list immediately
       if (normalizedUserEmail) {
@@ -1010,7 +1024,7 @@ export function PreferencesOverlaySheets(
       // Optimistic: add terreiro to "Meus terreiros" immediately (when applicable)
       if (
         invite.role === "admin" ||
-        invite.role === "editor" ||
+        invite.role === "curimba" ||
         invite.role === "member"
       ) {
         queryClient.setQueryData(
@@ -1030,8 +1044,8 @@ export function PreferencesOverlaySheets(
                 role:
                   invite.role === "admin"
                     ? "admin"
-                    : invite.role === "editor"
-                    ? "editor"
+                    : invite.role === "curimba"
+                    ? "curimba"
                     : "member",
               },
             ];
@@ -1040,7 +1054,7 @@ export function PreferencesOverlaySheets(
       }
 
       let warmOk = true;
-      if (invite.role === "admin" || invite.role === "editor") {
+      if (invite.role === "admin" || invite.role === "curimba") {
         try {
           await fetchTerreirosQueAdministro(userId);
         } catch {
@@ -1114,18 +1128,27 @@ export function PreferencesOverlaySheets(
     setInviteProcessingKey(`terreiro:${invite.id}`);
     try {
       let res: any = await supabase.rpc("reject_terreiro_invite", {
-        p_invite_id: invite.id,
+        invite_id: invite.id,
       });
 
-      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_invite_id")) {
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "invite_id")) {
         res = await supabase.rpc("reject_terreiro_invite", {
-          invite_id: invite.id,
+          p_invite_id: invite.id,
         });
       }
 
       if (res?.error) throw res.error;
       if (res?.data === false)
         throw new Error("reject_terreiro_invite returned false");
+
+      if (normalizedUserEmail) {
+        setInviteGateSnoozedInviteIds((prev) => {
+          const next = new Set(prev);
+          next.delete(invite.id);
+          return next;
+        });
+        void unsnoozeInviteGateInviteId(normalizedUserEmail, invite.id);
+      }
 
       // Optimistic: remove invite from list immediately
       if (normalizedUserEmail) {
@@ -1445,9 +1468,9 @@ export function PreferencesOverlaySheets(
             ) : null}
 
             {!userId ||
-            !normalizedUserEmail ? null : pendingTerreiroInvites.length ? (
+            !normalizedUserEmail ? null : visiblePendingTerreiroInvites.length ? (
               <View style={styles.invitesList}>
-                {pendingTerreiroInvites.map((invite) => {
+                {visiblePendingTerreiroInvites.map((invite) => {
                   const terreiroTitle =
                     typeof invite.terreiro_title === "string" &&
                     invite.terreiro_title.trim()
@@ -1470,14 +1493,41 @@ export function PreferencesOverlaySheets(
                       >
                         Convite para: {terreiroTitle}
                       </Text>
-                      <Text
-                        style={[styles.inviteBody, { color: textSecondary }]}
-                        numberOfLines={3}
-                      >
-                        Função: {getInviteRoleLabel(invite.role)}
-                      </Text>
 
-                      <View style={styles.inviteActions}>
+                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                        <Badge
+                          label={getInviteRoleLabel(invite.role)}
+                          variant={variant}
+                          appearance={
+                            invite.role === "admin" ? "primary" : "secondary"
+                          }
+                          style={{ alignSelf: "flex-start" }}
+                        />
+
+                        {invite.role === "member" ? (
+                          (() => {
+                            const label = formatTerreiroMemberKindLabel(
+                              (invite as any)?.member_kind
+                            );
+                            if (!label) return null;
+                            return (
+                              <Badge
+                                label={label}
+                                variant={variant}
+                                appearance="secondary"
+                                style={{ alignSelf: "flex-start" }}
+                              />
+                            );
+                          })()
+                        ) : null}
+                      </View>
+
+                      <View
+                        style={[
+                          styles.inviteActions,
+                          { flexDirection: "column", alignItems: "stretch" },
+                        ]}
+                      >
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel="Aceitar convite"
@@ -1485,7 +1535,7 @@ export function PreferencesOverlaySheets(
                           onPress={() => void acceptTerreiroInvite(invite)}
                           style={({ pressed }) => [
                             styles.invitePrimaryBtn,
-                            { borderColor: colors.brass600 },
+                            { borderColor: colors.brass600, flex: 0 },
                             pressed ? styles.inviteBtnPressed : null,
                             processing ? styles.inviteBtnDisabled : null,
                           ]}
@@ -1495,28 +1545,68 @@ export function PreferencesOverlaySheets(
                           </Text>
                         </Pressable>
 
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Recusar convite"
-                          disabled={processing}
-                          onPress={() => void rejectTerreiroInvite(invite)}
-                          style={({ pressed }) => [
-                            styles.inviteSecondaryBtn,
-                            { borderColor: inputBorder },
-                            pressed ? styles.inviteBtnPressed : null,
-                            processing ? styles.inviteBtnDisabled : null,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.inviteSecondaryBtnText,
-                              { color: textPrimary },
+                        <View style={styles.inviteActions}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Recusar convite"
+                            disabled={processing}
+                            onPress={() => void rejectTerreiroInvite(invite)}
+                            style={({ pressed }) => [
+                              styles.inviteSecondaryBtn,
+                              { borderColor: inputBorder, flex: 1 },
+                              pressed ? styles.inviteBtnPressed : null,
+                              processing ? styles.inviteBtnDisabled : null,
                             ]}
-                            numberOfLines={1}
                           >
-                            Recusar convite
-                          </Text>
-                        </Pressable>
+                            <Text
+                              style={[
+                                styles.inviteSecondaryBtnText,
+                                { color: textPrimary },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              Recusar
+                            </Text>
+                          </Pressable>
+
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Decidir depois"
+                            disabled={processing}
+                            onPress={() => {
+                              if (!normalizedUserEmail) return;
+
+                              setInviteGateSnoozedInviteIds((prev) => {
+                                const next = new Set(prev);
+                                next.add(invite.id);
+                                return next;
+                              });
+
+                              void snoozeInviteGateInviteId(
+                                normalizedUserEmail,
+                                invite.id
+                              );
+
+                              showToast("Tudo bem. Você pode decidir depois.");
+                            }}
+                            style={({ pressed }) => [
+                              styles.inviteSecondaryBtn,
+                              { borderColor: inputBorder, flex: 1 },
+                              pressed ? styles.inviteBtnPressed : null,
+                              processing ? styles.inviteBtnDisabled : null,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.inviteSecondaryBtnText,
+                                { color: textPrimary },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              Decidir depois
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
                   );
@@ -1564,26 +1654,44 @@ export function PreferencesOverlaySheets(
                     avatarUrl={t.cover_image_url ?? undefined}
                     initials={getInitials(t.title)}
                     subtitle={
-                      <View style={{ marginTop: 4 }}>
+                      <View
+                        style={{
+                          marginTop: 4,
+                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          gap: 8,
+                        }}
+                      >
                         <Badge
-                          label={
-                            t.role === "admin"
-                              ? "Admin"
-                              : t.role === "editor"
-                              ? "Editor"
-                              : "Membro"
-                          }
+                          label={formatTerreiroRoleLabel(t.role)}
                           variant={variant}
                           appearance={
                             t.role === "admin" ? "primary" : "secondary"
                           }
                           style={{ alignSelf: "flex-start" }}
                         />
+
+                        {t.role === "member" ? (
+                          (() => {
+                            const label = formatTerreiroMemberKindLabel(
+                              (t as any)?.member_kind
+                            );
+                            if (!label) return null;
+                            return (
+                              <Badge
+                                label={label}
+                                variant={variant}
+                                appearance="secondary"
+                                style={{ alignSelf: "flex-start" }}
+                              />
+                            );
+                          })()
+                        ) : null}
                       </View>
                     }
                     showEditButton={false}
                     rightAccessory={
-                      t.role === "admin" || t.role === "editor" ? (
+                      t.role === "admin" || t.role === "curimba" ? (
                         <Pressable
                           accessibilityRole="button"
                           accessibilityLabel="Mais ações"
@@ -2144,7 +2252,7 @@ export function PreferencesOverlaySheets(
                 </Text>
               </Pressable>
             </>
-          ) : terreiroMenuTarget?.role === "editor" ? (
+          ) : terreiroMenuTarget?.role === "curimba" ? (
             <Pressable
               accessibilityRole="button"
               onPress={() => {
@@ -2161,7 +2269,7 @@ export function PreferencesOverlaySheets(
               <Text
                 style={[styles.terreiroMenuItemText, { color: colors.danger }]}
               >
-                Sair do papel de editor(a)
+                Sair do papel de curimba
               </Text>
             </Pressable>
           ) : terreiroMenuTarget?.role === "member" ? (
@@ -2233,7 +2341,7 @@ export function PreferencesOverlaySheets(
             >
               {leaveRoleTarget?.role === "admin"
                 ? "Sair do papel de admin?"
-                : "Sair do papel de editor(a)?"}
+                : "Sair do papel de curimba?"}
             </Text>
 
             <Text

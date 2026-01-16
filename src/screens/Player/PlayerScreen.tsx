@@ -116,7 +116,7 @@ export default function PlayerScreen() {
   const canEditCustomTags =
     !!terreiroId &&
     membership.data.isActiveMember &&
-    (myTerreiroRole === "admin" || myTerreiroRole === "editor");
+    (myTerreiroRole === "admin" || myTerreiroRole === "curimba");
 
   const pontoIds = useMemo(() => {
     return items.map((it) => it.ponto.id).filter(Boolean);

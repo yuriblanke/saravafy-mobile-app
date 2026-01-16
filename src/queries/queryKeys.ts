@@ -26,7 +26,7 @@ export const queryKeys = {
       ["terreiro", terreiroId, "membershipRequests"] as const,
   },
   preferences: {
-    // Terreiros visíveis no menu Preferences (admin/editor/member ativos)
+    // Terreiros visíveis no menu Preferences (admin/curimba/member ativos; editor é alias)
     terreiros: (userId: string) =>
       ["preferences", "terreiros", userId] as const,
   },

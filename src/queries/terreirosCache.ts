@@ -55,7 +55,7 @@ export function patchTerreiroInLists(
       phoneDigits?: string | null;
       phoneIsWhatsApp?: boolean | null;
       instagramHandle?: string | null;
-      role?: "admin" | "editor" | "member" | "follower";
+      role?: "admin" | "curimba" | "member" | "follower";
     };
   }
 ) {
@@ -141,7 +141,7 @@ export function patchTerreiroInLists(
 
     const role =
       terreiro.role === "admin" ||
-      terreiro.role === "editor" ||
+      terreiro.role === "curimba" ||
       terreiro.role === "member"
         ? terreiro.role
         : idx >= 0
@@ -178,7 +178,7 @@ export function patchTerreiroInLists(
     return next;
   });
 
-  // Patch editable terreiros list (admin/editor) if present.
+  // Patch editable terreiros list (admin/curimba) if present.
   const editableKey = queryKeys.me.editableTerreiros(userId);
   const prevEditable = queryClient.getQueryData(editableKey) as any;
 
@@ -218,7 +218,7 @@ export function patchTerreiroInLists(
         ...(hasInstagramHandleField
           ? { instagramHandle: terreiro.instagramHandle }
           : null),
-        role: terreiro.role === "editor" ? "editor" : "admin",
+        role: terreiro.role === "curimba" ? "curimba" : "admin",
       });
     }
 

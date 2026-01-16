@@ -11,7 +11,7 @@ type MemberChangeRow = {
 };
 
 function normalizeRole(value: unknown) {
-  if (value === "admin" || value === "editor" || value === "member") {
+  if (value === "admin" || value === "curimba" || value === "member") {
     return value;
   }
   return null;

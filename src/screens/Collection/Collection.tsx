@@ -235,7 +235,7 @@ export default function Collection() {
   const canEditCustomTags =
     !!terreiroId &&
     membership.data.isActiveMember &&
-    (myRole === "admin" || myRole === "editor");
+    (myRole === "admin" || myRole === "curimba");
 
   const isLoggedIn = !!user?.id;
   const isMember = membership.data.isActiveMember;
@@ -436,7 +436,7 @@ export default function Collection() {
       collection.owner_user_id === user.id) ||
     (!!terreiroId &&
       membership.data.isActiveMember &&
-      (myRole === "admin" || myRole === "editor"));
+      (myRole === "admin" || myRole === "curimba"));
 
   const openEdit = useCallback(() => {
     if (!collectionId) return;

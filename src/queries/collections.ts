@@ -194,7 +194,7 @@ export async function fetchEditableTerreiroIds(
 ): Promise<string[]> {
   if (!userId) return [];
 
-  const allowedRoles = ["admin", "editor"] as const;
+  const allowedRoles = ["admin", "curimba"] as const;
 
   let res: any = await supabase
     .from("terreiro_members")

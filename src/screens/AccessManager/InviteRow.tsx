@@ -10,7 +10,7 @@ import {
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 
-export type AccessRole = "admin" | "editor" | "member";
+export type AccessRole = "admin" | "curimba" | "member";
 export type InviteStatus = "pending" | "accepted" | "rejected" | string;
 
 function roleLabel(role: AccessRole) {

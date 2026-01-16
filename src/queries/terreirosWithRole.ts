@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { queryKeys } from "./queryKeys";
 
-export type TerreiroTabRole = "admin" | "editor" | "member" | "follower";
+export type TerreiroTabRole = "admin" | "curimba" | "member" | "follower";
 
 type TerreiroContatoRow = {
   terreiro_id?: string;
@@ -186,7 +186,7 @@ export async function fetchTerreirosWithRole(
 
     let role: TerreiroTabRole = "follower";
     const r = match?.role;
-    if (r === "admin" || r === "editor" || r === "member" || r === "follower") {
+    if (r === "admin" || r === "curimba" || r === "member" || r === "follower") {
       role = r;
     }
 

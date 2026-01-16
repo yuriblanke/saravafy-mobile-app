@@ -15,7 +15,7 @@ import { supabase } from "@/lib/supabase";
 export type ThemeMode = "system" | "light" | "dark";
 export type ThemeVariant = "light" | "dark";
 
-export type TerreiroRole = "admin" | "editor" | "member" | "follower";
+export type TerreiroRole = "admin" | "curimba" | "member" | "follower";
 
 export type ManagedTerreiro = {
   id: string;
@@ -127,7 +127,7 @@ export async function fetchTerreirosQueAdministro(userId: string) {
   }
 
   // If membership RLS is broken (recursive policy), fall back to terreiros created
-  // by the user. This doesn't cover "editor" access, but keeps the app usable.
+  // by the user. This doesn't cover "curimba" access, but keeps the app usable.
   if (members.error && isTerreiroMembersPolicyRecursionError(members.error)) {
     let created: any = await supabase
       .from("terreiros")
@@ -386,10 +386,10 @@ export async function fetchTerreirosQueAdministro(userId: string) {
     );
   }
 
-  const roleByTerreiroId = new Map<string, "admin" | "editor">();
+  const roleByTerreiroId = new Map<string, "admin" | "curimba">();
   for (const row of memberRows) {
     const role = row.role;
-    if (role !== "admin" && role !== "editor") continue;
+    if (role !== "admin" && role !== "curimba") continue;
     const prev = roleByTerreiroId.get(row.terreiro_id);
     if (!prev || prev !== "admin") {
       roleByTerreiroId.set(row.terreiro_id, role);
