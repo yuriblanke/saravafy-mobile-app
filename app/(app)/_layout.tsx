@@ -7,12 +7,8 @@ import {
   TabControllerProvider,
   useTabController,
 } from "@/contexts/TabControllerContext";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
-import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
-import {
-  SaravafyLayoutMetricsProvider,
-  useSaravafyLayoutMetrics,
-} from "@/src/contexts/SaravafyLayoutMetricsContext";
+import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
+import { SaravafyLayoutMetricsProvider } from "@/src/contexts/SaravafyLayoutMetricsContext";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
 import { colors } from "@/src/theme";
@@ -168,59 +164,32 @@ export default function AppLayout() {
             <AndroidBackBehavior />
             <SaravafyLayoutMetricsProvider>
               <View style={styles.stackWrap}>
+                {/* Fundo Saravafy centralizado para todas as telas */}
+                <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+                  <SaravafyBackgroundLayers theme={effectiveTheme} variant="tabs" />
+                </View>
+                
                 <Stack
                   screenOptions={{
                     headerShown: false,
-                    // Transparente: o fundo vem de CADA scene.
+                    // Transparente: o fundo vem do layout acima.
                     contentStyle: { backgroundColor: "transparent" },
                     animation: "none",
                   }}
                 >
                   {/* Tabs reais (Pontos ↔ Terreiros) com swipe + stacks por aba */}
-                  <Stack.Screen
-                    name="(tabs)"
-                    options={{
-                      contentStyle: {
-                        backgroundColor:
-                          effectiveTheme === "light"
-                            ? colors.paper50
-                            : colors.forest900,
-                      },
-                    }}
-                  />
+                  <Stack.Screen name="(tabs)" />
 
                   {/* Player fora das tabs (swipe interno do player tem prioridade) */}
-                  <Stack.Screen
-                    name="player"
-                    options={{
-                      contentStyle: {
-                        backgroundColor:
-                          effectiveTheme === "light"
-                            ? colors.paper50
-                            : colors.forest900,
-                      },
-                    }}
-                  />
+                  <Stack.Screen name="player" />
 
                   {/* Deep links / utilitários */}
-                  <Stack.Screen
-                    name="l/[tipo]/[id]"
-                    options={{
-                      contentStyle: {
-                        backgroundColor:
-                          effectiveTheme === "light"
-                            ? colors.paper50
-                            : colors.forest900,
-                      },
-                    }}
-                  />
+                  <Stack.Screen name="l/[tipo]/[id]" />
 
                   {/* Full screens administrativas */}
                   <Stack.Screen
                     name="preferences"
                     options={{
-                      // No fade: prevents cross-fade overlap with previous scene
-                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -232,8 +201,6 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="terreiro-members"
                     options={{
-                      // No fade: prevents cross-fade overlap with previous scene
-                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -245,8 +212,6 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="terreiro-members-list"
                     options={{
-                      // No fade: prevents cross-fade overlap with previous scene
-                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -258,8 +223,6 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="access-manager"
                     options={{
-                      // No fade: prevents cross-fade overlap with previous scene
-                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -327,38 +290,10 @@ export default function AppLayout() {
                   />
                 </Stack>
               </View>
-
-              <HeaderMeasurer suspended={isHeaderSuspended} />
             </SaravafyLayoutMetricsProvider>
           </TabControllerProvider>
         </GestureBlockProvider>
       </GestureGateProvider>
-    </View>
-  );
-}
-
-function HeaderMeasurer({ suspended }: { suspended: boolean }) {
-  const { setHeaderHeight } = useSaravafyLayoutMetrics();
-  const insets = useGlobalSafeAreaInsets();
-
-  React.useEffect(() => {
-    if (!suspended) return;
-    setHeaderHeight(0);
-  }, [setHeaderHeight, suspended]);
-
-  if (suspended) return null;
-
-  return (
-    <View
-      style={[
-        styles.headerWrap,
-        insets.top ? { paddingTop: insets.top } : null,
-      ]}
-      onLayout={(e) => {
-        setHeaderHeight(e.nativeEvent.layout.height);
-      }}
-    >
-      <AppHeaderWithPreferences suspended={suspended} />
     </View>
   );
 }
@@ -370,14 +305,5 @@ const styles = StyleSheet.create({
   },
   stackWrap: {
     flex: 1,
-  },
-  headerWrap: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    elevation: 0,
-    backgroundColor: "transparent",
   },
 });

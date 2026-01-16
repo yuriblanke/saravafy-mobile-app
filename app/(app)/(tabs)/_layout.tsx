@@ -1,8 +1,10 @@
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import { useTabController } from "@/contexts/TabControllerContext";
+import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { useRouter, withLayoutContext } from "expo-router";
 import React, { useCallback, useEffect, useRef } from "react";
+import { StyleSheet, View } from "react-native";
 
 const { Navigator } = createMaterialTopTabNavigator();
 const TopTabs = withLayoutContext(Navigator);
@@ -44,16 +46,26 @@ export default function AppTabsLayout() {
   }, [router, tabController]);
 
   return (
-    <TopTabs
-      screenOptions={{
-        swipeEnabled,
-        // Transparente: cada scene desenha seu próprio fundo full-screen.
-        sceneStyle: { backgroundColor: "transparent" },
-      }}
-      tabBar={tabBar}
-    >
-      <TopTabs.Screen name="(pontos)" options={{ title: "Pontos" }} />
-      <TopTabs.Screen name="(terreiros)" options={{ title: "Terreiros" }} />
-    </TopTabs>
+    <View style={styles.container}>
+      <AppHeaderWithPreferences />
+
+      <TopTabs
+        screenOptions={{
+          swipeEnabled,
+          // Transparente: cada scene desenha seu próprio fundo full-screen.
+          sceneStyle: { backgroundColor: "transparent" },
+        }}
+        tabBar={tabBar}
+      >
+        <TopTabs.Screen name="(pontos)" options={{ title: "Pontos" }} />
+        <TopTabs.Screen name="(terreiros)" options={{ title: "Terreiros" }} />
+      </TopTabs>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+});

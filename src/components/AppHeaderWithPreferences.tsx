@@ -177,13 +177,30 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   const tabController = useTabController();
   const { user } = useAuth();
   const { effectiveTheme } = usePreferences();
+  const insets = useGlobalSafeAreaInsets();
 
   const variant = effectiveTheme;
   const uiEnabled = !suspended;
 
   const isInTabs = segments.includes("(tabs)");
 
+  // Armazenar a última tab ativa quando está nas tabs
+  const lastTabInTabsRef = React.useRef<TabKey>("pontos");
+
   const activeTab: TabKey = useMemo(() => {
+    // Se está navegando para preferences/admin screens, usar a última tab armazenada
+    if (
+      segments.includes("preferences") ||
+      segments.includes("terreiro-members") ||
+      segments.includes("terreiro-members-list") ||
+      segments.includes("access-manager")
+    ) {
+      return lastTabInTabsRef.current;
+    }
+
+    // Determinar tab atual e armazenar
+    let currentTab: TabKey = "pontos";
+
     if (
       segments.includes("(terreiros)") ||
       (typeof pathname === "string" &&
@@ -191,12 +208,18 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
           pathname.startsWith("/collection") ||
           pathname.startsWith("/player")))
     ) {
-      return "terreiros";
+      currentTab = "terreiros";
+    } else if (segments.includes("(pontos)")) {
+      currentTab = "pontos";
     }
 
-    if (segments.includes("(pontos)")) return "pontos";
-    return "pontos";
-  }, [pathname, segments]);
+    // Armazenar apenas se estamos realmente nas tabs
+    if (isInTabs) {
+      lastTabInTabsRef.current = currentTab;
+    }
+
+    return currentTab;
+  }, [pathname, segments, isInTabs]);
 
   const isTerreirosActive = activeTab === "terreiros";
   const isPontosActive = activeTab === "pontos";
@@ -205,6 +228,8 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
+  
+  const headerBg = variant === "light" ? colors.paper50 : colors.forest900;
 
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
@@ -226,7 +251,9 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
   if (!uiEnabled) return null;
 
   return (
-    <View style={styles.header}>
+    <View
+      style={[styles.header, { paddingTop: (insets.top ?? 0) + spacing.sm }]}
+    >
       <View style={styles.headerNav}>
         <Pressable
           accessibilityRole="button"
@@ -2287,7 +2314,7 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: "transparent",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.sm,
+    // paddingTop aplicado dinamicamente com insets.top
     paddingBottom: spacing.sm,
     flexDirection: "row",
     alignItems: "center",

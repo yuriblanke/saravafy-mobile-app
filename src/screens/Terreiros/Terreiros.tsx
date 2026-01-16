@@ -1,7 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { SaravafyStackScene } from "@/src/components/SaravafyStackScene";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import {
   type TerreiroListItem,
@@ -452,7 +451,7 @@ export default function Terreiros() {
   }, [terreiros, searchQuery]);
 
   return (
-    <SaravafyStackScene theme={variant} variant="tabs" style={styles.screen}>
+    <View style={styles.screen}>
       <View style={styles.container}>
         {/* Título removido conforme solicitado */}
         <View style={styles.searchWrap}>
@@ -568,7 +567,7 @@ export default function Terreiros() {
           />
         )}
       </View>
-    </SaravafyStackScene>
+    </View>
   );
 }
 
