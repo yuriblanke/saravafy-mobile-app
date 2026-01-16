@@ -38,7 +38,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { useRootNavigationState, useSegments } from "expo-router";
 
-type InviteRole = "admin" | "curimba" | "member" | "follower";
+type InviteRole = "admin" | "curimba" | "member";
 
 type TerreiroInvite = {
   id: string;
@@ -49,6 +49,12 @@ type TerreiroInvite = {
   created_at: string;
   terreiro_title?: string | null;
 };
+
+function normalizeInviteRole(role: unknown): InviteRole | null {
+  const r = typeof role === "string" ? role.trim().toLowerCase() : "";
+  if (r === "admin" || r === "curimba" || r === "member") return r;
+  return null;
+}
 
 function isColumnMissingError(message: string, columnName: string) {
   const m = String(message ?? "");
@@ -388,7 +394,11 @@ export function InviteGate() {
           throw new Error(res.error.message);
         }
 
-        const list = ((res.data ?? []) as any[]).map((row) => {
+        const list = ((res.data ?? []) as any[])
+          .map((row) => {
+            const role = normalizeInviteRole(row?.role);
+            if (!role) return null;
+
           const terreiroRaw = row?.terreiro as any;
           const terreiroObj = Array.isArray(terreiroRaw)
             ? (terreiroRaw[0] as any)
@@ -412,16 +422,17 @@ export function InviteGate() {
             });
           }
 
-          return {
+            return {
             id: String(row?.id ?? ""),
             terreiro_id: String(row?.terreiro_id ?? ""),
             email: String(row?.email ?? ""),
-            role: row?.role as InviteRole,
+            role,
             status: String(row?.status ?? ""),
             created_at: String(row?.created_at ?? ""),
             terreiro_title: terreiroTitle,
-          } satisfies TerreiroInvite;
-        });
+            } satisfies TerreiroInvite;
+          })
+          .filter(Boolean) as TerreiroInvite[];
 
         const priorityId = priorityInviteIdRef.current;
         const ordered = !priorityId
@@ -642,19 +653,17 @@ export function InviteGate() {
 
           // Keep local queue updated (best-effort). We don't open the modal
           // automatically here to avoid interrupting mid-action.
+          const role = normalizeInviteRole(row?.role);
           const nextInvite: TerreiroInvite | null =
             typeof row?.id === "string" &&
             typeof row?.terreiro_id === "string" &&
             typeof row?.created_at === "string" &&
-            (row?.role === "admin" ||
-              row?.role === "curimba" ||
-              row?.role === "member" ||
-              row?.role === "follower")
+            !!role
               ? {
                   id: row.id,
                   terreiro_id: row.terreiro_id,
                   created_at: row.created_at,
-                  role: row.role,
+                  role,
                   email: email,
                   status: status || "pending",
                   terreiro_title: null,

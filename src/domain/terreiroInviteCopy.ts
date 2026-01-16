@@ -1,4 +1,4 @@
-export type TerreiroInviteRole = "admin" | "curimba" | "member" | "follower";
+export type TerreiroInviteRole = "admin" | "curimba" | "member";
 
 export function getTerreiroInviteRoleBadgeLabel(role: TerreiroInviteRole): string {
   switch (role) {
@@ -8,8 +8,6 @@ export function getTerreiroInviteRoleBadgeLabel(role: TerreiroInviteRole): strin
       return "Curimba";
     case "member":
       return "Membra / Membro";
-    case "follower":
-      return "Seguidora";
     default: {
       const _exhaustive: never = role;
       return String(_exhaustive);
@@ -37,8 +35,6 @@ export function getTerreiroInviteBodyCopy(role: TerreiroInviteRole): string {
         "",
         "Isso inclui gerenciar conteúdos, membros e convites, além de configurar informações do terreiro.",
       ].join("\n");
-    case "follower":
-      return "Ao aceitar, você passará a seguir este terreiro no Saravafy.";
     default: {
       const _exhaustive: never = role;
       return String(_exhaustive);
