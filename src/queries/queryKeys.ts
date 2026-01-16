@@ -2,6 +2,8 @@ export const queryKeys = {
   terreiro: {
     members: (terreiroId: string) =>
       ["terreiro", terreiroId, "members"] as const,
+    membersCount: (terreiroId: string) =>
+      ["terreiro", terreiroId, "membersCount"] as const,
     invites: (terreiroId: string) =>
       ["terreiro", terreiroId, "invites"] as const,
     membershipRequests: (terreiroId: string) =>

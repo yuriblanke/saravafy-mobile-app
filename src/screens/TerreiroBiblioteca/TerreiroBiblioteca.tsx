@@ -600,6 +600,45 @@ export default function TerreiroBiblioteca() {
     return n > 0 ? `${n} coleções` : "";
   }, [orderedCollections.length]);
 
+  const membersCountQuery = useQuery({
+    queryKey: terreiroId ? queryKeys.terreiro.membersCount(terreiroId) : [],
+    enabled: !!terreiroId,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    queryFn: async () => {
+      if (!terreiroId) return null;
+
+      const res = await supabase
+        .from("terreiro_members")
+        .select("id", { count: "exact", head: true })
+        .eq("terreiro_id", terreiroId);
+
+      if (res.error) {
+        if (__DEV__) {
+          console.info("[TerreiroBiblioteca] erro ao contar membros", {
+            terreiroId,
+            error: res.error.message,
+          });
+        }
+        return null;
+      }
+
+      return typeof res.count === "number" ? res.count : null;
+    },
+    placeholderData: (prev) => prev,
+  });
+
+  const membersCountText = useMemo(() => {
+    const n = membersCountQuery.data;
+    if (typeof n !== "number") return "";
+    return `${n} membros`;
+  }, [membersCountQuery.data]);
+
+  const countsLine = useMemo(() => {
+    const parts = [collectionsCountText, membersCountText].filter(Boolean);
+    return parts.join(" • ");
+  }, [collectionsCountText, membersCountText]);
+
   const [isCollectionActionsOpen, setIsCollectionActionsOpen] = useState(false);
   const [collectionActionsTarget, setCollectionActionsTarget] =
     useState<TerreiroCollectionCard | null>(null);
@@ -1491,9 +1530,9 @@ export default function TerreiroBiblioteca() {
                 </Animated.View>
               </Animated.View>
 
-              {collectionsCountText ? (
+              {countsLine ? (
                 <Text style={[styles.countText, { color: textMuted }]}>
-                  {collectionsCountText}
+                  {countsLine}
                 </Text>
               ) : null}
 
