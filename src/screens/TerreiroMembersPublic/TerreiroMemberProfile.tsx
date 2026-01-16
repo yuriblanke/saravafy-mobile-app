@@ -65,7 +65,7 @@ function decodeMemberParam(
 
 export default function TerreiroMemberProfile() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ member?: string; canSeeEmails?: string }>();
+  const params = useLocalSearchParams<{ member?: string }>();
 
   const { effectiveTheme } = usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
@@ -93,8 +93,6 @@ export default function TerreiroMemberProfile() {
     );
   }, [params.member]);
 
-  const canSeeEmails =
-    typeof params.canSeeEmails === "string" && params.canSeeEmails === "1";
 
   const goBack = useCallback(() => {
     router.back();
@@ -189,18 +187,6 @@ export default function TerreiroMemberProfile() {
                 </View>
               </View>
 
-              {member.email && canSeeEmails ? (
-                <View style={styles.metaRow}>
-                  <Ionicons
-                    name="mail-outline"
-                    size={16}
-                    color={textSecondary}
-                  />
-                  <Text style={[styles.metaText, { color: textSecondary }]}>
-                    {member.email}
-                  </Text>
-                </View>
-              ) : null}
             </SurfaceCard>
           </View>
         )}

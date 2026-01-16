@@ -63,7 +63,10 @@ function getNextTier(tier: TerreiroMembersListTier): TerreiroMembersListTier {
 }
 
 function encodeMemberParam(member: TerreiroMemberAny): string {
-  return encodeURIComponent(JSON.stringify(member));
+  const safe: any = { ...(member as any) };
+  // Regra: não expor e-mail no front (nem via params).
+  if ("email" in safe) delete safe.email;
+  return encodeURIComponent(JSON.stringify(safe));
 }
 
 type RenderItem = {
@@ -72,7 +75,6 @@ type RenderItem = {
   initials: string;
   avatarUrl?: string;
   role?: string | null;
-  email?: string | null;
   raw: TerreiroMemberAny;
 };
 
@@ -110,18 +112,13 @@ export default function TerreiroMembersList() {
   const PAGE_SIZE = 30;
 
   const initialTier = useMemo<TerreiroMembersListTier>(() => {
+    // Regra de negócio: quem NÃO é membro também pode ver a lista,
+    // mas sempre sem e-mail. Para garantir que sempre haja dados,
+    // começamos em "public" e só promovemos o tier quando sabemos
+    // que a pessoa é membro ativa.
     if (!isLoggedIn) return "public";
-
-    // Se já temos o membership, usamos para evitar tentativa desnecessária.
-    // Caso contrário, tentamos "members" (sem email) e deixamos o fallback resolver.
-    if (membership?.isActiveMember && membership?.role) {
-      const r = String(membership.role);
-      if (r === "admin" || r === "editor") return "admins";
-      if (r === "member") return "members";
-    }
-
-    return "members";
-  }, [isLoggedIn, membership?.isActiveMember, membership?.role]);
+    return "public";
+  }, [isLoggedIn]);
 
   const [effectiveTier, setEffectiveTier] =
     useState<TerreiroMembersListTier>(initialTier);
@@ -130,6 +127,30 @@ export default function TerreiroMembersList() {
   useEffect(() => {
     setEffectiveTier(initialTier);
   }, [initialTier, terreiroId]);
+
+  // Quando membership resolve, promovemos o tier (para mostrar badges de role).
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    if (membershipQuery.isLoading) return;
+    if (membershipQuery.error) return;
+    if (!membership?.isActiveMember || !membership?.role) return;
+
+    const r = String(membership.role);
+    const next: TerreiroMembersListTier =
+      r === "admin" || r === "editor"
+        ? "admins"
+        : r === "member"
+        ? "members"
+        : "public";
+
+    setEffectiveTier((prev) => (prev === next ? prev : next));
+  }, [
+    isLoggedIn,
+    membership?.isActiveMember,
+    membership?.role,
+    membershipQuery.error,
+    membershipQuery.isLoading,
+  ]);
 
   const fallbackCountRef = useRef(0);
   const lastFallbackTierRef = useRef<TerreiroMembersListTier | null>(null);
@@ -150,27 +171,12 @@ export default function TerreiroMembersList() {
       ? "member"
       : "public";
 
-  const viewerCanSeeEmails = useMemo(() => {
-    if (!isLoggedIn) return false;
-    if (!membership?.isActiveMember) return false;
-    const r = typeof membership?.role === "string" ? membership.role : "";
-    return r === "admin" || r === "editor";
-  }, [isLoggedIn, membership?.isActiveMember, membership?.role]);
-
-  // Regra: quem não é membro pode ver apenas admins/editores (nome + avatar).
-  const shouldLimitToLeadership = useMemo(() => {
-    if (!isLoggedIn) return false;
-    if (membershipQuery.isLoading) return false;
-    if (membershipQuery.error) return false;
-    return membership?.isActiveMember !== true;
-  }, [isLoggedIn, membership?.isActiveMember, membershipQuery.error, membershipQuery.isLoading]);
-
   const canQueryMembersList = useMemo(() => {
     if (!terreiroId) return false;
     // Evita flicker e tier errado enquanto membership está carregando.
-    if (!isLoggedIn) return true;
-    return !membershipQuery.isLoading;
-  }, [isLoggedIn, membershipQuery.isLoading, terreiroId]);
+    // Como começamos em "public", podemos carregar já.
+    return true;
+  }, [terreiroId]);
 
   const membersQuery = useInfiniteQuery({
     queryKey: terreiroId
@@ -257,10 +263,6 @@ export default function TerreiroMembersList() {
 
         const role =
           typeof (m as any).role === "string" ? (m as any).role : null;
-        const email =
-          viewerCanSeeEmails && typeof (m as any).email === "string"
-            ? (m as any).email
-            : null;
 
         return {
           id,
@@ -268,18 +270,11 @@ export default function TerreiroMembersList() {
           initials: getInitials(title),
           avatarUrl,
           role,
-          email,
           raw: m,
         } as RenderItem;
       })
-      .filter((it): it is RenderItem => Boolean(it))
-      .filter((it) => {
-        if (!shouldLimitToLeadership) return true;
-        if (effectiveTier === "public") return true;
-        const r = typeof it.role === "string" ? it.role : "";
-        return r === "admin" || r === "editor";
-      }) as RenderItem[];
-  }, [effectiveTier, membersQuery.data, shouldLimitToLeadership, viewerCanSeeEmails]);
+      .filter((it): it is RenderItem => Boolean(it));
+  }, [membersQuery.data]);
 
   const goBack = useCallback(() => {
     router.back();
@@ -288,18 +283,6 @@ export default function TerreiroMembersList() {
   const renderItem = useCallback(
     ({ item }: { item: RenderItem }) => {
       const roleText = roleLabel(item.role);
-
-      const subtitle =
-        item.email != null ? (
-          <View style={styles.subtitleRow}>
-            <Text
-              style={[styles.subtitleText, { color: textSecondary }]}
-              numberOfLines={1}
-            >
-              {item.email}
-            </Text>
-          </View>
-        ) : null;
 
       const afterTitle = roleText ? (
         <Badge
@@ -318,14 +301,13 @@ export default function TerreiroMembersList() {
             avatarUrl={item.avatarUrl}
             initials={item.initials}
             afterTitle={afterTitle}
-            subtitle={subtitle}
+            subtitle={null}
             showEditButton={false}
             onPress={() => {
               router.push({
                 pathname: "/terreiro-member-profile" as any,
                 params: {
                   member: encodeMemberParam(item.raw),
-                  canSeeEmails: viewerCanSeeEmails ? "1" : "0",
                 },
               });
             }}
@@ -334,7 +316,7 @@ export default function TerreiroMembersList() {
         </View>
       );
     },
-    [router, textSecondary, variant, viewerCanSeeEmails]
+    [router, variant]
   );
 
   return (
