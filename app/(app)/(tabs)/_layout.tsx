@@ -3,6 +3,7 @@ import { useTabController } from "@/contexts/TabControllerContext";
 import { TabsHeaderWithPreferences } from "@/src/components/TabsHeaderWithPreferences";
 import { navTrace } from "@/src/utils/navTrace";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   usePathname,
   useRouter,
@@ -22,6 +23,22 @@ export default function AppTabsLayout() {
   const pathname = usePathname();
   const segments = useSegments() as string[];
   const segmentsKey = React.useMemo(() => segments.join("/"), [segments]);
+
+  const routeInfoRef = useRef<{ pathname: string; segments: string }>({
+    pathname,
+    segments: segmentsKey,
+  });
+
+  useEffect(() => {
+    routeInfoRef.current = { pathname, segments: segmentsKey };
+  }, [pathname, segmentsKey]);
+
+  useFocusEffect(
+    useCallback(() => {
+      navTrace("(tabs) focus", routeInfoRef.current);
+      return () => navTrace("(tabs) blur", routeInfoRef.current);
+    }, [])
+  );
 
   useEffect(() => {
     navTrace("(tabs) layout mount", { pathname, segments: segmentsKey });

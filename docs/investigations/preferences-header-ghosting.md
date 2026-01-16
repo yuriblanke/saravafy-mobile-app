@@ -58,19 +58,36 @@ A instrumentação foi adicionada **somente para diagnóstico** (dev-only via `_
 Dica: se necessário, limpe o `t0` reiniciando o app (o `t0` é global por sessão).
 
 ## 5) Timeline (a preencher com logs)
-> Preencher com a sequência real observada no Metro.
+> Sequência real observada no Metro (amostra enviada em 2026-01-16).
 
 **T0 (tap):**
-- `[NavTrace +…] TabsHeaderWithPreferences Tap open Preferences …`
+
+- `[NavTrace +10934ms] Tap open Preferences {"activeTab":"pontos","fromPathname":"/","fromSegments":"(app)/(tabs)/(pontos)","headerBg":"#0E2A24"}`
 
 **Esperado (hard cut):**
 - Tabs layout deveria ficar totalmente “invisível” no mesmo commit em que Preferences aparece.
 
-**Sequência observada (colar aqui):**
+**Sequência observada:**
 
 ```
-# TODO: colar logs NavTrace aqui
+[NavTrace +10934ms] Tap open Preferences {"activeTab":"pontos","fromPathname":"/","fromSegments":"(app)/(tabs)/(pontos)","headerBg":"#0E2A24"}
+[NavTrace +11093ms] PreferencesHeader layoutEffect commit {"variant":"dark"}
+[NavTrace +11095ms] Preferences UI layoutEffect commit
+[NavTrace +11103ms] PreferencesHeader mount {"variant":"dark"}
+[NavTrace +11114ms] Preferences UI mount
+[NavTrace +11115ms] Route /(app)/preferences mount
+
+[NavTrace +11143ms] TabsHeader layoutEffect {"pathname":"/preferences","render":5,"segments":"(app)/preferences","suspended":false,"uiEnabled":true}
+[NavTrace +11148ms] TabsHeader route {"pathname":"/preferences","render":5,"segments":"(app)/preferences","suspended":false,"uiEnabled":true}
+[NavTrace +11150ms] (tabs) layout route {"pathname":"/preferences","segments":"(app)/preferences"}
+[NavTrace +11152ms] (app) layout route {"pathname":"/preferences","segments":"(app)/preferences"}
 ```
+
+**Leitura direta da amostra:**
+
+- A rota `/preferences` efetivamente **renderiza e comita** (layoutEffect) antes de `useEffect` de mount (esperado).
+- Mesmo depois da rota `/preferences` estar montada, o `TabsHeaderWithPreferences` e o layout `(tabs)` ainda estão **vivos o suficiente para reagir à mudança de rota** (layoutEffect + “route” já com `pathname: /preferences`).
+- Ou seja: durante o push, existe uma janela real em que **ambos os mundos estão montados e recebendo commits**.
 
 ## 6) Interpretação (o que os logs devem responder)
 A partir dos logs, queremos responder:
@@ -78,9 +95,19 @@ A partir dos logs, queremos responder:
 - O `PreferencesRoute`/`Preferences UI` montam **antes** do `(tabs)` ficar invisível?
 - Existe diferença entre `mount` e `layoutEffect commit` que indique 1-frame de “buraco” visual?
 
-## 7) Root cause mais provável (prévia, sem cravar)
-Sem os logs ainda, a hipótese principal é:
-- O Stack mantém o screen de tabs montado e visível por 1 commit durante o push, e a tela Preferences não cobre 100% imediatamente (ou por ordem de zIndex/stacking), resultando em 1 frame de composição mista.
+Com a amostra já dá para afirmar:
+- O mundo `(tabs)` não some “instantaneamente” do ponto de vista do React (ele continua processando commits após o push).
+- Logo, o ghosting pode ocorrer se a tela `/preferences` deixar o screen anterior aparecer por baixo (transparência/coverage por 1 frame) OU se algum elemento do header de tabs estiver acima do Stack (portal/overlay).
+
+## 7) Root cause mais provável (com base na amostra)
+O comportamento observado é compatível com:
+
+- **O Stack mantém o screen anterior (tabs) montado durante o push**, e o layout/header de tabs ainda processa pelo menos um commit após `/preferences` ter montado.
+
+O ghosting visual em si depende de uma segunda condição (a confirmar):
+
+1) **Preferences não cobre 100% do frame imediatamente** (ex.: algum container/transição com transparência por 1 frame), expondo o screen tabs por baixo; ou
+2) **Algum elemento do header de tabs está fora do contexto do screen tabs** (portal/overlay), ficando acima do Stack e portanto visível junto com `/preferences`.
 
 ## 8) Direções de fix (NÃO implementadas)
 Quando a timeline estiver confirmada, possíveis direções (a validar):
@@ -88,6 +115,11 @@ Quando a timeline estiver confirmada, possíveis direções (a validar):
 - Garantir isolamento de screens via stack nativo (se não estiver usando) / `react-native-screens`.
 - Evitar header absoluto com zIndex elevado fora do contexto do Stack; mover para header do próprio navigator.
 - Revisar qualquer Portal/BottomSheet que possa estar acima do Stack.
+
+Próximas evidências úteis (pra “fechar” entre (1) vs (2)):
+- Logar `TabsHeader unmount` e `(tabs) layout unmount` ao abrir Preferences (se nunca acontece, tabs fica montado mesmo após a troca).
+- Logar foco: `useFocusEffect` no `(tabs)` layout e na rota `/preferences` para cravar em que instante o tabs perde foco.
+- Checar se existe algum `Portal` (ex.: bottom sheets) ou provider global que renderize o header fora do screen.
 
 ---
 Status: Instrumentação adicionada; aguardando coleta de logs para fechar timeline e conclusão.
