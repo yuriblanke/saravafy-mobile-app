@@ -28,6 +28,8 @@ Rebuild nativo: **NÃO**
 Observação:
 Se o projeto já estiver na variante `dev`, reinstalações não exigem rebuild nativo.
 
+Quando você adiciona/remove módulos nativos (ex.: `expo-document-picker`), é necessário rebuildar o app nativo (dev client).
+
 ---
 
 ## Reinstalar Saravafy Dev (sem rebuild)

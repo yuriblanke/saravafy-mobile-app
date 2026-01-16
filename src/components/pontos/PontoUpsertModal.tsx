@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   Image,
@@ -13,17 +19,19 @@ import {
 } from "react-native";
 
 import { useToast } from "@/contexts/ToastContext";
-import { BottomSheet } from "@/src/components/BottomSheet";
-import { Separator } from "@/src/components/Separator";
 import {
   createPontoSubmission,
   submitPontoCorrection,
 } from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
+import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { Separator } from "@/src/components/Separator";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
+import * as Crypto from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -70,6 +78,61 @@ function toUserFriendlyErrorMessage(error: unknown) {
   }
 
   return "Não foi possível salvar agora. Tente novamente.";
+}
+
+const AUDIO_BUCKET = "pontos-audio";
+
+function extFromFileName(fileName: string) {
+  const safe = typeof fileName === "string" ? fileName.trim() : "";
+  const match = safe.match(/\.([a-z0-9]{1,8})$/i);
+  return match ? match[1].toLowerCase() : "";
+}
+
+async function uploadPontoAudio(params: {
+  uri: string;
+  name: string;
+  mimeType?: string | null;
+}) {
+  const file = new FileSystem.File(params.uri);
+  const info = file.info();
+  if (!info?.exists) {
+    throw new Error("Não foi possível acessar o áudio selecionado.");
+  }
+
+  const ext = extFromFileName(params.name) || "m4a";
+  const path = `pontos-submissions/${Date.now()}-${Crypto.randomUUID()}.${ext}`;
+  const contentType =
+    typeof params.mimeType === "string" && params.mimeType.trim()
+      ? params.mimeType
+      : "audio/m4a";
+
+  const bytes = await file.bytes();
+
+  const upload = await supabase.storage
+    .from(AUDIO_BUCKET)
+    .upload(path, bytes, { upsert: false, contentType });
+
+  if (upload.error) {
+    throw new Error(
+      typeof upload.error.message === "string" && upload.error.message.trim()
+        ? upload.error.message
+        : "Não foi possível enviar o áudio."
+    );
+  }
+
+  const pub = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path);
+  const publicUrl = pub?.data?.publicUrl;
+  if (!publicUrl) {
+    throw new Error("Não foi possível obter a URL pública do áudio.");
+  }
+
+  return {
+    bucket: AUDIO_BUCKET,
+    path,
+    publicUrl,
+    mimeType: contentType,
+    sizeBytes: typeof info?.size === "number" ? info.size : null,
+  };
 }
 
 export function PontoUpsertModal({
@@ -337,14 +400,19 @@ export function PontoUpsertModal({
     });
 
     if (res.canceled) return;
-    const asset = Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
+    const asset =
+      Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
     if (!asset?.uri) return;
 
     const picked = {
       uri: asset.uri,
-      name: typeof asset.name === "string" && asset.name.trim() ? asset.name : "audio",
+      name:
+        typeof asset.name === "string" && asset.name.trim()
+          ? asset.name
+          : "audio",
       mimeType: (asset as any).mimeType ?? null,
-      size: typeof (asset as any).size === "number" ? (asset as any).size : null,
+      size:
+        typeof (asset as any).size === "number" ? (asset as any).size : null,
     };
 
     // Audio always requires explicit consent; if toggle is ON, it also forces OFF after confirmation.
@@ -402,6 +470,22 @@ export function PontoUpsertModal({
       }
 
       if (mode === "create") {
+        let audioUpload: null | {
+          bucket: string;
+          path: string;
+          publicUrl: string;
+          mimeType: string;
+          sizeBytes: number | null;
+        } = null;
+
+        if (attachedAudio) {
+          audioUpload = await uploadPontoAudio({
+            uri: attachedAudio.uri,
+            name: attachedAudio.name,
+            mimeType: attachedAudio.mimeType ?? null,
+          });
+        }
+
         await createPontoSubmission({
           title: title.trim(),
           lyrics: lyrics.trim(),
@@ -409,6 +493,14 @@ export function PontoUpsertModal({
           author_name: authorValue ? authorValue : null,
           interpreter_name: interpreterValue ? interpreterValue : null,
           has_author_consent: hasRightsConsent ? true : null,
+          audio_url: audioUpload?.publicUrl ?? null,
+          audio_bucket: audioUpload?.bucket ?? null,
+          audio_path: audioUpload?.path ?? null,
+          audio_mime_type: audioUpload?.mimeType ?? null,
+          audio_size_bytes:
+            typeof audioUpload?.sizeBytes === "number"
+              ? audioUpload.sizeBytes
+              : null,
         });
 
         onCancel();
@@ -461,7 +553,7 @@ export function PontoUpsertModal({
         lyrics: typeof row.lyrics === "string" ? row.lyrics : lyrics.trim(),
         tags: Array.isArray(row.tags)
           ? row.tags.filter((v: any) => typeof v === "string")
-            : tagsValue,
+          : tagsValue,
       };
 
       onCancel();
@@ -494,7 +586,9 @@ export function PontoUpsertModal({
                 Direitos de veiculação
               </Text>
               <Text style={[styles.sheetBody, { color: textSecondary }]}>
-                Ao enviar um ponto com autoria definida ou com áudio cantado e tocado, você declara que possui os direitos necessários para compartilhar esse conteúdo no Saravafy.
+                Ao enviar um ponto com autoria definida ou com áudio cantado e
+                tocado, você declara que possui os direitos necessários para
+                compartilhar esse conteúdo no Saravafy.
               </Text>
 
               <Pressable
@@ -522,7 +616,11 @@ export function PontoUpsertModal({
                   ]}
                 >
                   {rightsChecked ? (
-                    <Ionicons name="checkmark" size={16} color={colors.paper50} />
+                    <Ionicons
+                      name="checkmark"
+                      size={16}
+                      color={colors.paper50}
+                    />
                   ) : null}
                 </View>
                 <Text style={[styles.checkboxText, { color: textPrimary }]}>
@@ -539,7 +637,9 @@ export function PontoUpsertModal({
                     pressed ? styles.sheetActionPressed : null,
                   ]}
                 >
-                  <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                  <Text
+                    style={[styles.sheetActionText, { color: textPrimary }]}
+                  >
                     Cancelar
                   </Text>
                 </Pressable>
@@ -567,7 +667,9 @@ export function PontoUpsertModal({
                   <Text
                     style={[
                       styles.sheetActionText,
-                      { color: rightsChecked ? colors.brass600 : textSecondary },
+                      {
+                        color: rightsChecked ? colors.brass600 : textSecondary,
+                      },
                     ]}
                   >
                     Tenho os direitos desse ponto
@@ -612,7 +714,8 @@ export function PontoUpsertModal({
                     Ponto tradicional / livre
                   </Text>
                   <Text style={[styles.toggleDesc, { color: textSecondary }]}>
-                    Marque esta opção para pontos tradicionais, de domínio coletivo ou sem autoria definida.
+                    Marque esta opção para pontos tradicionais, de domínio
+                    coletivo ou sem autoria definida.
                   </Text>
                 </View>
 
@@ -716,7 +819,11 @@ export function PontoUpsertModal({
                         },
                       ]}
                     >
-                      <Ionicons name="musical-notes" size={16} color={textPrimary} />
+                      <Ionicons
+                        name="musical-notes"
+                        size={16}
+                        color={textPrimary}
+                      />
                       <Text
                         style={[styles.audioName, { color: textPrimary }]}
                         numberOfLines={1}
@@ -733,7 +840,11 @@ export function PontoUpsertModal({
                           pressed ? styles.pressed : null,
                         ]}
                       >
-                        <Ionicons name="close" size={18} color={colors.brass600} />
+                        <Ionicons
+                          name="close"
+                          size={18}
+                          color={colors.brass600}
+                        />
                       </Pressable>
                     </View>
                   ) : (
@@ -750,7 +861,9 @@ export function PontoUpsertModal({
                       ]}
                     >
                       <Ionicons name="add" size={18} color={colors.brass600} />
-                      <Text style={[styles.audioAddText, { color: textPrimary }]}>
+                      <Text
+                        style={[styles.audioAddText, { color: textPrimary }]}
+                      >
                         Adicionar áudio
                       </Text>
                     </Pressable>
@@ -831,7 +944,9 @@ export function PontoUpsertModal({
                             ? colors.inputBorderLight
                             : colors.inputBorderDark,
                         backgroundColor:
-                          variant === "light" ? colors.paper100 : colors.earth700,
+                          variant === "light"
+                            ? colors.paper100
+                            : colors.earth700,
                       },
                     ]}
                   >
@@ -848,7 +963,11 @@ export function PontoUpsertModal({
                         pressed ? styles.pressed : null,
                       ]}
                     >
-                      <Ionicons name="close" size={14} color={colors.brass600} />
+                      <Ionicons
+                        name="close"
+                        size={14}
+                        color={colors.brass600}
+                      />
                     </Pressable>
                   </View>
                 ))}
@@ -862,7 +981,9 @@ export function PontoUpsertModal({
                     addTagsFromRaw(raw);
                     setTagsInput("");
                   }}
-                  placeholder={tags.length === 0 ? "Ogum, Exu, Preto Velho" : ""}
+                  placeholder={
+                    tags.length === 0 ? "Ogum, Exu, Preto Velho" : ""
+                  }
                   placeholderTextColor={textSecondary}
                   style={[styles.tagsInput, { color: textPrimary }]}
                   autoCapitalize="none"
