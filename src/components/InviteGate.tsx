@@ -1173,7 +1173,9 @@ export function InviteGate() {
                       label={inviteRoleLabel}
                       variant={variant}
                       appearance={
-                        currentInvite?.role === "admin" ? "primary" : "secondary"
+                        currentInvite?.role === "admin"
+                          ? "primary"
+                          : "secondary"
                       }
                       style={{ alignSelf: "center" }}
                     />

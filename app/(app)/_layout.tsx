@@ -15,7 +15,7 @@ import {
 } from "@/src/contexts/SaravafyLayoutMetricsContext";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
-import { colors } from "@/src/theme";
+import { colors, getSaravafyBaseColor } from "@/src/theme";
 import {
   Stack,
   useGlobalSearchParams,
@@ -154,8 +154,12 @@ export default function AppLayout() {
     );
   }, [pathname, segments]);
 
+  // Fix Android transition artifacts (1-frame overlay/white flash) by ensuring
+  // the navigator/root always paints an opaque background in the first frame.
+  const appBaseBg = getSaravafyBaseColor(effectiveTheme);
+
   return (
-    <View style={styles.root}>
+    <View style={[styles.root, { backgroundColor: appBaseBg }]}>
       <StatusBar
         barStyle={effectiveTheme === "light" ? "dark-content" : "light-content"}
         translucent={Platform.OS === "android"}
@@ -171,8 +175,9 @@ export default function AppLayout() {
                 <Stack
                   screenOptions={{
                     headerShown: false,
-                    // Transparente: o fundo vem de CADA scene.
-                    contentStyle: { backgroundColor: "transparent" },
+                    // The scenes draw their own backgrounds, but the Stack must
+                    // paint something to avoid 1-frame transparency/white flash.
+                    contentStyle: { backgroundColor: appBaseBg },
                     animation: "none",
                   }}
                 >

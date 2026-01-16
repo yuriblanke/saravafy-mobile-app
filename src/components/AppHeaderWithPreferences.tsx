@@ -1,6 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
-import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
 import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -1392,7 +1391,9 @@ export function PreferencesOverlaySheets(
                       : "Terreiro";
                   const processing =
                     inviteProcessingKey === `terreiro:${invite.id}`;
-                  const roleLabel = getCompactTerreiroInviteRoleLabel(invite.role);
+                  const roleLabel = getCompactTerreiroInviteRoleLabel(
+                    invite.role
+                  );
 
                   return (
                     <View
@@ -1403,7 +1404,10 @@ export function PreferencesOverlaySheets(
                       ]}
                     >
                       <Text
-                        style={[styles.terreiroInviteCompactTitle, { color: textPrimary }]}
+                        style={[
+                          styles.terreiroInviteCompactTitle,
+                          { color: textPrimary },
+                        ]}
                         numberOfLines={2}
                       >
                         {terreiroTitle}
@@ -1416,7 +1420,9 @@ export function PreferencesOverlaySheets(
                               label={roleLabel}
                               variant={variant}
                               appearance={
-                                invite.role === "admin" ? "primary" : "secondary"
+                                invite.role === "admin"
+                                  ? "primary"
+                                  : "secondary"
                               }
                               style={{ alignSelf: "flex-start" }}
                             />
