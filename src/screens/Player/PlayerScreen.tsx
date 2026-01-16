@@ -598,6 +598,41 @@ export default function PlayerScreen() {
                 color={textSecondary}
               />
             </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => {
+                if (!activePonto?.id) {
+                  showToast("Ponto inválido para envio de áudio.");
+                  return;
+                }
+
+                setIsReportOpen(false);
+                router.push({
+                  pathname: "/ponto-audio-upload" as any,
+                  params: {
+                    pontoId: activePonto.id,
+                    pontoTitle:
+                      typeof (activePonto as any)?.title === "string"
+                        ? (activePonto as any).title
+                        : "",
+                  },
+                } as any);
+              }}
+              style={({ pressed }) => [
+                styles.sheetOption,
+                pressed ? styles.sheetOptionPressed : null,
+              ]}
+            >
+              <Text style={[styles.sheetOptionText, { color: textPrimary }]}>
+                Enviar áudio deste ponto
+              </Text>
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={textSecondary}
+              />
+            </Pressable>
           </View>
         </BottomSheet>
 

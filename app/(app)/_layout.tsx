@@ -247,6 +247,20 @@ export default function AppLayout() {
                       },
                     }}
                   />
+
+                  <Stack.Screen
+                    name="ponto-audio-upload"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
                 </Stack>
               </View>
 
