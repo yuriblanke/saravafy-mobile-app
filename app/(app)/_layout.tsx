@@ -12,6 +12,7 @@ import { SaravafyLayoutMetricsProvider } from "@/src/contexts/SaravafyLayoutMetr
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
 import { colors } from "@/src/theme";
+import { navTrace } from "@/src/utils/navTrace";
 import {
   Stack,
   useGlobalSearchParams,
@@ -88,6 +89,19 @@ export default function AppLayout() {
   const segments = useSegments() as string[];
   const pathname = usePathname();
   const rootPager = useRootPagerOptional();
+
+  const segmentsKey = useMemo(() => segments.join("/"), [segments]);
+
+  React.useEffect(() => {
+    navTrace("(app) layout mount", { pathname, segments: segmentsKey });
+    return () =>
+      navTrace("(app) layout unmount", { pathname, segments: segmentsKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useEffect(() => {
+    navTrace("(app) layout route", { pathname, segments: segmentsKey });
+  }, [pathname, segmentsKey]);
 
   const isInTabs = segments.includes("(tabs)");
   const leaf = segments[segments.length - 1];

@@ -36,6 +36,7 @@ import {
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
+import { navTrace } from "@/src/utils/navTrace";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -183,6 +184,38 @@ export function TabsHeaderWithPreferences(
 
   const variant = effectiveTheme;
   const uiEnabled = !suspended;
+
+  const segmentsKey = useMemo(() => segments.join("/"), [segments]);
+  const renderCountRef = React.useRef(0);
+  renderCountRef.current += 1;
+
+  // Diagnóstico: timeline de commits (mount/layoutEffect/render/unmount)
+  React.useEffect(() => {
+    navTrace("TabsHeader mount", { pathname, segments: segmentsKey });
+    return () =>
+      navTrace("TabsHeader unmount", { pathname, segments: segmentsKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  React.useLayoutEffect(() => {
+    navTrace("TabsHeader layoutEffect", {
+      render: renderCountRef.current,
+      pathname,
+      segments: segmentsKey,
+      suspended,
+      uiEnabled,
+    });
+  });
+
+  useEffect(() => {
+    navTrace("TabsHeader route", {
+      render: renderCountRef.current,
+      pathname,
+      segments: segmentsKey,
+      suspended,
+      uiEnabled,
+    });
+  }, [pathname, segmentsKey, suspended, uiEnabled]);
 
   const isInTabs = segments.includes("(tabs)");
 
@@ -337,6 +370,12 @@ export function TabsHeaderWithPreferences(
           accessibilityRole="button"
           accessibilityLabel="Abrir preferências"
           onPress={() => {
+            navTrace("Tap open Preferences", {
+              fromPathname: pathname,
+              fromSegments: segmentsKey,
+              activeTab,
+              headerBg,
+            });
             router.push("/preferences" as any);
           }}
           hitSlop={10}

@@ -320,8 +320,6 @@ export function InviteGate() {
     terreiroSnoozeVersion,
   ]);
 
-
-
   const refreshPendingInvites = useCallback(
     async (options?: { skipCache?: boolean }) => {
       if (!userId) return [] as TerreiroInvite[];

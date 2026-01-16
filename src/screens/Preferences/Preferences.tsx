@@ -6,6 +6,7 @@ import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBo
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
 import { colors, spacing } from "@/src/theme";
+import { navTrace } from "@/src/utils/navTrace";
 
 import { CurimbaSection } from "./components/CurimbaSection";
 import { LogoutSection } from "./components/LogoutSection";
@@ -22,6 +23,15 @@ export default function Preferences() {
     curimbaOnboardingDismissed,
     setCurimbaOnboardingDismissed,
   } = usePreferences();
+
+  React.useEffect(() => {
+    navTrace("Preferences UI mount");
+    return () => navTrace("Preferences UI unmount");
+  }, []);
+
+  React.useLayoutEffect(() => {
+    navTrace("Preferences UI layoutEffect commit");
+  });
 
   const variant: "light" | "dark" = effectiveTheme;
   const baseBgColor = variant === "light" ? colors.paper50 : colors.forest900;

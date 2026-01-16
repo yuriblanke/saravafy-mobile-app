@@ -5,6 +5,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { colors, spacing } from "@/src/theme";
+import { navTrace } from "@/src/utils/navTrace";
 
 type Props = {
   variant: "light" | "dark";
@@ -14,6 +15,15 @@ export function PreferencesHeader({ variant }: Props) {
   const router = useRouter();
   const insets = useGlobalSafeAreaInsets();
 
+  React.useEffect(() => {
+    navTrace("PreferencesHeader mount", { variant });
+    return () => navTrace("PreferencesHeader unmount", { variant });
+  }, [variant]);
+
+  React.useLayoutEffect(() => {
+    navTrace("PreferencesHeader layoutEffect commit", { variant });
+  });
+
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
 
@@ -22,6 +32,7 @@ export function PreferencesHeader({ variant }: Props) {
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
 
   const goBack = useCallback(() => {
+    navTrace("PreferencesHeader tap back");
     router.back();
   }, [router]);
 

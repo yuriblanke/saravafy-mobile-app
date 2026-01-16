@@ -1,8 +1,14 @@
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import { useTabController } from "@/contexts/TabControllerContext";
 import { TabsHeaderWithPreferences } from "@/src/components/TabsHeaderWithPreferences";
+import { navTrace } from "@/src/utils/navTrace";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import { useRouter, withLayoutContext } from "expo-router";
+import {
+  usePathname,
+  useRouter,
+  useSegments,
+  withLayoutContext,
+} from "expo-router";
 import React, { useCallback, useEffect, useRef } from "react";
 import { StyleSheet, View } from "react-native";
 
@@ -13,6 +19,20 @@ export default function AppTabsLayout() {
   const rootPager = useRootPagerOptional();
   const tabController = useTabController();
   const router = useRouter();
+  const pathname = usePathname();
+  const segments = useSegments() as string[];
+  const segmentsKey = React.useMemo(() => segments.join("/"), [segments]);
+
+  useEffect(() => {
+    navTrace("(tabs) layout mount", { pathname, segments: segmentsKey });
+    return () =>
+      navTrace("(tabs) layout unmount", { pathname, segments: segmentsKey });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    navTrace("(tabs) layout route", { pathname, segments: segmentsKey });
+  }, [pathname, segmentsKey]);
 
   const tabsNavigationRef = useRef<any>(null);
 
