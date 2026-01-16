@@ -194,7 +194,8 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="preferences"
                     options={{
-                      animation: "fade",
+                      // Avoid 1-frame overlap from cross-fade transitions.
+                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -206,7 +207,8 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="terreiro-members"
                     options={{
-                      animation: "fade",
+                      // Avoid 1-frame overlap from cross-fade transitions.
+                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -218,7 +220,8 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="terreiro-members-list"
                     options={{
-                      animation: "fade",
+                      // Avoid 1-frame overlap from cross-fade transitions.
+                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
@@ -230,7 +233,8 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="access-manager"
                     options={{
-                      animation: "fade",
+                      // Avoid 1-frame overlap from cross-fade transitions.
+                      animation: "none",
                       contentStyle: {
                         backgroundColor:
                           effectiveTheme === "light"
