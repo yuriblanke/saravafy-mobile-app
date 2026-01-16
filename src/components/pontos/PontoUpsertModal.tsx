@@ -24,14 +24,20 @@ import {
   submitPontoCorrection,
 } from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
+import {
+  completePontoAudioUpload,
+  initPontoAudioUpload,
+  uploadToSignedUpload,
+} from "@/src/api/pontoAudio";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import * as Crypto from "expo-crypto";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
+import { useQueryClient } from "@tanstack/react-query";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -80,59 +86,14 @@ function toUserFriendlyErrorMessage(error: unknown) {
   return "Não foi possível salvar agora. Tente novamente.";
 }
 
-const AUDIO_BUCKET = "pontos-audio";
-
-function extFromFileName(fileName: string) {
-  const safe = typeof fileName === "string" ? fileName.trim() : "";
-  const match = safe.match(/\.([a-z0-9]{1,8})$/i);
-  return match ? match[1].toLowerCase() : "";
-}
-
-async function uploadPontoAudio(params: {
-  uri: string;
-  name: string;
-  mimeType?: string | null;
-}) {
-  const file = new FileSystem.File(params.uri);
-  const info = file.info();
-  if (!info?.exists) {
-    throw new Error("Não foi possível acessar o áudio selecionado.");
+async function getFileSizeBytes(uri: string): Promise<number | null> {
+  try {
+    const info = await FileSystem.getInfoAsync(uri, { size: true } as any);
+    const size = (info as any)?.size;
+    return typeof size === "number" ? size : null;
+  } catch {
+    return null;
   }
-
-  const ext = extFromFileName(params.name) || "m4a";
-  const path = `pontos-submissions/${Date.now()}-${Crypto.randomUUID()}.${ext}`;
-  const contentType =
-    typeof params.mimeType === "string" && params.mimeType.trim()
-      ? params.mimeType
-      : "audio/m4a";
-
-  const bytes = await file.bytes();
-
-  const upload = await supabase.storage
-    .from(AUDIO_BUCKET)
-    .upload(path, bytes, { upsert: false, contentType });
-
-  if (upload.error) {
-    throw new Error(
-      typeof upload.error.message === "string" && upload.error.message.trim()
-        ? upload.error.message
-        : "Não foi possível enviar o áudio."
-    );
-  }
-
-  const pub = supabase.storage.from(AUDIO_BUCKET).getPublicUrl(path);
-  const publicUrl = pub?.data?.publicUrl;
-  if (!publicUrl) {
-    throw new Error("Não foi possível obter a URL pública do áudio.");
-  }
-
-  return {
-    bucket: AUDIO_BUCKET,
-    path,
-    publicUrl,
-    mimeType: contentType,
-    sizeBytes: typeof info?.size === "number" ? info.size : null,
-  };
 }
 
 export function PontoUpsertModal({
@@ -144,6 +105,7 @@ export function PontoUpsertModal({
   onSuccess,
 }: Props) {
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
   const [title, setTitle] = useState("");
   const [artist, setArtist] = useState("");
@@ -180,6 +142,11 @@ export function PontoUpsertModal({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  const createdSubmissionIdRef = useRef<string | null>(null);
+  const [audioUploadPhase, setAudioUploadPhase] = useState<
+    null | "init" | "upload" | "complete"
+  >(null);
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -251,6 +218,8 @@ export function PontoUpsertModal({
       setRightsSheet(null);
       setRightsChecked(false);
       resumeSubmitAfterConsentRef.current = false;
+      createdSubmissionIdRef.current = null;
+      setAudioUploadPhase(null);
     }
   }, [initialValues, mode, visible]);
 
@@ -470,39 +439,69 @@ export function PontoUpsertModal({
       }
 
       if (mode === "create") {
-        let audioUpload: null | {
-          bucket: string;
-          path: string;
-          publicUrl: string;
-          mimeType: string;
-          sizeBytes: number | null;
-        } = null;
-
-        if (attachedAudio) {
-          audioUpload = await uploadPontoAudio({
-            uri: attachedAudio.uri,
-            name: attachedAudio.name,
-            mimeType: attachedAudio.mimeType ?? null,
-          });
+        if (attachedAudio && !interpreterValue) {
+          setErrorMessage("Preencha o Nome do intérprete para anexar áudio.");
+          setIsSubmitting(false);
+          return;
         }
 
-        await createPontoSubmission({
-          title: title.trim(),
-          artist: artistValue,
-          lyrics: lyrics.trim(),
-          tags: tagsValue,
-          author_name: authorValue ? authorValue : null,
-          interpreter_name: interpreterValue ? interpreterValue : null,
-          has_author_consent: hasRightsConsent ? true : null,
-          audio_url: audioUpload?.publicUrl ?? null,
-          audio_bucket: audioUpload?.bucket ?? null,
-          audio_path: audioUpload?.path ?? null,
-          audio_mime_type: audioUpload?.mimeType ?? null,
-          audio_size_bytes:
-            typeof audioUpload?.sizeBytes === "number"
-              ? audioUpload.sizeBytes
-              : null,
-        });
+        let submissionId = createdSubmissionIdRef.current;
+        if (!submissionId) {
+          const created = await createPontoSubmission({
+            title: title.trim(),
+            artist: artistValue,
+            lyrics: lyrics.trim(),
+            tags: tagsValue,
+            author_name: authorValue ? authorValue : null,
+            interpreter_name: interpreterValue ? interpreterValue : null,
+            has_author_consent: hasRightsConsent ? true : null,
+          });
+
+          submissionId = created.id;
+          createdSubmissionIdRef.current = submissionId;
+        }
+
+        if (attachedAudio) {
+          const mimeType =
+            typeof attachedAudio.mimeType === "string" &&
+            attachedAudio.mimeType.trim()
+              ? attachedAudio.mimeType
+              : "audio/m4a";
+          const sizeBytesRaw =
+            typeof attachedAudio.size === "number"
+              ? attachedAudio.size
+              : await getFileSizeBytes(attachedAudio.uri);
+          if (typeof sizeBytesRaw !== "number") {
+            throw new Error("Não foi possível identificar o tamanho do áudio.");
+          }
+
+          setAudioUploadPhase("init");
+          const init = await initPontoAudioUpload({
+            pontoId: submissionId,
+            interpreterName: interpreterValue,
+            mimeType,
+          });
+
+          setAudioUploadPhase("upload");
+          await uploadToSignedUpload({
+            bucket: init.bucket,
+            path: init.path,
+            signedUpload: init.signedUpload,
+            fileUri: attachedAudio.uri,
+            mimeType,
+          });
+
+          setAudioUploadPhase("complete");
+          await completePontoAudioUpload({
+            uploadToken: init.uploadToken,
+            sizeBytes: sizeBytesRaw,
+            durationMs: 0,
+          });
+
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.pontoAudios.byPontoId(submissionId),
+          });
+        }
 
         onCancel();
         onSuccess?.();
@@ -564,6 +563,7 @@ export function PontoUpsertModal({
       setErrorMessage(msg);
       showToast(msg);
     } finally {
+      setAudioUploadPhase(null);
       setIsSubmitting(false);
     }
   };

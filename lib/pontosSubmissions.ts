@@ -8,11 +8,6 @@ export type CreatePontoSubmissionInput = {
   author_name?: string | null;
   interpreter_name?: string | null;
   has_author_consent?: boolean | null;
-  audio_url?: string | null;
-  audio_bucket?: string | null;
-  audio_path?: string | null;
-  audio_mime_type?: string | null;
-  audio_size_bytes?: number | null;
 };
 
 export type SubmitPontoCorrectionInput = {
@@ -77,14 +72,6 @@ export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
     has_author_consent:
       typeof input.has_author_consent === "boolean"
         ? input.has_author_consent
-        : null,
-    audio_url: toNullIfEmpty(input.audio_url),
-    audio_bucket: toNullIfEmpty(input.audio_bucket),
-    audio_path: toNullIfEmpty(input.audio_path),
-    audio_mime_type: toNullIfEmpty(input.audio_mime_type),
-    audio_size_bytes:
-      typeof input.audio_size_bytes === "number"
-        ? input.audio_size_bytes
         : null,
   };
 
