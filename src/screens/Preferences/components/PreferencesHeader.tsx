@@ -46,6 +46,13 @@ export function PreferencesHeader({ variant }: Props) {
           backgroundColor: baseBgColor,
         },
       ]}
+      onLayout={(e) => {
+        navTrace("PreferencesHeader onLayout", {
+          variant,
+          layout: e.nativeEvent.layout,
+          headerTotalHeight,
+        });
+      }}
     >
       <Pressable
         accessibilityRole="button"

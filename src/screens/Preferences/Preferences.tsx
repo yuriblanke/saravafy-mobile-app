@@ -29,6 +29,28 @@ export default function Preferences() {
     return () => navTrace("Preferences UI unmount");
   }, []);
 
+  React.useEffect(() => {
+    let raf1 = 0;
+    let raf2 = 0;
+    let raf3 = 0;
+
+    raf1 = requestAnimationFrame(() => {
+      navTrace("Preferences UI rAF 1");
+      raf2 = requestAnimationFrame(() => {
+        navTrace("Preferences UI rAF 2");
+        raf3 = requestAnimationFrame(() => {
+          navTrace("Preferences UI rAF 3");
+        });
+      });
+    });
+
+    return () => {
+      if (raf1) cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+      if (raf3) cancelAnimationFrame(raf3);
+    };
+  }, []);
+
   React.useLayoutEffect(() => {
     navTrace("Preferences UI layoutEffect commit");
   });
@@ -61,7 +83,16 @@ export default function Preferences() {
   }, []);
 
   return (
-    <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
+    <View
+      style={[styles.screen, { backgroundColor: baseBgColor }]}
+      onLayout={(e) => {
+        navTrace("Preferences UI onLayout", {
+          layout: e.nativeEvent.layout,
+          baseBgColor,
+          variant,
+        });
+      }}
+    >
       <PreferencesHeader variant={variant} />
 
       <ScrollView

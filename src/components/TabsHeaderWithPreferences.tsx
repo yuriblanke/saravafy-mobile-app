@@ -46,6 +46,7 @@ import {
   Alert,
   Image,
   Modal,
+  LayoutChangeEvent,
   Pressable,
   StyleSheet,
   Switch,
@@ -207,6 +208,52 @@ export function TabsHeaderWithPreferences(
     });
   });
 
+  const lastLayoutRef = React.useRef<
+    | {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+      }
+    | null
+  >(null);
+
+  const handleHeaderLayout = React.useCallback(
+    (e: LayoutChangeEvent) => {
+      const next = e.nativeEvent.layout;
+      lastLayoutRef.current = next;
+      navTrace("TabsHeader onLayout", {
+        pathname,
+        segments: segmentsKey,
+        layout: next,
+      });
+    },
+    [pathname, segmentsKey]
+  );
+
+  useEffect(() => {
+    if (pathname !== "/preferences") return;
+
+    const delays = [0, 16, 50, 200, 500, 1000];
+    const timers = delays.map((ms) =>
+      setTimeout(() => {
+        navTrace("TabsHeader heartbeat on /preferences", {
+          afterMs: ms,
+          render: renderCountRef.current,
+          pathname,
+          segments: segmentsKey,
+          lastLayout: lastLayoutRef.current,
+          suspended,
+          uiEnabled,
+        });
+      }, ms)
+    );
+
+    return () => {
+      for (const t of timers) clearTimeout(t);
+    };
+  }, [pathname, segmentsKey, suspended, uiEnabled]);
+
   useEffect(() => {
     navTrace("TabsHeader route", {
       render: renderCountRef.current,
@@ -288,6 +335,7 @@ export function TabsHeaderWithPreferences(
   return (
     <View
       style={[styles.header, { paddingTop: (insets.top ?? 0) + spacing.sm }]}
+      onLayout={handleHeaderLayout}
     >
       <View style={styles.headerNav}>
         <Pressable
