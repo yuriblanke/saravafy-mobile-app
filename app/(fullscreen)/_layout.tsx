@@ -18,8 +18,7 @@ export default function FullscreenLayout() {
               headerShown: false,
               // CRÍTICO: nunca transparente (evita bleed/overlap de 1 frame)
               contentStyle: { backgroundColor: baseColor },
-              // Avoid cross-fade overlap with previous scene.
-              animation: "none",
+              animation: "fade",
             }}
           />
         </GestureBlockProvider>

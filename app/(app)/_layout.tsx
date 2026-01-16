@@ -15,7 +15,7 @@ import {
 } from "@/src/contexts/SaravafyLayoutMetricsContext";
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
-import { colors, getSaravafyBaseColor } from "@/src/theme";
+import { colors } from "@/src/theme";
 import {
   Stack,
   useGlobalSearchParams,
@@ -154,12 +154,8 @@ export default function AppLayout() {
     );
   }, [pathname, segments]);
 
-  // Fix Android transition artifacts (1-frame overlay/white flash) by ensuring
-  // the navigator/root always paints an opaque background in the first frame.
-  const appBaseBg = getSaravafyBaseColor(effectiveTheme);
-
   return (
-    <View style={[styles.root, { backgroundColor: appBaseBg }]}>
+    <View style={styles.root}>
       <StatusBar
         barStyle={effectiveTheme === "light" ? "dark-content" : "light-content"}
         translucent={Platform.OS === "android"}
@@ -175,9 +171,8 @@ export default function AppLayout() {
                 <Stack
                   screenOptions={{
                     headerShown: false,
-                    // The scenes draw their own backgrounds, but the Stack must
-                    // paint something to avoid 1-frame transparency/white flash.
-                    contentStyle: { backgroundColor: appBaseBg },
+                    // Transparente: o fundo vem de CADA scene.
+                    contentStyle: { backgroundColor: "transparent" },
                     animation: "none",
                   }}
                 >
@@ -194,7 +189,7 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="preferences"
                     options={{
-                      // Avoid 1-frame overlap from cross-fade transitions.
+                      // No fade: prevents cross-fade overlap with previous scene
                       animation: "none",
                       contentStyle: {
                         backgroundColor:
@@ -207,7 +202,7 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="terreiro-members"
                     options={{
-                      // Avoid 1-frame overlap from cross-fade transitions.
+                      // No fade: prevents cross-fade overlap with previous scene
                       animation: "none",
                       contentStyle: {
                         backgroundColor:
@@ -220,7 +215,7 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="terreiro-members-list"
                     options={{
-                      // Avoid 1-frame overlap from cross-fade transitions.
+                      // No fade: prevents cross-fade overlap with previous scene
                       animation: "none",
                       contentStyle: {
                         backgroundColor:
@@ -233,7 +228,7 @@ export default function AppLayout() {
                   <Stack.Screen
                     name="access-manager"
                     options={{
-                      // Avoid 1-frame overlap from cross-fade transitions.
+                      // No fade: prevents cross-fade overlap with previous scene
                       animation: "none",
                       contentStyle: {
                         backgroundColor:
@@ -315,11 +310,6 @@ export default function AppLayout() {
 function HeaderMeasurer({ suspended }: { suspended: boolean }) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
   const insets = useGlobalSafeAreaInsets();
-  const { effectiveTheme } = usePreferences();
-
-  // Prevent header background transparency from showing overlapping scenes
-  // during navigation transitions (e.g., Preferences → Tabs).
-  const headerBg = getSaravafyBaseColor(effectiveTheme);
 
   React.useEffect(() => {
     if (!suspended) return;
@@ -332,7 +322,6 @@ function HeaderMeasurer({ suspended }: { suspended: boolean }) {
     <View
       style={[
         styles.headerWrap,
-        { backgroundColor: headerBg },
         insets.top ? { paddingTop: insets.top } : null,
       ]}
       onLayout={(e) => {
@@ -359,6 +348,6 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     elevation: 0,
-    // backgroundColor removed: set dynamically in HeaderMeasurer to match theme
+    backgroundColor: "transparent",
   },
 });

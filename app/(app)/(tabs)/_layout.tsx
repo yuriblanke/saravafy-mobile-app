@@ -1,7 +1,5 @@
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import { useTabController } from "@/contexts/TabControllerContext";
-import { usePreferences } from "@/contexts/PreferencesContext";
-import { getSaravafyBaseColor } from "@/src/theme";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { useRouter, withLayoutContext } from "expo-router";
 import React, { useCallback, useEffect, useRef } from "react";
@@ -13,9 +11,6 @@ export default function AppTabsLayout() {
   const rootPager = useRootPagerOptional();
   const tabController = useTabController();
   const router = useRouter();
-  const { effectiveTheme } = usePreferences();
-
-  const baseBg = getSaravafyBaseColor(effectiveTheme);
 
   const tabsNavigationRef = useRef<any>(null);
 
@@ -52,8 +47,8 @@ export default function AppTabsLayout() {
     <TopTabs
       screenOptions={{
         swipeEnabled,
-        // Avoid 1-frame bleed/overlap: tabs must paint an opaque background.
-        sceneStyle: { backgroundColor: baseBg },
+        // Transparente: cada scene desenha seu próprio fundo full-screen.
+        sceneStyle: { backgroundColor: "transparent" },
       }}
       tabBar={tabBar}
     >
