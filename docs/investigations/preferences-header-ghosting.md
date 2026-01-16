@@ -57,8 +57,10 @@ A instrumentação foi adicionada **somente para diagnóstico** (dev-only via `_
 
 Dica: se necessário, limpe o `t0` reiniciando o app (o `t0` é global por sessão).
 
-## 5) Timeline (a preencher com logs)
-> Sequência real observada no Metro (amostra enviada em 2026-01-16).
+## 5) Timeline (com logs)
+> Sequências reais observadas no Metro (amostras enviadas em 2026-01-16).
+
+### Amostra A
 
 **T0 (tap):**
 
@@ -89,6 +91,31 @@ Dica: se necessário, limpe o `t0` reiniciando o app (o `t0` é global por sess�
 - Mesmo depois da rota `/preferences` estar montada, o `TabsHeaderWithPreferences` e o layout `(tabs)` ainda estão **vivos o suficiente para reagir à mudança de rota** (layoutEffect + “route” já com `pathname: /preferences`).
 - Ou seja: durante o push, existe uma janela real em que **ambos os mundos estão montados e recebendo commits**.
 
+### Amostra B (com `focus/blur`)
+
+```
+[NavTrace +5099ms] Tap open Preferences {"activeTab":"pontos","fromPathname":"/","fromSegments":"(app)/(tabs)/(pontos)","headerBg":"#0E2A24"}
+[NavTrace +5207ms] PreferencesHeader layoutEffect commit {"variant":"dark"}
+[NavTrace +5210ms] Preferences UI layoutEffect commit
+[NavTrace +5216ms] PreferencesHeader mount {"variant":"dark"}
+[NavTrace +5226ms] Preferences UI mount
+[NavTrace +5228ms] Route /(app)/preferences mount
+[NavTrace +5229ms] Route /(app)/preferences focus
+[NavTrace +5231ms] (tabs) blur {"pathname":"/","segments":"(app)/(tabs)/(pontos)"}
+
+[NavTrace +5256ms] TabsHeader layoutEffect {"pathname":"/preferences","render":6,"segments":"(app)/preferences","suspended":false,"uiEnabled":true}
+[NavTrace +5261ms] TabsHeader route {"pathname":"/preferences","render":6,"segments":"(app)/preferences","suspended":false,"uiEnabled":true}
+[NavTrace +5263ms] (tabs) layout route {"pathname":"/preferences","segments":"(app)/preferences"}
+[NavTrace +5265ms] (app) layout route {"pathname":"/preferences","segments":"(app)/preferences"}
+```
+
+**Leitura direta da amostra B:**
+
+- O `/preferences` reporta **focus em +5229ms**, enquanto `(tabs)` só reporta **blur em +5231ms** (diferença de ~2ms).
+- Mesmo após o `(tabs) blur`, o `TabsHeaderWithPreferences` ainda executa `layoutEffect` e `route` já com `pathname: /preferences`.
+
+Isso confirma uma “overlap window” não só de montagem, mas também de ciclo de commit, e mostra que **eventos de foco podem ocorrer antes do blur do screen anterior**.
+
 ## 6) Interpretação (o que os logs devem responder)
 A partir dos logs, queremos responder:
 - O `(tabs)` layout e o `TabsHeaderWithPreferences` chegam a **unmountar** ao abrir Preferences? Ou permanecem montados (apenas ocultos)?
@@ -97,12 +124,20 @@ A partir dos logs, queremos responder:
 
 Com a amostra já dá para afirmar:
 - O mundo `(tabs)` não some “instantaneamente” do ponto de vista do React (ele continua processando commits após o push).
+- Além disso, os eventos de `focus/blur` não representam necessariamente “o frame já desenhado”; eles indicam o estado de navegação, que pode mudar antes da composição final no UI thread.
 - Logo, o ghosting pode ocorrer se a tela `/preferences` deixar o screen anterior aparecer por baixo (transparência/coverage por 1 frame) OU se algum elemento do header de tabs estiver acima do Stack (portal/overlay).
 
 ## 7) Root cause mais provável (com base na amostra)
 O comportamento observado é compatível com:
 
 - **O Stack mantém o screen anterior (tabs) montado durante o push**, e o layout/header de tabs ainda processa pelo menos um commit após `/preferences` ter montado.
+
+E, especificamente, a amostra B sugere que o “hard cut” no nível de frame não é garantido apenas por remover `fade`, porque:
+
+- O `/preferences` pode ganhar foco antes do `(tabs)` perder foco.
+- O tabs ainda processa `layoutEffect` com `pathname: /preferences`.
+
+Ou seja: existe um período real em que **o estado de navegação e o ciclo de render/commit não estão alinhados ao critério Frame N / Frame N+1**.
 
 O ghosting visual em si depende de uma segunda condição (a confirmar):
 
