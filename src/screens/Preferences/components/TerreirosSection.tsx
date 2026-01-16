@@ -4,19 +4,24 @@ import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
+import { useInviteGates } from "@/contexts/InviteGatesContext";
+import { useToast } from "@/contexts/ToastContext";
 import { Badge } from "@/src/components/Badge";
 import {
   PreferencesPageItem,
   PreferencesSection,
 } from "@/src/components/preferences";
 import {
-  formatTerreiroMemberKindLabel,
-  formatTerreiroRoleLabel,
-} from "@/src/domain/terreiroRoles";
+  getTerreiroInviteBodyCopy,
+  getTerreiroInviteRoleBadgeLabel,
+  TERREIRO_INVITE_DECIDE_LATER_TOAST,
+} from "@/src/domain/terreiroInviteCopy";
+import { formatTerreiroMemberKindLabel, formatTerreiroRoleLabel } from "@/src/domain/terreiroRoles";
 import { useTerreiroInviteDecision } from "@/src/hooks/useTerreiroInviteDecision";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
 import { usePreferencesTerreirosListItems } from "@/src/queries/preferencesTerreirosList";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
+import { bumpTerreiroInviteSnooze } from "@/src/utils/terreiroInviteSnooze";
 import { colors, spacing } from "@/src/theme";
 
 import { getInitials } from "./utils";
@@ -29,6 +34,8 @@ type Props = {
 export function TerreirosSection({ variant, onOpenActions }: Props) {
   const router = useRouter();
   const { user } = useAuth();
+  const { showToast } = useToast();
+  const { bumpTerreiroSnoozeVersion } = useInviteGates();
   const userId = user?.id ?? null;
   const normalizedUserEmail =
     typeof (user as any)?.email === "string"
@@ -145,11 +152,8 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                   ? invite.terreiro_title.trim()
                   : "Terreiro";
 
-              const roleLabel = formatTerreiroRoleLabel(invite.role);
-              const kindLabel =
-                invite.role === "member"
-                  ? formatTerreiroMemberKindLabel(invite.member_kind)
-                  : "";
+              const roleLabel = getTerreiroInviteRoleBadgeLabel(invite.role);
+              const bodyCopy = getTerreiroInviteBodyCopy(invite.role);
 
               const processing =
                 inviteDecision.processingInviteId === invite.id;
@@ -160,7 +164,7 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                   style={[styles.inviteCard, { borderColor: dividerColor }]}
                 >
                   <Text style={[styles.inviteTitle, { color: textPrimary }]}>
-                    Convite para: {terreiroTitle}
+                    {terreiroTitle}
                   </Text>
 
                   <View style={styles.inviteBadges}>
@@ -172,15 +176,15 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                       }
                       style={{ alignSelf: "flex-start" }}
                     />
-                    {invite.role === "member" && kindLabel ? (
-                      <Badge
-                        label={kindLabel}
-                        variant={variant}
-                        appearance="secondary"
-                        style={{ alignSelf: "flex-start" }}
-                      />
-                    ) : null}
                   </View>
+
+                  {bodyCopy ? (
+                    <Text
+                      style={[styles.inviteBody, { color: textSecondary }]}
+                    >
+                      {bodyCopy}
+                    </Text>
+                  ) : null}
 
                   <View style={styles.inviteActions}>
                     <Pressable
@@ -217,6 +221,37 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                         ]}
                       >
                         Recusar
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Decidir depois"
+                      disabled={processing}
+                      onPress={() => {
+                        if (!normalizedUserEmail) return;
+                        void bumpTerreiroInviteSnooze(
+                          normalizedUserEmail,
+                          invite.id
+                        ).then(() => {
+                          bumpTerreiroSnoozeVersion();
+                        });
+                        showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
+                      }}
+                      style={({ pressed }) => [
+                        styles.inviteSecondaryBtn,
+                        { borderColor: dividerColor },
+                        pressed ? styles.inviteBtnPressed : null,
+                        processing ? styles.inviteBtnDisabled : null,
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.inviteSecondaryBtnText,
+                          { color: textPrimary },
+                        ]}
+                      >
+                        Decidir depois
                       </Text>
                     </Pressable>
                   </View>
@@ -320,6 +355,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: 8,
+  },
+  inviteBody: {
+    marginTop: 10,
+    fontSize: 13,
+    lineHeight: 18,
   },
   inviteActions: {
     flexDirection: "row",

@@ -3,6 +3,9 @@ import React, { createContext, useContext, useMemo, useState } from "react";
 type InviteGatesContextValue = {
   terreiroGateActive: boolean;
   setTerreiroGateActive: (next: boolean) => void;
+
+  terreiroSnoozeVersion: number;
+  bumpTerreiroSnoozeVersion: () => void;
 };
 
 const InviteGatesContext = createContext<InviteGatesContextValue | undefined>(
@@ -15,10 +18,16 @@ export function InviteGatesProvider({
   children: React.ReactNode;
 }) {
   const [terreiroGateActive, setTerreiroGateActive] = useState(false);
+  const [terreiroSnoozeVersion, setTerreiroSnoozeVersion] = useState(0);
 
   const value = useMemo(
-    () => ({ terreiroGateActive, setTerreiroGateActive }),
-    [terreiroGateActive]
+    () => ({
+      terreiroGateActive,
+      setTerreiroGateActive,
+      terreiroSnoozeVersion,
+      bumpTerreiroSnoozeVersion: () => setTerreiroSnoozeVersion((v) => v + 1),
+    }),
+    [terreiroGateActive, terreiroSnoozeVersion]
   );
 
   return (

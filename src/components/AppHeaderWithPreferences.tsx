@@ -1,5 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
+import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
 import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
 import { useToast } from "@/contexts/ToastContext";
@@ -19,6 +20,11 @@ import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsCont
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import {
+  getTerreiroInviteBodyCopy,
+  getTerreiroInviteRoleBadgeLabel,
+  TERREIRO_INVITE_DECIDE_LATER_TOAST,
+} from "@/src/domain/terreiroInviteCopy";
+import {
   formatTerreiroMemberKindLabel,
   formatTerreiroRoleLabel,
 } from "@/src/domain/terreiroRoles";
@@ -36,8 +42,8 @@ import {
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
+import { bumpTerreiroInviteSnooze } from "@/src/utils/terreiroInviteSnooze";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
@@ -105,59 +111,10 @@ function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
   );
 }
 
-function getInviteRoleLabel(role: unknown): string {
-  return formatTerreiroRoleLabel(role);
-}
-
 function normalizeEmail(value: string) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
-}
-
-const INVITE_GATE_SNOOZE_KEY_PREFIX = "inviteGate:snoozedInviteIds:v1:";
-
-function getInviteGateSnoozeKey(emailLower: string) {
-  return `${INVITE_GATE_SNOOZE_KEY_PREFIX}${emailLower}`;
-}
-
-async function loadInviteGateSnoozedInviteIds(emailLower: string) {
-  const key = getInviteGateSnoozeKey(emailLower);
-  const raw = await AsyncStorage.getItem(key);
-  if (!raw) return new Set<string>();
-
-  try {
-    const parsed = JSON.parse(raw);
-    const arr = Array.isArray(parsed) ? parsed : [];
-    return new Set(arr.map((x) => String(x)).filter(Boolean));
-  } catch {
-    return new Set<string>();
-  }
-}
-
-async function saveInviteGateSnoozedInviteIds(
-  emailLower: string,
-  inviteIds: Set<string>
-) {
-  const key = getInviteGateSnoozeKey(emailLower);
-  await AsyncStorage.setItem(key, JSON.stringify(Array.from(inviteIds)));
-}
-
-async function snoozeInviteGateInviteId(emailLower: string, inviteId: string) {
-  const next = await loadInviteGateSnoozedInviteIds(emailLower);
-  next.add(inviteId);
-  await saveInviteGateSnoozedInviteIds(emailLower, next);
-  return next;
-}
-
-async function unsnoozeInviteGateInviteId(
-  emailLower: string,
-  inviteId: string
-) {
-  const next = await loadInviteGateSnoozedInviteIds(emailLower);
-  next.delete(inviteId);
-  await saveInviteGateSnoozedInviteIds(emailLower, next);
-  return next;
 }
 
 function getFriendlyActionError(message: string) {
@@ -391,6 +348,7 @@ export function PreferencesOverlaySheets(
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { showToast } = useToast();
+  const { bumpTerreiroSnoozeVersion } = useInviteGates();
   const queryClient = useQueryClient();
   const { isOpen, closePreferences } = usePreferencesOverlay();
   const insets = useGlobalSafeAreaInsets();
@@ -814,34 +772,8 @@ export function PreferencesOverlaySheets(
     [terreiroInvitesQuery.data]
   );
 
-  const [inviteGateSnoozedInviteIds, setInviteGateSnoozedInviteIds] = useState<
-    Set<string>
-  >(new Set());
-
-  useEffect(() => {
-    if (!normalizedUserEmail) {
-      setInviteGateSnoozedInviteIds(new Set());
-      return;
-    }
-
-    let cancelled = false;
-    void loadInviteGateSnoozedInviteIds(normalizedUserEmail).then((ids) => {
-      if (cancelled) return;
-      setInviteGateSnoozedInviteIds(ids);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [normalizedUserEmail]);
-
-  const visiblePendingTerreiroInvites = useMemo(
-    () =>
-      pendingTerreiroInvites.filter(
-        (i) => !inviteGateSnoozedInviteIds.has(String(i?.id ?? ""))
-      ),
-    [inviteGateSnoozedInviteIds, pendingTerreiroInvites]
-  );
+  // Invites should always remain visible in Preferences.
+  const visiblePendingTerreiroInvites = pendingTerreiroInvites;
 
   const curatorInvitesAdminQuery = useQuery({
     queryKey: ["curatorInvites", "adminList"],
@@ -1002,15 +934,6 @@ export function PreferencesOverlaySheets(
       if (res?.data === false)
         throw new Error("accept_terreiro_invite returned false");
 
-      if (normalizedUserEmail) {
-        setInviteGateSnoozedInviteIds((prev) => {
-          const next = new Set(prev);
-          next.delete(invite.id);
-          return next;
-        });
-        void unsnoozeInviteGateInviteId(normalizedUserEmail, invite.id);
-      }
-
       // Optimistic: remove invite from list immediately
       if (normalizedUserEmail) {
         queryClient.setQueryData(
@@ -1141,15 +1064,6 @@ export function PreferencesOverlaySheets(
       if (res?.error) throw res.error;
       if (res?.data === false)
         throw new Error("reject_terreiro_invite returned false");
-
-      if (normalizedUserEmail) {
-        setInviteGateSnoozedInviteIds((prev) => {
-          const next = new Set(prev);
-          next.delete(invite.id);
-          return next;
-        });
-        void unsnoozeInviteGateInviteId(normalizedUserEmail, invite.id);
-      }
 
       // Optimistic: remove invite from list immediately
       if (normalizedUserEmail) {
@@ -1405,7 +1319,7 @@ export function PreferencesOverlaySheets(
                   style={[styles.inviteBody, { color: textSecondary }]}
                   numberOfLines={6}
                 >
-                  Você foi convidada(o) para cuidar do acervo do Saravafy.
+                  Você foi convidado(a) para cuidar do acervo do Saravafy.
                 </Text>
 
                 <View style={styles.inviteActions}>
@@ -1492,7 +1406,7 @@ export function PreferencesOverlaySheets(
                         style={[styles.inviteTitle, { color: textPrimary }]}
                         numberOfLines={2}
                       >
-                        Convite para: {terreiroTitle}
+                        {terreiroTitle}
                       </Text>
 
                       <View
@@ -1503,31 +1417,21 @@ export function PreferencesOverlaySheets(
                         }}
                       >
                         <Badge
-                          label={getInviteRoleLabel(invite.role)}
+                          label={getTerreiroInviteRoleBadgeLabel(invite.role)}
                           variant={variant}
                           appearance={
                             invite.role === "admin" ? "primary" : "secondary"
                           }
                           style={{ alignSelf: "flex-start" }}
                         />
-
-                        {invite.role === "member"
-                          ? (() => {
-                              const label = formatTerreiroMemberKindLabel(
-                                (invite as any)?.member_kind
-                              );
-                              if (!label) return null;
-                              return (
-                                <Badge
-                                  label={label}
-                                  variant={variant}
-                                  appearance="secondary"
-                                  style={{ alignSelf: "flex-start" }}
-                                />
-                              );
-                            })()
-                          : null}
                       </View>
+
+                      <Text
+                        style={[styles.inviteBody, { color: textSecondary }]}
+                        numberOfLines={10}
+                      >
+                        {getTerreiroInviteBodyCopy(invite.role)}
+                      </Text>
 
                       <View
                         style={[
@@ -1547,9 +1451,7 @@ export function PreferencesOverlaySheets(
                             processing ? styles.inviteBtnDisabled : null,
                           ]}
                         >
-                          <Text style={styles.invitePrimaryBtnText}>
-                            Aceitar convite
-                          </Text>
+                          <Text style={styles.invitePrimaryBtnText}>Aceitar</Text>
                         </Pressable>
 
                         <View style={styles.inviteActions}>
@@ -1583,18 +1485,14 @@ export function PreferencesOverlaySheets(
                             onPress={() => {
                               if (!normalizedUserEmail) return;
 
-                              setInviteGateSnoozedInviteIds((prev) => {
-                                const next = new Set(prev);
-                                next.add(invite.id);
-                                return next;
-                              });
-
-                              void snoozeInviteGateInviteId(
+                              void bumpTerreiroInviteSnooze(
                                 normalizedUserEmail,
                                 invite.id
-                              );
+                              ).then(() => {
+                                bumpTerreiroSnoozeVersion();
+                              });
 
-                              showToast("Tudo bem. Você pode decidir depois.");
+                              showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
                             }}
                             style={({ pressed }) => [
                               styles.inviteSecondaryBtn,

@@ -1,4 +1,3 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   useCallback,
   useEffect,
@@ -21,15 +20,25 @@ import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import {
+  getTerreiroInviteBodyCopy,
+  getTerreiroInviteRoleBadgeLabel,
+  TERREIRO_INVITE_DECIDE_LATER_TOAST,
+} from "@/src/domain/terreiroInviteCopy";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, radii, spacing } from "@/src/theme";
+import {
+  bumpTerreiroInviteSnooze,
+  getTerreiroInviteSnoozeInfo,
+  loadTerreiroInviteSnoozeMap,
+  type TerreiroInviteSnoozeMap,
+} from "@/src/utils/terreiroInviteSnooze";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRootNavigationState, useSegments } from "expo-router";
 
 type InviteRole = "admin" | "curimba" | "member" | "follower";
-
-const INVITE_GATE_SNOOZE_KEY_PREFIX = "inviteGate:snoozedInviteIds:v1:";
 
 type TerreiroInvite = {
   id: string;
@@ -180,7 +189,7 @@ export function InviteGate() {
   const { showToast } = useToast();
   const { effectiveTheme, fetchTerreirosQueAdministro } = usePreferences();
   const queryClient = useQueryClient();
-  const { setTerreiroGateActive } = useInviteGates();
+  const { setTerreiroGateActive, terreiroSnoozeVersion } = useInviteGates();
 
   const segments = useSegments();
   const rootNavState = useRootNavigationState();
@@ -222,48 +231,45 @@ export function InviteGate() {
 
   const priorityInviteIdRef = useRef<string | null>(null);
 
-  const snoozedInviteIdsRef = useRef<Set<string>>(new Set());
-  const snoozeStorageKey = useMemo(() => {
-    if (!normalizedUserEmail) return null;
-    return `${INVITE_GATE_SNOOZE_KEY_PREFIX}${normalizedUserEmail}`;
+  const sessionStartAtRef = useRef<number>(Date.now());
+  const snoozeReadyRef = useRef(false);
+  const snoozeMapRef = useRef<TerreiroInviteSnoozeMap>({});
+
+  const reloadSnoozeMap = useCallback(async () => {
+    if (!normalizedUserEmail) {
+      snoozeMapRef.current = {};
+      snoozeReadyRef.current = true;
+      return;
+    }
+
+    try {
+      snoozeMapRef.current = await loadTerreiroInviteSnoozeMap(
+        normalizedUserEmail
+      );
+    } catch {
+      snoozeMapRef.current = {};
+    } finally {
+      snoozeReadyRef.current = true;
+    }
   }, [normalizedUserEmail]);
 
-  const persistSnoozedIds = useCallback(
-    async (next: Set<string>) => {
-      if (!snoozeStorageKey) return;
-      try {
-        await AsyncStorage.setItem(
-          snoozeStorageKey,
-          JSON.stringify(Array.from(next))
-        );
-      } catch {
-        // Ignore persistence failures; snooze will still work for this session.
-      }
-    },
-    [snoozeStorageKey]
-  );
+  const shouldHideFromGate = useCallback((inviteId: string) => {
+    const info = getTerreiroInviteSnoozeInfo(snoozeMapRef.current, inviteId);
 
-  const snoozeInvite = useCallback(
-    async (inviteId: string) => {
-      const next = new Set(snoozedInviteIdsRef.current);
-      next.add(inviteId);
-      snoozedInviteIdsRef.current = next;
-      await persistSnoozedIds(next);
-    },
-    [persistSnoozedIds]
-  );
+    // After 2nd "Decidir depois": stop insisting completely.
+    if (info.count >= 2) return true;
 
-  const unsnoozeInvite = useCallback(
-    async (inviteId: string) => {
-      const prev = snoozedInviteIdsRef.current;
-      if (!prev.has(inviteId)) return;
-      const next = new Set(prev);
-      next.delete(inviteId);
-      snoozedInviteIdsRef.current = next;
-      await persistSnoozedIds(next);
-    },
-    [persistSnoozedIds]
-  );
+    // After 1st "Decidir depois": stop insisting for the rest of this app session.
+    if (
+      info.count === 1 &&
+      typeof info.lastSnoozedAt === "number" &&
+      info.lastSnoozedAt >= sessionStartAtRef.current
+    ) {
+      return true;
+    }
+
+    return false;
+  }, []);
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -282,42 +288,26 @@ export function InviteGate() {
   }, [pendingInvites]);
 
   useEffect(() => {
-    if (!snoozeStorageKey) {
-      snoozedInviteIdsRef.current = new Set();
-      return;
-    }
+    void (async () => {
+      await reloadSnoozeMap();
 
-    (async () => {
-      try {
-        const raw = await AsyncStorage.getItem(snoozeStorageKey);
-        const parsed = raw ? (JSON.parse(raw) as unknown) : [];
-        const list = Array.isArray(parsed)
-          ? parsed.map((v) => String(v)).filter(Boolean)
-          : [];
-        snoozedInviteIdsRef.current = new Set(list);
+      const filtered = pendingInvitesRef.current.filter(
+        (i) => !shouldHideFromGate(i.id)
+      );
 
-        // Filter already-loaded queue (best-effort).
-        const filtered = pendingInvitesRef.current.filter(
-          (i) => !snoozedInviteIdsRef.current.has(i.id)
-        );
-        if (filtered.length !== pendingInvitesRef.current.length) {
-          pendingInvitesRef.current = filtered;
-          setPendingInvites(filtered);
-          setIsBannerVisible(filtered.length > 0);
+      if (filtered.length !== pendingInvitesRef.current.length) {
+        pendingInvitesRef.current = filtered;
+        setPendingInvites(filtered);
+      }
 
-          if (
-            currentInvite &&
-            snoozedInviteIdsRef.current.has(currentInvite.id)
-          ) {
-            setCurrentInvite(null);
-            setIsModalVisible(false);
-          }
-        }
-      } catch {
-        snoozedInviteIdsRef.current = new Set();
+      setIsBannerVisible(filtered.length > 0);
+
+      if (currentInvite && shouldHideFromGate(currentInvite.id)) {
+        setCurrentInvite(null);
+        setIsModalVisible(false);
       }
     })();
-  }, [currentInvite, snoozeStorageKey]);
+  }, [currentInvite, reloadSnoozeMap, shouldHideFromGate, terreiroSnoozeVersion]);
 
   useEffect(() => {
     if (!__DEV__) return;
@@ -332,6 +322,10 @@ export function InviteGate() {
     async (options?: { skipCache?: boolean }) => {
       if (!userId) return [] as TerreiroInvite[];
       if (!normalizedUserEmail) return [] as TerreiroInvite[];
+
+      if (!snoozeReadyRef.current) {
+        await reloadSnoozeMap();
+      }
 
       if (rlsRecursionDetectedRef.current) {
         // If DB policies are broken, don't keep hammering Supabase.
@@ -440,9 +434,7 @@ export function InviteGate() {
               return [head, ...rest];
             })();
 
-        const next = ordered.filter(
-          (i) => !snoozedInviteIdsRef.current.has(i.id)
-        );
+        const next = ordered.filter((i) => !shouldHideFromGate(i.id));
 
         lastFetchAtRef.current = Date.now();
         setPendingInvites(next);
@@ -456,7 +448,7 @@ export function InviteGate() {
         inFlightRef.current = null;
       }
     },
-    [normalizedUserEmail, showToast, userId]
+    [normalizedUserEmail, reloadSnoozeMap, shouldHideFromGate, showToast, userId]
   );
 
   const ensureModalForQueue = useCallback((queue: TerreiroInvite[]) => {
@@ -640,7 +632,7 @@ export function InviteGate() {
           const inviteId = typeof row?.id === "string" ? row.id : null;
           if (inviteId) realtimeInviteIdRef.current = inviteId;
 
-          if (inviteId && snoozedInviteIdsRef.current.has(inviteId)) {
+          if (inviteId && shouldHideFromGate(inviteId)) {
             return;
           }
 
@@ -758,9 +750,6 @@ export function InviteGate() {
 
       // 1) Atualiza o estado local imediatamente para fechar o modal/banner.
       resolveInviteLocally(currentInvite.id);
-
-      // If this invite was snoozed before, clean it up.
-      await unsnoozeInvite(currentInvite.id);
 
       // 2) Recalcula o warm cache (permissões/terreiros) para refletir o novo role
       // imediatamente, sem precisar reiniciar o app.
@@ -880,7 +869,6 @@ export function InviteGate() {
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
-    unsnoozeInvite,
     userId,
   ]);
 
@@ -946,9 +934,6 @@ export function InviteGate() {
       }
 
       resolveInviteLocally(currentInvite.id);
-
-      // If this invite was snoozed before, clean it up.
-      await unsnoozeInvite(currentInvite.id);
 
       // Revalidar caches que dependem de memberships/terreiros (por via das dúvidas).
       if (userId) {
@@ -1021,7 +1006,6 @@ export function InviteGate() {
     refreshPendingInvites,
     resolveInviteLocally,
     showToast,
-    unsnoozeInvite,
     userId,
   ]);
 
@@ -1036,11 +1020,14 @@ export function InviteGate() {
 
   const inviteRoleLabel = useMemo(() => {
     const role = currentInvite?.role;
-    if (role === "admin") return "Admin do Terreiro";
-    if (role === "curimba") return "Curimba";
-    if (role === "member") return "Membro";
-    if (role === "follower") return "Seguidor";
-    return "";
+    if (!role) return "";
+    return getTerreiroInviteRoleBadgeLabel(role);
+  }, [currentInvite?.role]);
+
+  const inviteBodyCopy = useMemo(() => {
+    const role = currentInvite?.role;
+    if (!role) return "";
+    return getTerreiroInviteBodyCopy(role);
   }, [currentInvite?.role]);
 
   const bannerText = useMemo(() => {
@@ -1062,7 +1049,12 @@ export function InviteGate() {
     }
 
     void (async () => {
-      await snoozeInvite(inviteId);
+      if (normalizedUserEmail) {
+        await bumpTerreiroInviteSnooze(normalizedUserEmail, inviteId);
+        await reloadSnoozeMap();
+      }
+
+      showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
 
       const nextQueue = pendingInvitesRef.current.filter(
         (i) => i.id !== inviteId
@@ -1077,7 +1069,13 @@ export function InviteGate() {
       setIsBannerVisible(nextQueue.length > 0);
       setShouldOpenModalWhenReady(false);
     })();
-  }, [closeModalNoSideEffects, currentInvite?.id, snoozeInvite]);
+  }, [
+    closeModalNoSideEffects,
+    currentInvite?.id,
+    normalizedUserEmail,
+    reloadSnoozeMap,
+    showToast,
+  ]);
 
   useEffect(() => {
     const active =
@@ -1144,48 +1142,27 @@ export function InviteGate() {
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
               <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                Um cuidado foi confiado a você
+                {inviteTerreiroTitle}
               </Text>
 
-              <Text style={[styles.modalLead, { color: textSecondary }]}>
-                Você foi convidada(o) a colaborar com este terreiro no Saravafy.
-              </Text>
-
-              <View
-                style={[
-                  styles.infoBlock,
-                  { borderColor: inputBorder, backgroundColor: inputBg },
-                ]}
-              >
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: textSecondary }]}>
-                    Terreiro
-                  </Text>
-                  <Text
-                    style={[styles.infoValue, { color: textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {inviteTerreiroTitle}
-                  </Text>
+              {inviteRoleLabel ? (
+                <View style={{ marginTop: 10, alignItems: "flex-start" }}>
+                  <Badge
+                    label={inviteRoleLabel}
+                    variant={variant}
+                    appearance={
+                      currentInvite?.role === "admin" ? "primary" : "secondary"
+                    }
+                    style={{ alignSelf: "flex-start" }}
+                  />
                 </View>
+              ) : null}
 
-                <View style={styles.infoRow}>
-                  <Text style={[styles.infoLabel, { color: textSecondary }]}>
-                    Papel
-                  </Text>
-                  <Text
-                    style={[styles.infoValue, { color: textPrimary }]}
-                    numberOfLines={1}
-                  >
-                    {inviteRoleLabel}
-                  </Text>
-                </View>
-              </View>
-
-              <Text style={[styles.modalBody, { color: textSecondary }]}>
-                Seu papel ajuda a manter os pontos, informações e a organização
-                do terreiro sempre bem cuidados.
-              </Text>
+              {inviteBodyCopy ? (
+                <Text style={[styles.modalBody, { color: textSecondary }]}>
+                  {inviteBodyCopy}
+                </Text>
+              ) : null}
 
               {isProcessing ? (
                 <View style={styles.processingRow}>
@@ -1223,7 +1200,7 @@ export function InviteGate() {
               <View style={styles.modalButtons}>
                 <Pressable
                   accessibilityRole="button"
-                  accessibilityLabel="Aceitar o cuidado"
+                  accessibilityLabel="Aceitar convite"
                   disabled={isProcessing}
                   onPress={acceptInvite}
                   style={({ pressed }) => [
@@ -1232,7 +1209,7 @@ export function InviteGate() {
                     isProcessing ? styles.btnDisabled : null,
                   ]}
                 >
-                  <Text style={styles.primaryBtnText}>Aceitar o cuidado</Text>
+                  <Text style={styles.primaryBtnText}>Aceitar</Text>
                 </Pressable>
 
                 <Pressable
@@ -1250,7 +1227,7 @@ export function InviteGate() {
                   <Text
                     style={[styles.secondaryBtnText, { color: textPrimary }]}
                   >
-                    Recusar convite
+                    Recusar
                   </Text>
                 </Pressable>
 

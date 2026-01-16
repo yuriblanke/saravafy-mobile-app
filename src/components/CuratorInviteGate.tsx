@@ -600,7 +600,7 @@ export function CuratorInviteGate() {
               </Text>
 
               <Text style={[styles.modalLead, { color: textSecondary }]}>
-                Você foi convidada(o) a zelar pelo acervo do Saravafy.
+                Você foi convidado(a) a zelar pelo acervo do Saravafy.
               </Text>
 
               <View
