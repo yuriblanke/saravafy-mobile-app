@@ -313,7 +313,12 @@ export function InviteGate() {
         setIsModalVisible(false);
       }
     })();
-  }, [currentInvite, reloadSnoozeMap, shouldHideFromGate, terreiroSnoozeVersion]);
+  }, [
+    currentInvite,
+    reloadSnoozeMap,
+    shouldHideFromGate,
+    terreiroSnoozeVersion,
+  ]);
 
   useEffect(() => {
     if (!__DEV__) return;
@@ -399,37 +404,38 @@ export function InviteGate() {
             const role = normalizeInviteRole(row?.role);
             if (!role) return null;
 
-          const terreiroRaw = row?.terreiro as any;
-          const terreiroObj = Array.isArray(terreiroRaw)
-            ? (terreiroRaw[0] as any)
-            : (terreiroRaw as any);
+            const terreiroRaw = row?.terreiro as any;
+            const terreiroObj = Array.isArray(terreiroRaw)
+              ? (terreiroRaw[0] as any)
+              : (terreiroRaw as any);
 
-          const terreiroTitle =
-            typeof terreiroObj?.title === "string" && terreiroObj.title.trim()
-              ? terreiroObj.title.trim()
-              : typeof terreiroObj?.name === "string" && terreiroObj.name.trim()
-              ? terreiroObj.name.trim()
-              : null;
+            const terreiroTitle =
+              typeof terreiroObj?.title === "string" && terreiroObj.title.trim()
+                ? terreiroObj.title.trim()
+                : typeof terreiroObj?.name === "string" &&
+                  terreiroObj.name.trim()
+                ? terreiroObj.name.trim()
+                : null;
 
-          if (__DEV__ && !terreiroTitle) {
-            console.info("[InviteGate] missing terreiro title on invite", {
-              inviteId: row?.id,
-              terreiroId: row?.terreiro_id,
-              terreiroRawType: Array.isArray(terreiroRaw)
-                ? "array"
-                : typeof terreiroRaw,
-              terreiroRaw,
-            });
-          }
+            if (__DEV__ && !terreiroTitle) {
+              console.info("[InviteGate] missing terreiro title on invite", {
+                inviteId: row?.id,
+                terreiroId: row?.terreiro_id,
+                terreiroRawType: Array.isArray(terreiroRaw)
+                  ? "array"
+                  : typeof terreiroRaw,
+                terreiroRaw,
+              });
+            }
 
             return {
-            id: String(row?.id ?? ""),
-            terreiro_id: String(row?.terreiro_id ?? ""),
-            email: String(row?.email ?? ""),
-            role,
-            status: String(row?.status ?? ""),
-            created_at: String(row?.created_at ?? ""),
-            terreiro_title: terreiroTitle,
+              id: String(row?.id ?? ""),
+              terreiro_id: String(row?.terreiro_id ?? ""),
+              email: String(row?.email ?? ""),
+              role,
+              status: String(row?.status ?? ""),
+              created_at: String(row?.created_at ?? ""),
+              terreiro_title: terreiroTitle,
             } satisfies TerreiroInvite;
           })
           .filter(Boolean) as TerreiroInvite[];
@@ -459,7 +465,13 @@ export function InviteGate() {
         inFlightRef.current = null;
       }
     },
-    [normalizedUserEmail, reloadSnoozeMap, shouldHideFromGate, showToast, userId]
+    [
+      normalizedUserEmail,
+      reloadSnoozeMap,
+      shouldHideFromGate,
+      showToast,
+      userId,
+    ]
   );
 
   const ensureModalForQueue = useCallback((queue: TerreiroInvite[]) => {
@@ -1150,28 +1162,41 @@ export function InviteGate() {
             />
 
             <SurfaceCard variant={variant} style={styles.modalCard}>
-              <Text style={[styles.modalTitle, { color: textPrimary }]}>
-                {inviteTerreiroTitle}
-              </Text>
-
-              {inviteRoleLabel ? (
-                <View style={{ marginTop: 10, alignItems: "flex-start" }}>
-                  <Badge
-                    label={inviteRoleLabel}
-                    variant={variant}
-                    appearance={
-                      currentInvite?.role === "admin" ? "primary" : "secondary"
-                    }
-                    style={{ alignSelf: "flex-start" }}
-                  />
-                </View>
-              ) : null}
-
-              {inviteBodyCopy ? (
-                <Text style={[styles.modalBody, { color: textSecondary }]}>
-                  {inviteBodyCopy}
+              <View style={styles.modalContent}>
+                <Text style={[styles.modalTitle, { color: textPrimary }]}>
+                  {inviteTerreiroTitle}
                 </Text>
-              ) : null}
+
+                {inviteRoleLabel ? (
+                  <View style={styles.modalBadgeWrap}>
+                    <Badge
+                      label={inviteRoleLabel}
+                      variant={variant}
+                      appearance={
+                        currentInvite?.role === "admin" ? "primary" : "secondary"
+                      }
+                      style={{ alignSelf: "center" }}
+                    />
+                  </View>
+                ) : null}
+
+                {inviteBodyCopy ? (
+                  <View style={styles.modalBodyWrap}>
+                    {inviteBodyCopy.split("\n\n").map((p, idx) => (
+                      <Text
+                        key={`${idx}:${p.slice(0, 16)}`}
+                        style={[
+                          styles.modalBody,
+                          { color: textSecondary },
+                          idx > 0 ? styles.modalBodyParagraph : null,
+                        ]}
+                      >
+                        {p}
+                      </Text>
+                    ))}
+                  </View>
+                ) : null}
+              </View>
 
               {isProcessing ? (
                 <View style={styles.processingRow}>
@@ -1207,38 +1232,42 @@ export function InviteGate() {
               ) : null}
 
               <View style={styles.modalButtons}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Aceitar convite"
-                  disabled={isProcessing}
-                  onPress={acceptInvite}
-                  style={({ pressed }) => [
-                    styles.primaryBtn,
-                    pressed ? styles.btnPressed : null,
-                    isProcessing ? styles.btnDisabled : null,
-                  ]}
-                >
-                  <Text style={styles.primaryBtnText}>Aceitar</Text>
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Recusar convite"
-                  disabled={isProcessing}
-                  onPress={rejectInvite}
-                  style={({ pressed }) => [
-                    styles.secondaryBtn,
-                    { borderColor: inputBorder, backgroundColor: inputBg },
-                    pressed ? styles.btnPressed : null,
-                    isProcessing ? styles.btnDisabled : null,
-                  ]}
-                >
-                  <Text
-                    style={[styles.secondaryBtnText, { color: textPrimary }]}
+                <View style={styles.modalPrimaryRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Aceitar convite"
+                    disabled={isProcessing}
+                    onPress={acceptInvite}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      styles.modalPrimaryBtn,
+                      pressed ? styles.btnPressed : null,
+                      isProcessing ? styles.btnDisabled : null,
+                    ]}
                   >
-                    Recusar
-                  </Text>
-                </Pressable>
+                    <Text style={styles.primaryBtnText}>Aceitar</Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Recusar convite"
+                    disabled={isProcessing}
+                    onPress={rejectInvite}
+                    style={({ pressed }) => [
+                      styles.secondaryBtn,
+                      styles.modalPrimaryBtn,
+                      { borderColor: inputBorder, backgroundColor: inputBg },
+                      pressed ? styles.btnPressed : null,
+                      isProcessing ? styles.btnDisabled : null,
+                    ]}
+                  >
+                    <Text
+                      style={[styles.secondaryBtnText, { color: textPrimary }]}
+                    >
+                      Recusar
+                    </Text>
+                  </Pressable>
+                </View>
 
                 <Pressable
                   accessibilityRole="button"
@@ -1327,11 +1356,26 @@ const styles = StyleSheet.create({
     width: "100%",
     maxWidth: 520,
   },
+  modalContent: {
+    alignItems: "center",
+  },
   modalTitle: {
     fontSize: 18,
     fontWeight: "900",
     marginBottom: 8,
     textAlign: "center",
+  },
+  modalBadgeWrap: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modalBodyWrap: {
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+    alignItems: "center",
   },
   modalLead: {
     fontSize: 13,
@@ -1372,8 +1416,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     opacity: 0.92,
-    lineHeight: 18,
+    lineHeight: 17,
     textAlign: "center",
+  },
+  modalBodyParagraph: {
+    marginTop: 6,
   },
   modalError: {
     marginTop: spacing.md,
@@ -1391,8 +1438,17 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   modalButtons: {
-    marginTop: spacing.lg,
+    marginTop: spacing.md,
     gap: spacing.md,
+  },
+  modalPrimaryRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    justifyContent: "center",
+    gap: spacing.sm,
+  },
+  modalPrimaryBtn: {
+    flex: 1,
   },
   processingRow: {
     marginTop: spacing.md,
@@ -1438,6 +1494,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "800",
     textDecorationLine: "underline",
+    opacity: 0.72,
   },
   btnPressed: {
     opacity: 0.92,

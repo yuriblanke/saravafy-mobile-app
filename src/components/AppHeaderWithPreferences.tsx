@@ -1322,7 +1322,7 @@ export function PreferencesOverlaySheets(
                   Você foi convidado(a) para cuidar do acervo do Saravafy.
                 </Text>
 
-                <View style={styles.inviteActions}>
+                <View style={styles.invitePrimaryRow}>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Aceitar convite"
@@ -1335,7 +1335,7 @@ export function PreferencesOverlaySheets(
                     }
                     style={({ pressed }) => [
                       styles.invitePrimaryBtn,
-                      { borderColor: colors.brass600 },
+                      { borderColor: colors.brass600, flex: 1 },
                       pressed ? styles.inviteBtnPressed : null,
                       inviteProcessingKey ===
                       `curator:${pendingCuratorInvite.id}`
@@ -1360,7 +1360,7 @@ export function PreferencesOverlaySheets(
                     }
                     style={({ pressed }) => [
                       styles.inviteSecondaryBtn,
-                      { borderColor: inputBorder },
+                      { borderColor: inputBorder, flex: 1 },
                       pressed ? styles.inviteBtnPressed : null,
                       inviteProcessingKey ===
                       `curator:${pendingCuratorInvite.id}`
@@ -1402,59 +1402,62 @@ export function PreferencesOverlaySheets(
                         { borderColor: dividerColor, backgroundColor: inputBg },
                       ]}
                     >
-                      <Text
-                        style={[styles.inviteTitle, { color: textPrimary }]}
-                        numberOfLines={2}
-                      >
-                        {terreiroTitle}
-                      </Text>
+                      <View style={styles.inviteCenterBlock}>
+                        <Text
+                          style={[styles.inviteTitle, { color: textPrimary }]}
+                          numberOfLines={2}
+                        >
+                          {terreiroTitle}
+                        </Text>
 
-                      <View
-                        style={{
-                          flexDirection: "row",
-                          flexWrap: "wrap",
-                          gap: 8,
-                        }}
-                      >
-                        <Badge
-                          label={getTerreiroInviteRoleBadgeLabel(invite.role)}
-                          variant={variant}
-                          appearance={
-                            invite.role === "admin" ? "primary" : "secondary"
-                          }
-                          style={{ alignSelf: "flex-start" }}
-                        />
+                        <View style={styles.inviteBadgesCenter}>
+                          <Badge
+                            label={getTerreiroInviteRoleBadgeLabel(invite.role)}
+                            variant={variant}
+                            appearance={
+                              invite.role === "admin" ? "primary" : "secondary"
+                            }
+                            style={{ alignSelf: "center" }}
+                          />
+                        </View>
+
+                        <View style={styles.inviteBodyWrap}>
+                          {getTerreiroInviteBodyCopy(invite.role)
+                            .split("\n\n")
+                            .map((p, idx) => (
+                              <Text
+                                key={`${idx}:${p.slice(0, 16)}`}
+                                style={[
+                                  styles.inviteBody,
+                                  { color: textSecondary },
+                                  idx > 0 ? styles.inviteBodyParagraph : null,
+                                ]}
+                              >
+                                {p}
+                              </Text>
+                            ))}
+                        </View>
                       </View>
 
-                      <Text
-                        style={[styles.inviteBody, { color: textSecondary }]}
-                        numberOfLines={10}
-                      >
-                        {getTerreiroInviteBodyCopy(invite.role)}
-                      </Text>
+                      <View style={styles.inviteActionsColumn}>
+                        <View style={styles.invitePrimaryRow}>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Aceitar convite"
+                            disabled={processing}
+                            onPress={() => void acceptTerreiroInvite(invite)}
+                            style={({ pressed }) => [
+                              styles.invitePrimaryBtn,
+                              { borderColor: colors.brass600, flex: 1 },
+                              pressed ? styles.inviteBtnPressed : null,
+                              processing ? styles.inviteBtnDisabled : null,
+                            ]}
+                          >
+                            <Text style={styles.invitePrimaryBtnText}>
+                              Aceitar
+                            </Text>
+                          </Pressable>
 
-                      <View
-                        style={[
-                          styles.inviteActions,
-                          { flexDirection: "column", alignItems: "stretch" },
-                        ]}
-                      >
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Aceitar convite"
-                          disabled={processing}
-                          onPress={() => void acceptTerreiroInvite(invite)}
-                          style={({ pressed }) => [
-                            styles.invitePrimaryBtn,
-                            { borderColor: colors.brass600, flex: 0 },
-                            pressed ? styles.inviteBtnPressed : null,
-                            processing ? styles.inviteBtnDisabled : null,
-                          ]}
-                        >
-                          <Text style={styles.invitePrimaryBtnText}>Aceitar</Text>
-                        </Pressable>
-
-                        <View style={styles.inviteActions}>
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel="Recusar convite"
@@ -1477,41 +1480,40 @@ export function PreferencesOverlaySheets(
                               Recusar
                             </Text>
                           </Pressable>
-
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Decidir depois"
-                            disabled={processing}
-                            onPress={() => {
-                              if (!normalizedUserEmail) return;
-
-                              void bumpTerreiroInviteSnooze(
-                                normalizedUserEmail,
-                                invite.id
-                              ).then(() => {
-                                bumpTerreiroSnoozeVersion();
-                              });
-
-                              showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
-                            }}
-                            style={({ pressed }) => [
-                              styles.inviteSecondaryBtn,
-                              { borderColor: inputBorder, flex: 1 },
-                              pressed ? styles.inviteBtnPressed : null,
-                              processing ? styles.inviteBtnDisabled : null,
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                styles.inviteSecondaryBtnText,
-                                { color: textPrimary },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              Decidir depois
-                            </Text>
-                          </Pressable>
                         </View>
+
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Decidir depois"
+                          disabled={processing}
+                          onPress={() => {
+                            if (!normalizedUserEmail) return;
+
+                            void bumpTerreiroInviteSnooze(
+                              normalizedUserEmail,
+                              invite.id
+                            ).then(() => {
+                              bumpTerreiroSnoozeVersion();
+                            });
+
+                            showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
+                          }}
+                          style={({ pressed }) => [
+                            styles.inviteTertiaryBtn,
+                            pressed ? styles.inviteBtnPressed : null,
+                            processing ? styles.inviteBtnDisabled : null,
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.inviteTertiaryText,
+                              { color: textSecondary },
+                            ]}
+                            numberOfLines={1}
+                          >
+                            Decidir depois
+                          </Text>
+                        </Pressable>
                       </View>
                     </View>
                   );
@@ -2632,17 +2634,47 @@ const styles = StyleSheet.create({
   inviteTitle: {
     fontSize: 14,
     fontWeight: "900",
+    textAlign: "center",
   },
   inviteBody: {
     fontSize: 13,
     fontWeight: "600",
     opacity: 0.9,
+    lineHeight: 17,
+    textAlign: "center",
   },
   inviteActions: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.sm,
     marginTop: 2,
+  },
+  inviteActionsColumn: {
+    marginTop: 8,
+    gap: spacing.md,
+  },
+  invitePrimaryRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    gap: spacing.sm,
+  },
+  inviteCenterBlock: {
+    alignItems: "center",
+  },
+  inviteBadgesCenter: {
+    marginTop: spacing.sm,
+    marginBottom: spacing.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inviteBodyWrap: {
+    width: "100%",
+    maxWidth: 420,
+    alignSelf: "center",
+    alignItems: "center",
+  },
+  inviteBodyParagraph: {
+    marginTop: 6,
   },
   invitePrimaryBtn: {
     flex: 1,
@@ -2671,6 +2703,19 @@ const styles = StyleSheet.create({
   inviteSecondaryBtnText: {
     fontSize: 13,
     fontWeight: "900",
+  },
+  inviteTertiaryBtn: {
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 10,
+  },
+  inviteTertiaryText: {
+    fontSize: 13,
+    fontWeight: "800",
+    textDecorationLine: "underline",
+    opacity: 0.72,
+    textAlign: "center",
   },
   inviteBtnPressed: {
     opacity: 0.82,
