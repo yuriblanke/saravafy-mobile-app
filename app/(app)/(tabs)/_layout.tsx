@@ -3,7 +3,7 @@ import { useTabController } from "@/contexts/TabControllerContext";
 import { TabsHeaderWithPreferences } from "@/src/components/TabsHeaderWithPreferences";
 import { navTrace } from "@/src/utils/navTrace";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
-import { useFocusEffect } from "@react-navigation/native";
+import { useFocusEffect, useNavigation } from "@react-navigation/native";
 import {
   usePathname,
   useRouter,
@@ -17,6 +17,7 @@ const { Navigator } = createMaterialTopTabNavigator();
 const TopTabs = withLayoutContext(Navigator);
 
 export default function AppTabsLayout() {
+  const navigation = useNavigation<any>();
   const rootPager = useRootPagerOptional();
   const tabController = useTabController();
   const router = useRouter();
@@ -39,6 +40,30 @@ export default function AppTabsLayout() {
       return () => navTrace("(tabs) blur", routeInfoRef.current);
     }, [])
   );
+
+  useEffect(() => {
+    if (!__DEV__) return;
+
+    const parent = navigation.getParent?.();
+    navTrace("(tabs) attach parent transition listeners", {
+      hasParent: Boolean(parent),
+    });
+
+    if (!parent?.addListener) return;
+
+    const subs = [
+      parent.addListener("transitionStart", (e: any) => {
+        navTrace("(stack parent) transitionStart", e?.data);
+      }),
+      parent.addListener("transitionEnd", (e: any) => {
+        navTrace("(stack parent) transitionEnd", e?.data);
+      }),
+    ];
+
+    return () => {
+      for (const sub of subs) sub?.();
+    };
+  }, [navigation]);
 
   useEffect(() => {
     navTrace("(tabs) layout mount", { pathname, segments: segmentsKey });
