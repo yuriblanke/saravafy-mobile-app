@@ -13,6 +13,24 @@ export type TerreiroCollectionCard = {
   pontosCount: number;
 };
 
+async function withTimeout<T>(
+  promise: PromiseLike<T>,
+  ms: number,
+  message: string
+) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const timer = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  try {
+    return await Promise.race([Promise.resolve(promise), timer]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 function isMissingColumnError(error: unknown, columnName: string) {
   const message =
     error &&
@@ -38,20 +56,30 @@ export async function fetchCollectionsByTerreiro(
     "owner_terreiro_id",
   ].join(", ");
 
-  const res: any = await supabase
-    .from("collections")
-    .select(baseSelect)
-    .eq("owner_terreiro_id", terreiroId)
-    .order("updated_at", { ascending: false });
+  const res: any = await withTimeout(
+    supabase
+      .from("collections")
+      .select(baseSelect)
+      .eq("owner_terreiro_id", terreiroId)
+      .order("updated_at", { ascending: false }),
+    15_000,
+    "Tempo esgotado ao carregar coleções do terreiro."
+  );
 
   // Compat: se description não existe (schema legado), refaz sem ela.
   const finalRes: any =
     res.error && isMissingColumnError(res.error, "description")
-      ? await supabase
-          .from("collections")
-          .select(["id", "title", "visibility", "owner_terreiro_id"].join(", "))
-          .eq("owner_terreiro_id", terreiroId)
-          .order("updated_at", { ascending: false })
+      ? await withTimeout(
+          supabase
+            .from("collections")
+            .select(
+              ["id", "title", "visibility", "owner_terreiro_id"].join(", ")
+            )
+            .eq("owner_terreiro_id", terreiroId)
+            .order("updated_at", { ascending: false }),
+          15_000,
+          "Tempo esgotado ao carregar coleções do terreiro."
+        )
       : res;
 
   if (finalRes.error) {
@@ -83,10 +111,14 @@ export async function fetchCollectionsByTerreiro(
   const ids = collections.map((c) => c.id).filter(Boolean);
   if (ids.length === 0) return collections;
 
-  const pontosRes = await supabase
-    .from("collections_pontos")
-    .select("collection_id", { count: "exact" })
-    .in("collection_id", ids);
+  const pontosRes = await withTimeout(
+    supabase
+      .from("collections_pontos")
+      .select("collection_id", { count: "exact" })
+      .in("collection_id", ids),
+    15_000,
+    "Tempo esgotado ao carregar contagem de pontos das coleções."
+  );
 
   if (!pontosRes.error) {
     const countRows = (pontosRes.data ?? []) as {

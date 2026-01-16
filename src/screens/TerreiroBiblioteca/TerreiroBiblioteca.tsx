@@ -196,7 +196,7 @@ export default function TerreiroBiblioteca() {
   const safeAreaInsets = useSafeAreaInsets();
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
-  const listBottomInset = (safeAreaInsets.bottom ?? 0) + spacing.xl;
+  const listBottomInset = (safeAreaInsets.bottom ?? 0) + spacing.xl + shrinkRange;
 
   const imageSize = useDerivedValue(() => {
     return interpolate(

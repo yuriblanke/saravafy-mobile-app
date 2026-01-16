@@ -177,6 +177,23 @@ function safeLocaleCompare(a: string, b: string) {
   return a.localeCompare(b, "pt-BR", { sensitivity: "base" });
 }
 
+async function withTimeout<T>(
+  promise: PromiseLike<T>,
+  ms: number,
+  message: string
+) {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const timer = new Promise<never>((_, reject) => {
+    timeout = setTimeout(() => reject(new Error(message)), ms);
+  });
+
+  try {
+    return await Promise.race([Promise.resolve(promise), timer]);
+  } finally {
+    if (timeout) clearTimeout(timeout);
+  }
+}
+
 type TerreiroMemberEditableRow = {
   terreiro_id: string;
   role: EditableTerreiroRole;
@@ -342,19 +359,27 @@ async function fetchMyTerreirosWithRole(params: {
   const allowedRoles = ["admin", "editor", "member"] as const;
 
   // 1) memberships (admin/editor/member) + status=active
-  let members: any = await supabase
-    .from("terreiro_members")
-    .select("terreiro_id, role, status")
-    .eq("user_id", userId)
-    .in("role", [...allowedRoles])
-    .eq("status", "active");
+  let members: any = await withTimeout(
+    supabase
+      .from("terreiro_members")
+      .select("terreiro_id, role, status")
+      .eq("user_id", userId)
+      .in("role", [...allowedRoles])
+      .eq("status", "active"),
+    15_000,
+    "Tempo esgotado ao carregar terreiros do usuário."
+  );
 
   if (members.error && isColumnMissingError(members.error, "status")) {
-    members = await supabase
-      .from("terreiro_members")
-      .select("terreiro_id, role")
-      .eq("user_id", userId)
-      .in("role", [...allowedRoles]);
+    members = await withTimeout(
+      supabase
+        .from("terreiro_members")
+        .select("terreiro_id, role")
+        .eq("user_id", userId)
+        .in("role", [...allowedRoles]),
+      15_000,
+      "Tempo esgotado ao carregar terreiros do usuário."
+    );
   }
 
   if (members.error) {
@@ -398,19 +423,24 @@ async function fetchMyTerreirosWithRole(params: {
   if (terreiroIds.length === 0) return [];
 
   // 2) terreiros data (minimal fields for rendering)
-  let terreiros: any = await supabase
-    .from("terreiros")
-    .select("id, title, cover_image_url")
-    .in("id", terreiroIds);
+  let terreiros: any = await withTimeout(
+    supabase
+      .from("terreiros")
+      .select("id, title, cover_image_url")
+      .in("id", terreiroIds),
+    15_000,
+    "Tempo esgotado ao carregar dados dos terreiros."
+  );
 
   if (
     terreiros.error &&
     isColumnMissingError(terreiros.error, "cover_image_url")
   ) {
-    terreiros = await supabase
-      .from("terreiros")
-      .select("id, title")
-      .in("id", terreiroIds);
+    terreiros = await withTimeout(
+      supabase.from("terreiros").select("id, title").in("id", terreiroIds),
+      15_000,
+      "Tempo esgotado ao carregar dados dos terreiros."
+    );
   }
 
   if (terreiros.error) {

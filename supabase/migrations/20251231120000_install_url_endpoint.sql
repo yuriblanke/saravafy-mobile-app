@@ -43,12 +43,12 @@ security definer
 set search_path = public
 as $$
   select jsonb_build_object(
-    'key', c.key,
-    'value', c.value,
-    'updated_at', c.updated_at
+    ''key'', c.key,
+    ''value'', c.value,
+    ''updated_at'', c.updated_at
   )
   from public.public_app_config c
-  where c.key = 'app_install_url'
+  where c.key = ''app_install_url''
   limit 1;
 $$;
 
@@ -58,5 +58,5 @@ grant execute on function public.get_app_install_url() to anon, authenticated;
 
 -- 5) Ensure the key exists (placeholder is OK; do not overwrite existing)
 insert into public.public_app_config (key, value, updated_at)
-values ('app_install_url', 'pending', now())
+values (''app_install_url'', ''pending'', now())
 on conflict (key) do nothing;

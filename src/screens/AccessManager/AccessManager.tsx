@@ -3,6 +3,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { ConfirmModal } from "@/src/components/ConfirmModal";
 import { Separator } from "@/src/components/Separator";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
@@ -234,6 +235,10 @@ export default function AccessManager() {
   };
 
   const openInviteMenu = (item: ManagementInvite) => {
+    if (String(item.id).startsWith("optimistic-")) {
+      showToast("Aguarde… enviando convite");
+      return;
+    }
     setInviteMenuTarget(item);
   };
 
@@ -394,6 +399,29 @@ export default function AccessManager() {
       return;
     }
 
+    const emailNorm = normalizeEmailLower(email);
+    const dup = (invitesHook.pending ?? []).find(
+      (i) => normalizeEmailLower(i.email) === emailNorm
+    );
+    if (dup) {
+      const roleLabel =
+        dup.role === "admin"
+          ? "administrador"
+          : dup.role === "editor"
+          ? "editor"
+          : "membro";
+
+      const hint =
+        dup.role === "admin" || dup.role === "editor"
+          ? "Vá em Convites enviados e cancele."
+          : "Vá em Membros do terreiro e cancele.";
+
+      setInviteError(
+        `Já existe um convite pendente para este e-mail (${roleLabel}). Para convidar com outro papel, cancele o convite pendente primeiro. ${hint}`
+      );
+      return;
+    }
+
     setIsSubmittingInvite(true);
     setInviteError("");
 
@@ -414,7 +442,14 @@ export default function AccessManager() {
     } finally {
       setIsSubmittingInvite(false);
     }
-  }, [inviteEmail, inviteRole, createInviteHook, showToast, closeInviteSheet]);
+  }, [
+    inviteEmail,
+    inviteRole,
+    createInviteHook,
+    invitesHook.pending,
+    showToast,
+    closeInviteSheet,
+  ]);
 
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
@@ -465,71 +500,22 @@ export default function AccessManager() {
 
   return (
     <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
-      {/* Confirm sheet */}
-      <BottomSheet
+      <ConfirmModal
         visible={!!confirmSheet}
         variant={variant}
-        onClose={closeConfirmSheet}
-      >
-        <View>
-          <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-            {confirmSheet?.title ?? "Confirmar"}
-          </Text>
-          {confirmSheet?.body ? (
-            <Text style={[styles.sheetSubtitle, { color: textSecondary }]}>
-              {confirmSheet.body}
-            </Text>
-          ) : null}
-
-          <View style={styles.sheetActions}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={isConfirming}
-              onPress={closeConfirmSheet}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-                isConfirming ? styles.buttonDisabled : null,
-              ]}
-            >
-              <Text style={[styles.sheetActionText, { color: textPrimary }]}>
-                Voltar
-              </Text>
-            </Pressable>
-
-            <Separator variant={variant} />
-
-            <Pressable
-              accessibilityRole="button"
-              disabled={isConfirming}
-              onPress={() => {
-                const action = confirmSheet?.onConfirm;
-                if (!action) return;
-                void action();
-              }}
-              style={({ pressed }) => [
-                styles.sheetActionRow,
-                pressed ? styles.sheetActionPressed : null,
-                isConfirming ? styles.buttonDisabled : null,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.sheetActionText,
-                  {
-                    color:
-                      confirmSheet?.confirmTone === "danger"
-                        ? dangerColor
-                        : textPrimary,
-                  },
-                ]}
-              >
-                {confirmSheet?.confirmLabel ?? "Confirmar"}
-              </Text>
-            </Pressable>
-          </View>
-        </View>
-      </BottomSheet>
+        tone={confirmSheet?.confirmTone ?? "primary"}
+        title={confirmSheet?.title ?? "Confirmar"}
+        body={confirmSheet?.body}
+        confirmLabel={confirmSheet?.confirmLabel ?? "Confirmar"}
+        cancelLabel="Cancelar"
+        busy={isConfirming}
+        onCancel={closeConfirmSheet}
+        onConfirm={() => {
+          const action = confirmSheet?.onConfirm;
+          if (!action) return;
+          void action();
+        }}
+      />
 
       {/* Member menu */}
       <BottomSheet
@@ -652,13 +638,6 @@ export default function AccessManager() {
               </Text>
             </Pressable>
           </View>
-
-          <Image
-            source={fillerPng}
-            style={styles.sheetFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 

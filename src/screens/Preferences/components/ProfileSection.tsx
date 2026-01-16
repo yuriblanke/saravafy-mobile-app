@@ -1,5 +1,7 @@
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import React from "react";
-import { Image, StyleSheet, Text, View } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
@@ -19,6 +21,7 @@ type Props = {
 };
 
 export function ProfileSection({ variant }: Props) {
+  const router = useRouter();
   const { user } = useAuth();
 
   const textPrimary =
@@ -146,6 +149,38 @@ export function ProfileSection({ variant }: Props) {
           }}
         />
       ) : null}
+
+      {!isCuratorLoading && isCurator ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            router.push("/review-submissions" as any);
+          }}
+          style={({ pressed }) => [
+            styles.curatorRow,
+            {
+              borderColor: dividerColor,
+              backgroundColor:
+                variant === "light" ? colors.inputBgLight : colors.inputBgDark,
+            },
+            pressed ? styles.curatorRowPressed : null,
+          ]}
+        >
+          <View style={styles.curatorRowLeft}>
+            <Ionicons name="clipboard-outline" size={18} color={textSecondary} />
+            <View style={styles.curatorRowTextCol}>
+              <Text style={[styles.curatorRowTitle, { color: textPrimary }]}>
+                Revisar envios
+              </Text>
+              <Text style={[styles.curatorRowDesc, { color: textSecondary }]}>
+                Confirmação de submissions
+              </Text>
+            </View>
+          </View>
+
+          <Ionicons name="chevron-forward" size={18} color={textSecondary} />
+        </Pressable>
+      ) : null}
     </PreferencesSection>
   );
 }
@@ -212,5 +247,41 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     gap: spacing.sm,
+  },
+  curatorRow: {
+    marginTop: spacing.sm,
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  curatorRowPressed: {
+    opacity: 0.9,
+  },
+  curatorRowLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    flex: 1,
+    minWidth: 0,
+  },
+  curatorRowTextCol: {
+    flex: 1,
+    minWidth: 0,
+  },
+  curatorRowTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  curatorRowDesc: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "600",
+    opacity: 0.9,
   },
 });

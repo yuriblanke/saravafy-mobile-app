@@ -227,6 +227,8 @@ export default function ReviewQueueScreen() {
                 </Pressable>
               );
             })}
+
+            <View style={styles.bottomFiller} />
           </ScrollView>
         )}
       </View>
@@ -259,6 +261,9 @@ const styles = StyleSheet.create({
   list: {
     paddingBottom: spacing.xl,
     gap: spacing.md,
+  },
+  bottomFiller: {
+    height: 290,
   },
   card: {
     padding: spacing.md,

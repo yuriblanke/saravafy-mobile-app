@@ -638,7 +638,15 @@ export async function createTerreiroInvite(params: {
   });
 
   if (res.error) {
-    throw new Error(res.error.message);
+    const err: any = res.error;
+    const code = typeof err?.code === "string" ? err.code : "";
+    const message = typeof err?.message === "string" ? err.message : "";
+    if (code === "23505" || message.includes("ux_terreiro_invites_pending")) {
+      throw new Error(
+        "Já existe um convite pendente para este e-mail neste terreiro. Cancele o convite pendente antes de enviar outro."
+      );
+    }
+    throw new Error(message || "Erro ao enviar convite.");
   }
 
   return true;
@@ -990,18 +998,59 @@ export function useCancelTerreiroInvite(terreiroId: string) {
 
   const mutation = useMutation({
     mutationFn: async (inviteId: string) => {
+      if (!terreiroId) throw new Error("Terreiro inválido.");
       if (!inviteId) throw new Error("Convite inválido.");
 
-      const res = await supabase
-        .from("terreiro_invites")
-        .delete()
-        .eq("id", inviteId);
+      let del = supabase.from("terreiro_invites").delete();
+
+      if (inviteId.startsWith("optimistic-")) {
+        const invitesKey = queryKeys.terreiro.invites(terreiroId);
+        const cached = queryClient.getQueryData<{
+          items: TerreiroInviteRow[];
+          profilesByEmailLower: Record<string, ProfileLite>;
+        }>(invitesKey);
+
+        const match = (cached?.items ?? []).find((i) => i.id === inviteId);
+        const email = match?.email ? normalizeEmail(match.email) : "";
+        const role = typeof match?.role === "string" ? match.role : "";
+
+        if (!email) {
+          throw new Error(
+            "Convite ainda está sendo enviado. Tente novamente em alguns segundos."
+          );
+        }
+
+        del = del
+          .eq("terreiro_id", terreiroId)
+          .eq("email", email)
+          .eq("status", "pending");
+
+        if (role) {
+          del = del.eq("role", role);
+        }
+      } else {
+        del = del.eq("id", inviteId);
+      }
+
+      const res = await del.select("id");
 
       if (res.error) {
         throw new Error(
           typeof res.error.message === "string"
             ? res.error.message
             : "Erro ao cancelar convite."
+        );
+      }
+
+      const deletedCount = Array.isArray(res.data)
+        ? res.data.length
+        : res.data
+        ? 1
+        : 0;
+
+      if (deletedCount === 0) {
+        throw new Error(
+          "Convite não encontrado (talvez já tenha sido cancelado)."
         );
       }
 

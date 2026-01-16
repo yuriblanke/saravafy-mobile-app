@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 
 export type CreatePontoSubmissionInput = {
   title: string;
+  artist?: string | null;
   lyrics: string;
   tags?: string[];
   author_name?: string | null;
@@ -28,6 +29,7 @@ export type PontoSubmissionRow = {
   created_at?: string;
   created_by?: string;
   title: string;
+  artist?: string | null;
   lyrics: string;
   tags: string[];
   status?: string;
@@ -67,6 +69,7 @@ export function parseTagsInput(value: string): string[] {
 export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
   const payload = {
     title: typeof input.title === "string" ? input.title.trim() : "",
+    artist: toNullIfEmpty(input.artist),
     lyrics: typeof input.lyrics === "string" ? input.lyrics.trim() : "",
     tags: normalizeTags(input.tags ?? []),
     author_name: toNullIfEmpty(input.author_name),
@@ -88,7 +91,7 @@ export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
   const { data, error } = await supabase
     .from("pontos_submissions")
     .insert(payload)
-    .select("id, created_at, created_by, title, lyrics, tags, status")
+    .select("id, created_at, created_by, title, artist, lyrics, tags, status")
     .single();
 
   if (error) throw error;

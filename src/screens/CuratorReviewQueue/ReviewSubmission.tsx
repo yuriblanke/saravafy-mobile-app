@@ -13,7 +13,6 @@ import { colors, spacing } from "@/src/theme";
 import {
   normalizeTagsFromText,
   sanitizeOptionalText,
-  sanitizeRequiredText,
 } from "@/src/utils/sanitizeReviewSubmission";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -294,18 +293,8 @@ export default function ReviewSubmissionScreen() {
       return;
     }
 
-    const finalTitle = sanitizeRequiredText(title);
-    const finalLyrics = sanitizeRequiredText(lyrics);
-
-    if (!finalTitle) {
-      setInlineError("Informe um título antes de aprovar.");
-      return;
-    }
-
-    if (!finalLyrics) {
-      setInlineError("Informe a letra antes de aprovar.");
-      return;
-    }
+    const finalTitle = sanitizeOptionalText(title);
+    const finalLyrics = sanitizeOptionalText(lyrics);
 
     const finalAuthorName = sanitizeOptionalText(authorName);
     const finalInterpreterName = sanitizeOptionalText(interpreterName);

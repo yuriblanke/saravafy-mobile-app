@@ -488,6 +488,7 @@ export function PontoUpsertModal({
 
         await createPontoSubmission({
           title: title.trim(),
+          artist: artistValue,
           lyrics: lyrics.trim(),
           tags: tagsValue,
           author_name: authorValue ? authorValue : null,
