@@ -177,13 +177,43 @@ export default function AppLayout() {
                   }}
                 >
                   {/* Tabs reais (Pontos ↔ Terreiros) com swipe + stacks por aba */}
-                  <Stack.Screen name="(tabs)" />
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
 
                   {/* Player fora das tabs (swipe interno do player tem prioridade) */}
-                  <Stack.Screen name="player" />
+                  <Stack.Screen
+                    name="player"
+                    options={{
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
 
                   {/* Deep links / utilitários */}
-                  <Stack.Screen name="l/[tipo]/[id]" />
+                  <Stack.Screen
+                    name="l/[tipo]/[id]"
+                    options={{
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
 
                   {/* Full screens administrativas */}
                   <Stack.Screen
