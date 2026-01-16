@@ -315,6 +315,11 @@ export default function AppLayout() {
 function HeaderMeasurer({ suspended }: { suspended: boolean }) {
   const { setHeaderHeight } = useSaravafyLayoutMetrics();
   const insets = useGlobalSafeAreaInsets();
+  const { effectiveTheme } = usePreferences();
+
+  // Prevent header background transparency from showing overlapping scenes
+  // during navigation transitions (e.g., Preferences → Tabs).
+  const headerBg = getSaravafyBaseColor(effectiveTheme);
 
   React.useEffect(() => {
     if (!suspended) return;
@@ -327,6 +332,7 @@ function HeaderMeasurer({ suspended }: { suspended: boolean }) {
     <View
       style={[
         styles.headerWrap,
+        { backgroundColor: headerBg },
         insets.top ? { paddingTop: insets.top } : null,
       ]}
       onLayout={(e) => {
@@ -353,6 +359,6 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 10,
     elevation: 0,
-    backgroundColor: "transparent",
+    // backgroundColor removed: set dynamically in HeaderMeasurer to match theme
   },
 });
