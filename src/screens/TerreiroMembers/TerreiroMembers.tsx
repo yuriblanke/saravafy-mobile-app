@@ -379,8 +379,8 @@ export default function TerreiroMembers() {
         dup.role === "admin"
           ? "administrador"
           : dup.role === "curimba"
-            ? "curimba"
-            : "membro";
+          ? "curimba"
+          : "membro";
 
       const hint =
         dup.role === "member"

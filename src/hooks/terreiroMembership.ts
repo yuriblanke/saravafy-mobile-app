@@ -140,9 +140,7 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
 
           const roleRaw = r?.role;
           const role: TerreiroAccessRole | null =
-            roleRaw === "admin" ||
-            roleRaw === "curimba" ||
-            roleRaw === "member"
+            roleRaw === "admin" || roleRaw === "curimba" || roleRaw === "member"
               ? roleRaw
               : null;
 

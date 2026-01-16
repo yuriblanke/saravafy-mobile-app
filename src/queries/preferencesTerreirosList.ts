@@ -1,10 +1,10 @@
+import { useMemo } from "react";
 import type { MyTerreiroWithRole } from "./me";
 import { usePreferencesTerreirosQuery } from "./me";
 import {
   usePendingTerreiroInvitesForInviteeQuery,
   type PendingTerreiroInvite,
 } from "./pendingTerreiroInvites";
-import { useMemo } from "react";
 
 export type PreferencesTerreirosListItem =
   | {
@@ -30,8 +30,9 @@ export function usePreferencesTerreirosListItems(params: {
   });
 
   const items = useMemo<PreferencesTerreirosListItem[]>(() => {
-    const inviteItems: PreferencesTerreirosListItem[] = (invitesQuery.data ?? [])
-      .map((invite) => ({ type: "invite", invite } as const));
+    const inviteItems: PreferencesTerreirosListItem[] = (
+      invitesQuery.data ?? []
+    ).map((invite) => ({ type: "invite", invite } as const));
 
     const membershipItems: PreferencesTerreirosListItem[] = (
       membershipsQuery.data ?? []

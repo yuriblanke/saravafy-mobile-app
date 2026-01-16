@@ -186,7 +186,12 @@ export async function fetchTerreirosWithRole(
 
     let role: TerreiroTabRole = "follower";
     const r = match?.role;
-    if (r === "admin" || r === "curimba" || r === "member" || r === "follower") {
+    if (
+      r === "admin" ||
+      r === "curimba" ||
+      r === "member" ||
+      r === "follower"
+    ) {
       role = r;
     }
 

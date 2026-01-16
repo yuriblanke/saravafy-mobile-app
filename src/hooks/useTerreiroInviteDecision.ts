@@ -1,7 +1,7 @@
-import { supabase } from "@/lib/supabase";
 import { useToast } from "@/contexts/ToastContext";
-import { queryKeys } from "@/src/queries/queryKeys";
+import { supabase } from "@/lib/supabase";
 import type { PendingTerreiroInvite } from "@/src/queries/pendingTerreiroInvites";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
@@ -77,7 +77,8 @@ export function useTerreiroInviteDecision(params: {
               title: invite.terreiro_title || "Terreiro",
               cover_image_url: null,
               role: invite.role,
-              member_kind: invite.role === "member" ? invite.member_kind ?? null : null,
+              member_kind:
+                invite.role === "member" ? invite.member_kind ?? null : null,
             },
           ];
         }
@@ -89,8 +90,12 @@ export function useTerreiroInviteDecision(params: {
         exact: true,
       });
 
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.membership(userId) });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.membership(userId),
+      });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.terreiros(userId),
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreirosWithRole(userId),
       });
@@ -100,7 +105,9 @@ export function useTerreiroInviteDecision(params: {
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.editableTerreiros(userId),
       });
-      queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.me.permissions(userId),
+      });
       queryClient.invalidateQueries({
         queryKey: queryKeys.terreiros.editableByUser(userId),
       });
@@ -145,8 +152,12 @@ export function useTerreiroInviteDecision(params: {
       });
 
       if (userId) {
-        queryClient.invalidateQueries({ queryKey: queryKeys.me.membership(userId) });
-        queryClient.invalidateQueries({ queryKey: queryKeys.me.terreiros(userId) });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.membership(userId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.terreiros(userId),
+        });
         queryClient.invalidateQueries({
           queryKey: queryKeys.me.terreirosWithRole(userId),
         });
@@ -156,7 +167,9 @@ export function useTerreiroInviteDecision(params: {
         queryClient.invalidateQueries({
           queryKey: queryKeys.me.editableTerreiros(userId),
         });
-        queryClient.invalidateQueries({ queryKey: queryKeys.me.permissions(userId) });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.me.permissions(userId),
+        });
         queryClient.invalidateQueries({
           queryKey: queryKeys.collections.editableByUserPrefix(userId),
         });

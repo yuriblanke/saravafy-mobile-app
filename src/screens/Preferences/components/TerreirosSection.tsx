@@ -5,15 +5,15 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { Badge } from "@/src/components/Badge";
-import { useTerreiroInviteDecision } from "@/src/hooks/useTerreiroInviteDecision";
-import {
-  formatTerreiroMemberKindLabel,
-  formatTerreiroRoleLabel,
-} from "@/src/domain/terreiroRoles";
 import {
   PreferencesPageItem,
   PreferencesSection,
 } from "@/src/components/preferences";
+import {
+  formatTerreiroMemberKindLabel,
+  formatTerreiroRoleLabel,
+} from "@/src/domain/terreiroRoles";
+import { useTerreiroInviteDecision } from "@/src/hooks/useTerreiroInviteDecision";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
 import { usePreferencesTerreirosListItems } from "@/src/queries/preferencesTerreirosList";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
@@ -32,7 +32,9 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
   const userId = user?.id ?? null;
   const normalizedUserEmail =
     typeof (user as any)?.email === "string"
-      ? String((user as any).email).trim().toLowerCase()
+      ? String((user as any).email)
+          .trim()
+          .toLowerCase()
       : null;
 
   const textPrimary =
@@ -149,15 +151,13 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                   ? formatTerreiroMemberKindLabel(invite.member_kind)
                   : "";
 
-              const processing = inviteDecision.processingInviteId === invite.id;
+              const processing =
+                inviteDecision.processingInviteId === invite.id;
 
               return (
                 <View
                   key={`invite:${invite.id}`}
-                  style={[
-                    styles.inviteCard,
-                    { borderColor: dividerColor },
-                  ]}
+                  style={[styles.inviteCard, { borderColor: dividerColor }]}
                 >
                   <Text style={[styles.inviteTitle, { color: textPrimary }]}>
                     Convite para: {terreiroTitle}
@@ -167,7 +167,9 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                     <Badge
                       label={roleLabel}
                       variant={variant}
-                      appearance={invite.role === "admin" ? "primary" : "secondary"}
+                      appearance={
+                        invite.role === "admin" ? "primary" : "secondary"
+                      }
                       style={{ alignSelf: "flex-start" }}
                     />
                     {invite.role === "member" && kindLabel ? (
@@ -225,7 +227,9 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
             const t = item.terreiro;
             const roleLabel = formatTerreiroRoleLabel(t.role);
             const kindLabel =
-              t.role === "member" ? formatTerreiroMemberKindLabel(t.member_kind) : "";
+              t.role === "member"
+                ? formatTerreiroMemberKindLabel(t.member_kind)
+                : "";
 
             return (
               <PreferencesPageItem
@@ -254,7 +258,9 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                 }
                 showEditButton={false}
                 rightAccessory={
-                  t.role === "admin" || t.role === "curimba" || t.role === "member" ? (
+                  t.role === "admin" ||
+                  t.role === "curimba" ||
+                  t.role === "member" ? (
                     <Pressable
                       accessibilityRole="button"
                       accessibilityLabel="Mais ações"

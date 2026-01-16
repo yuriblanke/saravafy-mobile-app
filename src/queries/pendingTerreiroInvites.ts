@@ -82,7 +82,11 @@ export function usePendingTerreiroInvitesForInviteeQuery(params: {
           .eq("email", normalizedEmail)
           .order("created_at", { ascending: true });
 
-        if (res.error && !useName && isColumnMissingError(res.error.message, "title")) {
+        if (
+          res.error &&
+          !useName &&
+          isColumnMissingError(res.error.message, "title")
+        ) {
           useName = true;
           res = await supabase
             .from("terreiro_invites")
@@ -104,7 +108,8 @@ export function usePendingTerreiroInvitesForInviteeQuery(params: {
           const normalizedRole = normalizeTerreiroRole(row?.role);
           if (!normalizedRole) return null;
 
-          const id = typeof row?.id === "string" ? row.id : String(row?.id ?? "");
+          const id =
+            typeof row?.id === "string" ? row.id : String(row?.id ?? "");
           const terreiroId =
             typeof row?.terreiro_id === "string"
               ? row.terreiro_id
@@ -115,8 +120,8 @@ export function usePendingTerreiroInvitesForInviteeQuery(params: {
             typeof row?.terreiro?.title === "string"
               ? row.terreiro.title
               : typeof row?.terreiro?.name === "string"
-                ? row.terreiro.name
-                : null;
+              ? row.terreiro.name
+              : null;
 
           const memberKind =
             normalizedRole === "member"

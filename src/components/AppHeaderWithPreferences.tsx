@@ -17,11 +17,11 @@ import {
 } from "@/src/components/preferences";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
+import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import {
   formatTerreiroMemberKindLabel,
   formatTerreiroRoleLabel,
 } from "@/src/domain/terreiroRoles";
-import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import {
@@ -814,8 +814,9 @@ export function PreferencesOverlaySheets(
     [terreiroInvitesQuery.data]
   );
 
-  const [inviteGateSnoozedInviteIds, setInviteGateSnoozedInviteIds] =
-    useState<Set<string>>(new Set());
+  const [inviteGateSnoozedInviteIds, setInviteGateSnoozedInviteIds] = useState<
+    Set<string>
+  >(new Set());
 
   useEffect(() => {
     if (!normalizedUserEmail) {
@@ -1494,7 +1495,13 @@ export function PreferencesOverlaySheets(
                         Convite para: {terreiroTitle}
                       </Text>
 
-                      <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          flexWrap: "wrap",
+                          gap: 8,
+                        }}
+                      >
                         <Badge
                           label={getInviteRoleLabel(invite.role)}
                           variant={variant}
@@ -1504,22 +1511,22 @@ export function PreferencesOverlaySheets(
                           style={{ alignSelf: "flex-start" }}
                         />
 
-                        {invite.role === "member" ? (
-                          (() => {
-                            const label = formatTerreiroMemberKindLabel(
-                              (invite as any)?.member_kind
-                            );
-                            if (!label) return null;
-                            return (
-                              <Badge
-                                label={label}
-                                variant={variant}
-                                appearance="secondary"
-                                style={{ alignSelf: "flex-start" }}
-                              />
-                            );
-                          })()
-                        ) : null}
+                        {invite.role === "member"
+                          ? (() => {
+                              const label = formatTerreiroMemberKindLabel(
+                                (invite as any)?.member_kind
+                              );
+                              if (!label) return null;
+                              return (
+                                <Badge
+                                  label={label}
+                                  variant={variant}
+                                  appearance="secondary"
+                                  style={{ alignSelf: "flex-start" }}
+                                />
+                              );
+                            })()
+                          : null}
                       </View>
 
                       <View
@@ -1671,22 +1678,22 @@ export function PreferencesOverlaySheets(
                           style={{ alignSelf: "flex-start" }}
                         />
 
-                        {t.role === "member" ? (
-                          (() => {
-                            const label = formatTerreiroMemberKindLabel(
-                              (t as any)?.member_kind
-                            );
-                            if (!label) return null;
-                            return (
-                              <Badge
-                                label={label}
-                                variant={variant}
-                                appearance="secondary"
-                                style={{ alignSelf: "flex-start" }}
-                              />
-                            );
-                          })()
-                        ) : null}
+                        {t.role === "member"
+                          ? (() => {
+                              const label = formatTerreiroMemberKindLabel(
+                                (t as any)?.member_kind
+                              );
+                              if (!label) return null;
+                              return (
+                                <Badge
+                                  label={label}
+                                  variant={variant}
+                                  appearance="secondary"
+                                  style={{ alignSelf: "flex-start" }}
+                                />
+                              );
+                            })()
+                          : null}
                       </View>
                     }
                     showEditButton={false}

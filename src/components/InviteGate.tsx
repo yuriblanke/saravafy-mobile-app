@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, {
   useCallback,
   useEffect,
@@ -14,7 +15,6 @@ import {
   Text,
   View,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useInviteGates } from "@/contexts/InviteGatesContext";
@@ -305,7 +305,10 @@ export function InviteGate() {
           setPendingInvites(filtered);
           setIsBannerVisible(filtered.length > 0);
 
-          if (currentInvite && snoozedInviteIdsRef.current.has(currentInvite.id)) {
+          if (
+            currentInvite &&
+            snoozedInviteIdsRef.current.has(currentInvite.id)
+          ) {
             setCurrentInvite(null);
             setIsModalVisible(false);
           }
@@ -1061,7 +1064,9 @@ export function InviteGate() {
     void (async () => {
       await snoozeInvite(inviteId);
 
-      const nextQueue = pendingInvitesRef.current.filter((i) => i.id !== inviteId);
+      const nextQueue = pendingInvitesRef.current.filter(
+        (i) => i.id !== inviteId
+      );
       pendingInvitesRef.current = nextQueue;
       setPendingInvites(nextQueue);
 
