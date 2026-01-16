@@ -320,14 +320,7 @@ export function InviteGate() {
     terreiroSnoozeVersion,
   ]);
 
-  useEffect(() => {
-    if (!__DEV__) return;
-    console.log("[InviteGate] nav readiness", {
-      isNavReady,
-      isAppReady,
-      segments: segmentsKey,
-    });
-  }, [isAppReady, isNavReady, segmentsKey]);
+
 
   const refreshPendingInvites = useCallback(
     async (options?: { skipCache?: boolean }) => {

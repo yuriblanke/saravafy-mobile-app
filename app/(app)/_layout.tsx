@@ -165,10 +165,16 @@ export default function AppLayout() {
             <SaravafyLayoutMetricsProvider>
               <View style={styles.stackWrap}>
                 {/* Fundo Saravafy centralizado para todas as telas */}
-                <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
-                  <SaravafyBackgroundLayers theme={effectiveTheme} variant="tabs" />
+                <View
+                  pointerEvents="none"
+                  style={StyleSheet.absoluteFillObject}
+                >
+                  <SaravafyBackgroundLayers
+                    theme={effectiveTheme}
+                    variant="tabs"
+                  />
                 </View>
-                
+
                 <Stack
                   screenOptions={{
                     headerShown: false,

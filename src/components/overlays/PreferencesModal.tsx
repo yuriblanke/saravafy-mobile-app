@@ -2,7 +2,7 @@ import { useSegments } from "expo-router";
 import React, { useEffect } from "react";
 import { BackHandler, Modal, StyleSheet, View } from "react-native";
 
-import { PreferencesOverlaySheets } from "@/src/components/AppHeaderWithPreferences";
+import { PreferencesOverlaySheets } from "@/src/components/TabsHeaderWithPreferences";
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 
 export function PreferencesModal() {

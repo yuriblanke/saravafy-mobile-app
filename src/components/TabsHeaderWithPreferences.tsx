@@ -165,11 +165,13 @@ function formatDateLabel(value: string | null | undefined) {
   }
 }
 
-type AppHeaderWithPreferencesProps = {
+type TabsHeaderWithPreferencesProps = {
   suspended?: boolean;
 };
 
-export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
+export function TabsHeaderWithPreferences(
+  props: TabsHeaderWithPreferencesProps
+) {
   const { suspended = false } = props;
   const router = useRouter();
   const pathname = usePathname();
@@ -228,7 +230,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
   const textMuted =
     variant === "light" ? colors.textMutedOnLight : colors.textMutedOnDark;
-  
+
   const headerBg = variant === "light" ? colors.paper50 : colors.forest900;
 
   const userPhotoUrl =
@@ -375,7 +377,7 @@ export function AppHeaderWithPreferences(props: AppHeaderWithPreferencesProps) {
 }
 
 export function PreferencesOverlaySheets(
-  props: AppHeaderWithPreferencesProps = {}
+  props: TabsHeaderWithPreferencesProps = {}
 ) {
   const { suspended = false } = props;
   const router = useRouter();

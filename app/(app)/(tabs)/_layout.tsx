@@ -1,6 +1,6 @@
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import { useTabController } from "@/contexts/TabControllerContext";
-import { AppHeaderWithPreferences } from "@/src/components/AppHeaderWithPreferences";
+import { TabsHeaderWithPreferences } from "@/src/components/TabsHeaderWithPreferences";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
 import { useRouter, withLayoutContext } from "expo-router";
 import React, { useCallback, useEffect, useRef } from "react";
@@ -47,7 +47,7 @@ export default function AppTabsLayout() {
 
   return (
     <View style={styles.container}>
-      <AppHeaderWithPreferences />
+      <TabsHeaderWithPreferences />
 
       <TopTabs
         screenOptions={{

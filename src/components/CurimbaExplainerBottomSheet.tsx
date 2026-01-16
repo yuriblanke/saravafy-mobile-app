@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -33,15 +33,6 @@ export function CurimbaExplainerBottomSheet({
     variant === "light"
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
-
-  useEffect(() => {
-    if (!__DEV__) return;
-    if (visible) {
-      console.info("[Curimba] bottom sheet open");
-    } else {
-      console.info("[Curimba] bottom sheet close");
-    }
-  }, [visible]);
 
   return (
     <BottomSheet
