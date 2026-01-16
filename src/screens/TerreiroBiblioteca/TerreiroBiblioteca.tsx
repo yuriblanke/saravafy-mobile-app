@@ -64,6 +64,7 @@ import Reanimated, {
   useDerivedValue,
   useSharedValue,
 } from "react-native-reanimated";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -192,8 +193,10 @@ export default function TerreiroBiblioteca() {
   const returnTo = typeof from === "string" ? from.trim() : "";
 
   const insets = useGlobalSafeAreaInsets();
+  const safeAreaInsets = useSafeAreaInsets();
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
+  const listBottomInset = (safeAreaInsets.bottom ?? 0) + spacing.xl;
 
   const imageSize = useDerivedValue(() => {
     return interpolate(
@@ -1374,7 +1377,7 @@ export default function TerreiroBiblioteca() {
           style={styles.scroll}
           contentContainerStyle={[
             styles.scrollContent,
-            { paddingTop: headerTotalHeight },
+            { paddingTop: headerTotalHeight, paddingBottom: listBottomInset },
           ]}
           scrollEventThrottle={16}
           onScroll={scrollHandler}
@@ -1689,8 +1692,6 @@ export default function TerreiroBiblioteca() {
                 })
               )}
             </View>
-
-            <View style={{ height: spacing.lg }} />
           </Reanimated.View>
         </Reanimated.ScrollView>
       </View>
