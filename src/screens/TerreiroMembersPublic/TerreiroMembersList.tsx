@@ -57,7 +57,8 @@ function inferVisibilityTier(args: {
 }): TerreiroMembersVisibilityTier {
   if (!args.isLoggedIn) return "public";
 
-  const role = typeof args.membershipRole === "string" ? args.membershipRole : null;
+  const role =
+    typeof args.membershipRole === "string" ? args.membershipRole : null;
   const isActiveMember = args.isActiveMember === true;
 
   if (!isActiveMember || !role) return "public";
@@ -85,7 +86,8 @@ export default function TerreiroMembersList() {
   const router = useRouter();
   const params = useLocalSearchParams<{ terreiroId?: string }>();
 
-  const terreiroId = typeof params.terreiroId === "string" ? params.terreiroId : "";
+  const terreiroId =
+    typeof params.terreiroId === "string" ? params.terreiroId : "";
 
   const { user } = useAuth();
   const isLoggedIn = !!user?.id;
@@ -150,10 +152,13 @@ export default function TerreiroMembersList() {
               visibilityTier: "public",
             });
             if (__DEV__) {
-              console.info("[TerreiroMembersList] fallback para lista pública", {
-                terreiroId,
-                from: requestedTier,
-              });
+              console.info(
+                "[TerreiroMembersList] fallback para lista pública",
+                {
+                  terreiroId,
+                  from: requestedTier,
+                }
+              );
             }
             if (isLoggedIn) {
               showToast("Mostrando a lista pública de membros.");
@@ -174,19 +179,27 @@ export default function TerreiroMembersList() {
 
     return arr
       .map((m) => {
-        const id = typeof (m as any).user_id === "string" ? (m as any).user_id : "";
+        const id =
+          typeof (m as any).user_id === "string" ? (m as any).user_id : "";
         if (!id) return null;
 
-        const fullName = typeof (m as any).full_name === "string" ? (m as any).full_name : "";
+        const fullName =
+          typeof (m as any).full_name === "string" ? (m as any).full_name : "";
         const title = fullName.trim() || "(Sem nome)";
 
         const avatarUrl =
-          typeof (m as any).avatar_url === "string" ? (m as any).avatar_url : undefined;
+          typeof (m as any).avatar_url === "string"
+            ? (m as any).avatar_url
+            : undefined;
 
-        const role = typeof (m as any).role === "string" ? (m as any).role : null;
-        const email = typeof (m as any).email === "string" ? (m as any).email : null;
+        const role =
+          typeof (m as any).role === "string" ? (m as any).role : null;
+        const email =
+          typeof (m as any).email === "string" ? (m as any).email : null;
         const emailVerified =
-          typeof (m as any).email_verified === "boolean" ? (m as any).email_verified : null;
+          typeof (m as any).email_verified === "boolean"
+            ? (m as any).email_verified
+            : null;
 
         return {
           id,
@@ -213,7 +226,10 @@ export default function TerreiroMembersList() {
       const subtitle =
         item.email != null ? (
           <View style={styles.subtitleRow}>
-            <Text style={[styles.subtitleText, { color: textSecondary }]} numberOfLines={1}>
+            <Text
+              style={[styles.subtitleText, { color: textSecondary }]}
+              numberOfLines={1}
+            >
               {item.email}
             </Text>
             {item.emailVerified === true ? (
@@ -246,7 +262,13 @@ export default function TerreiroMembersList() {
             afterTitle={afterTitle}
             subtitle={subtitle}
             showEditButton={false}
-            rightAccessory={<Ionicons name="chevron-forward" size={18} color={textSecondary} />}
+            rightAccessory={
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={textSecondary}
+              />
+            }
             onPress={() => {
               router.push({
                 pathname: "/terreiro-member-profile" as any,
@@ -299,8 +321,7 @@ export default function TerreiroMembersList() {
         </View>
       </View>
 
-      <View style={[styles.content, { paddingTop: headerTotalHeight }]}
-      >
+      <View style={[styles.content, { paddingTop: headerTotalHeight }]}>
         {membersQuery.isLoading && items.length === 0 ? (
           <View style={styles.center}>
             <ActivityIndicator />

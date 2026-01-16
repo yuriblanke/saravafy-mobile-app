@@ -5,11 +5,7 @@ export const queryKeys = {
     terreiroId: string;
     visibilityTier: "public" | "member" | "admin";
   }) =>
-    [
-      "terreiroMembersList",
-      params.terreiroId,
-      params.visibilityTier,
-    ] as const,
+    ["terreiroMembersList", params.terreiroId, params.visibilityTier] as const,
   terreiro: {
     members: (terreiroId: string) =>
       ["terreiro", terreiroId, "members"] as const,

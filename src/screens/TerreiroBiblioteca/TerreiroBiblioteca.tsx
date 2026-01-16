@@ -630,7 +630,11 @@ export default function TerreiroBiblioteca() {
       if (Array.isArray(data) && data.length > 0) {
         const first = data[0];
         if (typeof first === "number" && Number.isFinite(first)) return first;
-        if (first && typeof first === "object" && typeof (first as any).count === "number") {
+        if (
+          first &&
+          typeof first === "object" &&
+          typeof (first as any).count === "number"
+        ) {
           return (first as any).count;
         }
       }
@@ -1548,7 +1552,10 @@ export default function TerreiroBiblioteca() {
                   ) : null}
 
                   {collectionsCountText && membersCountText ? (
-                    <Text style={[styles.countText, { color: textMuted }]}> • </Text>
+                    <Text style={[styles.countText, { color: textMuted }]}>
+                      {" "}
+                      •{" "}
+                    </Text>
                   ) : null}
 
                   {membersCountText ? (
@@ -1565,9 +1572,7 @@ export default function TerreiroBiblioteca() {
                       }}
                       disabled={!terreiroId}
                       hitSlop={10}
-                      style={({ pressed }) => [
-                        { opacity: pressed ? 0.7 : 1 },
-                      ]}
+                      style={({ pressed }) => [{ opacity: pressed ? 0.7 : 1 }]}
                     >
                       <Text style={[styles.countText, { color: textMuted }]}>
                         {membersCountText}

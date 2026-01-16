@@ -41,7 +41,9 @@ type MemberPayload = {
   email_verified?: boolean | null;
 };
 
-function decodeMemberParam(value: string | null | undefined): MemberPayload | null {
+function decodeMemberParam(
+  value: string | null | undefined
+): MemberPayload | null {
   if (!value) return null;
   try {
     const raw = JSON.parse(decodeURIComponent(value));
@@ -56,7 +58,8 @@ function decodeMemberParam(value: string | null | undefined): MemberPayload | nu
       avatar_url: typeof r.avatar_url === "string" ? r.avatar_url : null,
       role: typeof r.role === "string" ? r.role : null,
       email: typeof r.email === "string" ? r.email : null,
-      email_verified: typeof r.email_verified === "boolean" ? r.email_verified : null,
+      email_verified:
+        typeof r.email_verified === "boolean" ? r.email_verified : null,
     };
   } catch {
     return null;
@@ -88,7 +91,9 @@ export default function TerreiroMemberProfile() {
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
 
   const member = useMemo(() => {
-    return decodeMemberParam(typeof params.member === "string" ? params.member : null);
+    return decodeMemberParam(
+      typeof params.member === "string" ? params.member : null
+    );
   }, [params.member]);
 
   const goBack = useCallback(() => {
@@ -122,7 +127,9 @@ export default function TerreiroMemberProfile() {
           <Ionicons name="chevron-back" size={22} color={textPrimary} />
         </Pressable>
         <View style={styles.headerTitleWrap}>
-          <Text style={[styles.headerTitle, { color: textPrimary }]}>Perfil</Text>
+          <Text style={[styles.headerTitle, { color: textPrimary }]}>
+            Perfil
+          </Text>
         </View>
         <View style={styles.headerRight} />
       </View>
@@ -140,7 +147,10 @@ export default function TerreiroMemberProfile() {
               <View style={styles.topRow}>
                 <View style={styles.avatarWrap}>
                   {member.avatar_url ? (
-                    <Image source={{ uri: member.avatar_url }} style={styles.avatarImage} />
+                    <Image
+                      source={{ uri: member.avatar_url }}
+                      style={styles.avatarImage}
+                    />
                   ) : (
                     <View
                       style={[
@@ -150,7 +160,9 @@ export default function TerreiroMemberProfile() {
                           : styles.avatarPlaceholderDark,
                       ]}
                     >
-                      <Text style={[styles.avatarInitials, { color: textPrimary }]}>
+                      <Text
+                        style={[styles.avatarInitials, { color: textPrimary }]}
+                      >
                         {initials}
                       </Text>
                     </View>
@@ -158,13 +170,20 @@ export default function TerreiroMemberProfile() {
                 </View>
 
                 <View style={styles.nameCol}>
-                  <Text style={[styles.name, { color: textPrimary }]} numberOfLines={2}>
+                  <Text
+                    style={[styles.name, { color: textPrimary }]}
+                    numberOfLines={2}
+                  >
                     {name}
                   </Text>
 
                   {roleText ? (
                     <View style={styles.badgesRow}>
-                      <Badge label={roleText} variant={variant} appearance="secondary" />
+                      <Badge
+                        label={roleText}
+                        variant={variant}
+                        appearance="secondary"
+                      />
                     </View>
                   ) : null}
                 </View>
@@ -172,12 +191,20 @@ export default function TerreiroMemberProfile() {
 
               {member.email ? (
                 <View style={styles.metaRow}>
-                  <Ionicons name="mail-outline" size={16} color={textSecondary} />
+                  <Ionicons
+                    name="mail-outline"
+                    size={16}
+                    color={textSecondary}
+                  />
                   <Text style={[styles.metaText, { color: textSecondary }]}>
                     {member.email}
                   </Text>
                   {member.email_verified === true ? (
-                    <Ionicons name="checkmark-circle" size={16} color={colors.brass600} />
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color={colors.brass600}
+                    />
                   ) : null}
                 </View>
               ) : null}
