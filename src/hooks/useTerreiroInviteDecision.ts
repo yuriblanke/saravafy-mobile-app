@@ -118,7 +118,7 @@ export function useTerreiroInviteDecision(params: {
         queryKey: queryKeys.collections.editableByUserPrefix(userId),
       });
 
-      showToast("Convite aceito.");
+      showToast("Convite aceito. Você agora faz parte do terreiro.");
     } catch {
       showToast(
         "Não foi possível concluir agora. Verifique sua conexão e tente novamente."

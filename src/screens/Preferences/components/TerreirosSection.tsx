@@ -4,18 +4,11 @@ import React, { useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
-import { useInviteGates } from "@/contexts/InviteGatesContext";
-import { useToast } from "@/contexts/ToastContext";
 import { Badge } from "@/src/components/Badge";
 import {
   PreferencesPageItem,
   PreferencesSection,
 } from "@/src/components/preferences";
-import {
-  getTerreiroInviteBodyCopy,
-  getTerreiroInviteRoleBadgeLabel,
-  TERREIRO_INVITE_DECIDE_LATER_TOAST,
-} from "@/src/domain/terreiroInviteCopy";
 import {
   formatTerreiroMemberKindLabel,
   formatTerreiroRoleLabel,
@@ -25,7 +18,6 @@ import type { MyTerreiroWithRole } from "@/src/queries/me";
 import { usePreferencesTerreirosListItems } from "@/src/queries/preferencesTerreirosList";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { colors, spacing } from "@/src/theme";
-import { bumpTerreiroInviteSnooze } from "@/src/utils/terreiroInviteSnooze";
 
 import { getInitials } from "./utils";
 
@@ -37,8 +29,6 @@ type Props = {
 export function TerreirosSection({ variant, onOpenActions }: Props) {
   const router = useRouter();
   const { user } = useAuth();
-  const { showToast } = useToast();
-  const { bumpTerreiroSnoozeVersion } = useInviteGates();
   const userId = user?.id ?? null;
   const normalizedUserEmail =
     typeof (user as any)?.email === "string"
@@ -46,6 +36,19 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
           .trim()
           .toLowerCase()
       : null;
+
+  const getCompactInviteRoleLabel = (role: any): string | null => {
+    switch (role) {
+      case "admin":
+        return "Admin";
+      case "curimba":
+        return "Curimba";
+      case "member":
+        return "Membro";
+      default:
+        return null;
+    }
+  };
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -155,8 +158,7 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                   ? invite.terreiro_title.trim()
                   : "Terreiro";
 
-              const roleLabel = getTerreiroInviteRoleBadgeLabel(invite.role);
-              const bodyCopy = getTerreiroInviteBodyCopy(invite.role);
+              const roleLabel = getCompactInviteRoleLabel(invite.role);
 
               const processing =
                 inviteDecision.processingInviteId === invite.id;
@@ -164,7 +166,7 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
               return (
                 <View
                   key={`invite:${invite.id}`}
-                  style={[styles.inviteCard, { borderColor: dividerColor }]}
+                  style={[styles.inviteRowCard, { borderColor: dividerColor }]}
                 >
                   <View style={styles.inviteCenterBlock}>
                     <Text
@@ -173,105 +175,51 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                     >
                       {terreiroTitle}
                     </Text>
-
-                    <View style={styles.inviteBadges}>
-                      <Badge
-                        label={roleLabel}
-                        variant={variant}
-                        appearance={
-                          invite.role === "admin" ? "primary" : "secondary"
-                        }
-                        style={{ alignSelf: "center" }}
-                      />
-                    </View>
-
-                    {bodyCopy ? (
-                      <View style={styles.inviteBodyWrap}>
-                        {bodyCopy.split("\n\n").map((p, idx) => (
-                          <Text
-                            key={`${idx}:${p.slice(0, 16)}`}
-                            style={[
-                              styles.inviteBody,
-                              { color: textSecondary },
-                              idx > 0 ? styles.inviteBodyParagraph : null,
-                            ]}
-                          >
-                            {p}
-                          </Text>
-                        ))}
-                      </View>
-                    ) : null}
                   </View>
 
-                  <View style={styles.inviteActions}>
-                    <View style={styles.invitePrimaryRow}>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Aceitar convite"
-                        disabled={processing}
-                        onPress={() => void inviteDecision.accept(invite)}
-                        style={({ pressed }) => [
-                          styles.invitePrimaryBtn,
-                          { borderColor: colors.brass600 },
-                          pressed ? styles.inviteBtnPressed : null,
-                          processing ? styles.inviteBtnDisabled : null,
-                        ]}
-                      >
-                        <Text style={styles.invitePrimaryBtnText}>Aceitar</Text>
-                      </Pressable>
+                  <View style={styles.inviteCompactRow}>
+                    <View style={styles.inviteCompactLeft}>
+                      {roleLabel ? (
+                        <Badge
+                          label={roleLabel}
+                          variant={variant}
+                          appearance={
+                            invite.role === "admin" ? "primary" : "secondary"
+                          }
+                          style={{ alignSelf: "flex-start" }}
+                        />
+                      ) : null}
+                    </View>
 
+                    <View style={styles.inviteCompactActions}>
                       <Pressable
                         accessibilityRole="button"
                         accessibilityLabel="Recusar convite"
                         disabled={processing}
                         onPress={() => void inviteDecision.reject(invite)}
                         style={({ pressed }) => [
-                          styles.inviteSecondaryBtn,
-                          { borderColor: dividerColor },
+                          styles.inviteRejectBtn,
                           pressed ? styles.inviteBtnPressed : null,
                           processing ? styles.inviteBtnDisabled : null,
                         ]}
                       >
-                        <Text
-                          style={[
-                            styles.inviteSecondaryBtnText,
-                            { color: textPrimary },
-                          ]}
-                        >
-                          Recusar
-                        </Text>
+                        <Text style={styles.inviteRejectBtnText}>Recusar</Text>
                       </Pressable>
-                    </View>
 
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Decidir depois"
-                      disabled={processing}
-                      onPress={() => {
-                        if (!normalizedUserEmail) return;
-                        void bumpTerreiroInviteSnooze(
-                          normalizedUserEmail,
-                          invite.id
-                        ).then(() => {
-                          bumpTerreiroSnoozeVersion();
-                        });
-                        showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
-                      }}
-                      style={({ pressed }) => [
-                        styles.inviteTertiaryBtn,
-                        pressed ? styles.inviteBtnPressed : null,
-                        processing ? styles.inviteBtnDisabled : null,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.inviteTertiaryText,
-                          { color: textSecondary },
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Aceitar convite"
+                        disabled={processing}
+                        onPress={() => void inviteDecision.accept(invite)}
+                        style={({ pressed }) => [
+                          styles.inviteAcceptBtn,
+                          pressed ? styles.inviteBtnPressed : null,
+                          processing ? styles.inviteBtnDisabled : null,
                         ]}
                       >
-                        Decidir depois
-                      </Text>
-                    </Pressable>
+                        <Text style={styles.inviteAcceptBtnText}>Aceitar</Text>
+                      </Pressable>
+                    </View>
                   </View>
                 </View>
               );
@@ -358,12 +306,12 @@ const styles = StyleSheet.create({
   list: {
     gap: spacing.sm,
   },
-  inviteCard: {
+  inviteRowCard: {
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
     paddingHorizontal: 12,
-    paddingVertical: 12,
-    gap: 10,
+    paddingVertical: 10,
+    gap: 8,
   },
   inviteCenterBlock: {
     alignItems: "center",
@@ -373,77 +321,53 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     textAlign: "center",
   },
-  inviteBadges: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    marginTop: spacing.sm,
-    marginBottom: spacing.sm,
-    justifyContent: "center",
-  },
-  inviteBodyWrap: {
-    width: "100%",
-    maxWidth: 420,
-    alignSelf: "center",
-    alignItems: "center",
-  },
-  inviteBody: {
-    fontSize: 13,
-    lineHeight: 17,
-    textAlign: "center",
-  },
-  inviteBodyParagraph: {
+  inviteCompactRow: {
     marginTop: 6,
-  },
-  inviteActions: {
-    marginTop: 8,
-    gap: spacing.md,
-  },
-  invitePrimaryRow: {
     flexDirection: "row",
-    alignItems: "stretch",
+    alignItems: "center",
+    justifyContent: "space-between",
     gap: spacing.sm,
   },
-  invitePrimaryBtn: {
+  inviteCompactLeft: {
     flex: 1,
-    minHeight: 40,
-    borderRadius: 12,
-    borderWidth: 2,
+    minHeight: 34,
+    flexDirection: "row",
+    alignItems: "stretch",
+  },
+  inviteCompactActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  inviteAcceptBtn: {
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 0,
     backgroundColor: colors.brass600,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
+    minWidth: 86,
   },
-  invitePrimaryBtnText: {
+  inviteAcceptBtnText: {
     color: colors.paper50,
     fontSize: 13,
     fontWeight: "900",
   },
-  inviteSecondaryBtn: {
-    flex: 1,
-    minHeight: 40,
-    borderRadius: 12,
-    borderWidth: 2,
+  inviteRejectBtn: {
+    minHeight: 34,
+    borderRadius: 10,
+    borderWidth: 0,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 10,
+    paddingHorizontal: 12,
+    minWidth: 86,
   },
-  inviteSecondaryBtnText: {
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  inviteTertiaryBtn: {
-    minHeight: 36,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 10,
-  },
-  inviteTertiaryText: {
+  inviteRejectBtnText: {
+    color: colors.paper50,
     fontSize: 13,
     fontWeight: "800",
-    textDecorationLine: "underline",
-    opacity: 0.72,
-    textAlign: "center",
   },
   inviteBtnPressed: {
     opacity: 0.82,

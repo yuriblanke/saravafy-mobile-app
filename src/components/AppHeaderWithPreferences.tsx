@@ -20,11 +20,6 @@ import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsCont
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import {
-  getTerreiroInviteBodyCopy,
-  getTerreiroInviteRoleBadgeLabel,
-  TERREIRO_INVITE_DECIDE_LATER_TOAST,
-} from "@/src/domain/terreiroInviteCopy";
-import {
   formatTerreiroMemberKindLabel,
   formatTerreiroRoleLabel,
 } from "@/src/domain/terreiroRoles";
@@ -42,7 +37,6 @@ import {
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
-import { bumpTerreiroInviteSnooze } from "@/src/utils/terreiroInviteSnooze";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
@@ -83,6 +77,19 @@ function getDisplayName(value: string | undefined) {
   if (!raw) return "Usuário";
   if (raw.includes("@")) return raw.split("@")[0];
   return raw;
+}
+
+function getCompactTerreiroInviteRoleLabel(role: any): string | null {
+  switch (role) {
+    case "admin":
+      return "Admin";
+    case "curimba":
+      return "Curimba";
+    case "member":
+      return "Membro";
+    default:
+      return null;
+  }
 }
 
 type PendingCuratorInvite = {
@@ -348,7 +355,6 @@ export function PreferencesOverlaySheets(
   const router = useRouter();
   const { user, signOut } = useAuth();
   const { showToast } = useToast();
-  const { bumpTerreiroSnoozeVersion } = useInviteGates();
   const queryClient = useQueryClient();
   const { isOpen, closePreferences } = usePreferencesOverlay();
   const insets = useGlobalSafeAreaInsets();
@@ -977,12 +983,11 @@ export function PreferencesOverlaySheets(
         );
       }
 
-      let warmOk = true;
       if (invite.role === "admin" || invite.role === "curimba") {
         try {
           await fetchTerreirosQueAdministro(userId);
         } catch {
-          warmOk = false;
+          // best-effort warm cache; ignore failures
         }
       }
 
@@ -1022,13 +1027,7 @@ export function PreferencesOverlaySheets(
         queryKey: queryKeys.collections.editableByUserPrefix(userId),
       });
 
-      if (warmOk) {
-        showToast("Convite aceito.");
-      } else {
-        showToast(
-          "Convite aceito, mas não foi possível atualizar permissões agora. Tente novamente em instantes."
-        );
-      }
+      showToast("Convite aceito. Você agora faz parte do terreiro.");
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       if (__DEV__) {
@@ -1393,127 +1392,70 @@ export function PreferencesOverlaySheets(
                       : "Terreiro";
                   const processing =
                     inviteProcessingKey === `terreiro:${invite.id}`;
+                  const roleLabel = getCompactTerreiroInviteRoleLabel(invite.role);
 
                   return (
                     <View
                       key={invite.id}
                       style={[
-                        styles.inviteCard,
+                        styles.terreiroInviteCompactCard,
                         { borderColor: dividerColor, backgroundColor: inputBg },
                       ]}
                     >
-                      <View style={styles.inviteCenterBlock}>
-                        <Text
-                          style={[styles.inviteTitle, { color: textPrimary }]}
-                          numberOfLines={2}
-                        >
-                          {terreiroTitle}
-                        </Text>
+                      <Text
+                        style={[styles.terreiroInviteCompactTitle, { color: textPrimary }]}
+                        numberOfLines={2}
+                      >
+                        {terreiroTitle}
+                      </Text>
 
-                        <View style={styles.inviteBadgesCenter}>
-                          <Badge
-                            label={getTerreiroInviteRoleBadgeLabel(invite.role)}
-                            variant={variant}
-                            appearance={
-                              invite.role === "admin" ? "primary" : "secondary"
-                            }
-                            style={{ alignSelf: "center" }}
-                          />
+                      <View style={styles.terreiroInviteCompactBottomRow}>
+                        <View style={{ flex: 1 }}>
+                          {roleLabel ? (
+                            <Badge
+                              label={roleLabel}
+                              variant={variant}
+                              appearance={
+                                invite.role === "admin" ? "primary" : "secondary"
+                              }
+                              style={{ alignSelf: "flex-start" }}
+                            />
+                          ) : null}
                         </View>
 
-                        <View style={styles.inviteBodyWrap}>
-                          {getTerreiroInviteBodyCopy(invite.role)
-                            .split("\n\n")
-                            .map((p, idx) => (
-                              <Text
-                                key={`${idx}:${p.slice(0, 16)}`}
-                                style={[
-                                  styles.inviteBody,
-                                  { color: textSecondary },
-                                  idx > 0 ? styles.inviteBodyParagraph : null,
-                                ]}
-                              >
-                                {p}
-                              </Text>
-                            ))}
-                        </View>
-                      </View>
-
-                      <View style={styles.inviteActionsColumn}>
-                        <View style={styles.invitePrimaryRow}>
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Aceitar convite"
-                            disabled={processing}
-                            onPress={() => void acceptTerreiroInvite(invite)}
-                            style={({ pressed }) => [
-                              styles.invitePrimaryBtn,
-                              { borderColor: colors.brass600, flex: 1 },
-                              pressed ? styles.inviteBtnPressed : null,
-                              processing ? styles.inviteBtnDisabled : null,
-                            ]}
-                          >
-                            <Text style={styles.invitePrimaryBtnText}>
-                              Aceitar
-                            </Text>
-                          </Pressable>
-
+                        <View style={styles.terreiroInviteCompactActions}>
                           <Pressable
                             accessibilityRole="button"
                             accessibilityLabel="Recusar convite"
                             disabled={processing}
                             onPress={() => void rejectTerreiroInvite(invite)}
                             style={({ pressed }) => [
-                              styles.inviteSecondaryBtn,
-                              { borderColor: inputBorder, flex: 1 },
+                              styles.terreiroInviteRejectBtn,
                               pressed ? styles.inviteBtnPressed : null,
                               processing ? styles.inviteBtnDisabled : null,
                             ]}
                           >
-                            <Text
-                              style={[
-                                styles.inviteSecondaryBtnText,
-                                { color: textPrimary },
-                              ]}
-                              numberOfLines={1}
-                            >
+                            <Text style={styles.terreiroInviteRejectText}>
                               Recusar
                             </Text>
                           </Pressable>
-                        </View>
 
-                        <Pressable
-                          accessibilityRole="button"
-                          accessibilityLabel="Decidir depois"
-                          disabled={processing}
-                          onPress={() => {
-                            if (!normalizedUserEmail) return;
-
-                            void bumpTerreiroInviteSnooze(
-                              normalizedUserEmail,
-                              invite.id
-                            ).then(() => {
-                              bumpTerreiroSnoozeVersion();
-                            });
-
-                            showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
-                          }}
-                          style={({ pressed }) => [
-                            styles.inviteTertiaryBtn,
-                            pressed ? styles.inviteBtnPressed : null,
-                            processing ? styles.inviteBtnDisabled : null,
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.inviteTertiaryText,
-                              { color: textSecondary },
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Aceitar convite"
+                            disabled={processing}
+                            onPress={() => void acceptTerreiroInvite(invite)}
+                            style={({ pressed }) => [
+                              styles.terreiroInviteAcceptBtn,
+                              pressed ? styles.inviteBtnPressed : null,
+                              processing ? styles.inviteBtnDisabled : null,
                             ]}
-                            numberOfLines={1}
                           >
-                            Decidir depois
-                          </Text>
-                        </Pressable>
+                            <Text style={styles.terreiroInviteAcceptText}>
+                              Aceitar
+                            </Text>
+                          </Pressable>
+                        </View>
                       </View>
                     </View>
                   );
@@ -2722,6 +2664,59 @@ const styles = StyleSheet.create({
   },
   inviteBtnDisabled: {
     opacity: 0.6,
+  },
+
+  terreiroInviteCompactCard: {
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  terreiroInviteCompactTitle: {
+    fontSize: 14,
+    fontWeight: "900",
+  },
+  terreiroInviteCompactBottomRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: spacing.sm,
+  },
+  terreiroInviteCompactActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: 10,
+  },
+  terreiroInviteAcceptBtn: {
+    minHeight: 34,
+    minWidth: 86,
+    borderRadius: 10,
+    borderWidth: 0,
+    backgroundColor: colors.brass600,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  terreiroInviteAcceptText: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  terreiroInviteRejectBtn: {
+    minHeight: 34,
+    minWidth: 86,
+    borderRadius: 10,
+    borderWidth: 0,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 12,
+  },
+  terreiroInviteRejectText: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "800",
   },
 
   terreiroMenuBtn: {
