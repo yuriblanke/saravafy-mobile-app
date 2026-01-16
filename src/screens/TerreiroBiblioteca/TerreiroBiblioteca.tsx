@@ -601,21 +601,20 @@ export default function TerreiroBiblioteca() {
   }, [orderedCollections.length]);
 
   const membersCountQuery = useQuery({
-    queryKey: terreiroId ? queryKeys.terreiro.membersCount(terreiroId) : [],
+    queryKey: terreiroId ? queryKeys.terreiroMembersCount(terreiroId) : [],
     enabled: !!terreiroId,
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
     queryFn: async () => {
       if (!terreiroId) return null;
 
-      const res = await supabase
-        .from("terreiro_members")
-        .select("id", { count: "exact", head: true })
-        .eq("terreiro_id", terreiroId);
+      const res = await supabase.rpc("get_terreiro_members_count", {
+        p_terreiro_id: terreiroId,
+      });
 
       if (res.error) {
         if (__DEV__) {
-          console.info("[TerreiroBiblioteca] erro ao contar membros", {
+          console.info("[TerreiroBiblioteca] erro ao contar membros (rpc)", {
             terreiroId,
             error: res.error.message,
           });
@@ -623,21 +622,31 @@ export default function TerreiroBiblioteca() {
         return null;
       }
 
-      return typeof res.count === "number" ? res.count : null;
+      const data: any = res.data;
+      if (typeof data === "number" && Number.isFinite(data)) return data;
+      if (data && typeof data === "object" && typeof data.count === "number") {
+        return data.count;
+      }
+      if (Array.isArray(data) && data.length > 0) {
+        const first = data[0];
+        if (typeof first === "number" && Number.isFinite(first)) return first;
+        if (first && typeof first === "object" && typeof (first as any).count === "number") {
+          return (first as any).count;
+        }
+      }
+
+      return null;
     },
     placeholderData: (prev) => prev,
   });
 
   const membersCountText = useMemo(() => {
+    if (!terreiroId) return null as string | null;
     const n = membersCountQuery.data;
-    if (typeof n !== "number") return "";
-    return `${n} membros`;
-  }, [membersCountQuery.data]);
-
-  const countsLine = useMemo(() => {
-    const parts = [collectionsCountText, membersCountText].filter(Boolean);
-    return parts.join(" • ");
-  }, [collectionsCountText, membersCountText]);
+    if (typeof n === "number") return `${n} membros`;
+    if (membersCountQuery.isLoading && n == null) return "— membros";
+    return null;
+  }, [membersCountQuery.data, membersCountQuery.isLoading, terreiroId]);
 
   const [isCollectionActionsOpen, setIsCollectionActionsOpen] = useState(false);
   const [collectionActionsTarget, setCollectionActionsTarget] =
@@ -1530,10 +1539,42 @@ export default function TerreiroBiblioteca() {
                 </Animated.View>
               </Animated.View>
 
-              {countsLine ? (
-                <Text style={[styles.countText, { color: textMuted }]}>
-                  {countsLine}
-                </Text>
+              {collectionsCountText || membersCountText ? (
+                <View style={styles.countsRow}>
+                  {collectionsCountText ? (
+                    <Text style={[styles.countText, { color: textMuted }]}>
+                      {collectionsCountText}
+                    </Text>
+                  ) : null}
+
+                  {collectionsCountText && membersCountText ? (
+                    <Text style={[styles.countText, { color: textMuted }]}> • </Text>
+                  ) : null}
+
+                  {membersCountText ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Ver membros"
+                      onPress={() => {
+                        if (shouldBlockPress()) return;
+                        if (!terreiroId) return;
+                        router.push({
+                          pathname: "/terreiro-members-list" as any,
+                          params: { terreiroId },
+                        });
+                      }}
+                      disabled={!terreiroId}
+                      hitSlop={10}
+                      style={({ pressed }) => [
+                        { opacity: pressed ? 0.7 : 1 },
+                      ]}
+                    >
+                      <Text style={[styles.countText, { color: textMuted }]}>
+                        {membersCountText}
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               ) : null}
 
               <ScrollView
@@ -1835,6 +1876,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
     fontSize: 13,
     fontWeight: "700",
+  },
+  countsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   actionsRow: {
     gap: spacing.sm,

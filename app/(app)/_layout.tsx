@@ -137,6 +137,8 @@ export default function AppLayout() {
       leaf === "edit" ||
       leaf === "preferences" ||
       leaf === "terreiro-members" ||
+      leaf === "terreiro-members-list" ||
+      leaf === "terreiro-member-profile" ||
       leaf === "access-manager" ||
       leaf === "terreiro-editor" ||
       segments.includes("review-submissions") ||
@@ -145,6 +147,8 @@ export default function AppLayout() {
         (pathname.startsWith("/player") ||
           pathname.startsWith("/preferences") ||
           pathname.startsWith("/terreiro-members") ||
+          pathname.startsWith("/terreiro-members-list") ||
+          pathname.startsWith("/terreiro-member-profile") ||
           pathname.startsWith("/access-manager") ||
           pathname.startsWith("/review-submissions")))
     );
@@ -207,6 +211,18 @@ export default function AppLayout() {
                     }}
                   />
                   <Stack.Screen
+                    name="terreiro-members-list"
+                    options={{
+                      animation: "fade",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+                  <Stack.Screen
                     name="access-manager"
                     options={{
                       animation: "fade",
@@ -250,6 +266,20 @@ export default function AppLayout() {
 
                   <Stack.Screen
                     name="ponto-audio-upload"
+                    options={{
+                      presentation: "modal",
+                      animation: "slide_from_bottom",
+                      contentStyle: {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    }}
+                  />
+
+                  <Stack.Screen
+                    name="terreiro-member-profile"
                     options={{
                       presentation: "modal",
                       animation: "slide_from_bottom",
