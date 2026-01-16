@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 
 export type TerreiroMembersVisibilityTier = "public" | "member" | "admin";
 
+export type TerreiroMembersListTier = "admins" | "members" | "public";
+
 export type TerreiroMemberPublic = {
   user_id: string;
   full_name: string | null;
@@ -130,14 +132,38 @@ export async function fetchTerreiroMembersList(params: {
 
   if (!terreiroId) return [];
 
-  const fn =
+  const tier: TerreiroMembersListTier =
     visibilityTier === "admin"
-      ? "get_terreiro_members_for_admins"
+      ? "admins"
       : visibilityTier === "member"
+      ? "members"
+      : "public";
+
+  // Compat: esta função histórica traz "tudo"; mantemos um limite alto,
+  // mas SEMPRE passando p_limit/p_offset para evitar ambiguidade de RPC.
+  return await fetchTerreiroMembersPage(tier, terreiroId, 2000, 0);
+}
+
+export async function fetchTerreiroMembersPage(
+  tier: TerreiroMembersListTier,
+  terreiroId: string,
+  limit: number,
+  offset: number
+): Promise<TerreiroMemberAny[]> {
+  if (!terreiroId) return [];
+
+  const fn =
+    tier === "admins"
+      ? "get_terreiro_members_for_admins"
+      : tier === "members"
       ? "get_terreiro_members_for_members"
       : "get_terreiro_members_public";
 
-  const res = await supabase.rpc(fn, { p_terreiro_id: terreiroId });
+  const res = await supabase.rpc(fn, {
+    p_terreiro_id: terreiroId,
+    p_limit: limit,
+    p_offset: offset,
+  });
 
   if (res.error) {
     throw new Error(
@@ -147,11 +173,11 @@ export async function fetchTerreiroMembersList(params: {
 
   const rows = Array.isArray(res.data) ? res.data : [];
 
-  if (visibilityTier === "admin") {
+  if (tier === "admins") {
     return rows.map(parseAdminRow).filter(Boolean) as TerreiroMemberAdmin[];
   }
 
-  if (visibilityTier === "member") {
+  if (tier === "members") {
     return rows.map(parseMemberRow).filter(Boolean) as TerreiroMemberMember[];
   }
 

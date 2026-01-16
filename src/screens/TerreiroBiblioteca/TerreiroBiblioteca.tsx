@@ -1553,8 +1553,7 @@ export default function TerreiroBiblioteca() {
 
                   {collectionsCountText && membersCountText ? (
                     <Text style={[styles.countText, { color: textMuted }]}>
-                      {" "}
-                      •{" "}
+                      {" • "}
                     </Text>
                   ) : null}
 
@@ -1878,11 +1877,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   countText: {
-    marginTop: 8,
     fontSize: 13,
     fontWeight: "700",
   },
   countsRow: {
+    marginTop: 8,
     flexDirection: "row",
     alignItems: "center",
     flexWrap: "wrap",

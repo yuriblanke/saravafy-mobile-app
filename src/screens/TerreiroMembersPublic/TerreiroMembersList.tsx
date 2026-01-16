@@ -8,15 +8,15 @@ import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsCont
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
-  fetchTerreiroMembersList,
+  fetchTerreiroMembersPage,
   type TerreiroMemberAny,
-  type TerreiroMembersVisibilityTier,
+  type TerreiroMembersListTier,
 } from "@/src/queries/terreiroMembersRpc";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useQuery } from "@tanstack/react-query";
+import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -50,20 +50,9 @@ function roleLabel(role: string | null | undefined) {
   return null;
 }
 
-function inferVisibilityTier(args: {
-  isLoggedIn: boolean;
-  membershipRole: string | null;
-  isActiveMember: boolean;
-}): TerreiroMembersVisibilityTier {
-  if (!args.isLoggedIn) return "public";
-
-  const role =
-    typeof args.membershipRole === "string" ? args.membershipRole : null;
-  const isActiveMember = args.isActiveMember === true;
-
-  if (!isActiveMember || !role) return "public";
-  if (role === "admin" || role === "editor") return "admin";
-  if (role === "member") return "member";
+function getNextTier(tier: TerreiroMembersListTier): TerreiroMembersListTier {
+  if (tier === "admins") return "members";
+  if (tier === "members") return "public";
   return "public";
 }
 
@@ -113,69 +102,117 @@ export default function TerreiroMembersList() {
   const membershipQuery = useTerreiroMembershipStatus(terreiroId);
   const membership = membershipQuery.data;
 
-  const requestedTier = useMemo(() => {
-    return inferVisibilityTier({
-      isLoggedIn,
-      membershipRole: membership.role,
-      isActiveMember: membership.isActiveMember,
-    });
-  }, [isLoggedIn, membership.isActiveMember, membership.role]);
+  const PAGE_SIZE = 30;
+
+  const initialTier = useMemo<TerreiroMembersListTier>(() => {
+    if (!isLoggedIn) return "public";
+
+    // Se já temos o membership, usamos para evitar tentativa desnecessária.
+    // Caso contrário, tentamos admins primeiro e deixamos o fallback resolver.
+    if (membership?.isActiveMember && membership?.role) {
+      const r = String(membership.role);
+      if (r === "admin" || r === "editor") return "admins";
+      if (r === "member") return "members";
+    }
+
+    return "admins";
+  }, [isLoggedIn, membership?.isActiveMember, membership?.role]);
+
+  const [effectiveTier, setEffectiveTier] = useState<TerreiroMembersListTier>(
+    initialTier
+  );
+
+  // Se troca de terreiro ou muda auth state, recalcula tier inicial.
+  useEffect(() => {
+    setEffectiveTier(initialTier);
+  }, [initialTier, terreiroId]);
+
+  const fallbackCountRef = useRef(0);
+  const lastFallbackTierRef = useRef<TerreiroMembersListTier | null>(null);
+  useEffect(() => {
+    fallbackCountRef.current = 0;
+    lastFallbackTierRef.current = null;
+  }, [terreiroId]);
 
   const borderColor =
     variant === "light"
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
-  const membersQuery = useQuery({
+  const visibilityTierForQuery: "public" | "member" | "admin" =
+    effectiveTier === "admins"
+      ? "admin"
+      : effectiveTier === "members"
+      ? "member"
+      : "public";
+
+  const membersQuery = useInfiniteQuery({
     queryKey: terreiroId
-      ? queryKeys.terreiroMembersList({
+      ? queryKeys.terreiroMembersListInfinite({
           terreiroId,
-          visibilityTier: requestedTier,
+          visibilityTier: visibilityTierForQuery,
         })
       : [],
     enabled: !!terreiroId,
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,
-    queryFn: async () => {
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
       if (!terreiroId) return [] as TerreiroMemberAny[];
-
-      try {
-        return await fetchTerreiroMembersList({
-          terreiroId,
-          visibilityTier: requestedTier,
-        });
-      } catch (e) {
-        if (requestedTier !== "public") {
-          try {
-            const fallback = await fetchTerreiroMembersList({
-              terreiroId,
-              visibilityTier: "public",
-            });
-            if (__DEV__) {
-              console.info(
-                "[TerreiroMembersList] fallback para lista pública",
-                {
-                  terreiroId,
-                  from: requestedTier,
-                }
-              );
-            }
-            if (isLoggedIn) {
-              showToast("Mostrando a lista pública de membros.");
-            }
-            return fallback;
-          } catch {
-            // fallthrough
-          }
-        }
-        throw e;
-      }
+      const offset = typeof pageParam === "number" ? pageParam : 0;
+      return await fetchTerreiroMembersPage(
+        effectiveTier,
+        terreiroId,
+        PAGE_SIZE,
+        offset
+      );
     },
-    placeholderData: (prev) => prev,
+    getNextPageParam: (lastPage, allPages) => {
+      const lastLen = Array.isArray(lastPage) ? lastPage.length : 0;
+      if (lastLen === PAGE_SIZE) return allPages.length * PAGE_SIZE;
+      return undefined;
+    },
   });
 
+  useEffect(() => {
+    if (!membersQuery.isError) return;
+    if (effectiveTier === "public") return;
+
+    // Evita loop: no máximo 2 fallbacks (admins->members->public).
+    if (fallbackCountRef.current >= 2) return;
+    if (lastFallbackTierRef.current === effectiveTier) return;
+
+    lastFallbackTierRef.current = effectiveTier;
+    fallbackCountRef.current += 1;
+    const next = getNextTier(effectiveTier);
+
+    if (__DEV__) {
+      console.info("[TerreiroMembersList] fallback tier", {
+        terreiroId,
+        from: effectiveTier,
+        to: next,
+        error:
+          membersQuery.error instanceof Error
+            ? membersQuery.error.message
+            : String(membersQuery.error),
+      });
+    }
+
+    setEffectiveTier(next);
+    if (isLoggedIn && next === "public") {
+      showToast("Mostrando a lista pública de membros.");
+    }
+  }, [
+    effectiveTier,
+    isLoggedIn,
+    membersQuery.error,
+    membersQuery.isError,
+    showToast,
+    terreiroId,
+  ]);
+
   const items = useMemo<RenderItem[]>(() => {
-    const arr = membersQuery.data ?? [];
+    const arr = (membersQuery.data?.pages ?? []).flat();
 
     return arr
       .map((m) => {
@@ -359,6 +396,19 @@ export default function TerreiroMembersList() {
             maxToRenderPerBatch={20}
             windowSize={10}
             removeClippedSubviews
+            onEndReachedThreshold={0.4}
+            onEndReached={() => {
+              if (membersQuery.hasNextPage && !membersQuery.isFetchingNextPage) {
+                void membersQuery.fetchNextPage();
+              }
+            }}
+            ListFooterComponent={
+              membersQuery.isFetchingNextPage ? (
+                <View style={styles.footer}>
+                  <ActivityIndicator />
+                </View>
+              ) : null
+            }
           />
         )}
       </View>
@@ -404,6 +454,12 @@ const styles = StyleSheet.create({
   list: {
     paddingHorizontal: spacing.lg,
     paddingBottom: spacing.xl,
+  },
+  footer: {
+    paddingTop: spacing.md,
+    paddingBottom: spacing.xl,
+    alignItems: "center",
+    justifyContent: "center",
   },
   center: {
     paddingHorizontal: spacing.lg,
