@@ -592,11 +592,6 @@ export default function PlayerScreen() {
               <Text style={[styles.sheetOptionText, { color: textPrimary }]}>
                 Letra ou dados
               </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={textSecondary}
-              />
             </Pressable>
 
             <Pressable
@@ -627,11 +622,6 @@ export default function PlayerScreen() {
               <Text style={[styles.sheetOptionText, { color: textPrimary }]}>
                 Enviar áudio deste ponto
               </Text>
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={textSecondary}
-              />
             </Pressable>
           </View>
         </BottomSheet>

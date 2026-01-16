@@ -38,7 +38,6 @@ type MemberPayload = {
   avatar_url: string | null;
   role?: string | null;
   email?: string | null;
-  email_verified?: boolean | null;
 };
 
 function decodeMemberParam(
@@ -58,8 +57,6 @@ function decodeMemberParam(
       avatar_url: typeof r.avatar_url === "string" ? r.avatar_url : null,
       role: typeof r.role === "string" ? r.role : null,
       email: typeof r.email === "string" ? r.email : null,
-      email_verified:
-        typeof r.email_verified === "boolean" ? r.email_verified : null,
     };
   } catch {
     return null;
@@ -199,13 +196,6 @@ export default function TerreiroMemberProfile() {
                   <Text style={[styles.metaText, { color: textSecondary }]}>
                     {member.email}
                   </Text>
-                  {member.email_verified === true ? (
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color={colors.brass600}
-                    />
-                  ) : null}
                 </View>
               ) : null}
             </SurfaceCard>

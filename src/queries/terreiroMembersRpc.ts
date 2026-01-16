@@ -17,7 +17,6 @@ export type TerreiroMemberMember = TerreiroMemberPublic & {
 
 export type TerreiroMemberAdmin = TerreiroMemberMember & {
   email: string | null;
-  email_verified: boolean | null;
 };
 
 export type TerreiroMemberAny =
@@ -42,10 +41,6 @@ function getErrorMessage(e: unknown): string {
 
 function asStringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;
-}
-
-function asBooleanOrNull(value: unknown): boolean | null {
-  return typeof value === "boolean" ? value : null;
 }
 
 function parsePublicRow(row: unknown): TerreiroMemberPublic | null {
@@ -82,7 +77,6 @@ function parseAdminRow(row: unknown): TerreiroMemberAdmin | null {
   return {
     ...base,
     email: asStringOrNull(r.email),
-    email_verified: asBooleanOrNull(r.email_verified),
   };
 }
 

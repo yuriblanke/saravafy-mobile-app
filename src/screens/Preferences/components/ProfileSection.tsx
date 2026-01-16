@@ -181,8 +181,6 @@ export function ProfileSection({ variant }: Props) {
               </Text>
             </View>
           </View>
-
-          <Ionicons name="chevron-forward" size={18} color={textSecondary} />
         </Pressable>
       ) : null}
     </PreferencesSection>

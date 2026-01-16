@@ -16,7 +16,13 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -67,7 +73,6 @@ type RenderItem = {
   avatarUrl?: string;
   role?: string | null;
   email?: string | null;
-  emailVerified?: boolean | null;
   raw: TerreiroMemberAny;
 };
 
@@ -118,9 +123,8 @@ export default function TerreiroMembersList() {
     return "admins";
   }, [isLoggedIn, membership?.isActiveMember, membership?.role]);
 
-  const [effectiveTier, setEffectiveTier] = useState<TerreiroMembersListTier>(
-    initialTier
-  );
+  const [effectiveTier, setEffectiveTier] =
+    useState<TerreiroMembersListTier>(initialTier);
 
   // Se troca de terreiro ou muda auth state, recalcula tier inicial.
   useEffect(() => {
@@ -233,10 +237,6 @@ export default function TerreiroMembersList() {
           typeof (m as any).role === "string" ? (m as any).role : null;
         const email =
           typeof (m as any).email === "string" ? (m as any).email : null;
-        const emailVerified =
-          typeof (m as any).email_verified === "boolean"
-            ? (m as any).email_verified
-            : null;
 
         return {
           id,
@@ -245,7 +245,6 @@ export default function TerreiroMembersList() {
           avatarUrl,
           role,
           email,
-          emailVerified,
           raw: m,
         } as RenderItem;
       })
@@ -269,14 +268,6 @@ export default function TerreiroMembersList() {
             >
               {item.email}
             </Text>
-            {item.emailVerified === true ? (
-              <Ionicons
-                name="checkmark-circle"
-                size={14}
-                color={colors.brass600}
-                style={styles.verifiedIcon}
-              />
-            ) : null}
           </View>
         ) : null;
 
@@ -299,13 +290,6 @@ export default function TerreiroMembersList() {
             afterTitle={afterTitle}
             subtitle={subtitle}
             showEditButton={false}
-            rightAccessory={
-              <Ionicons
-                name="chevron-forward"
-                size={18}
-                color={textSecondary}
-              />
-            }
             onPress={() => {
               router.push({
                 pathname: "/terreiro-member-profile" as any,
@@ -398,7 +382,10 @@ export default function TerreiroMembersList() {
             removeClippedSubviews
             onEndReachedThreshold={0.4}
             onEndReached={() => {
-              if (membersQuery.hasNextPage && !membersQuery.isFetchingNextPage) {
+              if (
+                membersQuery.hasNextPage &&
+                !membersQuery.isFetchingNextPage
+              ) {
                 void membersQuery.fetchNextPage();
               }
             }}

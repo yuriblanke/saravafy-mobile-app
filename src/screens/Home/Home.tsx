@@ -1513,12 +1513,6 @@ export default function Home() {
                               </Text>
                             ) : null}
                           </View>
-
-                          <Ionicons
-                            name="chevron-forward"
-                            size={18}
-                            color={textSecondary}
-                          />
                         </Pressable>
                       );
                     })}

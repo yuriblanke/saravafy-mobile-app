@@ -1334,12 +1334,6 @@ export function PreferencesOverlaySheets(
                     Administrar guardiões
                   </Text>
                 </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={textSecondary}
-                />
               </Pressable>
             )}
 
@@ -1367,12 +1361,6 @@ export function PreferencesOverlaySheets(
                     Revisar envios
                   </Text>
                 </View>
-
-                <Ionicons
-                  name="chevron-forward"
-                  size={18}
-                  color={textSecondary}
-                />
               </Pressable>
             )}
 
