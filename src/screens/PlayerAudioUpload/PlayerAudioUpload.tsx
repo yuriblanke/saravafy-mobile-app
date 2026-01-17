@@ -326,7 +326,8 @@ export default function PlayerAudioUpload() {
         pontoId,
         pontoAudioId: init.pontoAudioId,
         uploadToken: init.uploadToken,
-        sizeBytes: typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
+        sizeBytes:
+          typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
         durationMs: 0,
       });
 

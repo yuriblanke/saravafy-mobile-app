@@ -530,15 +530,12 @@ export async function completeUploadWithRetry(params: {
       sha256: params.sha256 ?? null,
     };
 
-    const res = await supabase.functions.invoke(
-      "ponto-audio-complete-upload",
-      {
-        body: payload as any,
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-      }
-    );
+    const res = await supabase.functions.invoke("ponto-audio-complete-upload", {
+      body: payload as any,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
 
     if (!res.error) {
       console.log("[audio] complete attempt", { attempt, status: 200 });
@@ -626,7 +623,9 @@ export async function completeUploadWithRetry(params: {
     throw e;
   }
 
-  throw new Error("Não foi possível concluir o upload (complete não confirmou).");
+  throw new Error(
+    "Não foi possível concluir o upload (complete não confirmou)."
+  );
 }
 
 export async function finalizeAudioUploadAndCreateSubmission(params: {
