@@ -2,7 +2,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
-  completeUploadWithRetry,
+  finalizeAudioUploadAndCreateSubmission,
   initPontoAudioUpload,
   uploadToSignedUpload,
 } from "@/src/api/pontoAudio";
@@ -322,81 +322,13 @@ export default function PlayerAudioUpload() {
         ponto_audio_id: init.pontoAudioId,
       });
 
-      const completeResult = await completeUploadWithRetry({
-        uploadToken: init.uploadToken,
+      await finalizeAudioUploadAndCreateSubmission({
+        pontoId,
         pontoAudioId: init.pontoAudioId,
+        uploadToken: init.uploadToken,
         sizeBytes: typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
         durationMs: 0,
       });
-
-      console.log("[audio] complete response", {
-        status: 200,
-        body: completeResult,
-        attempt: 1,
-      });
-
-      console.log("[audio] creating submission", {
-        ponto_audio_id: init.pontoAudioId,
-        ponto_id: pontoId,
-      });
-
-      // Post-upload step: create exactly one editorial queue row.
-      // Success/failure of this INSERT determines whether the app shows "failed".
-      console.log("[audio] post-upload submission start", {
-        kind: "audio_upload",
-        ponto_id: pontoId,
-        ponto_audio_id: init.pontoAudioId,
-      });
-
-      const existing = await supabase
-        .from("pontos_submissions")
-        .select("id")
-        .eq("kind", "audio_upload")
-        .eq("ponto_audio_id", init.pontoAudioId)
-        .maybeSingle();
-
-      if (existing.error) {
-        console.log("[audio] post-upload submission select error", {
-          message: (existing.error as any)?.message ?? null,
-          details: (existing.error as any)?.details ?? null,
-          hint: (existing.error as any)?.hint ?? null,
-          status: (existing as any)?.status ?? null,
-          code: (existing.error as any)?.code ?? null,
-        });
-        throw existing.error;
-      }
-
-      const submissionId = existing.data?.id ? String(existing.data.id) : null;
-      if (submissionId) {
-        console.log("[audio] post-upload submission exists", {
-          id: submissionId,
-        });
-      } else {
-        const insertRes = await supabase
-          .from("pontos_submissions")
-          .insert({
-            kind: "audio_upload",
-            ponto_id: pontoId,
-            ponto_audio_id: init.pontoAudioId,
-          })
-          .select("id")
-          .single();
-
-        if (insertRes.error) {
-          console.log("[audio] post-upload submission insert error", {
-            message: (insertRes.error as any)?.message ?? null,
-            details: (insertRes.error as any)?.details ?? null,
-            hint: (insertRes.error as any)?.hint ?? null,
-            status: (insertRes as any)?.status ?? null,
-            code: (insertRes.error as any)?.code ?? null,
-          });
-          throw insertRes.error;
-        }
-
-        console.log("[audio] post-upload submission ok", {
-          id: String((insertRes.data as any)?.id ?? ""),
-        });
-      }
 
       await queryClient.invalidateQueries({
         queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
