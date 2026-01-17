@@ -2,7 +2,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
-  completePontoAudioUpload,
+  completeUploadWithRetry,
   initPontoAudioUpload,
   uploadToSignedUpload,
 } from "@/src/api/pontoAudio";
@@ -73,7 +73,7 @@ function formatBytes(n: number | null | undefined): string {
 
 async function getFileSizeBytes(uri: string): Promise<number | null> {
   try {
-    const info: any = await FileSystem.getInfoAsync(uri);
+    const info: any = await FileSystem.getInfoAsync(uri, { size: true } as any);
     const size = info && typeof info === "object" ? (info as any).size : null;
     return typeof size === "number" && Number.isFinite(size) ? size : null;
   } catch {
@@ -264,6 +264,20 @@ export default function PlayerAudioUpload() {
       setIsUploading(true);
       setUploadProgress(0.1);
 
+      // Best-effort size resolution BEFORE upload to avoid "upload ok" being treated as a failure
+      // just because we couldn't stat the file URI afterward.
+      const resolvedSizeBytes =
+        typeof selectedAudio.sizeBytes === "number"
+          ? selectedAudio.sizeBytes
+          : await getFileSizeBytes(selectedAudio.uri);
+
+      if (
+        typeof resolvedSizeBytes === "number" &&
+        resolvedSizeBytes > MAX_AUDIO_BYTES
+      ) {
+        throw new Error("Arquivo muito grande. Máximo: 50 MB.");
+      }
+
       const init = await initPontoAudioUpload({
         pontoId,
         interpreterName: interpreter,
@@ -282,26 +296,114 @@ export default function PlayerAudioUpload() {
 
       setUploadProgress(0.85);
 
-      const sizeBytes =
-        typeof selectedAudio.sizeBytes === "number"
-          ? selectedAudio.sizeBytes
-          : await getFileSizeBytes(selectedAudio.uri);
+      console.log("[audio] post-upload start", {
+        pontoId,
+        pontoAudioId: init.pontoAudioId,
+        bucket: init.bucket,
+        path: init.path,
+      });
 
-      if (typeof sizeBytes !== "number") {
-        throw new Error("Não foi possível identificar o tamanho do áudio.");
-      }
-      if (sizeBytes > MAX_AUDIO_BYTES) {
-        throw new Error("Arquivo muito grande. Máximo: 50 MB.");
+      if (typeof resolvedSizeBytes !== "number") {
+        console.log("[audio] post-upload size unknown; continuing", {
+          fileUri: selectedAudio.uri,
+          pickerSizeBytes: selectedAudio.sizeBytes,
+        });
+      } else {
+        console.log("[audio] post-upload size ok", {
+          sizeBytes: resolvedSizeBytes,
+        });
       }
 
-      await completePontoAudioUpload({
+      // 1) COMPLETE must run (and be awaited) BEFORE creating the editorial submission.
+      // This avoids "Áudio enviado!" while ponto_audios is still pending.
+      const uploadTokenPrefix = String(init.uploadToken ?? "").slice(0, 8);
+      console.log("[audio] calling complete", {
+        upload_token_prefix: uploadTokenPrefix,
+        ponto_audio_id: init.pontoAudioId,
+      });
+
+      const completeResult = await completeUploadWithRetry({
         uploadToken: init.uploadToken,
-        sizeBytes,
+        pontoAudioId: init.pontoAudioId,
+        sizeBytes: typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
         durationMs: 0,
       });
 
+      console.log("[audio] complete response", {
+        status: 200,
+        body: completeResult,
+        attempt: 1,
+      });
+
+      console.log("[audio] creating submission", {
+        ponto_audio_id: init.pontoAudioId,
+        ponto_id: pontoId,
+      });
+
+      // Post-upload step: create exactly one editorial queue row.
+      // Success/failure of this INSERT determines whether the app shows "failed".
+      console.log("[audio] post-upload submission start", {
+        kind: "audio_upload",
+        ponto_id: pontoId,
+        ponto_audio_id: init.pontoAudioId,
+      });
+
+      const existing = await supabase
+        .from("pontos_submissions")
+        .select("id")
+        .eq("kind", "audio_upload")
+        .eq("ponto_audio_id", init.pontoAudioId)
+        .maybeSingle();
+
+      if (existing.error) {
+        console.log("[audio] post-upload submission select error", {
+          message: (existing.error as any)?.message ?? null,
+          details: (existing.error as any)?.details ?? null,
+          hint: (existing.error as any)?.hint ?? null,
+          status: (existing as any)?.status ?? null,
+          code: (existing.error as any)?.code ?? null,
+        });
+        throw existing.error;
+      }
+
+      const submissionId = existing.data?.id ? String(existing.data.id) : null;
+      if (submissionId) {
+        console.log("[audio] post-upload submission exists", {
+          id: submissionId,
+        });
+      } else {
+        const insertRes = await supabase
+          .from("pontos_submissions")
+          .insert({
+            kind: "audio_upload",
+            ponto_id: pontoId,
+            ponto_audio_id: init.pontoAudioId,
+          })
+          .select("id")
+          .single();
+
+        if (insertRes.error) {
+          console.log("[audio] post-upload submission insert error", {
+            message: (insertRes.error as any)?.message ?? null,
+            details: (insertRes.error as any)?.details ?? null,
+            hint: (insertRes.error as any)?.hint ?? null,
+            status: (insertRes as any)?.status ?? null,
+            code: (insertRes.error as any)?.code ?? null,
+          });
+          throw insertRes.error;
+        }
+
+        console.log("[audio] post-upload submission ok", {
+          id: String((insertRes.data as any)?.id ?? ""),
+        });
+      }
+
       await queryClient.invalidateQueries({
         queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
+      });
+
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.pontosSubmissions.pending(),
       });
 
       setUploadProgress(1);

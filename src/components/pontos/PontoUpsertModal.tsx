@@ -553,7 +553,8 @@ export function PontoUpsertModal({
         }
 
         const mimeType =
-          typeof attachedAudio.mimeType === "string" && attachedAudio.mimeType.trim()
+          typeof attachedAudio.mimeType === "string" &&
+          attachedAudio.mimeType.trim()
             ? attachedAudio.mimeType
             : "audio/m4a";
 
@@ -584,6 +585,7 @@ export function PontoUpsertModal({
         setAudioUploadPhase("complete");
         await completePontoAudioUpload({
           uploadToken: init.uploadToken,
+          pontoAudioId: init.pontoAudioId,
           sizeBytes: sizeBytesRaw,
           durationMs: 0,
         });
@@ -979,7 +981,10 @@ export function PontoUpsertModal({
                             color={colors.brass600}
                           />
                           <Text
-                            style={[styles.audioAddText, { color: textPrimary }]}
+                            style={[
+                              styles.audioAddText,
+                              { color: textPrimary },
+                            ]}
                           >
                             Adicionar áudio
                           </Text>

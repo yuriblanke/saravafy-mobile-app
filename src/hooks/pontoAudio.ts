@@ -149,6 +149,7 @@ export function useCompletePontoAudioUploadMutation() {
   return useMutation({
     mutationFn: async (params: {
       uploadToken: string;
+      pontoAudioId?: string | null;
       sizeBytes: number;
       durationMs: number;
       contentEtag?: string | null;
@@ -156,6 +157,7 @@ export function useCompletePontoAudioUploadMutation() {
     }) => {
       return completePontoAudioUpload({
         uploadToken: params.uploadToken,
+        pontoAudioId: params.pontoAudioId ?? null,
         sizeBytes: params.sizeBytes,
         durationMs: params.durationMs,
         contentEtag: params.contentEtag ?? null,
