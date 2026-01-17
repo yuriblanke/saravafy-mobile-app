@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { Badge } from "@/src/components/Badge";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { ConfirmModal } from "@/src/components/ConfirmModal";
 import { Separator } from "@/src/components/Separator";
@@ -818,10 +819,6 @@ export default function AccessManager() {
       >
         {/* Section 1: Management members */}
         <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: textPrimary }]}>
-            Gestão do terreiro
-          </Text>
-
           {membersHook.isLoading ? (
             <View style={styles.emptyState}>
               <Text style={[styles.emptyText, { color: textSecondary }]}>
@@ -853,21 +850,27 @@ export default function AccessManager() {
                         >
                           {item.name}
                         </Text>
-                        {item.showEmailLine ? (
-                          <Text
-                            style={[styles.itemRole, { color: textMuted }]}
-                            numberOfLines={1}
-                          >
-                            {item.email} · {getRoleLabel(item.role)}
-                          </Text>
-                        ) : (
-                          <Text
-                            style={[styles.itemRole, { color: textMuted }]}
-                            numberOfLines={1}
-                          >
-                            {getRoleLabel(item.role)}
-                          </Text>
-                        )}
+                        <View style={styles.itemMetaRow}>
+                          {item.showEmailLine ? (
+                            <Text
+                              style={[
+                                styles.itemMetaText,
+                                { color: textMuted },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.email}
+                            </Text>
+                          ) : null}
+                          <Badge
+                            label={getRoleLabel(item.role)}
+                            variant={variant}
+                            appearance={
+                              item.role === "admin" ? "primary" : "secondary"
+                            }
+                            style={styles.roleBadge}
+                          />
+                        </View>
                       </View>
 
                       <Pressable
@@ -950,17 +953,33 @@ export default function AccessManager() {
                         >
                           {item.name}
                         </Text>
+                        <View style={styles.itemMetaRow}>
+                          {item.showEmailLine ? (
+                            <Text
+                              style={[
+                                styles.itemMetaText,
+                                { color: textMuted },
+                              ]}
+                              numberOfLines={1}
+                            >
+                              {item.email}
+                            </Text>
+                          ) : null}
+                          <Badge
+                            label={getRoleLabel(item.role)}
+                            variant={variant}
+                            appearance={
+                              item.role === "admin" ? "primary" : "secondary"
+                            }
+                            style={styles.roleBadge}
+                          />
+                        </View>
+
                         <Text
                           style={[styles.itemRole, { color: textMuted }]}
                           numberOfLines={1}
                         >
-                          {item.showEmailLine
-                            ? `${item.email} · ${getRoleLabel(
-                                item.role
-                              )} · Pendente · ${item.createdAtLabel}`
-                            : `${getRoleLabel(item.role)} · Pendente · ${
-                                item.createdAtLabel
-                              }`}
+                          Pendente · {item.createdAtLabel}
                         </Text>
                       </View>
 
@@ -1070,6 +1089,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
     fontSize: 13,
     fontWeight: "700",
+  },
+  itemMetaRow: {
+    marginTop: 4,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  itemMetaText: {
+    fontSize: 13,
+    fontWeight: "700",
+    flexShrink: 1,
+  },
+  roleBadge: {
+    alignSelf: "flex-start",
   },
   menuButton: {
     width: 34,

@@ -44,7 +44,9 @@ export function LoadingStatePreferences(props: { effectiveTheme: ThemeMode }) {
             {
               backgroundColor:
                 navCover.backgroundColor ??
-                (effectiveTheme === "light" ? colors.paper50 : colors.forest900),
+                (effectiveTheme === "light"
+                  ? colors.paper50
+                  : colors.forest900),
             },
           ]}
         />

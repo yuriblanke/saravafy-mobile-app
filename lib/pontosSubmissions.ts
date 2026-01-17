@@ -62,6 +62,13 @@ export function parseTagsInput(value: string): string[] {
 }
 
 export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+  if (sessionError) throw sessionError;
+  if (!sessionData?.session?.access_token) {
+    throw new Error("Você precisa estar logada para enviar para revisão.");
+  }
+
   const payload = {
     title: typeof input.title === "string" ? input.title.trim() : "",
     lyrics: typeof input.lyrics === "string" ? input.lyrics.trim() : "",

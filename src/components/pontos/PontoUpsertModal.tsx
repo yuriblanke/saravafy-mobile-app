@@ -370,7 +370,7 @@ export function PontoUpsertModal({
   );
 
   const pickAudio = useCallback(async () => {
-    if (mode !== "create") return;
+    if (mode !== "edit") return;
     if (isSubmitting) return;
 
     const res = await DocumentPicker.getDocumentAsync({
@@ -448,6 +448,14 @@ export function PontoUpsertModal({
       }
 
       if (mode === "create") {
+        if (hasAudioAttached) {
+          setErrorMessage(
+            "Envio de áudio não acontece no 'Enviar para revisão'. Remova o áudio e envie apenas o texto, ou envie áudio pelo player do ponto."
+          );
+          setIsSubmitting(false);
+          return;
+        }
+
         if (attachedAudio && !interpreterValue) {
           setErrorMessage("Preencha o Nome do intérprete para anexar áudio.");
           setIsSubmitting(false);
@@ -467,48 +475,6 @@ export function PontoUpsertModal({
 
           submissionId = created.id;
           createdSubmissionIdRef.current = submissionId;
-        }
-
-        if (attachedAudio) {
-          const mimeType =
-            typeof attachedAudio.mimeType === "string" &&
-            attachedAudio.mimeType.trim()
-              ? attachedAudio.mimeType
-              : "audio/m4a";
-          const sizeBytesRaw =
-            typeof attachedAudio.size === "number"
-              ? attachedAudio.size
-              : await getFileSizeBytes(attachedAudio.uri);
-          if (typeof sizeBytesRaw !== "number") {
-            throw new Error("Não foi possível identificar o tamanho do áudio.");
-          }
-
-          setAudioUploadPhase("init");
-          const init = await initPontoAudioUpload({
-            pontoId: submissionId,
-            interpreterName: interpreterValue,
-            mimeType,
-          });
-
-          setAudioUploadPhase("upload");
-          await uploadToSignedUpload({
-            bucket: init.bucket,
-            path: init.path,
-            signedUpload: init.signedUpload,
-            fileUri: attachedAudio.uri,
-            mimeType,
-          });
-
-          setAudioUploadPhase("complete");
-          await completePontoAudioUpload({
-            uploadToken: init.uploadToken,
-            sizeBytes: sizeBytesRaw,
-            durationMs: 0,
-          });
-
-          await queryClient.invalidateQueries({
-            queryKey: queryKeys.pontoAudios.byPontoId(submissionId),
-          });
         }
 
         onCancel();
@@ -579,6 +545,53 @@ export function PontoUpsertModal({
           ? row.tags.filter((v: any) => typeof v === "string")
           : tagsValue,
       };
+
+      if (mode === "edit" && attachedAudio) {
+        const interpreterValue = interpreterName.trim();
+        if (!interpreterValue) {
+          throw new Error("Preencha o Intérprete para enviar o áudio.");
+        }
+
+        const mimeType =
+          typeof attachedAudio.mimeType === "string" && attachedAudio.mimeType.trim()
+            ? attachedAudio.mimeType
+            : "audio/m4a";
+
+        const sizeBytesRaw =
+          typeof attachedAudio.size === "number"
+            ? attachedAudio.size
+            : await getFileSizeBytes(attachedAudio.uri);
+        if (typeof sizeBytesRaw !== "number") {
+          throw new Error("Não foi possível identificar o tamanho do áudio.");
+        }
+
+        setAudioUploadPhase("init");
+        const init = await initPontoAudioUpload({
+          pontoId,
+          interpreterName: interpreterValue,
+          mimeType,
+        });
+
+        setAudioUploadPhase("upload");
+        await uploadToSignedUpload({
+          bucket: init.bucket,
+          path: init.path,
+          signedUpload: init.signedUpload,
+          fileUri: attachedAudio.uri,
+          mimeType,
+        });
+
+        setAudioUploadPhase("complete");
+        await completePontoAudioUpload({
+          uploadToken: init.uploadToken,
+          sizeBytes: sizeBytesRaw,
+          durationMs: 0,
+        });
+
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
+        });
+      }
 
       onCancel();
       onSuccess?.(updated);
@@ -813,7 +826,7 @@ export function PontoUpsertModal({
                 <TextInput
                   value={interpreterName}
                   onChangeText={setInterpreterName}
-                  placeholder="Preencha quando enviar o áudio junto com o ponto"
+                  placeholder="Opcional"
                   placeholderTextColor={textSecondary}
                   style={[
                     styles.input,
@@ -828,72 +841,6 @@ export function PontoUpsertModal({
                   editable={!isSubmitting}
                   returnKeyType="next"
                 />
-
-                <View style={styles.audioBlock}>
-                  <Text style={[styles.label, { color: textSecondary }]}>
-                    Áudio (opcional)
-                  </Text>
-
-                  {attachedAudio ? (
-                    <View
-                      style={[
-                        styles.audioRow,
-                        {
-                          borderColor: inputBorder,
-                          backgroundColor: inputBg,
-                        },
-                      ]}
-                    >
-                      <Ionicons
-                        name="musical-notes"
-                        size={16}
-                        color={textPrimary}
-                      />
-                      <Text
-                        style={[styles.audioName, { color: textPrimary }]}
-                        numberOfLines={1}
-                      >
-                        {attachedAudio.name}
-                      </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Remover áudio"
-                        hitSlop={10}
-                        onPress={() => setAttachedAudio(null)}
-                        style={({ pressed }) => [
-                          styles.audioRemoveBtn,
-                          pressed ? styles.pressed : null,
-                        ]}
-                      >
-                        <Ionicons
-                          name="close"
-                          size={18}
-                          color={colors.brass600}
-                        />
-                      </Pressable>
-                    </View>
-                  ) : (
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Adicionar áudio"
-                      onPress={() => {
-                        void pickAudio();
-                      }}
-                      style={({ pressed }) => [
-                        styles.audioAddBtn,
-                        { borderColor: inputBorder },
-                        pressed ? styles.pressed : null,
-                      ]}
-                    >
-                      <Ionicons name="add" size={18} color={colors.brass600} />
-                      <Text
-                        style={[styles.audioAddText, { color: textPrimary }]}
-                      >
-                        Adicionar áudio
-                      </Text>
-                    </Pressable>
-                  )}
-                </View>
               </>
             ) : (
               <>
@@ -945,6 +892,102 @@ export function PontoUpsertModal({
                   editable={!isSubmitting}
                   returnKeyType="next"
                 />
+
+                {mode === "edit" ? (
+                  <>
+                    <Text style={[styles.label, { color: textSecondary }]}>
+                      Intérprete
+                    </Text>
+                    <TextInput
+                      value={interpreterName}
+                      onChangeText={setInterpreterName}
+                      placeholder="Obrigatório para enviar o áudio"
+                      placeholderTextColor={textSecondary}
+                      style={[
+                        styles.input,
+                        {
+                          backgroundColor: inputBg,
+                          borderColor: inputBorder,
+                          color: textPrimary,
+                        },
+                      ]}
+                      autoCapitalize="sentences"
+                      autoCorrect
+                      editable={!isSubmitting}
+                      returnKeyType="next"
+                    />
+
+                    <View style={styles.audioBlock}>
+                      <Text style={[styles.label, { color: textSecondary }]}>
+                        Áudio (opcional)
+                      </Text>
+
+                      {attachedAudio ? (
+                        <View
+                          style={[
+                            styles.audioRow,
+                            {
+                              borderColor: inputBorder,
+                              backgroundColor: inputBg,
+                            },
+                          ]}
+                        >
+                          <Ionicons
+                            name="musical-notes"
+                            size={16}
+                            color={textPrimary}
+                          />
+                          <Text
+                            style={[styles.audioName, { color: textPrimary }]}
+                            numberOfLines={1}
+                          >
+                            {attachedAudio.name}
+                          </Text>
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Remover áudio"
+                            hitSlop={10}
+                            onPress={() => setAttachedAudio(null)}
+                            style={({ pressed }) => [
+                              styles.audioRemoveBtn,
+                              pressed ? styles.pressed : null,
+                            ]}
+                          >
+                            <Ionicons
+                              name="close"
+                              size={18}
+                              color={colors.brass600}
+                            />
+                          </Pressable>
+                        </View>
+                      ) : (
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Adicionar áudio"
+                          onPress={() => {
+                            void pickAudio();
+                          }}
+                          style={({ pressed }) => [
+                            styles.audioAddBtn,
+                            { borderColor: inputBorder },
+                            pressed ? styles.pressed : null,
+                          ]}
+                        >
+                          <Ionicons
+                            name="add"
+                            size={18}
+                            color={colors.brass600}
+                          />
+                          <Text
+                            style={[styles.audioAddText, { color: textPrimary }]}
+                          >
+                            Adicionar áudio
+                          </Text>
+                        </Pressable>
+                      )}
+                    </View>
+                  </>
+                ) : null}
               </>
             )}
 

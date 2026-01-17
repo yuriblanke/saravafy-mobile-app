@@ -639,7 +639,9 @@ export async function createTerreiroInvite(params: {
   const memberKind =
     params.role === "member" ? params.memberKind ?? "assistencia" : null;
 
-  const res = await supabase.from("terreiro_invites").insert({
+  // Some environments may not have `member_kind` yet.
+  // Try with it first, then retry without it when needed.
+  let res: any = await supabase.from("terreiro_invites").insert({
     terreiro_id: params.terreiroId,
     email,
     role: params.role,
@@ -647,6 +649,16 @@ export async function createTerreiroInvite(params: {
     status: "pending",
     created_by: params.createdBy,
   });
+
+  if (res.error && isColumnMissingError(res.error, "member_kind")) {
+    res = await supabase.from("terreiro_invites").insert({
+      terreiro_id: params.terreiroId,
+      email,
+      role: params.role,
+      status: "pending",
+      created_by: params.createdBy,
+    });
+  }
 
   if (res.error) {
     const err: any = res.error;
@@ -677,18 +689,44 @@ export function useTerreiroMembers(terreiroId: string) {
         };
       }
 
-      let res: any = await supabase
-        .from("terreiro_members")
-        .select("terreiro_id, user_id, role, member_kind, status, created_at")
-        .eq("terreiro_id", terreiroId)
-        .order("created_at", { ascending: true });
+      let includeStatus = true;
+      let includeMemberKind = true;
 
-      if (res.error && isColumnMissingError(res.error, "status")) {
-        res = await supabase
+      const run = async () => {
+        const cols = [
+          "terreiro_id",
+          "user_id",
+          "role",
+          includeMemberKind ? "member_kind" : null,
+          includeStatus ? "status" : null,
+          "created_at",
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        return supabase
           .from("terreiro_members")
-          .select("terreiro_id, user_id, role, member_kind, created_at")
+          .select(cols)
           .eq("terreiro_id", terreiroId)
           .order("created_at", { ascending: true });
+      };
+
+      let res: any = await run();
+      for (let i = 0; i < 3 && res?.error; i += 1) {
+        if (includeStatus && isColumnMissingError(res.error, "status")) {
+          includeStatus = false;
+          res = await run();
+          continue;
+        }
+        if (
+          includeMemberKind &&
+          isColumnMissingError(res.error, "member_kind")
+        ) {
+          includeMemberKind = false;
+          res = await run();
+          continue;
+        }
+        break;
       }
 
       if (res.error) {
@@ -760,11 +798,46 @@ export function useTerreiroInvites(terreiroId: string) {
         };
       }
 
-      const res = await supabase
-        .from("terreiro_invites")
-        .select("id, terreiro_id, email, role, member_kind, status, created_at")
-        .eq("terreiro_id", terreiroId)
-        .order("created_at", { ascending: false });
+      let includeMemberKind = true;
+      let includeStatus = true;
+
+      const run = async () => {
+        const cols = [
+          "id",
+          "terreiro_id",
+          "email",
+          "role",
+          includeMemberKind ? "member_kind" : null,
+          includeStatus ? "status" : null,
+          "created_at",
+        ]
+          .filter(Boolean)
+          .join(", ");
+
+        return supabase
+          .from("terreiro_invites")
+          .select(cols)
+          .eq("terreiro_id", terreiroId)
+          .order("created_at", { ascending: false });
+      };
+
+      let res: any = await run();
+      for (let i = 0; i < 3 && res?.error; i += 1) {
+        if (includeStatus && isColumnMissingError(res.error, "status")) {
+          includeStatus = false;
+          res = await run();
+          continue;
+        }
+        if (
+          includeMemberKind &&
+          isColumnMissingError(res.error, "member_kind")
+        ) {
+          includeMemberKind = false;
+          res = await run();
+          continue;
+        }
+        break;
+      }
 
       if (res.error) {
         throw new Error(
