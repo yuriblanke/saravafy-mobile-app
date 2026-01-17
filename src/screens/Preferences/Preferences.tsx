@@ -6,7 +6,7 @@ import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBo
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
 import { colors, spacing } from "@/src/theme";
-import { setNavCoverVisible } from "@/src/utils/navCover";
+import { setNavCoverVisible, useNavCoverState } from "@/src/utils/navCover";
 import { navTrace } from "@/src/utils/navTrace";
 
 import { CurimbaSection } from "./components/CurimbaSection";
@@ -19,6 +19,7 @@ import { ThemeSection } from "./components/ThemeSection";
 
 export default function Preferences() {
   const insets = useGlobalSafeAreaInsets();
+  const navCover = useNavCoverState();
   const {
     effectiveTheme,
     curimbaOnboardingDismissed,
@@ -203,10 +204,32 @@ export default function Preferences() {
   const screenBgColor =
     __DEV__ && debugUnderlayPeek ? "transparent" : baseBgColor;
 
-  const didSignalReadyRef = React.useRef(false);
+  const didLayoutRef = React.useRef(false);
+  const didHideCoverRef = React.useRef(false);
 
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
+
+  const maybeHideNavCover = React.useCallback(() => {
+    if (didHideCoverRef.current) return;
+    if (!navCover.visible) return;
+    if (!didLayoutRef.current) return;
+
+    // Só libera o Preferences quando o prewarm terminar.
+    if (navCover.ready !== true) return;
+
+    didHideCoverRef.current = true;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        setNavCoverVisible(false, { reason: "preferences-ready" });
+      });
+    });
+  }, [navCover.ready, navCover.visible]);
+
+  React.useEffect(() => {
+    // Se o layout já aconteceu e o prewarm terminar depois, libera aqui.
+    maybeHideNavCover();
+  }, [maybeHideNavCover]);
 
   const [terreiroActionsTarget, setTerreiroActionsTarget] =
     useState<MyTerreiroWithRole | null>(null);
@@ -240,15 +263,8 @@ export default function Preferences() {
           variant,
         });
 
-        // Produção: esconde o cover global após o primeiro layout estabilizar.
-        if (!didSignalReadyRef.current) {
-          didSignalReadyRef.current = true;
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              setNavCoverVisible(false, { reason: "preferences-ready" });
-            });
-          });
-        }
+        didLayoutRef.current = true;
+        maybeHideNavCover();
       }}
     >
       <PreferencesHeader variant={variant} />

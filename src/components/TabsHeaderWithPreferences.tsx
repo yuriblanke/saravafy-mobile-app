@@ -35,9 +35,9 @@ import {
 } from "@/src/queries/pendingTerreiroInvites";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
-import { colors, spacing } from "@/src/theme";
 import { prewarmPreferences } from "@/src/screens/Preferences/prewarmPreferences";
-import { setNavCoverVisible } from "@/src/utils/navCover";
+import { colors, spacing } from "@/src/theme";
+import { markNavCoverReady, showNavCover } from "@/src/utils/navCover";
 import { navTrace } from "@/src/utils/navTrace";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -192,7 +192,9 @@ export function TabsHeaderWithPreferences(
   const segmentsKey = useMemo(() => segments.join("/"), [segments]);
   const normalizedUserEmail =
     typeof (user as any)?.email === "string"
-      ? String((user as any).email).trim().toLowerCase()
+      ? String((user as any).email)
+          .trim()
+          .toLowerCase()
       : null;
   const userId = user?.id ?? null;
   const renderCountRef = React.useRef(0);
@@ -474,7 +476,7 @@ export function TabsHeaderWithPreferences(
 
             // Produção: hard cut perceptível ("loading state" controlado).
             // Mostra o cover ANTES do push para mascarar 1–2 frames de handoff.
-            setNavCoverVisible(true, {
+            const coverToken = showNavCover({
               backgroundColor: baseBgColor,
               reason: "open-preferences",
             });
@@ -487,10 +489,12 @@ export function TabsHeaderWithPreferences(
             });
 
             // Pré-aquecimento: tenta deixar a tela "montadinha" mais cedo.
-            // Não bloqueia navegação (best-effort).
+            // Mantemos o cover até os dados essenciais chegarem.
             void prewarmPreferences(queryClient, {
               userId,
               normalizedEmail: normalizedUserEmail,
+            }).finally(() => {
+              markNavCoverReady(coverToken);
             });
 
             if (__DEV__ && visualMarkersEnabled) {

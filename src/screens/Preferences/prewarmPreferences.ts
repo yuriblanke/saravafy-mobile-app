@@ -15,14 +15,16 @@ export async function prewarmPreferences(
   tasks.push(import("@/src/screens/Preferences/Preferences").catch(() => null));
 
   if (userId) {
-    tasks.push(prefetchPreferencesTerreiros(queryClient, { userId }).catch(() => null));
+    tasks.push(
+      prefetchPreferencesTerreiros(queryClient, { userId }).catch(() => null)
+    );
   }
 
   if (normalizedEmail) {
     tasks.push(
-      prefetchPendingTerreiroInvitesForInvitee(queryClient, { normalizedEmail }).catch(
-        () => null
-      )
+      prefetchPendingTerreiroInvitesForInvitee(queryClient, {
+        normalizedEmail,
+      }).catch(() => null)
     );
   }
 

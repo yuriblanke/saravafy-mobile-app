@@ -5,8 +5,8 @@ import {
   type TerreiroMemberKind,
   type TerreiroRole,
 } from "@/src/domain/terreiroRoles";
-import { useQuery } from "@tanstack/react-query";
 import type { QueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 
 import { queryKeys } from "./queryKeys";
 
@@ -71,7 +71,11 @@ export async function fetchPendingTerreiroInvitesForInvitee(
       .eq("email", normalizedEmail)
       .order("created_at", { ascending: true });
 
-    if (res.error && !useName && isColumnMissingError(res.error.message, "title")) {
+    if (
+      res.error &&
+      !useName &&
+      isColumnMissingError(res.error.message, "title")
+    ) {
       useName = true;
       res = await supabase
         .from("terreiro_invites")
@@ -104,12 +108,14 @@ export async function fetchPendingTerreiroInvitesForInvitee(
         typeof row?.terreiro?.title === "string"
           ? row.terreiro.title
           : typeof row?.terreiro?.name === "string"
-            ? row.terreiro.name
-            : null;
+          ? row.terreiro.name
+          : null;
 
       const memberKind =
         normalizedRole === "member"
-          ? normalizeTerreiroMemberKind(includeMemberKind ? row?.member_kind : null)
+          ? normalizeTerreiroMemberKind(
+              includeMemberKind ? row?.member_kind : null
+            )
           : null;
 
       const invite: PendingTerreiroInvite = {
@@ -130,11 +136,14 @@ export async function prefetchPendingTerreiroInvitesForInvitee(
   queryClient: QueryClient,
   params: { normalizedEmail: string }
 ) {
-  const key = queryKeys.terreiroInvites.pendingForInvitee(params.normalizedEmail);
+  const key = queryKeys.terreiroInvites.pendingForInvitee(
+    params.normalizedEmail
+  );
   return queryClient.prefetchQuery({
     queryKey: key,
     staleTime: 0,
-    queryFn: async () => fetchPendingTerreiroInvitesForInvitee(params.normalizedEmail),
+    queryFn: async () =>
+      fetchPendingTerreiroInvitesForInvitee(params.normalizedEmail),
   });
 }
 
