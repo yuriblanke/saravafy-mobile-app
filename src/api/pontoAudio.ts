@@ -52,6 +52,24 @@ function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
+function summarizeBodyForLog(body: unknown) {
+  if (body === null || body === undefined) return null;
+  if (typeof body === "string") {
+    const trimmed = body.trim();
+    return trimmed.length > 140 ? `${trimmed.slice(0, 140)}…` : trimmed;
+  }
+  if (typeof body === "object") {
+    const o: any = body as any;
+    return {
+      keys: Array.isArray(body) ? null : Object.keys(o).slice(0, 12),
+      message: typeof o?.message === "string" ? o.message : null,
+      code: typeof o?.code === "string" ? o.code : null,
+      retryable: typeof o?.retryable === "boolean" ? o.retryable : null,
+    };
+  }
+  return String(body);
+}
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (error && typeof error === "object" && "message" in (error as any)) {
@@ -490,8 +508,8 @@ export async function completeUploadWithRetry(params: {
   contentEtag?: string | null;
   sha256?: string | null;
 }) {
-  const backoffsMs = [400, 900, 1600, 2500];
-  const maxAttempts = 4;
+  const backoffsMs = [500, 1000, 2000, 4000];
+  const maxAttempts = 5;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     const { data: sessionData, error: sessionError } =
@@ -523,7 +541,11 @@ export async function completeUploadWithRetry(params: {
     );
 
     if (!res.error) {
-      console.log("[audio] complete attempt", { attempt, status: 200 });
+      console.log("[audio] complete attempt", {
+        attempt,
+        status: 200,
+        body: summarizeBodyForLog(res.data),
+      });
       return res.data as CompleteUploadResponse;
     }
 
@@ -548,20 +570,27 @@ export async function completeUploadWithRetry(params: {
       }
     }
 
-    const retryable =
-      body && typeof body === "object" && !Array.isArray(body)
-        ? (body as any).retryable === true
-        : false;
+    console.log("[audio] complete attempt", {
+      attempt,
+      status,
+      body: summarizeBodyForLog(body ?? bodyRaw),
+    });
 
-    console.log("[audio] complete attempt", { attempt, status });
-
-    if (status === 409 && retryable && attempt < maxAttempts) {
-      const waitMs =
-        backoffsMs[attempt - 1] ?? backoffsMs[backoffsMs.length - 1];
+    // Eventual consistency: any 409 is treated as retryable.
+    const retryable = status === 409;
+    if (status === 409 && attempt < maxAttempts) {
+      const waitMs = backoffsMs[attempt - 1] ?? backoffsMs[backoffsMs.length - 1];
       console.log("[audio] complete retrying", { attempt, waitMs, retryable });
       await sleep(waitMs);
       continue;
     }
+
+    console.log("[audio] complete giving up", {
+      attempt,
+      status,
+      body: summarizeBodyForLog(body ?? bodyRaw),
+      retryable,
+    });
 
     const msg =
       typeof anyErr?.message === "string" && anyErr.message.trim()
