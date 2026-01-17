@@ -112,7 +112,7 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain"
+          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, audio_url, cover_url, author_name, is_public_domain"
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -153,7 +153,7 @@ export function useCollectionPlayerData(
               typeof row.duration_seconds === "number"
                 ? row.duration_seconds
                 : null,
-            audio_url: null,
+            audio_url: typeof row.audio_url === "string" ? row.audio_url : null,
             cover_url: typeof row.cover_url === "string" ? row.cover_url : null,
             lyrics,
             lyrics_preview_6:

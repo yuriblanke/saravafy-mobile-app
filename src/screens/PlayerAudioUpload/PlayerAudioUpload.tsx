@@ -1,24 +1,24 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
-import {
-  finalizeAudioUploadAndCreateSubmission,
-  initPontoAudioUpload,
-  uploadToSignedUpload,
-} from "@/src/api/pontoAudio";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { BottomSheet } from "@/src/components/BottomSheet";
+import { Separator } from "@/src/components/Separator";
+import {
+  PontoAudioUploadController,
+  type PontoAudioUploadControllerRenderProps,
+} from "@/src/components/pontos/PontoAudioUploadController";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Alert,
   BackHandler,
   Image,
+  Linking,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -28,7 +28,8 @@ import {
 } from "react-native";
 
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
-const TERMS_URL = "https://saravafy.com.br/termos-de-uso/";
+const TERMS_URL =
+  "https://www.saravafy.com.br/termos-de-uso-interprete-de-ponto-audio";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -71,16 +72,6 @@ function formatBytes(n: number | null | undefined): string {
   return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
 }
 
-async function getFileSizeBytes(uri: string): Promise<number | null> {
-  try {
-    const info: any = await FileSystem.getInfoAsync(uri, { size: true } as any);
-    const size = info && typeof info === "object" ? (info as any).size : null;
-    return typeof size === "number" && Number.isFinite(size) ? size : null;
-  } catch {
-    return null;
-  }
-}
-
 export default function PlayerAudioUpload() {
   const router = useRouter();
   const params = useLocalSearchParams<{
@@ -113,23 +104,8 @@ export default function PlayerAudioUpload() {
   const [selectedAudio, setSelectedAudio] = useState<SelectedAudio | null>(
     null
   );
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
-
-  const canNavigateBack = !isUploading;
-
-  useEffect(() => {
-    if (!isUploading) return;
-
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      showToast("Aguarde o envio terminar.");
-      return true;
-    });
-
-    return () => sub.remove();
-  }, [isUploading, showToast]);
 
   useEffect(() => {
     if (pontoId) return;
@@ -145,14 +121,6 @@ export default function PlayerAudioUpload() {
     return t ? t : null;
   }, [params.pontoTitle]);
 
-  const onClose = useCallback(() => {
-    if (!canNavigateBack) {
-      showToast("Aguarde o envio terminar.");
-      return;
-    }
-    router.back();
-  }, [canNavigateBack, router, showToast]);
-
   const validateSelected = useCallback((audio: SelectedAudio) => {
     const ext = normalizeExt(audio.name);
     if (!ext || !isAllowedExt(ext)) {
@@ -167,8 +135,124 @@ export default function PlayerAudioUpload() {
     }
   }, []);
 
+  const audioInput = useMemo(() => {
+    if (!selectedAudio) return null;
+    return {
+      uri: selectedAudio.uri,
+      mimeType: selectedAudio.mimeType,
+      sizeBytes: selectedAudio.sizeBytes,
+    };
+  }, [selectedAudio]);
+
+  return (
+    <PontoAudioUploadController
+      pontoId={pontoId}
+      interpreterName={interpreterName}
+      audio={audioInput}
+      interpreterConsent={consentGranted}
+      onDone={() => {
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
+        });
+          void queryClient.invalidateQueries({
+            queryKey: queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoId),
+          });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.pontosSubmissions.pending(),
+        });
+        setIsDone(true);
+      }}
+    >
+      {(ctx) => (
+        <PlayerAudioUploadView
+          ctx={ctx}
+          variant={variant}
+          headerTitle={headerTitle}
+          pontoTitle={pontoTitle}
+          inputBg={inputBg}
+          inputBorder={inputBorder}
+          textPrimary={textPrimary}
+          textSecondary={textSecondary}
+          isDone={isDone}
+          interpreterName={interpreterName}
+          onChangeInterpreterName={setInterpreterName}
+          consentGranted={consentGranted}
+          onToggleConsent={() => setConsentGranted((v) => !v)}
+          selectedAudio={selectedAudio}
+          onChangeSelectedAudio={setSelectedAudio}
+          uploadError={uploadError}
+          onSetUploadError={setUploadError}
+          validateSelected={validateSelected}
+          onClose={() => router.back()}
+        />
+      )}
+    </PontoAudioUploadController>
+  );
+}
+
+function PlayerAudioUploadView(props: {
+  ctx: PontoAudioUploadControllerRenderProps;
+  variant: "light" | "dark";
+  headerTitle: string;
+  pontoTitle: string | null;
+  inputBg: string;
+  inputBorder: string;
+  textPrimary: string;
+  textSecondary: string;
+  isDone: boolean;
+  interpreterName: string;
+  onChangeInterpreterName: (v: string) => void;
+  consentGranted: boolean;
+  onToggleConsent: () => void;
+  selectedAudio: SelectedAudio | null;
+  onChangeSelectedAudio: (v: SelectedAudio | null) => void;
+  uploadError: string | null;
+  onSetUploadError: (v: string | null) => void;
+  validateSelected: (audio: SelectedAudio) => void;
+  onClose: () => void;
+}) {
+  const router = useRouter();
+  const { showToast } = useToast();
+
+  const [termsSheetVisible, setTermsSheetVisible] = useState(false);
+
+  const {
+    ctx,
+    variant,
+    headerTitle,
+    pontoTitle,
+    inputBg,
+    inputBorder,
+    textPrimary,
+    textSecondary,
+    isDone,
+    interpreterName,
+    onChangeInterpreterName,
+    consentGranted,
+    onToggleConsent,
+    selectedAudio,
+    onChangeSelectedAudio,
+    uploadError,
+    onSetUploadError,
+    validateSelected,
+    onClose,
+  } = props;
+
+  const canNavigateBack = !ctx.isUploading;
+
+  useEffect(() => {
+    if (!ctx.isUploading) return;
+
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      showToast("Aguarde o envio terminar.");
+      return true;
+    });
+
+    return () => sub.remove();
+  }, [ctx.isUploading, showToast]);
+
   const pickAudioFile = useCallback(async () => {
-    if (isUploading) return;
+    if (ctx.isUploading) return;
 
     const res = await DocumentPicker.getDocumentAsync({
       type: "audio/*",
@@ -204,9 +288,18 @@ export default function PlayerAudioUpload() {
     };
 
     validateSelected(next);
-    setSelectedAudio(next);
-    setUploadError(null);
-  }, [isUploading, validateSelected]);
+    onChangeSelectedAudio(next);
+    onSetUploadError(null);
+  }, [ctx.isUploading, onChangeSelectedAudio, onSetUploadError, validateSelected]);
+
+  const progressPct = Math.round(ctx.progress * 100);
+  const progressWidth = `${Math.max(0, Math.min(100, progressPct))}%` as const;
+
+  const canSubmit =
+    !ctx.isUploading &&
+    Boolean(interpreterName.trim()) &&
+    consentGranted &&
+    Boolean(selectedAudio);
 
   const goBack = useCallback(() => {
     if (!canNavigateBack) {
@@ -216,155 +309,52 @@ export default function PlayerAudioUpload() {
     router.back();
   }, [canNavigateBack, router, showToast]);
 
+  const handleClose = useCallback(() => {
+    if (!canNavigateBack) {
+      showToast("Aguarde o envio terminar.");
+      return;
+    }
+    onClose();
+  }, [canNavigateBack, onClose, showToast]);
+
   const doUpload = useCallback(async () => {
-    setUploadError(null);
-
-    const { data: sessionData, error: sessionError } =
-      await supabase.auth.getSession();
-    if (sessionError) {
-      const msg =
-        typeof sessionError.message === "string" && sessionError.message.trim()
-          ? sessionError.message
-          : "Não foi possível validar sua sessão.";
-      setUploadError(msg);
-      showToast(msg);
-      return;
-    }
-    if (!sessionData?.session?.access_token) {
-      const msg = "Você precisa estar logada para enviar áudio.";
-      setUploadError(msg);
-      showToast(msg);
-      return;
-    }
-
-    if (!pontoId) {
-      setUploadError("Ponto inválido.");
-      return;
-    }
+    onSetUploadError(null);
 
     const interpreter = interpreterName.trim();
     if (!interpreter) {
-      setUploadError("Preencha o nome do intérprete.");
+      onSetUploadError("Preencha o nome do intérprete.");
       return;
     }
 
     if (!consentGranted) {
-      setUploadError("É necessário consentimento para enviar.");
+      onSetUploadError("É necessário consentimento para enviar.");
       return;
     }
 
     if (!selectedAudio) {
-      setUploadError("Selecione um áudio.");
+      onSetUploadError("Selecione um áudio.");
       return;
     }
 
     try {
       validateSelected(selectedAudio);
-
-      setIsUploading(true);
-      setUploadProgress(0.1);
-
-      // Best-effort size resolution BEFORE upload to avoid "upload ok" being treated as a failure
-      // just because we couldn't stat the file URI afterward.
-      const resolvedSizeBytes =
-        typeof selectedAudio.sizeBytes === "number"
-          ? selectedAudio.sizeBytes
-          : await getFileSizeBytes(selectedAudio.uri);
-
-      if (
-        typeof resolvedSizeBytes === "number" &&
-        resolvedSizeBytes > MAX_AUDIO_BYTES
-      ) {
-        throw new Error("Arquivo muito grande. Máximo: 50 MB.");
-      }
-
-      const init = await initPontoAudioUpload({
-        pontoId,
-        interpreterName: interpreter,
-        mimeType: selectedAudio.mimeType,
-      });
-
-      setUploadProgress(0.2);
-
-      await uploadToSignedUpload({
-        bucket: init.bucket,
-        path: init.path,
-        signedUpload: init.signedUpload,
-        fileUri: selectedAudio.uri,
-        mimeType: selectedAudio.mimeType,
-      });
-
-      setUploadProgress(0.85);
-
-      console.log("[audio] post-upload start", {
-        pontoId,
-        pontoAudioId: init.pontoAudioId,
-        bucket: init.bucket,
-        path: init.path,
-      });
-
-      if (typeof resolvedSizeBytes !== "number") {
-        console.log("[audio] post-upload size unknown; continuing", {
-          fileUri: selectedAudio.uri,
-          pickerSizeBytes: selectedAudio.sizeBytes,
-        });
-      } else {
-        console.log("[audio] post-upload size ok", {
-          sizeBytes: resolvedSizeBytes,
-        });
-      }
-
-      // 1) COMPLETE must run (and be awaited) BEFORE creating the editorial submission.
-      // This avoids "Áudio enviado!" while ponto_audios is still pending.
-      const uploadTokenPrefix = String(init.uploadToken ?? "").slice(0, 8);
-      console.log("[audio] calling complete", {
-        upload_token_prefix: uploadTokenPrefix,
-        ponto_audio_id: init.pontoAudioId,
-      });
-
-      await finalizeAudioUploadAndCreateSubmission({
-        pontoId,
-        pontoAudioId: init.pontoAudioId,
-        uploadToken: init.uploadToken,
-        sizeBytes:
-          typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
-        durationMs: 0,
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
-      });
-
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.pontosSubmissions.pending(),
-      });
-
-      setUploadProgress(1);
-      setIsDone(true);
+      await ctx.start();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Não foi possível enviar.";
-      setUploadError(msg);
+      onSetUploadError(msg);
       showToast(msg);
-    } finally {
-      setIsUploading(false);
     }
   }, [
     consentGranted,
+    ctx,
     interpreterName,
-    pontoId,
-    queryClient,
+    onSetUploadError,
     selectedAudio,
     showToast,
     validateSelected,
   ]);
 
-  const progressPct = Math.round(uploadProgress * 100);
-  const progressWidth = `${Math.max(0, Math.min(100, progressPct))}%` as const;
-  const canSubmit =
-    !isUploading &&
-    Boolean(interpreterName.trim()) &&
-    consentGranted &&
-    Boolean(selectedAudio);
+  const errorToShow = uploadError ?? ctx.errorMessage;
 
   return (
     <SaravafyScreen theme={variant} variant="stack">
@@ -384,17 +374,14 @@ export default function PlayerAudioUpload() {
             <Ionicons name="chevron-back" size={22} color={textPrimary} />
           </Pressable>
 
-          <Text
-            style={[styles.headerTitle, { color: textPrimary }]}
-            numberOfLines={1}
-          >
+          <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
             {headerTitle}
           </Text>
 
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Fechar"
-            onPress={onClose}
+            onPress={handleClose}
             hitSlop={10}
             style={[
               styles.headerIconBtn,
@@ -413,9 +400,7 @@ export default function PlayerAudioUpload() {
         >
           {!isDone ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>
-                Enviar áudio deste ponto
-              </Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>Enviar áudio deste ponto</Text>
               <Text style={[styles.bodyText, { color: textSecondary }]}>
                 Você pode enviar um áudio cantando este ponto. O áudio ficará
                 disponível para toda a comunidade após revisão.
@@ -443,12 +428,12 @@ export default function PlayerAudioUpload() {
               ) : null}
 
               <Text style={[styles.label, { color: textSecondary }]}>
-                Nome do intérprete
+                Intérprete
               </Text>
               <TextInput
                 value={interpreterName}
-                onChangeText={setInterpreterName}
-                editable={!isUploading}
+                onChangeText={onChangeInterpreterName}
+                editable={!ctx.isUploading}
                 placeholder="Ex: Maria de Oxum"
                 placeholderTextColor={
                   variant === "light"
@@ -469,15 +454,15 @@ export default function PlayerAudioUpload() {
                 accessibilityRole="checkbox"
                 accessibilityState={{ checked: consentGranted }}
                 onPress={() => {
-                  if (isUploading) return;
-                  setConsentGranted((v) => !v);
+                  if (ctx.isUploading) return;
+                  onToggleConsent();
                 }}
                 style={({ pressed }) => [
                   styles.checkboxRow,
                   pressed ? styles.pressed : null,
-                  isUploading ? styles.disabled : null,
+                  ctx.isUploading ? styles.disabled : null,
                 ]}
-                disabled={isUploading}
+                disabled={ctx.isUploading}
               >
                 <View
                   style={[
@@ -509,34 +494,7 @@ export default function PlayerAudioUpload() {
               <Pressable
                 accessibilityRole="button"
                 onPress={() => {
-                  Alert.alert(
-                    "Termos de uso",
-                    "Abriremos os termos no navegador.",
-                    [
-                      { text: "Cancelar", style: "cancel" },
-                      {
-                        text: "Abrir",
-                        onPress: () => {
-                          void (async () => {
-                            try {
-                              // eslint-disable-next-line @typescript-eslint/no-var-requires
-                              const {
-                                Linking,
-                                Platform,
-                              } = require("react-native");
-                              if (Platform.OS === "web") {
-                                window.open(TERMS_URL, "_blank");
-                              } else {
-                                await Linking.openURL(TERMS_URL);
-                              }
-                            } catch {
-                              showToast("Não foi possível abrir os termos.");
-                            }
-                          })();
-                        },
-                      },
-                    ]
-                  );
+                  setTermsSheetVisible(true);
                 }}
                 style={({ pressed }) => [
                   styles.linkBtn,
@@ -548,6 +506,66 @@ export default function PlayerAudioUpload() {
                 </Text>
               </Pressable>
 
+              <BottomSheet
+                visible={termsSheetVisible}
+                variant={variant}
+                onClose={() => setTermsSheetVisible(false)}
+              >
+                <View>
+                  <Text style={[styles.h1, { color: textPrimary }]}>
+                    Termos de uso
+                  </Text>
+                  <Text style={[styles.bodyText, { color: textSecondary }]}>
+                    Abriremos os termos no navegador.
+                  </Text>
+
+                  <View style={styles.row}>
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setTermsSheetVisible(false)}
+                      style={({ pressed }) => [
+                        styles.secondaryBtn,
+                        pressed ? styles.pressed : null,
+                        { borderColor: inputBorder },
+                      ]}
+                    >
+                      <Text
+                        style={[styles.secondaryText, { color: textPrimary }]}
+                      >
+                        Cancelar
+                      </Text>
+                    </Pressable>
+
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => {
+                        setTermsSheetVisible(false);
+                        void (async () => {
+                          try {
+                            if (Platform.OS === "web") {
+                              window.open(TERMS_URL, "_blank");
+                            } else {
+                              await Linking.openURL(TERMS_URL);
+                            }
+                          } catch {
+                            showToast("Não foi possível abrir os termos.");
+                          }
+                        })();
+                      }}
+                      style={({ pressed }) => [
+                        styles.primaryBtn,
+                        variant === "light" ? styles.primaryLight : styles.primaryDark,
+                        pressed ? styles.pressed : null,
+                      ]}
+                    >
+                      <Text style={styles.primaryText}>Abrir</Text>
+                    </Pressable>
+                  </View>
+
+                  <Separator variant={variant} />
+                </View>
+              </BottomSheet>
+
               <Text style={[styles.bodyText, { color: textSecondary }]}>
                 Formatos: mp3, m4a, aac, ogg, wav • Máximo: 50 MB
               </Text>
@@ -556,11 +574,11 @@ export default function PlayerAudioUpload() {
                 <Pressable
                   accessibilityRole="button"
                   onPress={() => void pickAudioFile()}
-                  disabled={isUploading}
+                  disabled={ctx.isUploading}
                   style={({ pressed }) => [
                     styles.secondaryBtn,
                     pressed ? styles.pressed : null,
-                    isUploading ? styles.disabled : null,
+                    ctx.isUploading ? styles.disabled : null,
                     { borderColor: inputBorder },
                   ]}
                 >
@@ -592,13 +610,13 @@ export default function PlayerAudioUpload() {
                 </View>
               ) : null}
 
-              {uploadError ? (
+              {errorToShow ? (
                 <Text style={[styles.errorText, { color: colors.brass600 }]}>
-                  {uploadError}
+                  {errorToShow}
                 </Text>
               ) : null}
 
-              {isUploading ? (
+              {ctx.isUploading ? (
                 <View
                   style={[styles.progressWrap, { borderColor: inputBorder }]}
                 >
@@ -627,7 +645,7 @@ export default function PlayerAudioUpload() {
                 ]}
               >
                 <Text style={styles.primaryText}>
-                  {isUploading ? "Enviando…" : "Enviar áudio"}
+                  {ctx.isUploading ? "Enviando…" : "Enviar áudio"}
                 </Text>
               </Pressable>
             </>
@@ -643,7 +661,7 @@ export default function PlayerAudioUpload() {
 
               <Pressable
                 accessibilityRole="button"
-                onPress={onClose}
+                onPress={handleClose}
                 style={({ pressed }) => [
                   styles.primaryBtn,
                   pressed ? styles.pressed : null,

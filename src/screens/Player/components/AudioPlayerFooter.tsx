@@ -1,5 +1,4 @@
 import { getPontoAudioPlaybackUrl } from "@/src/api/pontoAudio";
-import { usePontoAudios } from "@/src/hooks/pontoAudio";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import React, {
@@ -20,17 +19,21 @@ import {
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
 import { usePlayerAudio } from "../hooks/usePlayerAudio";
 
+export type PlayerAudioState = "NO_AUDIO" | "AUDIO_IN_REVIEW" | "AUDIO_APPROVED";
+
 export function AudioPlayerFooter(props: {
   ponto: PlayerPonto | null;
   variant: "light" | "dark";
   curimbaEnabled?: boolean;
+  audioState: PlayerAudioState;
+  approvedPontoAudioId: string | null;
+  onOpenNoAudioModal: () => void;
+  onOpenAudioInReviewModal: () => void;
 }) {
   const { ponto, variant } = props;
   const curimbaEnabled = props.curimbaEnabled === true;
-
-  const pontoId = ponto?.id ?? null;
-  const audiosQuery = usePontoAudios(pontoId);
-  const activeAudio = audiosQuery.data?.[0] ?? null;
+  const audioState = props.audioState;
+  const approvedPontoAudioId = props.approvedPontoAudioId;
 
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackExpiresAtMs, setPlaybackExpiresAtMs] = useState<number | null>(
@@ -55,11 +58,12 @@ export function AudioPlayerFooter(props: {
       : colors.surfaceCardBorder;
   const bg = variant === "light" ? colors.paper200 : colors.surfaceCardBg;
 
-  const canPlay = !!activeAudio?.id;
+  const canPlay = audioState === "AUDIO_APPROVED" && !!approvedPontoAudioId;
 
   const ensurePlaybackUrl = useCallback(
     async (options?: { force?: boolean }) => {
-      if (!activeAudio?.id) return;
+      if (audioState !== "AUDIO_APPROVED") return;
+      if (!approvedPontoAudioId) return;
       if (curimbaEnabled) return;
 
       const force = options?.force === true;
@@ -75,14 +79,14 @@ export function AudioPlayerFooter(props: {
 
       setIsResolvingUrl(true);
       try {
-        const res = await getPontoAudioPlaybackUrl(activeAudio.id);
+        const res = await getPontoAudioPlaybackUrl(approvedPontoAudioId);
         setPlaybackUrl(res.url);
         setPlaybackExpiresAtMs(Date.now() + res.expiresIn * 1000);
       } finally {
         setIsResolvingUrl(false);
       }
     },
-    [activeAudio?.id, curimbaEnabled, playbackExpiresAtMs, playbackUrl]
+    [audioState, approvedPontoAudioId, curimbaEnabled, playbackExpiresAtMs, playbackUrl]
   );
 
   // Reset when changing track / audio row
@@ -95,10 +99,10 @@ export function AudioPlayerFooter(props: {
       renewalTimerRef.current = null;
     }
 
-    if (activeAudio?.id && !curimbaEnabled) {
+    if (audioState === "AUDIO_APPROVED" && approvedPontoAudioId && !curimbaEnabled) {
       void ensurePlaybackUrl({ force: true });
     }
-  }, [activeAudio?.id, curimbaEnabled, ensurePlaybackUrl]);
+  }, [approvedPontoAudioId, audioState, curimbaEnabled, ensurePlaybackUrl]);
 
   const player = usePlayerAudio({
     audioUrl: playbackUrl,
@@ -112,7 +116,8 @@ export function AudioPlayerFooter(props: {
       renewalTimerRef.current = null;
     }
 
-    if (!activeAudio?.id) return;
+    if (audioState !== "AUDIO_APPROVED") return;
+    if (!approvedPontoAudioId) return;
     if (curimbaEnabled) return;
     if (!playbackExpiresAtMs) return;
 
@@ -129,7 +134,8 @@ export function AudioPlayerFooter(props: {
       }
     };
   }, [
-    activeAudio?.id,
+    audioState,
+    approvedPontoAudioId,
     curimbaEnabled,
     ensurePlaybackUrl,
     playbackExpiresAtMs,
@@ -139,35 +145,32 @@ export function AudioPlayerFooter(props: {
   // Reactive refresh: if playback errors, refresh URL once
   useEffect(() => {
     if (!player.error) return;
-    if (!activeAudio?.id) return;
+    if (audioState !== "AUDIO_APPROVED") return;
+    if (!approvedPontoAudioId) return;
     if (curimbaEnabled) return;
 
     if (reactiveRefreshRef.current >= 1) return;
     reactiveRefreshRef.current += 1;
     void ensurePlaybackUrl({ force: true });
-  }, [activeAudio?.id, curimbaEnabled, ensurePlaybackUrl, player.error]);
+  }, [audioState, approvedPontoAudioId, curimbaEnabled, ensurePlaybackUrl, player.error]);
 
   const subtitle = useMemo(() => {
     if (curimbaEnabled) return "Modo Curimba: apenas letra";
-    if (!canPlay) return "Sem áudio";
-    if (audiosQuery.isLoading) return "Carregando áudio…";
+    if (audioState === "AUDIO_IN_REVIEW") return "Áudio em revisão. Em breve.";
+    if (audioState === "NO_AUDIO") return "Sem áudio";
+    if (isResolvingUrl) return "Carregando áudio…";
     return "Áudio";
-  }, [audiosQuery.isLoading, canPlay, curimbaEnabled]);
+  }, [audioState, curimbaEnabled, isResolvingUrl]);
 
   const metaLine = useMemo(() => {
     const authorNameRaw = (ponto as any)?.author_name;
     const authorName =
       typeof authorNameRaw === "string" ? authorNameRaw.trim() : "";
 
-    const interpreterNameRaw = (activeAudio as any)?.interpreter_name;
-    const interpreterName =
-      typeof interpreterNameRaw === "string" ? interpreterNameRaw.trim() : "";
-
     const parts: string[] = [];
     if (authorName) parts.push(`Autor: ${authorName}`);
-    if (interpreterName) parts.push(`Intérprete: ${interpreterName}`);
     return parts.length > 0 ? parts.join(" • ") : null;
-  }, [activeAudio, ponto]);
+  }, [ponto]);
 
   return (
     <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
@@ -207,8 +210,18 @@ export function AudioPlayerFooter(props: {
               return;
             }
 
-            if (!activeAudio?.id) {
-              Alert.alert("Sem áudio", "Esse ponto ainda não tem áudio.");
+            if (audioState === "AUDIO_IN_REVIEW") {
+              props.onOpenAudioInReviewModal();
+              return;
+            }
+
+            if (audioState === "NO_AUDIO") {
+              props.onOpenNoAudioModal();
+              return;
+            }
+
+            if (!approvedPontoAudioId) {
+              props.onOpenNoAudioModal();
               return;
             }
 
@@ -226,7 +239,7 @@ export function AudioPlayerFooter(props: {
           style={({ pressed }) => [
             styles.playBtn,
             { borderColor: accent },
-            curimbaEnabled && styles.playBtnDisabled,
+            (curimbaEnabled || !canPlay) && styles.playBtnDisabled,
             pressed && styles.playBtnPressed,
           ]}
         >
@@ -251,7 +264,9 @@ export function AudioPlayerFooter(props: {
             styles.progressFill,
             {
               backgroundColor:
-                !curimbaEnabled && player.hasAudio ? accent : "transparent",
+                canPlay && !curimbaEnabled && player.hasAudio
+                  ? accent
+                  : "transparent",
               width: `${Math.round(player.progress * 100)}%`,
             },
           ]}

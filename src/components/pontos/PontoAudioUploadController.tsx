@@ -43,6 +43,9 @@ type Props = {
   interpreterName: string;
   audio: PontoAudioUploadInput | null;
 
+  /** Interpreter declaration/consent for public playback (required by UI). */
+  interpreterConsent?: boolean;
+
   /** Optional extra guard (e.g. consent check) */
   canStart?: boolean;
 
@@ -67,6 +70,7 @@ export function PontoAudioUploadController({
   pontoId,
   interpreterName,
   audio,
+  interpreterConsent,
   canStart,
   onDone,
   children,
@@ -113,6 +117,10 @@ export function PontoAudioUploadController({
         const interpreter = String(interpreterName ?? "").trim();
         if (!interpreter) throw new Error("Preencha o nome do intérprete.");
 
+        if (interpreterConsent === false) {
+          throw new Error("É necessário aceitar a declaração para enviar.");
+        }
+
         if (!audio) throw new Error("Selecione um áudio.");
 
         const uri = String(audio.uri ?? "").trim();
@@ -139,6 +147,7 @@ export function PontoAudioUploadController({
           pontoId: pontoIdValue,
           interpreterName: interpreter,
           mimeType,
+          interpreterConsent: typeof interpreterConsent === "boolean" ? interpreterConsent : null,
         });
 
         setPhase("upload");
@@ -193,7 +202,7 @@ export function PontoAudioUploadController({
 
     inFlightRef.current = promise;
     return promise;
-  }, [audio, canStart, interpreterName, onDone, pontoId]);
+  }, [audio, canStart, interpreterConsent, interpreterName, onDone, pontoId]);
 
   const ctx = useMemo<PontoAudioUploadControllerRenderProps>(
     () => ({

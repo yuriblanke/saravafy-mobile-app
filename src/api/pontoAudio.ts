@@ -259,11 +259,16 @@ export async function initPontoAudioUpload(params: {
   pontoId: string;
   interpreterName: string;
   mimeType: string;
+  interpreterConsent?: boolean | null;
 }) {
   const payload = {
     ponto_id: params.pontoId,
     interpreter_name: params.interpreterName,
     mime_type: params.mimeType,
+    interpreter_consent:
+      typeof params.interpreterConsent === "boolean"
+        ? params.interpreterConsent
+        : null,
   };
 
   console.log("[audio] init start", {

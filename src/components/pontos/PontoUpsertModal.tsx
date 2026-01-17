@@ -8,7 +8,9 @@ import React, {
 import {
   ActivityIndicator,
   Image,
+  Linking,
   Modal,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -30,6 +32,10 @@ import {
   uploadToSignedUpload,
 } from "@/src/api/pontoAudio";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import {
+  PontoAudioUploadController,
+  type PontoAudioUploadControllerRenderProps,
+} from "@/src/components/pontos/PontoAudioUploadController";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
 import { queryKeys } from "@/src/queries/queryKeys";
@@ -40,6 +46,10 @@ import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 
 const fillerPng = require("@/assets/images/filler.png");
+
+const TERMS_URL =
+  "https://www.saravafy.com.br/termos-de-uso-interprete-de-ponto-audio";
+const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
 
 export type PontoUpsertMode = "create" | "edit" | "correction";
 
@@ -123,6 +133,29 @@ export function PontoUpsertModal({
   const [authorName, setAuthorName] = useState("");
   const [interpreterName, setInterpreterName] = useState("");
 
+  // Create-mode only: optional audio to be sent after the point submission succeeds
+  const [submissionAudio, setSubmissionAudio] = useState<null | {
+    uri: string;
+    name: string;
+    mimeType?: string | null;
+    sizeBytes?: number | null;
+  }>(null);
+  const [submissionAudioDeclarationChecked, setSubmissionAudioDeclarationChecked] =
+    useState(false);
+  const [termsSheetVisible, setTermsSheetVisible] = useState(false);
+
+  const [submissionAudioPontoId, setSubmissionAudioPontoId] = useState<
+    string | null
+  >(null);
+  const [shouldStartSubmissionAudio, setShouldStartSubmissionAudio] =
+    useState(false);
+  const submissionAudioControllerRef =
+    useRef<PontoAudioUploadControllerRenderProps | null>(null);
+  const submissionAudioDeferredRef = useRef<null | {
+    resolve: () => void;
+    reject: (e: unknown) => void;
+  }>(null);
+
   const [attachedAudio, setAttachedAudio] = useState<null | {
     uri: string;
     name: string;
@@ -172,10 +205,14 @@ export function PontoUpsertModal({
       : "Salvar alterações";
   const primaryCta =
     mode === "create"
-      ? "Enviar"
+      ? "Enviar ponto"
       : mode === "correction"
       ? "Enviar correção"
       : "Salvar alterações";
+
+  const isBusy =
+    isSubmitting ||
+    Boolean(submissionAudioControllerRef.current?.isUploading);
 
   const canSubmit = useMemo(() => {
     return title.trim().length > 0 && lyrics.trim().length > 0;
@@ -222,6 +259,13 @@ export function PontoUpsertModal({
       setIsTraditional(true);
       setAuthorName("");
       setInterpreterName("");
+      setSubmissionAudio(null);
+      setSubmissionAudioDeclarationChecked(false);
+      setTermsSheetVisible(false);
+      setSubmissionAudioPontoId(null);
+      setShouldStartSubmissionAudio(false);
+      submissionAudioControllerRef.current = null;
+      submissionAudioDeferredRef.current = null;
       setIsPublicDomain(true);
       setAttachedAudio(null);
       pendingAudioRef.current = null;
@@ -406,6 +450,77 @@ export function PontoUpsertModal({
     setIsTraditional(false);
   }, [hasRightsConsent, isSubmitting, mode, openRightsSheet]);
 
+  const pickSubmissionAudio = useCallback(async () => {
+    if (mode !== "create") return;
+    if (isBusy) return;
+
+    const res = await DocumentPicker.getDocumentAsync({
+      type: "audio/*",
+      copyToCacheDirectory: true,
+      multiple: false,
+    });
+
+    if (res.canceled) return;
+    const asset =
+      Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
+    if (!asset?.uri) return;
+
+    const sizeBytes =
+      typeof (asset as any).size === "number" ? (asset as any).size : null;
+    if (typeof sizeBytes === "number" && sizeBytes > MAX_AUDIO_BYTES) {
+      setErrorMessage("Arquivo muito grande. Máximo: 50 MB.");
+      return;
+    }
+
+    setSubmissionAudio({
+      uri: asset.uri,
+      name:
+        typeof asset.name === "string" && asset.name.trim()
+          ? asset.name
+          : "audio",
+      mimeType: (asset as any).mimeType ?? null,
+      sizeBytes,
+    });
+    setSubmissionAudioDeclarationChecked(false);
+  }, [isBusy, mode]);
+
+  const submissionAudioInput = useMemo(() => {
+    if (!submissionAudio) return null;
+    const mimeTypeRaw =
+      typeof submissionAudio.mimeType === "string" && submissionAudio.mimeType.trim()
+        ? submissionAudio.mimeType.trim()
+        : "audio/m4a";
+
+    return {
+      uri: submissionAudio.uri,
+      mimeType: mimeTypeRaw,
+      sizeBytes:
+        typeof submissionAudio.sizeBytes === "number"
+          ? submissionAudio.sizeBytes
+          : null,
+    };
+  }, [submissionAudio]);
+
+  useEffect(() => {
+    if (!shouldStartSubmissionAudio) return;
+    if (!submissionAudioPontoId) return;
+    const ctx = submissionAudioControllerRef.current;
+    if (!ctx) return;
+
+    setShouldStartSubmissionAudio(false);
+
+    void (async () => {
+      try {
+        await ctx.start();
+        submissionAudioDeferredRef.current?.resolve();
+      } catch (e) {
+        submissionAudioDeferredRef.current?.reject(e);
+      } finally {
+        submissionAudioDeferredRef.current = null;
+      }
+    })();
+  }, [shouldStartSubmissionAudio, submissionAudioPontoId]);
+
   const submit = async () => {
     setErrorMessage(null);
 
@@ -422,6 +537,21 @@ export function PontoUpsertModal({
     if (mode === "correction" && (!initialValues || !initialValues.id)) {
       setErrorMessage("Ponto inválido para correção.");
       return;
+    }
+
+    // Create-mode: if audio is selected, enforce interpreter + declaration before proceeding.
+    if (mode === "create" && submissionAudio) {
+      if (!interpreterName.trim()) {
+        setErrorMessage("Preencha o Intérprete para enviar o áudio.");
+        return;
+      }
+
+      if (!submissionAudioDeclarationChecked) {
+        setErrorMessage(
+          "Marque a declaração para enviar o áudio junto com o ponto."
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -448,20 +578,6 @@ export function PontoUpsertModal({
       }
 
       if (mode === "create") {
-        if (hasAudioAttached) {
-          setErrorMessage(
-            "Envio de áudio não acontece no 'Enviar para revisão'. Remova o áudio e envie apenas o texto, ou envie áudio pelo player do ponto."
-          );
-          setIsSubmitting(false);
-          return;
-        }
-
-        if (attachedAudio && !interpreterValue) {
-          setErrorMessage("Preencha o Nome do intérprete para anexar áudio.");
-          setIsSubmitting(false);
-          return;
-        }
-
         let submissionId = createdSubmissionIdRef.current;
         if (!submissionId) {
           const created = await createPontoSubmission({
@@ -475,6 +591,62 @@ export function PontoUpsertModal({
 
           submissionId = created.id;
           createdSubmissionIdRef.current = submissionId;
+        }
+
+        // Optional audio flow (ponto -> ids -> áudio)
+        if (submissionAudio) {
+          const { data: subRow, error: subErr } = await supabase
+            .from("pontos_submissions")
+            .select("id, approved_ponto_id")
+            .eq("id", submissionId)
+            .single();
+
+          if (subErr) {
+            showToast(
+              "Ponto enviado, mas não foi possível iniciar o envio do áudio. Você poderá reenviar o áudio depois."
+            );
+            onCancel();
+            onSuccess?.();
+            return;
+          }
+
+          const pontoIdForAudio =
+            subRow && typeof (subRow as any).approved_ponto_id === "string"
+              ? String((subRow as any).approved_ponto_id)
+              : null;
+
+          if (!pontoIdForAudio) {
+            showToast(
+              "Ponto enviado, mas o áudio não foi enviado (ID do ponto indisponível). Você poderá reenviar o áudio depois."
+            );
+            onCancel();
+            onSuccess?.();
+            return;
+          }
+
+          setSubmissionAudioPontoId(pontoIdForAudio);
+          setShouldStartSubmissionAudio(true);
+
+          try {
+            await new Promise<void>((resolve, reject) => {
+              submissionAudioDeferredRef.current = { resolve, reject };
+            });
+
+            await queryClient.invalidateQueries({
+              queryKey: queryKeys.pontoAudios.byPontoId(pontoIdForAudio),
+            });
+              await queryClient.invalidateQueries({
+                queryKey:
+                  queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoIdForAudio),
+              });
+            await queryClient.invalidateQueries({
+              queryKey: queryKeys.pontosSubmissions.pending(),
+            });
+          } catch {
+            showToast(
+              "Ponto enviado, mas o áudio não foi enviado. Você pode reenviar o áudio depois."
+            );
+          }
         }
 
         onCancel();
@@ -719,11 +891,69 @@ export function PontoUpsertModal({
             </View>
           </BottomSheet>
 
+          <BottomSheet
+            visible={termsSheetVisible}
+            variant={variant}
+            onClose={() => setTermsSheetVisible(false)}
+          >
+            <View>
+              <Text style={[styles.sheetTitle, { color: textPrimary }]}>
+                Termos de uso
+              </Text>
+              <Text style={[styles.sheetBody, { color: textSecondary }]}>
+                Abriremos os termos no navegador.
+              </Text>
+
+              <View style={styles.sheetActions}>
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setTermsSheetVisible(false)}
+                  style={({ pressed }) => [
+                    styles.sheetActionRow,
+                    pressed ? styles.sheetActionPressed : null,
+                  ]}
+                >
+                  <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                    Cancelar
+                  </Text>
+                </Pressable>
+
+                <Separator variant={variant} />
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => {
+                    setTermsSheetVisible(false);
+                    void (async () => {
+                      try {
+                        if (Platform.OS === "web") {
+                          window.open(TERMS_URL, "_blank");
+                        } else {
+                          await Linking.openURL(TERMS_URL);
+                        }
+                      } catch {
+                        showToast("Não foi possível abrir os termos.");
+                      }
+                    })();
+                  }}
+                  style={({ pressed }) => [
+                    styles.sheetActionRow,
+                    pressed ? styles.sheetActionPressed : null,
+                  ]}
+                >
+                  <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                    Abrir
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
+          </BottomSheet>
+
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                if (isSubmitting) return;
+                if (isBusy) return;
                 onCancel();
               }}
               hitSlop={10}
@@ -1020,6 +1250,168 @@ export function PontoUpsertModal({
               textAlignVertical="top"
             />
 
+            {mode === "create" ? (
+              <View style={styles.audioSection}>
+                <Text style={[styles.audioSectionTitle, { color: textPrimary }]}>
+                  Enviar áudio deste ponto
+                </Text>
+                <Text style={[styles.audioSectionBody, { color: textSecondary }]}>
+                  Você pode enviar um áudio cantando este ponto. O áudio ficará
+                  disponível para toda a comunidade após revisão.
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() => setTermsSheetVisible(true)}
+                  disabled={isBusy}
+                  style={({ pressed }) => [
+                    styles.linkBtn,
+                    pressed ? styles.pressed : null,
+                    isBusy ? styles.disabled : null,
+                  ]}
+                >
+                  <Text style={[styles.linkText, { color: colors.brass600 }]}>
+                    Ver termos de uso
+                  </Text>
+                </Pressable>
+
+                <Text style={[styles.audioFormatsText, { color: textSecondary }]}>
+                  Formatos: mp3, m4a, aac, ogg, wav • Máximo: 50 MB
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Enviar arquivo"
+                  onPress={() => void pickSubmissionAudio()}
+                  disabled={isBusy}
+                  style={({ pressed }) => [
+                    styles.audioAddBtn,
+                    { borderColor: inputBorder },
+                    pressed ? styles.pressed : null,
+                    isBusy ? styles.disabled : null,
+                  ]}
+                >
+                  <Ionicons
+                    name="cloud-upload"
+                    size={18}
+                    color={colors.brass600}
+                  />
+                  <Text style={[styles.audioAddText, { color: textPrimary }]}>
+                    Enviar arquivo
+                  </Text>
+                </Pressable>
+
+                {submissionAudio ? (
+                  <View
+                    style={[
+                      styles.audioRow,
+                      {
+                        borderColor: inputBorder,
+                        backgroundColor: inputBg,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="musical-notes"
+                      size={16}
+                      color={textPrimary}
+                    />
+                    <Text
+                      style={[styles.audioName, { color: textPrimary }]}
+                      numberOfLines={1}
+                    >
+                      {submissionAudio.name}
+                    </Text>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Remover arquivo"
+                      hitSlop={10}
+                      onPress={() => {
+                        if (isBusy) return;
+                        setSubmissionAudio(null);
+                        setSubmissionAudioDeclarationChecked(false);
+                      }}
+                      style={({ pressed }) => [
+                        styles.audioRemoveBtn,
+                        pressed ? styles.pressed : null,
+                        isBusy ? styles.disabled : null,
+                      ]}
+                    >
+                      <Ionicons
+                        name="close"
+                        size={18}
+                        color={colors.brass600}
+                      />
+                    </Pressable>
+                  </View>
+                ) : null}
+
+                {submissionAudio ? (
+                  <Pressable
+                    accessibilityRole="checkbox"
+                    accessibilityState={{
+                      checked: submissionAudioDeclarationChecked,
+                    }}
+                    onPress={() => {
+                      if (isBusy) return;
+                      setSubmissionAudioDeclarationChecked((v) => !v);
+                    }}
+                    style={({ pressed }) => [
+                      styles.checkboxRow,
+                      pressed ? styles.pressed : null,
+                      isBusy ? styles.disabled : null,
+                    ]}
+                    disabled={isBusy}
+                  >
+                    <View
+                      style={[
+                        styles.checkboxBox,
+                        {
+                          borderColor: submissionAudioDeclarationChecked
+                            ? colors.forest700
+                            : inputBorder,
+                          backgroundColor: submissionAudioDeclarationChecked
+                            ? colors.forest700
+                            : "transparent",
+                        },
+                      ]}
+                    >
+                      {submissionAudioDeclarationChecked ? (
+                        <Ionicons
+                          name="checkmark"
+                          size={16}
+                          color={colors.paper50}
+                        />
+                      ) : null}
+                    </View>
+                    <Text
+                      style={[styles.audioDeclarationText, { color: textPrimary }]}
+                    >
+                      Declaro que sou a intérprete deste áudio e autorizo a
+                      reprodução pública no Saravafy.
+                    </Text>
+                  </Pressable>
+                ) : null}
+
+                <PontoAudioUploadController
+                  pontoId={submissionAudioPontoId ?? ""}
+                  interpreterName={interpreterName}
+                  audio={submissionAudioInput}
+                  canStart={
+                    Boolean(submissionAudioInput) &&
+                    Boolean(interpreterName.trim()) &&
+                    submissionAudioDeclarationChecked
+                  }
+                  interpreterConsent={submissionAudioDeclarationChecked}
+                >
+                  {(ctx) => {
+                    submissionAudioControllerRef.current = ctx;
+                    return null;
+                  }}
+                </PontoAudioUploadController>
+              </View>
+            ) : null}
+
             <Text style={[styles.label, { color: textSecondary }]}>
               Tags (opcional)
             </Text>
@@ -1137,17 +1529,17 @@ export function PontoUpsertModal({
               <Pressable
                 accessibilityRole="button"
                 onPress={submit}
-                disabled={!canSubmit || isSubmitting}
+                disabled={!canSubmit || isBusy}
                 style={({ pressed }) => [
                   styles.primaryBtn,
                   {
                     backgroundColor: colors.forest400,
                     opacity: pressed ? 0.9 : 1,
                   },
-                  !canSubmit || isSubmitting ? styles.primaryBtnDisabled : null,
+                  !canSubmit || isBusy ? styles.primaryBtnDisabled : null,
                 ]}
               >
-                {isSubmitting ? (
+                {isBusy ? (
                   <View style={styles.primaryBtnRow}>
                     <ActivityIndicator color={"#fff"} />
                     <Text style={styles.primaryBtnText}>
@@ -1305,6 +1697,34 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 12,
   },
+  audioSection: {
+    marginTop: spacing.md,
+  },
+  audioSectionTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  audioSectionBody: {
+    marginTop: 6,
+    fontSize: 13,
+    fontWeight: "700",
+    lineHeight: 18,
+    opacity: 0.95,
+  },
+  linkBtn: {
+    alignSelf: "flex-start",
+    marginTop: spacing.sm,
+  },
+  linkText: {
+    fontSize: 13,
+    fontWeight: "900",
+  },
+  audioFormatsText: {
+    marginTop: spacing.sm,
+    fontSize: 12,
+    fontWeight: "700",
+    opacity: 0.9,
+  },
   audioBlock: {
     marginTop: spacing.sm,
   },
@@ -1345,6 +1765,13 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",
+  },
+  audioDeclarationText: {
+    flex: 1,
+    minWidth: 0,
+    fontSize: 13,
+    fontWeight: "800",
+    lineHeight: 18,
   },
   tagsInputWrap: {
     borderWidth: StyleSheet.hairlineWidth,

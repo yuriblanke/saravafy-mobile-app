@@ -139,6 +139,38 @@ export function usePontoAudios(pontoId: string | null | undefined) {
   });
 }
 
+export function useHasAnyUploadedPontoAudio(
+  pontoId: string | null | undefined,
+  options?: { enabled?: boolean }
+) {
+  const enabled = (options?.enabled ?? true) && !!pontoId;
+
+  return useQuery({
+    queryKey: pontoId
+      ? queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoId)
+      : [],
+    enabled: enabled && typeof pontoId === "string" && pontoId.trim().length > 0,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!pontoId) return false;
+
+      const { data, error } = await supabase
+        .from("ponto_audios")
+        .select("id")
+        .eq("ponto_id", pontoId)
+        .eq("is_active", true)
+        .eq("upload_status", "uploaded")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (error) throw error;
+      return Array.isArray(data) && data.length > 0;
+    },
+    placeholderData: (prev) => prev,
+  });
+}
+
 export function useInitPontoAudioUploadMutation() {
   return useMutation({
     mutationFn: initPontoAudioUpload,

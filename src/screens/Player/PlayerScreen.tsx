@@ -12,6 +12,7 @@ import {
 } from "@/src/components/pontos/PontoUpsertModal";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { useHasAnyUploadedPontoAudio } from "@/src/hooks/pontoAudio";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -35,7 +36,10 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import { AudioPlayerFooter } from "./components/AudioPlayerFooter";
+import {
+  AudioPlayerFooter,
+  type PlayerAudioState,
+} from "./components/AudioPlayerFooter";
 import { PlayerContent } from "./components/PlayerContent";
 import { PlayerSearchModal } from "./components/PlayerSearchModal";
 import {
@@ -103,6 +107,11 @@ export default function PlayerScreen() {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
+  const borderColor =
+    variant === "light"
+      ? colors.surfaceCardBorderLight
+      : colors.surfaceCardBorder;
+
   const { items, isLoading, error, isEmpty, reload, patchPontoById } =
     useCollectionPlayerData(
       source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
@@ -135,6 +144,8 @@ export default function PlayerScreen() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
+  const [isNoAudioOpen, setIsNoAudioOpen] = useState(false);
+  const [isAudioInReviewOpen, setIsAudioInReviewOpen] = useState(false);
   const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
     null
   );
@@ -186,6 +197,23 @@ export default function PlayerScreen() {
 
   const activePonto = items[activeIndex]?.ponto ?? null;
 
+  const approvedPontoAudioId = useMemo(() => {
+    const raw = (activePonto as any)?.audio_url;
+    if (typeof raw !== "string") return null;
+    const trimmed = raw.trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }, [activePonto]);
+
+  const hasUploadedAudioQuery = useHasAnyUploadedPontoAudio(activePonto?.id, {
+    enabled: !approvedPontoAudioId && !!activePonto?.id,
+  });
+
+  const audioState: PlayerAudioState = useMemo(() => {
+    if (approvedPontoAudioId) return "AUDIO_APPROVED";
+    if (hasUploadedAudioQuery.data === true) return "AUDIO_IN_REVIEW";
+    return "NO_AUDIO";
+  }, [approvedPontoAudioId, hasUploadedAudioQuery.data]);
+
   const editingInitialValues: PontoUpsertInitialValues | undefined =
     useMemo(() => {
       if (!activePonto?.id) return undefined;
@@ -216,6 +244,28 @@ export default function PlayerScreen() {
     await new Promise((r) => setTimeout(r, 120));
     setIsCorrectionOpen(true);
   }, [activePonto?.id, editingInitialValues?.id, showToast]);
+
+  const openAudioUpload = useCallback(() => {
+    if (!activePonto?.id) {
+      showToast("Ponto inválido para envio de áudio.");
+      return;
+    }
+
+    setIsReportOpen(false);
+    setIsNoAudioOpen(false);
+    setIsAudioInReviewOpen(false);
+
+    router.push({
+      pathname: "/ponto-audio-upload" as any,
+      params: {
+        pontoId: activePonto.id,
+        pontoTitle:
+          typeof (activePonto as any)?.title === "string"
+            ? (activePonto as any).title
+            : "",
+      },
+    } as any);
+  }, [activePonto, router, showToast]);
 
   const handleShare = useCallback(async () => {
     if (!activePonto?.id) {
@@ -520,6 +570,10 @@ export default function PlayerScreen() {
           ponto={activePonto}
           variant={variant}
           curimbaEnabled={curimbaEnabled}
+          audioState={audioState}
+          approvedPontoAudioId={approvedPontoAudioId}
+          onOpenNoAudioModal={() => setIsNoAudioOpen(true)}
+          onOpenAudioInReviewModal={() => setIsAudioInReviewOpen(true)}
         />
 
         <PlayerSearchModal
@@ -597,22 +651,7 @@ export default function PlayerScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                if (!activePonto?.id) {
-                  showToast("Ponto inválido para envio de áudio.");
-                  return;
-                }
-
-                setIsReportOpen(false);
-                router.push({
-                  pathname: "/ponto-audio-upload" as any,
-                  params: {
-                    pontoId: activePonto.id,
-                    pontoTitle:
-                      typeof (activePonto as any)?.title === "string"
-                        ? (activePonto as any).title
-                        : "",
-                  },
-                } as any);
+                openAudioUpload();
               }}
               style={({ pressed }) => [
                 styles.sheetOption,
@@ -622,6 +661,81 @@ export default function PlayerScreen() {
               <Text style={[styles.sheetOptionText, { color: textPrimary }]}>
                 Enviar áudio deste ponto
               </Text>
+            </Pressable>
+          </View>
+        </BottomSheet>
+
+        <BottomSheet
+          visible={isNoAudioOpen}
+          onClose={() => setIsNoAudioOpen(false)}
+          variant={variant}
+          snapPoints={[300]}
+        >
+          <View style={styles.simpleModalWrap}>
+            <Text style={[styles.simpleModalTitle, { color: textPrimary }]}>
+              Sem áudio
+            </Text>
+            <Text style={[styles.simpleModalBody, { color: textSecondary }]}>
+              Esse ponto ainda não tem áudio.
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Enviar áudio deste ponto"
+              onPress={() => {
+                openAudioUpload();
+              }}
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                pressed && styles.primaryBtnPressed,
+              ]}
+            >
+              <Text style={styles.primaryBtnText}>Enviar áudio deste ponto</Text>
+            </Pressable>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Entendi"
+              onPress={() => setIsNoAudioOpen(false)}
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                { borderColor },
+                pressed && styles.secondaryBtnPressed,
+              ]}
+            >
+              <Text style={[styles.secondaryBtnText, { color: textPrimary }]}>
+                Entendi
+              </Text>
+            </Pressable>
+          </View>
+        </BottomSheet>
+
+        <BottomSheet
+          visible={isAudioInReviewOpen}
+          onClose={() => setIsAudioInReviewOpen(false)}
+          variant={variant}
+          snapPoints={[380]}
+        >
+          <View style={styles.simpleModalWrap}>
+            <Text style={[styles.simpleModalTitle, { color: textPrimary }]}>
+              Áudio em revisão
+            </Text>
+            <Text style={[styles.simpleModalBody, { color: textSecondary }]}>
+              Existe um áudio para esse ponto aguardando aprovação pelos guardiões
+              do acervo do Saravafy. O áudio ficará disponível assim que aprovado
+              pela equipe.
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Entendi"
+              onPress={() => setIsAudioInReviewOpen(false)}
+              style={({ pressed }) => [
+                styles.primaryBtn,
+                pressed && styles.primaryBtnPressed,
+              ]}
+            >
+              <Text style={styles.primaryBtnText}>Entendi</Text>
             </Pressable>
           </View>
         </BottomSheet>
@@ -714,6 +828,50 @@ const styles = StyleSheet.create({
   sheetOptionText: {
     fontSize: 14,
     fontWeight: "800",
+  },
+  simpleModalWrap: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.lg,
+    paddingBottom: spacing.xl,
+    gap: spacing.md,
+  },
+  simpleModalTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  simpleModalBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  primaryBtn: {
+    minHeight: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brass600,
+  },
+  primaryBtnPressed: {
+    opacity: 0.9,
+  },
+  primaryBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: colors.textPrimaryOnDark,
+  },
+  secondaryBtn: {
+    minHeight: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  secondaryBtnPressed: {
+    opacity: 0.9,
+  },
+  secondaryBtnText: {
+    fontSize: 14,
+    fontWeight: "900",
   },
   fontBtnText: {
     fontSize: 14,
