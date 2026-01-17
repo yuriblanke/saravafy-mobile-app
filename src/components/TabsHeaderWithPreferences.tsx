@@ -45,8 +45,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Image,
-  Modal,
   LayoutChangeEvent,
+  Modal,
   Pressable,
   StyleSheet,
   Switch,
@@ -208,20 +208,20 @@ export function TabsHeaderWithPreferences(
     });
   });
 
-  const lastLayoutRef = React.useRef<
-    | {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
-      }
-    | null
-  >(null);
+  const lastLayoutRef = React.useRef<{
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  } | null>(null);
 
   const handleHeaderLayout = React.useCallback(
     (e: LayoutChangeEvent) => {
       const next = e.nativeEvent.layout;
       lastLayoutRef.current = next;
+      if (__DEV__) {
+        globalThis.__saravafyDebugTabsHeaderHeight = next.height;
+      }
       navTrace("TabsHeader onLayout", {
         pathname,
         segments: segmentsKey,
@@ -313,6 +313,12 @@ export function TabsHeaderWithPreferences(
 
   const headerBg = variant === "light" ? colors.paper50 : colors.forest900;
 
+  const debugGhostAmplify =
+    __DEV__ &&
+    (pathname === "/preferences" ||
+      (typeof globalThis.__saravafyDebugGhostAmplifyUntil === "number" &&
+        Date.now() < globalThis.__saravafyDebugGhostAmplifyUntil));
+
   const userPhotoUrl =
     (typeof user?.user_metadata?.avatar_url === "string" &&
       user.user_metadata.avatar_url) ||
@@ -334,9 +340,39 @@ export function TabsHeaderWithPreferences(
 
   return (
     <View
-      style={[styles.header, { paddingTop: (insets.top ?? 0) + spacing.sm }]}
+      style={[
+        styles.header,
+        { paddingTop: (insets.top ?? 0) + spacing.sm },
+        debugGhostAmplify
+          ? {
+              backgroundColor: "#00FF00",
+              borderBottomWidth: 10,
+              borderBottomColor: "#FF0000",
+              paddingBottom: spacing.sm + 240,
+            }
+          : null,
+      ]}
       onLayout={handleHeaderLayout}
     >
+      {debugGhostAmplify ? (
+        <View
+          pointerEvents="none"
+          style={{ position: "absolute", left: 0, right: 0, top: 0 }}
+        >
+          <Text
+            style={{
+              color: "#000",
+              fontSize: 24,
+              fontWeight: "900",
+              paddingTop: (insets.top ?? 0) + 6,
+              paddingHorizontal: spacing.lg,
+            }}
+          >
+            DEBUG: TABS HEADER (AMPLIFY)
+          </Text>
+        </View>
+      ) : null}
+
       <View style={styles.headerNav}>
         <Pressable
           accessibilityRole="button"
@@ -424,7 +460,60 @@ export function TabsHeaderWithPreferences(
               activeTab,
               headerBg,
             });
+
+            if (__DEV__) {
+              globalThis.__saravafyDebugGhostAmplifyUntil = Date.now() + 2000;
+              navTrace("DEBUG ghost amplify armed", {
+                untilInMs: 2000,
+              });
+
+              const coverEnabled =
+                typeof globalThis.__saravafyDebugPrefsCoverEnabled === "boolean"
+                  ? globalThis.__saravafyDebugPrefsCoverEnabled
+                  : true;
+              const coverMs =
+                typeof globalThis.__saravafyDebugPrefsCoverMs === "number"
+                  ? globalThis.__saravafyDebugPrefsCoverMs
+                  : 500;
+              const peekEnabled =
+                typeof globalThis.__saravafyDebugPrefsUnderlayPeekEnabled ===
+                "boolean"
+                  ? globalThis.__saravafyDebugPrefsUnderlayPeekEnabled
+                  : true;
+              const peekMs =
+                typeof globalThis.__saravafyDebugPrefsUnderlayPeekMs ===
+                "number"
+                  ? globalThis.__saravafyDebugPrefsUnderlayPeekMs
+                  : 200;
+              navTrace("DEBUG prefs debug config", {
+                coverEnabled,
+                coverMs,
+                peekEnabled,
+                peekMs,
+              });
+            }
             router.push("/preferences" as any);
+          }}
+          onLongPress={() => {
+            if (!__DEV__) return;
+
+            const current =
+              typeof globalThis.__saravafyDebugPrefsCoverEnabled === "boolean"
+                ? globalThis.__saravafyDebugPrefsCoverEnabled
+                : true;
+            const next = !current;
+            globalThis.__saravafyDebugPrefsCoverEnabled = next;
+
+            // Se desligar cover, desligamos o peek por padrão (fica mais fiel ao bug real).
+            globalThis.__saravafyDebugPrefsUnderlayPeekEnabled = next
+              ? true
+              : false;
+
+            navTrace("DEBUG prefs cover toggled", {
+              coverEnabled: next,
+              underlayPeekEnabled:
+                globalThis.__saravafyDebugPrefsUnderlayPeekEnabled,
+            });
           }}
           hitSlop={10}
           style={({ pressed }) => [

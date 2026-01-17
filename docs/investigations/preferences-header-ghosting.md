@@ -164,6 +164,89 @@ Isso confirma uma “overlap window” não só de montagem, mas também de cicl
 - Como o ghosting observado em produto é de poucos frames (e não permanente), isso torna a hipótese **"portal/overlay acima do Stack" menos provável**.
 - A hipótese que fica mais forte é: por alguns frames, a tela de `/preferences` ainda não cobriu o frame 100% (ou por ordem de composição/commit), permitindo que o header anterior seja visível **por baixo**.
 
+### Amostra D (com `transitionStart/transitionEnd`)
+
+```
+[NavTrace +5138ms] Tap open Preferences {"activeTab": "pontos", "fromPathname": "/", "fromSegments": "(app)/(tabs)/(pontos)", "headerBg": "#0E2A24"}
+[NavTrace +5238ms] PreferencesHeader layoutEffect commit {"variant": "dark"}
+[NavTrace +5240ms] Preferences UI layoutEffect commit
+[NavTrace +5247ms] PreferencesHeader mount {"variant": "dark"}
+[NavTrace +5260ms] Preferences UI mount
+[NavTrace +5261ms] Route /(app)/preferences mount
+[NavTrace +5262ms] Route /(app)/preferences attach transition listeners
+[NavTrace +5264ms] Route /(app)/preferences focus
+[NavTrace +5265ms] (tabs) blur {"pathname": "/", "segments": "(app)/(tabs)/(pontos)"}
+
+[NavTrace +5299ms] Preferences UI onLayout {"baseBgColor": "#0E2A24", "layout": {"height": 834.4615, "width": 375.3846, "x": 0, "y": 0}, "variant": "dark"}
+[NavTrace +5300ms] PreferencesHeader onLayout {"headerTotalHeight": 92, "layout": {"height": 92, "width": 375.3846, "x": 0, "y": 0}, "variant": "dark"}
+[NavTrace +5301ms] Preferences UI rAF 1
+[NavTrace +5373ms] Preferences UI rAF 2
+[NavTrace +5387ms] Preferences UI rAF 3
+
+[NavTrace +5388ms] Route /(app)/preferences transitionStart {"closing": false}
+[NavTrace +5411ms] Route /(app)/preferences transitionEnd {"closing": false}
+```
+
+**Leitura direta da amostra D:**
+
+- Mesmo com `animation: "none"`, o React Navigation ainda emite **`transitionStart`/`transitionEnd`** para o push.
+- A janela observada é curta (~23ms), o que casa com o relato de **1–2 frames** de ghosting.
+- Notavelmente, `transitionStart` ocorre **depois** de `onLayout` e até depois de `rAF 3` do Preferences (na amostra). Isso indica que os eventos de transição não estão alinhados 1:1 ao primeiro frame efetivamente composto/desejado, e que pode existir um pequeno intervalo em que a composição nativa ainda expõe o screen anterior.
+
+### Amostra E (cover via `Modal` + observação visual)
+
+Logs (2026-01-16):
+
+```
+[NavTrace +31444ms] Tap open Preferences {"activeTab":"pontos","fromPathname":"/","fromSegments":"(app)/(tabs)/(pontos)","headerBg":"#0E2A24"}
+...
+[NavTrace +31574ms] Preferences DEBUG cover show
+...
+[NavTrace +32079ms] Preferences DEBUG cover hide
+```
+
+**Observação visual reportada:** parece ser **Pontos → (tela magenta) → Preferences**, sem elementos do header de tabs “por cima” do magenta.
+
+**Implicação:** se confirmado, isso enfraquece bastante a hipótese “header acima do Stack via portal/overlay global”, porque o `Modal` nativo tende a ficar acima de toda a árvore React.
+
+**Próximo passo experimental:** amplificar o sinal do header antigo durante `/preferences`:
+
+- DEV-only: `TabsHeaderWithPreferences` fica **gigante** e verde neon (amplificação armada **no tap**, por ~2s, para não depender do `pathname` já ter mudado).
+- DEV-only: após o `cover hide`, o Preferences faz um “**underlay peek**” curto (fundo transparente por alguns ms) para tornar qualquer underlay óbvio.
+
+**Resultado (nova execução):** mesmo com:
+
+- `DEBUG ghost amplify armed` no tap
+- `TabsHeader onLayout` com altura grande (~354px)
+- `Preferences DEBUG underlay peek on` (fundo do Preferences transparente por alguns ms)
+
+...não foi observado **nenhum** frame com o verde neon do header.
+
+**Leitura:** o `TabsHeaderWithPreferences` está **montado e medido**, mas aparentemente fica **100% ocluído** pelo card/screen de `/preferences` fora da janela de transição. Isso torna bem improvável que o ghosting original seja “o TabsHeader vazando por cima”; se existe ghosting, ele provavelmente acontece dentro de uma janela curta do próprio push (composição/transição) ou vem de outro elemento (ex.: background/card do Stack, top-tabs bar, etc.).
+
+**Nota:** o cover magenta pode mascarar ghosting que aconteça nos primeiros ~ms do push. Para reproduzir sem mascarar (DEV), foi adicionado um toggle para desativar o cover na próxima navegação via **long-press** no botão de abrir Preferences.
+
+**Novo experimento (DEV):** “first-frame stamp” do Preferences
+
+- Ao montar o Preferences, desenha um overlay **opaco** (cyan/teal) gigante escrito **PREFERENCES** por ~500ms e loga `Preferences DEBUG stamp show/hide`.
+- Objetivo: separar claramente:
+  - “a tela antiga ainda está no frame” (antes do stamp aparecer), vs
+  - “o Preferences já está no frame” (stamp visível), e detectar qualquer _mistura_ (se qualquer elemento antigo aparecer junto com o stamp).
+
+Interpretação:
+
+- Se você vê o verde do TabsHeader **junto** do stamp opaco, então o verde está **acima** do Preferences (overlay / z-order acima), o que é bem inesperado.
+- Se o verde some assim que o stamp aparece, mas você ainda percebe “fundo mudando” durante o push, isso é compatível com **underlay/transparência** no nível do Stack/card durante a janela de transição.
+
+**Evidência adicional (stamp com altura do header):** ao ajustar o stamp para ter a mesma altura do header (via medida do `TabsHeader onLayout`), foi observado que **não existe nenhum instante em que o verde e o cyan aparecem ao mesmo tempo**. A sequência visual vira:
+
+- Pontos
+- (ainda Pontos) com header verde (debug)
+- Preferences + barra cyan (stamp)
+- Preferences (stamp some)
+
+Isso reforça que o "verde" pertence ao frame antigo (tabs) e não está sendo composto junto com o frame do Preferences.
+
 ## 6) Interpretação (o que os logs devem responder)
 
 A partir dos logs, queremos responder:
@@ -201,20 +284,141 @@ Com a amostra C, dá para reduzir bastante o espaço de incerteza:
 - O `TabsHeaderWithPreferences` está comprovadamente **presente e medido em `y=0`** durante `/preferences` por pelo menos 1s.
 - Então, se o ghosting é de poucos frames, o mecanismo mais provável é **"underlay revelado"** (tela nova não cobre o frame imediatamente em algum ponto do push) e não um overlay persistente acima do Stack.
 
-## 8) Direções de fix (NÃO implementadas)
+### 7.1) Hipóteses refinadas de problema (priorizadas)
 
-Quando a timeline estiver confirmada, possíveis direções (a validar):
+As hipóteses abaixo são as mais compatíveis com o conjunto de evidências coletadas até agora.
 
-- Forçar opacidade/cobertura do screen de Preferences no nível do Stack (ex.: `contentStyle`/`cardStyle`/`backgroundColor` no screen).
-- Garantir isolamento de screens via stack nativo (se não estiver usando) / `react-native-screens`.
-- Evitar header absoluto com zIndex elevado fora do contexto do Stack; mover para header do próprio navigator.
-- Revisar qualquer Portal/BottomSheet que possa estar acima do Stack.
+#### H1 — Handoff (frame antigo → frame novo), não “dois no mesmo frame”
 
-Próximas evidências úteis (pra “fechar” entre (1) vs (2)):
+O que parece “ghosting do header” é, na prática, um período em que **o frame ainda é o mundo `(tabs)`**, e só depois o frame passa a ser o Preferences.
 
-- Logar `TabsHeader unmount` e `(tabs) layout unmount` ao abrir Preferences (se nunca acontece, tabs fica montado mesmo após a troca).
-- Logar foco: `useFocusEffect` no `(tabs)` layout e na rota `/preferences` para cravar em que instante o tabs perde foco.
-- Checar se existe algum `Portal` (ex.: bottom sheets) ou provider global que renderize o header fora do screen.
+Evidências:
+
+- O experimento do **stamp com altura do header** mostrou que **não há instante com verde + cyan ao mesmo tempo**. Sequência observada: tabs → (tabs com verde) → preferences + cyan → preferences.
+- Isso indica “troca de frame” (handoff) e não composição simultânea de elementos de duas telas.
+
+Implicação:
+
+- O critério “Frame N / Frame N+1” pode falhar não por sobreposição, mas porque o **push não consegue produzir o novo frame imediatamente** (custo de navegação/mount/layout > 1 frame).
+
+#### H2 — Janela de transição/composição do Stack expõe background “intermediário”
+
+Durante a troca, o usuário percebe que o “fundo do Preferences fica diferente”. Isso é compatível com um background do container do Stack (ou do card) que aparece por alguns ms/frames, mesmo quando `animation: "none"`.
+
+Evidências:
+
+- `transitionStart/transitionEnd` existe mesmo sem animação, e a janela observada é curta (ordem de dezenas de ms).
+
+#### H3 — O screen anterior permanece montado (normal) e reage a commits, mas fica ocluído
+
+O `(tabs)` e o `TabsHeaderWithPreferences` continuam vivos e medidos após ir para `/preferences`, mas **isso não implica que estejam visíveis**.
+
+Evidências:
+
+- Heartbeats e `TabsHeader onLayout` em `/preferences` por ≥1s.
+- Mesmo assim, não há frame com verde + cyan simultâneos (oclusão por composição do card/screen novo).
+
+### 7.2) Hipóteses enfraquecidas / descartadas (com evidência)
+
+#### D1 — “Header de tabs acima do Stack via portal/overlay global”
+
+Enfraquecida.
+
+Evidências:
+
+- Com `Modal` nativo opaco (magenta), não foi observado header por cima. Se o header estivesse acima de toda a árvore, ele deveria aparecer sobre o `Modal`.
+
+#### D2 — “Verde e Preferences no mesmo frame por zIndex do header”
+
+Enfraquecida.
+
+Evidências:
+
+- No experimento com **stamp do Preferences** (e principalmente com o stamp na **mesma altura do header**), não foi observado verde+cyân simultâneo.
+
+## 8) Hipóteses de solução (NÃO implementadas)
+
+As soluções abaixo são hipóteses (direções) para atingir o critério “hard cut”. Elas estão ordenadas por custo/benefício e aderência ao que os logs sugerem.
+
+### S1 — Garantir opacidade e cor de fundo no nível do navigator/card (não só no componente)
+
+Ideia:
+
+- Forçar o background do **card/screen do Stack** (ou `contentStyle`) para uma cor sólida, evitando qualquer transparência/background default durante a janela de troca.
+
+O que isso resolveria:
+
+- H2 (background intermediário) e parte de H1 quando o problema percebido é “fundo muda / revela underlay”.
+
+Como validar rapidamente (sem refator grande):
+
+- Definir explicitamente `contentStyle`/`cardStyle` do screen de `/preferences` para ter `backgroundColor` sólido e ver se a percepção de “fundo mudando” desaparece.
+
+### S2 — Usar stack nativo / `react-native-screens` corretamente (reduzir frames intermediários)
+
+Ideia:
+
+- Garantir que a navegação esteja usando um stack nativo quando possível, e que `react-native-screens` esteja habilitado/atualizado.
+
+O que isso resolveria:
+
+- Pode reduzir o tempo em que o screen anterior permanece “ativo” no pipeline de composição e reduzir variações de background durante o push (H2/H3).
+
+Como validar:
+
+- Confirmar se a rota `/preferences` está em native stack (quando aplicável) e comparar a janela percebida.
+
+### S3 — Ajustes de lifecycle do screen anterior: `detachInactiveScreens` / freeze
+
+Ideia:
+
+- Desacoplar/detachar screens inativos ou congelar o screen anterior para reduzir trabalho e chance de commits “tardios” durante o push.
+
+O que isso resolveria:
+
+- Pode reduzir o “ruído” de commits do mundo `(tabs)` após iniciar o push (H3), embora não garanta hard cut por si só.
+
+Como validar:
+
+- Ativar/desativar `detachInactiveScreens` e/ou opções de freeze e comparar: tempo até o primeiro frame do Preferences e se o “fundo intermediário” desaparece.
+
+### S4 — “Cover de produção” (placeholder) para garantir hard cut perceptível
+
+Ideia:
+
+- Assumir que “Frame N+1” estrito após o tap é inviável em alguns dispositivos, e garantir a UX via um **cover imediato** (cor sólida igual ao Preferences, ou skeleton) mostrado no tap, enquanto o push/mount acontece.
+
+O que isso resolveria:
+
+- H1: o usuário nunca veria frames do mundo antigo após o tap, mesmo que o Preferences demore ~80–150ms para montar/layout.
+
+Como validar:
+
+- Trocar o magenta (DEV) por um cover com a cor real do Preferences e medir se o problema “sumiu” visualmente.
+
+Trade-off:
+
+- Tecnicamente ainda existe latência; a diferença é que ela fica “mascarada” por uma transição de UX controlada.
+
+### S5 — Pré-aquecimento (pre-warm) do Preferences
+
+Ideia:
+
+- Reduzir o custo do primeiro frame do Preferences (JS/layout/data) pré-carregando componentes/dados antes do push.
+
+O que isso resolveria:
+
+- Diminui a janela de H1 (tabs ainda desenhando antes do Preferences existir), mas não garante “N+1” estrito.
+
+Como validar:
+
+- Medir `tap → Preferences onLayout` antes/depois de otimizações (lazy imports, evitar trabalho pesado no mount, prefetch de queries).
+
+## 9) Próximas evidências úteis (se quisermos fechar 100%)
+
+- Medir consistentemente `tap → Preferences UI onLayout` (em ms e em frames) em dispositivos diferentes.
+- Confirmar qual navigator/stack está de fato renderizando `/preferences` (JS stack vs native stack) e se há `react-native-screens` habilitado.
+- Variar `contentStyle/cardStyle` do screen de Preferences para ver se elimina a percepção de “fundo intermediário”.
 
 ---
 

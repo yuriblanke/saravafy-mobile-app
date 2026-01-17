@@ -1,6 +1,30 @@
 declare global {
   // eslint-disable-next-line no-var
   var __saravafyNavTraceT0: number | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugGhostAmplifyUntil: number | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugPrefsCoverEnabled: boolean | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugPrefsCoverMs: number | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugPrefsUnderlayPeekEnabled: boolean | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugPrefsUnderlayPeekMs: number | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugPrefsStampEnabled: boolean | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugPrefsStampMs: number | undefined;
+
+  // eslint-disable-next-line no-var
+  var __saravafyDebugTabsHeaderHeight: number | undefined;
 }
 
 export function navTrace(event: string, data?: unknown) {
