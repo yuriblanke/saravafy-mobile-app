@@ -508,7 +508,7 @@ export async function completeUploadWithRetry(params: {
   contentEtag?: string | null;
   sha256?: string | null;
 }) {
-  const backoffsMs = [500, 1000, 2000, 4000];
+  const backoffsMs = [500, 1000, 2000, 4000, 6000];
   const maxAttempts = 5;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -541,11 +541,7 @@ export async function completeUploadWithRetry(params: {
     );
 
     if (!res.error) {
-      console.log("[audio] complete attempt", {
-        attempt,
-        status: 200,
-        body: summarizeBodyForLog(res.data),
-      });
+      console.log("[audio] complete attempt", { attempt, status: 200 });
       return res.data as CompleteUploadResponse;
     }
 
@@ -559,37 +555,65 @@ export async function completeUploadWithRetry(params: {
         ? anyErr.context
         : null;
 
-    let body: any = null;
-    if (bodyRaw && typeof bodyRaw === "object") {
-      body = bodyRaw;
-    } else if (typeof bodyRaw === "string") {
-      try {
-        body = JSON.parse(bodyRaw);
-      } catch {
-        body = null;
+    console.log("[audio] complete attempt", { attempt, status });
+
+    // Do not retry on auth/permission errors.
+    if (status === 401 || status === 403) {
+      console.log("[audio] complete failed", {
+        status,
+        body: summarizeBodyForLog(bodyRaw),
+      });
+      const e = new Error(
+        status === 401
+          ? "Não autorizado para concluir o upload."
+          : "Sem permissão para concluir o upload."
+      );
+      (e as any).status = status;
+      (e as any).body = bodyRaw;
+      throw e;
+    }
+
+    // Eventual consistency: retry only when 409 and body.retryable === true.
+    if (status === 409) {
+      let bodyJson: any = null;
+      if (bodyRaw && typeof bodyRaw === "object") {
+        bodyJson = bodyRaw;
+      } else if (typeof bodyRaw === "string") {
+        try {
+          bodyJson = JSON.parse(bodyRaw);
+        } catch {
+          bodyJson = null;
+        }
       }
+
+      const retryable =
+        bodyJson &&
+        typeof bodyJson === "object" &&
+        !Array.isArray(bodyJson) &&
+        (bodyJson as any).retryable === true;
+
+      if (retryable && attempt < maxAttempts) {
+        const waitMs =
+          backoffsMs[attempt - 1] ?? backoffsMs[backoffsMs.length - 1];
+        console.log("[audio] complete retrying", { attempt, waitMs });
+        await sleep(waitMs);
+        continue;
+      }
+
+      console.log("[audio] complete failed", {
+        status,
+        body: summarizeBodyForLog(bodyJson ?? bodyRaw),
+      });
+
+      const e = new Error("Não foi possível concluir o upload.");
+      (e as any).status = status;
+      (e as any).body = bodyRaw;
+      throw e;
     }
 
-    console.log("[audio] complete attempt", {
-      attempt,
+    console.log("[audio] complete failed", {
       status,
-      body: summarizeBodyForLog(body ?? bodyRaw),
-    });
-
-    // Eventual consistency: any 409 is treated as retryable.
-    const retryable = status === 409;
-    if (status === 409 && attempt < maxAttempts) {
-      const waitMs = backoffsMs[attempt - 1] ?? backoffsMs[backoffsMs.length - 1];
-      console.log("[audio] complete retrying", { attempt, waitMs, retryable });
-      await sleep(waitMs);
-      continue;
-    }
-
-    console.log("[audio] complete giving up", {
-      attempt,
-      status,
-      body: summarizeBodyForLog(body ?? bodyRaw),
-      retryable,
+      body: summarizeBodyForLog(bodyRaw),
     });
 
     const msg =
@@ -603,66 +627,6 @@ export async function completeUploadWithRetry(params: {
   }
 
   throw new Error("Não foi possível concluir o upload (complete não confirmou).");
-}
-
-export async function waitForUploadedInDb(pontoAudioId: string) {
-  const delaysMs = [250, 500, 800, 1200, 1600];
-  const maxAttempts = 5;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    const res = await supabase
-      .from("ponto_audios")
-      .select("upload_status, uploaded_at")
-      .eq("id", pontoAudioId)
-      .maybeSingle();
-
-    const status = typeof (res as any)?.status === "number" ? (res as any).status : null;
-    const uploadStatus =
-      res.data && typeof (res.data as any).upload_status === "string"
-        ? String((res.data as any).upload_status)
-        : null;
-    const hasUploadedAt = Boolean((res.data as any)?.uploaded_at);
-
-    console.log("[audio] db confirm attempt", {
-      attempt,
-      status,
-      hasUploadedAt,
-    });
-
-    if (!res.error) {
-      if (uploadStatus === "uploaded" && hasUploadedAt) {
-        return { ok: true as const };
-      }
-    } else {
-      const errStatus =
-        typeof (res.error as any)?.status === "number"
-          ? Number((res.error as any).status)
-          : status;
-
-      // Abort immediately if unauthorized/forbidden on PostgREST.
-      if (errStatus === 401 || errStatus === 403) {
-        const e = new Error(
-          "Sem permissão para confirmar o estado do áudio no banco."
-        );
-        (e as any).status = errStatus;
-        throw e;
-      }
-
-      console.log("[audio] db confirm error", {
-        pontoAudioId,
-        error: serializeErrorForLog(res.error),
-        status: errStatus,
-      });
-    }
-
-    if (attempt < maxAttempts) {
-      await sleep(delaysMs[attempt - 1] ?? delaysMs[delaysMs.length - 1]);
-    }
-  }
-
-  throw new Error(
-    "Upload concluído, mas o banco ainda não confirmou (uploaded_at pendente)."
-  );
 }
 
 export async function finalizeAudioUploadAndCreateSubmission(params: {
@@ -706,92 +670,43 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
         throw e;
       }
 
-      try {
-        await waitForUploadedInDb(params.pontoAudioId);
-      } catch (e) {
+      const { data, error } = await supabase.rpc(
+        "finalize_ponto_audio_and_create_submission",
+        {
+          p_ponto_audio_id: params.pontoAudioId,
+          p_ponto_id: params.pontoId,
+        }
+      );
+
+      if (error) {
         console.log("[audio] post-upload failed", {
-          etapa: "db_confirm",
+          etapa: "rpc_finalize",
           pontoAudioId: params.pontoAudioId,
-          status:
-            e && typeof e === "object" && "status" in (e as any)
-              ? Number((e as any).status)
-              : null,
-          error: serializeErrorForLog(e),
+          status: (error as any)?.status ?? null,
+          error: serializeErrorForLog(error),
         });
-        throw e;
+
+        const code = (error as any)?.code ?? null;
+        if (code === "42501") {
+          throw new Error("Sem permissão para criar a submissão de revisão.");
+        }
+
+        throw error;
       }
 
-      // Insert submission only after DB confirms uploaded + uploaded_at.
-      console.log("[audio] post-upload submission start", {
-        kind: "audio_upload",
-        ponto_id: params.pontoId,
+      const submissionId =
+        typeof data === "string" || typeof data === "number"
+          ? String(data)
+          : data && typeof data === "object" && "id" in (data as any)
+          ? String((data as any).id)
+          : null;
+
+      console.log("[audio] post-upload rpc ok", {
+        submission_id: submissionId,
         ponto_audio_id: params.pontoAudioId,
       });
 
-      const existingSubmission = await supabase
-        .from("pontos_submissions")
-        .select("id")
-        .eq("kind", "audio_upload")
-        .eq("ponto_audio_id", params.pontoAudioId)
-        .maybeSingle();
-
-      if (existingSubmission.error) {
-        console.log("[audio] post-upload failed", {
-          etapa: "submission_insert",
-          pontoAudioId: params.pontoAudioId,
-          status: (existingSubmission as any)?.status ?? null,
-          error: serializeErrorForLog(existingSubmission.error),
-        });
-
-        const code = (existingSubmission.error as any)?.code ?? null;
-        if (code === "42501") {
-          throw new Error("Sem permissão para criar a submissão de revisão.");
-        }
-
-        throw existingSubmission.error;
-      }
-
-      const existingId = existingSubmission.data?.id
-        ? String(existingSubmission.data.id)
-        : null;
-      if (existingId) {
-        console.log("[audio] post-upload submission exists", {
-          id: existingId,
-        });
-        return { ok: true as const, submissionId: existingId };
-      }
-
-      const insertRes = await supabase
-        .from("pontos_submissions")
-        .insert({
-          kind: "audio_upload",
-          ponto_id: params.pontoId,
-          ponto_audio_id: params.pontoAudioId,
-        })
-        .select("id")
-        .single();
-
-      if (insertRes.error) {
-        console.log("[audio] post-upload failed", {
-          etapa: "submission_insert",
-          pontoAudioId: params.pontoAudioId,
-          status: (insertRes as any)?.status ?? null,
-          error: serializeErrorForLog(insertRes.error),
-        });
-
-        const code = (insertRes.error as any)?.code ?? null;
-        if (code === "42501") {
-          throw new Error("Sem permissão para criar a submissão de revisão.");
-        }
-
-        throw insertRes.error;
-      }
-
-      const id = (insertRes.data as any)?.id ? String((insertRes.data as any).id) : null;
-      console.log("[audio] post-upload submission ok", {
-        id: id ?? "",
-      });
-      return { ok: true as const, submissionId: id };
+      return { ok: true as const, submissionId };
     } finally {
       inFlightPostUploadByPontoAudioId.delete(pontoAudioId);
     }
