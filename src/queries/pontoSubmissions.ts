@@ -12,6 +12,7 @@ export type PendingPontoSubmission = {
   reviewed_at?: string | null;
   reviewed_by?: string | null;
   ponto_id?: string | null;
+  ponto_audio_id?: string | null;
 
   payload?: unknown;
 
@@ -23,8 +24,6 @@ export type PendingPontoSubmission = {
   has_audio?: boolean | null;
   interpreter_name?: string | null;
   interpreter_consent_granted?: boolean | null;
-  audio_bucket_id?: string | null;
-  audio_object_path?: string | null;
 };
 
 function coerceTags(value: unknown): string[] {
@@ -87,7 +86,7 @@ export async function fetchPendingPontoSubmissions(): Promise<
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted, audio_bucket_id, audio_object_path"
+      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, ponto_audio_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted"
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
@@ -105,6 +104,8 @@ export async function fetchPendingPontoSubmissions(): Promise<
     reviewed_at: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
     reviewed_by: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
     ponto_id: typeof row.ponto_id === "string" ? row.ponto_id : null,
+    ponto_audio_id:
+      typeof row.ponto_audio_id === "string" ? row.ponto_audio_id : null,
     payload: row.payload ?? null,
     ponto_is_public_domain:
       typeof row.ponto_is_public_domain === "boolean"
@@ -124,10 +125,6 @@ export async function fetchPendingPontoSubmissions(): Promise<
       typeof row.interpreter_consent_granted === "boolean"
         ? row.interpreter_consent_granted
         : null,
-    audio_bucket_id:
-      typeof row.audio_bucket_id === "string" ? row.audio_bucket_id : null,
-    audio_object_path:
-      typeof row.audio_object_path === "string" ? row.audio_object_path : null,
   }));
 }
 
@@ -139,7 +136,7 @@ export async function fetchPontoSubmissionById(
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted, audio_bucket_id, audio_object_path"
+      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, ponto_audio_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted"
     )
     .eq("id", submissionId)
     .maybeSingle();
@@ -163,6 +160,8 @@ export async function fetchPontoSubmissionById(
     reviewed_at: typeof row.reviewed_at === "string" ? row.reviewed_at : null,
     reviewed_by: typeof row.reviewed_by === "string" ? row.reviewed_by : null,
     ponto_id: typeof row.ponto_id === "string" ? row.ponto_id : null,
+    ponto_audio_id:
+      typeof row.ponto_audio_id === "string" ? row.ponto_audio_id : null,
     payload: row.payload ?? null,
     ponto_is_public_domain:
       typeof row.ponto_is_public_domain === "boolean"
@@ -179,10 +178,6 @@ export async function fetchPontoSubmissionById(
       typeof row.interpreter_consent_granted === "boolean"
         ? row.interpreter_consent_granted
         : null,
-    audio_bucket_id:
-      typeof row.audio_bucket_id === "string" ? row.audio_bucket_id : null,
-    audio_object_path:
-      typeof row.audio_object_path === "string" ? row.audio_object_path : null,
   };
 }
 

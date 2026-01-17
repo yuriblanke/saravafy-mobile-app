@@ -721,16 +721,31 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
 }
 
 export async function getPontoAudioPlaybackUrl(pontoAudioId: string) {
-  const data = await callFunctionPublic<PlaybackResponse>(
+  const data = await callFunctionPublic<any>(
     "ponto-audio-playback",
     {
       ponto_audio_id: pontoAudioId,
     }
   );
 
+  const expiresRaw =
+    data && typeof data === "object" && data
+      ? (data as any).expires_in_seconds ?? (data as any).expires_in
+      : null;
+
+  const expiresInSeconds =
+    typeof expiresRaw === "number"
+      ? expiresRaw
+      : typeof expiresRaw === "string"
+      ? Number(expiresRaw)
+      : null;
+
   return {
-    url: data.url,
-    expiresIn: data.expires_in,
-    mimeType: data.mime_type,
+    url: typeof data?.url === "string" ? data.url : "",
+    expiresIn:
+      typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)
+        ? expiresInSeconds
+        : 60,
+    mimeType: typeof data?.mime_type === "string" ? data.mime_type : null,
   };
 }
