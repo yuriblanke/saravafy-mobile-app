@@ -55,8 +55,15 @@ export default function Preferences() {
     navTrace("Preferences UI layoutEffect commit");
   });
 
+  const visualMarkersEnabled =
+    __DEV__ &&
+    (typeof globalThis.__saravafyDebugVisualMarkersEnabled === "boolean"
+      ? globalThis.__saravafyDebugVisualMarkersEnabled
+      : false);
+
   const coverEnabled =
     __DEV__ &&
+    visualMarkersEnabled &&
     (typeof globalThis.__saravafyDebugPrefsCoverEnabled === "boolean"
       ? globalThis.__saravafyDebugPrefsCoverEnabled
       : true);
@@ -67,6 +74,7 @@ export default function Preferences() {
 
   const underlayPeekEnabled =
     __DEV__ &&
+    visualMarkersEnabled &&
     (typeof globalThis.__saravafyDebugPrefsUnderlayPeekEnabled === "boolean"
       ? globalThis.__saravafyDebugPrefsUnderlayPeekEnabled
       : true);
@@ -77,6 +85,7 @@ export default function Preferences() {
 
   const stampEnabled =
     __DEV__ &&
+    visualMarkersEnabled &&
     (typeof globalThis.__saravafyDebugPrefsStampEnabled === "boolean"
       ? globalThis.__saravafyDebugPrefsStampEnabled
       : true);
@@ -100,6 +109,10 @@ export default function Preferences() {
 
   React.useEffect(() => {
     if (!__DEV__) return;
+    if (!visualMarkersEnabled) {
+      setDebugStampVisible(false);
+      return;
+    }
     if (!stampEnabled) {
       setDebugStampVisible(false);
       navTrace("Preferences DEBUG stamp disabled");
@@ -143,6 +156,11 @@ export default function Preferences() {
 
   React.useEffect(() => {
     if (!__DEV__) return;
+
+    if (!visualMarkersEnabled) {
+      setDebugCoverVisible(false);
+      return;
+    }
 
     if (!coverEnabled) {
       setDebugCoverVisible(false);
@@ -222,7 +240,7 @@ export default function Preferences() {
     >
       <PreferencesHeader variant={variant} />
 
-      {__DEV__ && debugStampVisible ? (
+      {__DEV__ && visualMarkersEnabled && debugStampVisible ? (
         <View
           pointerEvents="none"
           style={[
@@ -240,7 +258,7 @@ export default function Preferences() {
         </View>
       ) : null}
 
-      {__DEV__ ? (
+      {__DEV__ && visualMarkersEnabled ? (
         <Modal
           visible={debugCoverVisible}
           animationType="none"

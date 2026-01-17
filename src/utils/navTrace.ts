@@ -3,6 +3,9 @@ declare global {
   var __saravafyNavTraceT0: number | undefined;
 
   // eslint-disable-next-line no-var
+  var __saravafyDebugVisualMarkersEnabled: boolean | undefined;
+
+  // eslint-disable-next-line no-var
   var __saravafyDebugGhostAmplifyUntil: number | undefined;
 
   // eslint-disable-next-line no-var

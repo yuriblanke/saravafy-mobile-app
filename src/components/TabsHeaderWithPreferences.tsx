@@ -313,8 +313,15 @@ export function TabsHeaderWithPreferences(
 
   const headerBg = variant === "light" ? colors.paper50 : colors.forest900;
 
+  const visualMarkersEnabled =
+    __DEV__ &&
+    (typeof globalThis.__saravafyDebugVisualMarkersEnabled === "boolean"
+      ? globalThis.__saravafyDebugVisualMarkersEnabled
+      : false);
+
   const debugGhostAmplify =
     __DEV__ &&
+    visualMarkersEnabled &&
     (pathname === "/preferences" ||
       (typeof globalThis.__saravafyDebugGhostAmplifyUntil === "number" &&
         Date.now() < globalThis.__saravafyDebugGhostAmplifyUntil));
@@ -461,7 +468,7 @@ export function TabsHeaderWithPreferences(
               headerBg,
             });
 
-            if (__DEV__) {
+            if (__DEV__ && visualMarkersEnabled) {
               globalThis.__saravafyDebugGhostAmplifyUntil = Date.now() + 2000;
               navTrace("DEBUG ghost amplify armed", {
                 untilInMs: 2000,
@@ -498,21 +505,29 @@ export function TabsHeaderWithPreferences(
             if (!__DEV__) return;
 
             const current =
-              typeof globalThis.__saravafyDebugPrefsCoverEnabled === "boolean"
-                ? globalThis.__saravafyDebugPrefsCoverEnabled
-                : true;
+              typeof globalThis.__saravafyDebugVisualMarkersEnabled ===
+              "boolean"
+                ? globalThis.__saravafyDebugVisualMarkersEnabled
+                : false;
             const next = !current;
+            globalThis.__saravafyDebugVisualMarkersEnabled = next;
+
+            // Master toggle: quando OFF, não queremos nenhum marker visual.
+            // Quando ON, deixamos os experiments armados por padrão.
             globalThis.__saravafyDebugPrefsCoverEnabled = next;
+            globalThis.__saravafyDebugPrefsUnderlayPeekEnabled = next;
+            globalThis.__saravafyDebugPrefsStampEnabled = next;
 
-            // Se desligar cover, desligamos o peek por padrão (fica mais fiel ao bug real).
-            globalThis.__saravafyDebugPrefsUnderlayPeekEnabled = next
-              ? true
-              : false;
+            if (!next) {
+              globalThis.__saravafyDebugGhostAmplifyUntil = undefined;
+            }
 
-            navTrace("DEBUG prefs cover toggled", {
-              coverEnabled: next,
+            navTrace("DEBUG visual markers toggled", {
+              enabled: next,
+              coverEnabled: globalThis.__saravafyDebugPrefsCoverEnabled,
               underlayPeekEnabled:
                 globalThis.__saravafyDebugPrefsUnderlayPeekEnabled,
+              stampEnabled: globalThis.__saravafyDebugPrefsStampEnabled,
             });
           }}
           hitSlop={10}

@@ -90,6 +90,10 @@ export default function AppLayout() {
   const pathname = usePathname();
   const rootPager = useRootPagerOptional();
 
+  const prefersSolidUnderlay =
+    (typeof pathname === "string" && pathname.startsWith("/preferences")) ||
+    segments[segments.length - 1] === "preferences";
+
   const segmentsKey = useMemo(() => segments.join("/"), [segments]);
 
   React.useEffect(() => {
@@ -188,6 +192,25 @@ export default function AppLayout() {
                     variant="tabs"
                   />
                 </View>
+
+                {/*
+                 * Fix provável (S1/H2): garante um underlay opaco e estável durante o push
+                 * para /preferences, evitando qualquer “flash” de background intermediário.
+                 */}
+                {prefersSolidUnderlay ? (
+                  <View
+                    pointerEvents="none"
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      {
+                        backgroundColor:
+                          effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900,
+                      },
+                    ]}
+                  />
+                ) : null}
 
                 <Stack
                   screenOptions={{
