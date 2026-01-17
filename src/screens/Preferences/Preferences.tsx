@@ -6,6 +6,7 @@ import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBo
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
 import { colors, spacing } from "@/src/theme";
+import { setNavCoverVisible } from "@/src/utils/navCover";
 import { navTrace } from "@/src/utils/navTrace";
 
 import { CurimbaSection } from "./components/CurimbaSection";
@@ -202,6 +203,8 @@ export default function Preferences() {
   const screenBgColor =
     __DEV__ && debugUnderlayPeek ? "transparent" : baseBgColor;
 
+  const didSignalReadyRef = React.useRef(false);
+
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
 
@@ -236,6 +239,16 @@ export default function Preferences() {
           screenBgColor,
           variant,
         });
+
+        // Produção: esconde o cover global após o primeiro layout estabilizar.
+        if (!didSignalReadyRef.current) {
+          didSignalReadyRef.current = true;
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              setNavCoverVisible(false, { reason: "preferences-ready" });
+            });
+          });
+        }
       }}
     >
       <PreferencesHeader variant={variant} />

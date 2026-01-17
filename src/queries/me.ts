@@ -555,6 +555,18 @@ export function useMyTerreirosWithRoleQuery(userId: string | null) {
   });
 }
 
+export async function prefetchPreferencesTerreiros(
+  queryClient: QueryClient,
+  params: { userId: string }
+) {
+  const key = queryKeys.preferences.terreiros(params.userId);
+  return queryClient.prefetchQuery({
+    queryKey: key,
+    staleTime: 60_000,
+    queryFn: async () => fetchMyTerreirosWithRole({ userId: params.userId }),
+  });
+}
+
 // Alias semântico: o menu Preferences consome esta lista.
 export function usePreferencesTerreirosQuery(userId: string | null) {
   return useMyTerreirosWithRoleQuery(userId);

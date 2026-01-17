@@ -36,6 +36,8 @@ import {
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
+import { prewarmPreferences } from "@/src/screens/Preferences/prewarmPreferences";
+import { setNavCoverVisible } from "@/src/utils/navCover";
 import { navTrace } from "@/src/utils/navTrace";
 import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -178,6 +180,7 @@ export function TabsHeaderWithPreferences(
   const router = useRouter();
   const pathname = usePathname();
   const segments = useSegments() as string[];
+  const queryClient = useQueryClient();
   const tabController = useTabController();
   const { user } = useAuth();
   const { effectiveTheme } = usePreferences();
@@ -187,6 +190,11 @@ export function TabsHeaderWithPreferences(
   const uiEnabled = !suspended;
 
   const segmentsKey = useMemo(() => segments.join("/"), [segments]);
+  const normalizedUserEmail =
+    typeof (user as any)?.email === "string"
+      ? String((user as any).email).trim().toLowerCase()
+      : null;
+  const userId = user?.id ?? null;
   const renderCountRef = React.useRef(0);
   renderCountRef.current += 1;
 
@@ -461,11 +469,28 @@ export function TabsHeaderWithPreferences(
           accessibilityRole="button"
           accessibilityLabel="Abrir preferências"
           onPress={() => {
+            const baseBgColor =
+              effectiveTheme === "light" ? colors.paper50 : colors.forest900;
+
+            // Produção: hard cut perceptível ("loading state" controlado).
+            // Mostra o cover ANTES do push para mascarar 1–2 frames de handoff.
+            setNavCoverVisible(true, {
+              backgroundColor: baseBgColor,
+              reason: "open-preferences",
+            });
+
             navTrace("Tap open Preferences", {
               fromPathname: pathname,
               fromSegments: segmentsKey,
               activeTab,
               headerBg,
+            });
+
+            // Pré-aquecimento: tenta deixar a tela "montadinha" mais cedo.
+            // Não bloqueia navegação (best-effort).
+            void prewarmPreferences(queryClient, {
+              userId,
+              normalizedEmail: normalizedUserEmail,
             });
 
             if (__DEV__ && visualMarkersEnabled) {
@@ -499,7 +524,11 @@ export function TabsHeaderWithPreferences(
                 peekMs,
               });
             }
-            router.push("/preferences" as any);
+
+            // Garante pelo menos um commit do cover antes do push.
+            requestAnimationFrame(() => {
+              router.push("/preferences" as any);
+            });
           }}
           onLongPress={() => {
             if (!__DEV__) return;

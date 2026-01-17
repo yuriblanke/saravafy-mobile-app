@@ -12,6 +12,7 @@ import { SaravafyLayoutMetricsProvider } from "@/src/contexts/SaravafyLayoutMetr
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
 import { colors } from "@/src/theme";
+import { useNavCoverState } from "@/src/utils/navCover";
 import { navTrace } from "@/src/utils/navTrace";
 import {
   Stack,
@@ -89,6 +90,7 @@ export default function AppLayout() {
   const segments = useSegments() as string[];
   const pathname = usePathname();
   const rootPager = useRootPagerOptional();
+  const navCover = useNavCoverState();
 
   const prefersSolidUnderlay =
     (typeof pathname === "string" && pathname.startsWith("/preferences")) ||
@@ -332,6 +334,23 @@ export default function AppLayout() {
                     }}
                   />
                 </Stack>
+
+                {navCover.visible ? (
+                  <View
+                    pointerEvents="auto"
+                    style={[
+                      StyleSheet.absoluteFillObject,
+                      {
+                        zIndex: 9999,
+                        backgroundColor:
+                          navCover.backgroundColor ??
+                          (effectiveTheme === "light"
+                            ? colors.paper50
+                            : colors.forest900),
+                      },
+                    ]}
+                  />
+                ) : null}
               </View>
             </SaravafyLayoutMetricsProvider>
           </TabControllerProvider>
