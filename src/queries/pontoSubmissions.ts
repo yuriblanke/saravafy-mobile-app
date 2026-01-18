@@ -281,18 +281,10 @@ export function useApprovedPontoAudioSubmission(
     queryKey: pontoId
       ? queryKeys.pontosSubmissions.approvedAudioByPontoId(pontoId)
       : [],
-    enabled: enabled && typeof pontoId === "string" && pontoId.trim().length > 0,
+    enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    queryFn: async () => {
-      if (!pontoId) {
-        return {
-          approvedPontoAudioId: null,
-          hasPendingAudioSubmission: false,
-        };
-      }
-      return fetchApprovedPontoAudioSubmission(pontoId);
-    },
+    queryFn: () => fetchApprovedPontoAudioSubmission(pontoId!),
     placeholderData: (prev) => prev,
   });
 }
