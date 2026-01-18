@@ -213,7 +213,6 @@ export default function Home() {
             typeof (pontoSnapshot as any).duration_seconds === "number"
               ? (pontoSnapshot as any).duration_seconds
               : null,
-          audio_url: null,
           cover_url:
             typeof (pontoSnapshot as any).cover_url === "string"
               ? (pontoSnapshot as any).cover_url

@@ -13,6 +13,7 @@ import {
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useHasAnyUploadedPontoAudio } from "@/src/hooks/pontoAudio";
+import { useApprovedPontoAudioSubmission } from "@/src/queries/pontoSubmissions";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -197,12 +198,15 @@ export default function PlayerScreen() {
 
   const activePonto = items[activeIndex]?.ponto ?? null;
 
-  const approvedPontoAudioId = useMemo(() => {
-    const raw = (activePonto as any)?.audio_url;
-    if (typeof raw !== "string") return null;
-    const trimmed = raw.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }, [activePonto]);
+  const approvedAudioSubmissionQuery = useApprovedPontoAudioSubmission(
+    activePonto?.id,
+    { enabled: !!activePonto?.id }
+  );
+
+  const approvedPontoAudioId =
+    approvedAudioSubmissionQuery.data?.approvedPontoAudioId ?? null;
+  const hasPendingFromSubmission =
+    approvedAudioSubmissionQuery.data?.hasPendingAudioSubmission ?? false;
 
   const hasUploadedAudioQuery = useHasAnyUploadedPontoAudio(activePonto?.id, {
     enabled: !approvedPontoAudioId && !!activePonto?.id,
@@ -210,9 +214,10 @@ export default function PlayerScreen() {
 
   const audioState: PlayerAudioState = useMemo(() => {
     if (approvedPontoAudioId) return "AUDIO_APPROVED";
-    if (hasUploadedAudioQuery.data === true) return "AUDIO_IN_REVIEW";
+    if (hasPendingFromSubmission || hasUploadedAudioQuery.data === true)
+      return "AUDIO_IN_REVIEW";
     return "NO_AUDIO";
-  }, [approvedPontoAudioId, hasUploadedAudioQuery.data]);
+  }, [approvedPontoAudioId, hasPendingFromSubmission, hasUploadedAudioQuery.data]);
 
   const editingInitialValues: PontoUpsertInitialValues | undefined =
     useMemo(() => {

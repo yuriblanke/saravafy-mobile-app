@@ -146,7 +146,6 @@ function toPlayerPonto(p: ListPonto): PlayerPonto {
     title: p.title,
     artist: null,
     duration_seconds: null,
-    audio_url: null,
     cover_url: null,
     lyrics: p.lyrics,
     tags: Array.isArray(p.tags) ? p.tags : [],
@@ -335,7 +334,6 @@ export default function AddToCollection() {
                 : row?.duration_seconds == null
                 ? null
                 : Number(row.duration_seconds),
-            audio_url: null,
             cover_url:
               typeof row?.cover_url === "string" ? row.cover_url : null,
             lyrics,
