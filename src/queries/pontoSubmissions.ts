@@ -284,7 +284,15 @@ export function useApprovedPontoAudioSubmission(
     enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
-    queryFn: () => fetchApprovedPontoAudioSubmission(pontoId!),
+    queryFn: () => {
+      if (!pontoId) {
+        return {
+          approvedPontoAudioId: null,
+          hasPendingAudioSubmission: false,
+        };
+      }
+      return fetchApprovedPontoAudioSubmission(pontoId);
+    },
     placeholderData: (prev) => prev,
   });
 }
