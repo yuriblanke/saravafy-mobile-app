@@ -109,6 +109,8 @@ export const queryKeys = {
     pending: () => ["pontosSubmissions", "pending"] as const,
     byId: (submissionId: string) =>
       ["pontosSubmissions", "byId", submissionId] as const,
+    approvedAudioByPontoId: (pontoId: string) =>
+      ["pontosSubmissions", "approvedAudio", pontoId] as const,
   },
   pontoAudios: {
     byPontoId: (pontoId: string) =>

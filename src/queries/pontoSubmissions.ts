@@ -214,3 +214,85 @@ export function usePontoSubmissionById(params: {
     placeholderData: (prev) => prev,
   });
 }
+
+export type ApprovedAudioSubmissionResult = {
+  approvedPontoAudioId: string | null;
+  hasPendingAudioSubmission: boolean;
+};
+
+export async function fetchApprovedPontoAudioSubmission(
+  pontoId: string
+): Promise<ApprovedAudioSubmissionResult> {
+  if (!pontoId) {
+    return {
+      approvedPontoAudioId: null,
+      hasPendingAudioSubmission: false,
+    };
+  }
+
+  const res = await supabase
+    .from("pontos_submissions")
+    .select("id, status, ponto_audio_id, reviewed_at, created_at")
+    .eq("ponto_id", pontoId)
+    .eq("kind", "audio_upload")
+    .in("status", ["approved", "pending"])
+    .order("reviewed_at", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (res.error) {
+    throw new Error(
+      toErrorMessage(res.error, "Erro ao carregar submissões de áudio.")
+    );
+  }
+
+  const rows = (res.data ?? []) as any[];
+
+  let approvedPontoAudioId: string | null = null;
+  let hasPendingAudioSubmission = false;
+
+  for (const row of rows) {
+    const status = typeof row.status === "string" ? row.status : "";
+    const pontoAudioId =
+      typeof row.ponto_audio_id === "string" ? row.ponto_audio_id : "";
+
+    if (status === "approved" && pontoAudioId) {
+      approvedPontoAudioId = pontoAudioId;
+      break;
+    }
+
+    if (status === "pending") {
+      hasPendingAudioSubmission = true;
+    }
+  }
+
+  return {
+    approvedPontoAudioId,
+    hasPendingAudioSubmission,
+  };
+}
+
+export function useApprovedPontoAudioSubmission(
+  pontoId: string | null | undefined,
+  options?: { enabled?: boolean }
+) {
+  const enabled = (options?.enabled ?? true) && !!pontoId;
+
+  return useQuery({
+    queryKey: pontoId
+      ? queryKeys.pontosSubmissions.approvedAudioByPontoId(pontoId)
+      : [],
+    enabled: enabled && typeof pontoId === "string" && pontoId.trim().length > 0,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!pontoId) {
+        return {
+          approvedPontoAudioId: null,
+          hasPendingAudioSubmission: false,
+        };
+      }
+      return fetchApprovedPontoAudioSubmission(pontoId);
+    },
+    placeholderData: (prev) => prev,
+  });
+}
