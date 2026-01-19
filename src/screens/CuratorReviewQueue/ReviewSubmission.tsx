@@ -44,6 +44,43 @@ function getErrorMessage(error: unknown): string {
   return message.trim() ? message.trim() : "Erro";
 }
 
+function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
+  const anyErr = error as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
+  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
+  if (code !== "PGRST202") return false;
+  return (
+    message.includes(`(${paramName})`) ||
+    message.includes(`parameter ${paramName}`) ||
+    message.includes(paramName)
+  );
+}
+
+/**
+ * Calls an RPC function with p_ prefixed parameters, falling back to non-prefixed
+ * parameters if PGRST202 error occurs (parameter mismatch).
+ */
+async function callRpcWithParamFallback(
+  functionName: string,
+  payloadWithPrefix: Record<string, any>
+): Promise<any> {
+  // Try with p_ prefix first (new signature)
+  let res: any = await supabase.rpc(functionName, payloadWithPrefix);
+  
+  // Fallback to old signature if param mismatch
+  if (res?.error && isRpcFunctionParamMismatch(res.error, "p_submission_id")) {
+    const fallbackPayload: Record<string, any> = {};
+    for (const [key, value] of Object.entries(payloadWithPrefix)) {
+      // Remove p_ prefix from parameter names
+      const newKey = key.startsWith("p_") ? key.substring(2) : key;
+      fallbackPayload[newKey] = value;
+    }
+    res = await supabase.rpc(functionName, fallbackPayload);
+  }
+
+  return res;
+}
+
 function mapReviewErrorToFriendlyMessage(error: unknown): string {
   const raw = getErrorMessage(error);
   const lower = raw.toLowerCase();
@@ -418,7 +455,8 @@ export default function ReviewSubmissionScreen() {
 
   const reviewNewMutation = useMutation({
     mutationFn: async (payload: RpcPayload) => {
-      const res: any = await supabase.rpc("review_ponto_submission", payload);
+      const res = await callRpcWithParamFallback("review_ponto_submission", payload);
+
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
@@ -432,10 +470,11 @@ export default function ReviewSubmissionScreen() {
 
   const approveCorrectionMutation = useMutation({
     mutationFn: async (payload: ApproveCorrectionRpcPayload) => {
-      const res: any = await supabase.rpc(
+      const res = await callRpcWithParamFallback(
         "approve_ponto_correction_submission",
         payload
       );
+
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
@@ -449,7 +488,8 @@ export default function ReviewSubmissionScreen() {
 
   const rejectMutation = useMutation({
     mutationFn: async (payload: RejectSubmissionRpcPayload) => {
-      const res: any = await supabase.rpc("reject_ponto_submission", payload);
+      const res = await callRpcWithParamFallback("reject_ponto_submission", payload);
+
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()

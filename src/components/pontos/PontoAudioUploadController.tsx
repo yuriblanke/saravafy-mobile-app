@@ -150,6 +150,14 @@ export function PontoAudioUploadController({
           interpreterConsent: typeof interpreterConsent === "boolean" ? interpreterConsent : null,
         });
 
+        if (__DEV__) {
+          console.log("[PontoAudioUploadController] init completed", {
+            pontoId: pontoIdValue,
+            pontoAudioId: init.pontoAudioId,
+            interpreterConsent: typeof interpreterConsent === "boolean" ? interpreterConsent : null,
+          });
+        }
+
         setPhase("upload");
         setProgress(0.2);
 
@@ -179,6 +187,14 @@ export function PontoAudioUploadController({
             typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
           durationMs: 0,
         });
+
+        if (__DEV__) {
+          console.log("[PontoAudioUploadController] finalize completed", {
+            pontoId: pontoIdValue,
+            pontoAudioId: init.pontoAudioId,
+            submissionId: finalizeRes.submissionId,
+          });
+        }
 
         const out: PontoAudioUploadResult = {
           pontoAudioId: init.pontoAudioId,
