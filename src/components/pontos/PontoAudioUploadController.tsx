@@ -44,7 +44,7 @@ type Props = {
   audio: PontoAudioUploadInput | null;
 
   /** Interpreter declaration/consent for public playback (required by UI). */
-  interpreterConsent?: boolean;
+  interpreterConsent: boolean;
 
   /** Optional extra guard (e.g. consent check) */
   canStart?: boolean;
@@ -117,7 +117,7 @@ export function PontoAudioUploadController({
         const interpreter = String(interpreterName ?? "").trim();
         if (!interpreter) throw new Error("Preencha o nome do intérprete.");
 
-        if (interpreterConsent === false) {
+        if (!interpreterConsent) {
           throw new Error("É necessário aceitar a declaração para enviar.");
         }
 
@@ -147,14 +147,14 @@ export function PontoAudioUploadController({
           pontoId: pontoIdValue,
           interpreterName: interpreter,
           mimeType,
-          interpreterConsent: typeof interpreterConsent === "boolean" ? interpreterConsent : null,
+          interpreterConsent,
         });
 
         if (__DEV__) {
           console.log("[PontoAudioUploadController] init completed", {
             pontoId: pontoIdValue,
             pontoAudioId: init.pontoAudioId,
-            interpreterConsent: typeof interpreterConsent === "boolean" ? interpreterConsent : null,
+            interpreterConsent,
           });
         }
 

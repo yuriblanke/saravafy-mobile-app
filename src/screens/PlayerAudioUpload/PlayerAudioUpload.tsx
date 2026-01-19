@@ -1,7 +1,7 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
 import {
   PontoAudioUploadController,
@@ -102,7 +102,7 @@ export default function PlayerAudioUpload() {
   const [consentGranted, setConsentGranted] = useState(false);
 
   const [selectedAudio, setSelectedAudio] = useState<SelectedAudio | null>(
-    null
+    null,
   );
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isDone, setIsDone] = useState(false);
@@ -154,9 +154,9 @@ export default function PlayerAudioUpload() {
         void queryClient.invalidateQueries({
           queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
         });
-          void queryClient.invalidateQueries({
-            queryKey: queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoId),
-          });
+        void queryClient.invalidateQueries({
+          queryKey: queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoId),
+        });
         void queryClient.invalidateQueries({
           queryKey: queryKeys.pontosSubmissions.pending(),
         });
@@ -290,7 +290,12 @@ function PlayerAudioUploadView(props: {
     validateSelected(next);
     onChangeSelectedAudio(next);
     onSetUploadError(null);
-  }, [ctx.isUploading, onChangeSelectedAudio, onSetUploadError, validateSelected]);
+  }, [
+    ctx.isUploading,
+    onChangeSelectedAudio,
+    onSetUploadError,
+    validateSelected,
+  ]);
 
   const progressPct = Math.round(ctx.progress * 100);
   const progressWidth = `${Math.max(0, Math.min(100, progressPct))}%` as const;
@@ -374,7 +379,10 @@ function PlayerAudioUploadView(props: {
             <Ionicons name="chevron-back" size={22} color={textPrimary} />
           </Pressable>
 
-          <Text style={[styles.headerTitle, { color: textPrimary }]} numberOfLines={1}>
+          <Text
+            style={[styles.headerTitle, { color: textPrimary }]}
+            numberOfLines={1}
+          >
             {headerTitle}
           </Text>
 
@@ -400,7 +408,9 @@ function PlayerAudioUploadView(props: {
         >
           {!isDone ? (
             <>
-              <Text style={[styles.h1, { color: textPrimary }]}>Enviar áudio deste ponto</Text>
+              <Text style={[styles.h1, { color: textPrimary }]}>
+                Enviar áudio deste ponto
+              </Text>
               <Text style={[styles.bodyText, { color: textSecondary }]}>
                 Você pode enviar um áudio cantando este ponto. O áudio ficará
                 disponível para toda a comunidade após revisão.
@@ -554,7 +564,9 @@ function PlayerAudioUploadView(props: {
                       }}
                       style={({ pressed }) => [
                         styles.primaryBtn,
-                        variant === "light" ? styles.primaryLight : styles.primaryDark,
+                        variant === "light"
+                          ? styles.primaryLight
+                          : styles.primaryDark,
                         pressed ? styles.pressed : null,
                       ]}
                     >

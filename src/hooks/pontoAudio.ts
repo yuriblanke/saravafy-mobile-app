@@ -51,7 +51,7 @@ export type LatestPontoAudioMetaByPontoIdMap = Record<
 
 export function useLatestPontoAudioMetaByPontoIds(
   pontoIds: readonly string[],
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean },
 ) {
   const ids = Array.from(new Set(pontoIds.filter(Boolean)));
   const idsHash = hashIds(ids);
@@ -108,7 +108,7 @@ export function usePontoAudios(pontoId: string | null | undefined) {
       const { data, error } = await supabase
         .from("ponto_audios")
         .select(
-          "id, ponto_id, storage_bucket, storage_path, mime_type, size_bytes, duration_ms, created_at, interpreter_name, upload_status, is_active"
+          "id, ponto_id, storage_bucket, storage_path, mime_type, size_bytes, duration_ms, created_at, interpreter_name, upload_status, is_active",
         )
         .eq("ponto_id", pontoId)
         .eq("is_active", true)
@@ -141,7 +141,7 @@ export function usePontoAudios(pontoId: string | null | undefined) {
 
 export function useHasAnyUploadedPontoAudio(
   pontoId: string | null | undefined,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean },
 ) {
   const enabled = (options?.enabled ?? true) && !!pontoId;
 
@@ -149,7 +149,8 @@ export function useHasAnyUploadedPontoAudio(
     queryKey: pontoId
       ? queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoId)
       : [],
-    enabled: enabled && typeof pontoId === "string" && pontoId.trim().length > 0,
+    enabled:
+      enabled && typeof pontoId === "string" && pontoId.trim().length > 0,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {

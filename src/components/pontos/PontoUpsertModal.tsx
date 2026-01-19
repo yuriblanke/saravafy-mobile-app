@@ -26,11 +26,6 @@ import {
   submitPontoCorrection,
 } from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
-import {
-  completePontoAudioUpload,
-  initPontoAudioUpload,
-  uploadToSignedUpload,
-} from "@/src/api/pontoAudio";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import {
   PontoAudioUploadController,
@@ -43,6 +38,7 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
+import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
 
 const fillerPng = require("@/assets/images/filler.png");
@@ -116,6 +112,7 @@ export function PontoUpsertModal({
   onCancel,
   onSuccess,
 }: Props) {
+  const router = useRouter();
   const { showToast } = useToast();
   const queryClient = useQueryClient();
 
@@ -140,8 +137,10 @@ export function PontoUpsertModal({
     mimeType?: string | null;
     sizeBytes?: number | null;
   }>(null);
-  const [submissionAudioDeclarationChecked, setSubmissionAudioDeclarationChecked] =
-    useState(false);
+  const [
+    submissionAudioDeclarationChecked,
+    setSubmissionAudioDeclarationChecked,
+  ] = useState(false);
   const [termsSheetVisible, setTermsSheetVisible] = useState(false);
 
   const [submissionAudioPontoId, setSubmissionAudioPontoId] = useState<
@@ -201,24 +200,24 @@ export function PontoUpsertModal({
     mode === "create"
       ? "Enviar ponto"
       : mode === "correction"
-      ? "Corrigir ponto"
-      : "Salvar alterações";
+        ? "Corrigir ponto"
+        : "Salvar alterações";
   const primaryCta =
     mode === "create"
       ? "Enviar ponto"
       : mode === "correction"
-      ? "Enviar correção"
-      : "Salvar alterações";
+        ? "Enviar correção"
+        : "Salvar alterações";
 
   const isBusy =
-    isSubmitting ||
-    Boolean(submissionAudioControllerRef.current?.isUploading);
+    isSubmitting || Boolean(submissionAudioControllerRef.current?.isUploading);
 
   const canSubmit = useMemo(() => {
     return title.trim().length > 0 && lyrics.trim().length > 0;
   }, [title, lyrics]);
 
-  const hasAudioAttached = !!attachedAudio;
+  const hasAudioSelected =
+    mode === "create" ? Boolean(submissionAudio) : Boolean(attachedAudio);
 
   useEffect(() => {
     if (!visible) return;
@@ -230,12 +229,12 @@ export function PontoUpsertModal({
       setAuthorName(
         typeof initialValues.author_name === "string"
           ? initialValues.author_name
-          : ""
+          : "",
       );
       setIsPublicDomain(
         typeof initialValues.is_public_domain === "boolean"
           ? initialValues.is_public_domain
-          : true
+          : true,
       );
       setLyrics(initialValues.lyrics ?? "");
       setTags(
@@ -243,7 +242,7 @@ export function PontoUpsertModal({
           ? initialValues.tags
               .map((t) => (typeof t === "string" ? t.trim() : ""))
               .filter(Boolean)
-          : []
+          : [],
       );
       setTagsInput("");
       setIssueDetails("");
@@ -305,7 +304,7 @@ export function PontoUpsertModal({
         return next;
       });
     },
-    [normalizeTag]
+    [normalizeTag],
   );
 
   const handleTagsInputChange = useCallback(
@@ -323,7 +322,7 @@ export function PontoUpsertModal({
       addTagsFromRaw(toCommit);
       setTagsInput(rest.replace(/^\s+/, ""));
     },
-    [addTagsFromRaw]
+    [addTagsFromRaw],
   );
 
   const removeTagAt = useCallback((index: number) => {
@@ -335,7 +334,7 @@ export function PontoUpsertModal({
       setRightsChecked(false);
       setRightsSheet({ reason });
     },
-    []
+    [],
   );
 
   const closeRightsSheet = useCallback(() => {
@@ -410,45 +409,29 @@ export function PontoUpsertModal({
 
       setIsTraditional(nextValue);
     },
-    [hasRightsConsent, isTraditional, mode, openRightsSheet]
+    [hasRightsConsent, isTraditional, mode, openRightsSheet],
   );
 
   const pickAudio = useCallback(async () => {
     if (mode !== "edit") return;
     if (isSubmitting) return;
 
-    const res = await DocumentPicker.getDocumentAsync({
-      type: "audio/*",
-      copyToCacheDirectory: true,
-      multiple: false,
-    });
-
-    if (res.canceled) return;
-    const asset =
-      Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
-    if (!asset?.uri) return;
-
-    const picked = {
-      uri: asset.uri,
-      name:
-        typeof asset.name === "string" && asset.name.trim()
-          ? asset.name
-          : "audio",
-      mimeType: (asset as any).mimeType ?? null,
-      size:
-        typeof (asset as any).size === "number" ? (asset as any).size : null,
-    };
-
-    // Audio always requires explicit consent; if toggle is ON, it also forces OFF after confirmation.
-    if (!hasRightsConsent) {
-      pendingAudioRef.current = picked;
-      openRightsSheet("audio");
+    if (!initialValues?.id) {
+      showToast("Ponto inválido para envio de áudio.");
       return;
     }
 
-    setAttachedAudio(picked);
-    setIsTraditional(false);
-  }, [hasRightsConsent, isSubmitting, mode, openRightsSheet]);
+    showToast("Envio de áudio agora é feito pela tela dedicada.");
+    router.push({
+      pathname: "/ponto-audio-upload" as any,
+      params: {
+        pontoId: initialValues.id,
+        pontoTitle:
+          typeof initialValues.title === "string" ? initialValues.title : "",
+      },
+    } as any);
+    return;
+  }, [initialValues?.id, initialValues?.title, isSubmitting, mode, router, showToast]);
 
   const pickSubmissionAudio = useCallback(async () => {
     if (mode !== "create") return;
@@ -487,7 +470,8 @@ export function PontoUpsertModal({
   const submissionAudioInput = useMemo(() => {
     if (!submissionAudio) return null;
     const mimeTypeRaw =
-      typeof submissionAudio.mimeType === "string" && submissionAudio.mimeType.trim()
+      typeof submissionAudio.mimeType === "string" &&
+      submissionAudio.mimeType.trim()
         ? submissionAudio.mimeType.trim()
         : "audio/m4a";
 
@@ -548,7 +532,7 @@ export function PontoUpsertModal({
 
       if (!submissionAudioDeclarationChecked) {
         setErrorMessage(
-          "Marque a declaração para enviar o áudio junto com o ponto."
+          "Marque a declaração para enviar o áudio junto com o ponto.",
         );
         return;
       }
@@ -562,7 +546,7 @@ export function PontoUpsertModal({
 
       // Regras de direitos: áudio sempre exige aceite; toggle OFF não é permitido sem aceite
       if (mode === "create") {
-        if (hasAudioAttached && !hasRightsConsent) {
+        if (hasAudioSelected && !hasRightsConsent) {
           setIsSubmitting(false);
           resumeSubmitAfterConsentRef.current = true;
           openRightsSheet("submit");
@@ -603,7 +587,7 @@ export function PontoUpsertModal({
 
           if (subErr) {
             showToast(
-              "Ponto enviado, mas não foi possível iniciar o envio do áudio. Você poderá reenviar o áudio depois."
+              "Ponto enviado, mas não foi possível iniciar o envio do áudio. Você poderá reenviar o áudio depois.",
             );
             onCancel();
             onSuccess?.();
@@ -617,7 +601,7 @@ export function PontoUpsertModal({
 
           if (!pontoIdForAudio) {
             showToast(
-              "Ponto enviado, mas o áudio não foi enviado (ID do ponto indisponível). Você poderá reenviar o áudio depois."
+              "Ponto enviado, mas o áudio não foi enviado (ID do ponto indisponível). Você poderá reenviar o áudio depois.",
             );
             onCancel();
             onSuccess?.();
@@ -635,16 +619,16 @@ export function PontoUpsertModal({
             await queryClient.invalidateQueries({
               queryKey: queryKeys.pontoAudios.byPontoId(pontoIdForAudio),
             });
-              await queryClient.invalidateQueries({
-                queryKey:
-                  queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoIdForAudio),
-              });
+            await queryClient.invalidateQueries({
+              queryKey:
+                queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoIdForAudio),
+            });
             await queryClient.invalidateQueries({
               queryKey: queryKeys.pontosSubmissions.pending(),
             });
           } catch {
             showToast(
-              "Ponto enviado, mas o áudio não foi enviado. Você pode reenviar o áudio depois."
+              "Ponto enviado, mas o áudio não foi enviado. Você pode reenviar o áudio depois.",
             );
           }
         }
@@ -696,7 +680,7 @@ export function PontoUpsertModal({
         throw new Error(
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Erro ao salvar alterações."
+            : "Erro ao salvar alterações.",
         );
       }
 
@@ -719,52 +703,18 @@ export function PontoUpsertModal({
       };
 
       if (mode === "edit" && attachedAudio) {
-        const interpreterValue = interpreterName.trim();
-        if (!interpreterValue) {
-          throw new Error("Preencha o Intérprete para enviar o áudio.");
-        }
-
-        const mimeType =
-          typeof attachedAudio.mimeType === "string" &&
-          attachedAudio.mimeType.trim()
-            ? attachedAudio.mimeType
-            : "audio/m4a";
-
-        const sizeBytesRaw =
-          typeof attachedAudio.size === "number"
-            ? attachedAudio.size
-            : await getFileSizeBytes(attachedAudio.uri);
-        if (typeof sizeBytesRaw !== "number") {
-          throw new Error("Não foi possível identificar o tamanho do áudio.");
-        }
-
-        setAudioUploadPhase("init");
-        const init = await initPontoAudioUpload({
-          pontoId,
-          interpreterName: interpreterValue,
-          mimeType,
-        });
-
-        setAudioUploadPhase("upload");
-        await uploadToSignedUpload({
-          bucket: init.bucket,
-          path: init.path,
-          signedUpload: init.signedUpload,
-          fileUri: attachedAudio.uri,
-          mimeType,
-        });
-
-        setAudioUploadPhase("complete");
-        await completePontoAudioUpload({
-          uploadToken: init.uploadToken,
-          pontoAudioId: init.pontoAudioId,
-          sizeBytes: sizeBytesRaw,
-          durationMs: 0,
-        });
-
-        await queryClient.invalidateQueries({
-          queryKey: queryKeys.pontoAudios.byPontoId(pontoId),
-        });
+        // Upload de áudio para ponto existente foi movido para o fluxo dedicado.
+        showToast("Envio de áudio agora é feito pela tela dedicada.");
+        onCancel();
+        router.push({
+          pathname: "/ponto-audio-upload" as any,
+          params: {
+            pontoId: updated.id,
+            pontoTitle: updated.title,
+          },
+        } as any);
+        onSuccess?.(updated);
+        return;
       }
 
       onCancel();
@@ -913,7 +863,9 @@ export function PontoUpsertModal({
                     pressed ? styles.sheetActionPressed : null,
                   ]}
                 >
-                  <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                  <Text
+                    style={[styles.sheetActionText, { color: textPrimary }]}
+                  >
                     Cancelar
                   </Text>
                 </Pressable>
@@ -941,7 +893,9 @@ export function PontoUpsertModal({
                     pressed ? styles.sheetActionPressed : null,
                   ]}
                 >
-                  <Text style={[styles.sheetActionText, { color: textPrimary }]}>
+                  <Text
+                    style={[styles.sheetActionText, { color: textPrimary }]}
+                  >
                     Abrir
                   </Text>
                 </Pressable>
@@ -1252,10 +1206,14 @@ export function PontoUpsertModal({
 
             {mode === "create" ? (
               <View style={styles.audioSection}>
-                <Text style={[styles.audioSectionTitle, { color: textPrimary }]}>
+                <Text
+                  style={[styles.audioSectionTitle, { color: textPrimary }]}
+                >
                   Enviar áudio deste ponto
                 </Text>
-                <Text style={[styles.audioSectionBody, { color: textSecondary }]}>
+                <Text
+                  style={[styles.audioSectionBody, { color: textSecondary }]}
+                >
                   Você pode enviar um áudio cantando este ponto. O áudio ficará
                   disponível para toda a comunidade após revisão.
                 </Text>
@@ -1275,7 +1233,9 @@ export function PontoUpsertModal({
                   </Text>
                 </Pressable>
 
-                <Text style={[styles.audioFormatsText, { color: textSecondary }]}>
+                <Text
+                  style={[styles.audioFormatsText, { color: textSecondary }]}
+                >
                   Formatos: mp3, m4a, aac, ogg, wav • Máximo: 50 MB
                 </Text>
 
@@ -1385,7 +1345,10 @@ export function PontoUpsertModal({
                       ) : null}
                     </View>
                     <Text
-                      style={[styles.audioDeclarationText, { color: textPrimary }]}
+                      style={[
+                        styles.audioDeclarationText,
+                        { color: textPrimary },
+                      ]}
                     >
                       Declaro que sou a intérprete deste áudio e autorizo a
                       reprodução pública no Saravafy.
@@ -1546,8 +1509,8 @@ export function PontoUpsertModal({
                       {mode === "create"
                         ? "Enviando…"
                         : mode === "correction"
-                        ? "Enviando…"
-                        : "Salvando…"}
+                          ? "Enviando…"
+                          : "Salvando…"}
                     </Text>
                   </View>
                 ) : (

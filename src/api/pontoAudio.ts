@@ -121,7 +121,7 @@ function serializeErrorForLog(e: unknown) {
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,
-  label: string
+  label: string,
 ) {
   let timer: ReturnType<typeof setTimeout> | null = null;
   try {
@@ -175,7 +175,7 @@ export async function callFunctionAuthed<T>(name: string, body: unknown) {
 
 async function callFunctionAuthedHttp(
   name: string,
-  body: unknown
+  body: unknown,
 ): Promise<{
   status: number;
   bodyText: string;
@@ -214,7 +214,7 @@ async function callFunctionAuthedHttp(
 
 export async function callFunctionPublic<T>(
   name: string,
-  params?: Record<string, string | number | boolean | null | undefined>
+  params?: Record<string, string | number | boolean | null | undefined>,
 ) {
   const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -246,7 +246,7 @@ export async function callFunctionPublic<T>(
     const e = new Error(
       typeof data?.message === "string" && data.message.trim()
         ? data.message
-        : `Erro ao chamar ${name}.`
+        : `Erro ao chamar ${name}.`,
     );
     (e as any).status = resp.status;
     throw e;
@@ -259,16 +259,13 @@ export async function initPontoAudioUpload(params: {
   pontoId: string;
   interpreterName: string;
   mimeType: string;
-  interpreterConsent?: boolean | null;
+  interpreterConsent: boolean;
 }) {
   const payload = {
     ponto_id: params.pontoId,
     interpreter_name: params.interpreterName,
     mime_type: params.mimeType,
-    interpreter_consent:
-      typeof params.interpreterConsent === "boolean"
-        ? params.interpreterConsent
-        : null,
+    interpreter_consent: params.interpreterConsent,
   };
 
   console.log("[audio] init start", {
@@ -280,7 +277,7 @@ export async function initPontoAudioUpload(params: {
   try {
     data = await callFunctionAuthed<InitUploadResponse>(
       "ponto-audio-init-upload",
-      payload
+      payload,
     );
   } catch (e) {
     console.log("[audio] init error", serializeErrorForLog(e));
@@ -294,15 +291,15 @@ export async function initPontoAudioUpload(params: {
       typeof data?.expires_in === "number"
         ? data.expires_in
         : typeof data?.signed_upload?.expires_in === "number"
-        ? data.signed_upload.expires_in
-        : null,
+          ? data.signed_upload.expires_in
+          : null,
     mime_type:
       typeof data?.mime_type === "string" || data?.mime_type === null
         ? data.mime_type
         : typeof data?.signed_upload?.mime_type === "string" ||
-          data?.signed_upload?.mime_type === null
-        ? data.signed_upload.mime_type
-        : params.mimeType,
+            data?.signed_upload?.mime_type === null
+          ? data.signed_upload.mime_type
+          : params.mimeType,
   });
 
   return {
@@ -354,7 +351,7 @@ export async function uploadToSignedUpload(params: {
         },
       }),
       timeoutMs,
-      `upload attempt ${attempt}`
+      `upload attempt ${attempt}`,
     );
 
     console.log("[audio] upload response", {
@@ -442,7 +439,7 @@ export async function completePontoAudioUpload(params: {
           headers: {
             Authorization: `Bearer ${accessToken}`,
           },
-        }
+        },
       );
 
       if (res.error) {
@@ -453,8 +450,8 @@ export async function completePontoAudioUpload(params: {
           typeof anyErr?.context?.body !== "undefined"
             ? anyErr.context.body
             : typeof anyErr?.context !== "undefined"
-            ? anyErr.context
-            : null;
+              ? anyErr.context
+              : null;
 
         const msg =
           typeof anyErr?.message === "string" && anyErr.message.trim()
@@ -554,8 +551,8 @@ export async function completeUploadWithRetry(params: {
       typeof anyErr?.context?.body !== "undefined"
         ? anyErr.context.body
         : typeof anyErr?.context !== "undefined"
-        ? anyErr.context
-        : null;
+          ? anyErr.context
+          : null;
 
     console.log("[audio] complete attempt", { attempt, status });
 
@@ -568,7 +565,7 @@ export async function completeUploadWithRetry(params: {
       const e = new Error(
         status === 401
           ? "Não autorizado para concluir o upload."
-          : "Sem permissão para concluir o upload."
+          : "Sem permissão para concluir o upload.",
       );
       (e as any).status = status;
       (e as any).body = bodyRaw;
@@ -629,7 +626,7 @@ export async function completeUploadWithRetry(params: {
   }
 
   throw new Error(
-    "Não foi possível concluir o upload (complete não confirmou)."
+    "Não foi possível concluir o upload (complete não confirmou).",
   );
 }
 
@@ -679,7 +676,7 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
         {
           p_ponto_audio_id: params.pontoAudioId,
           p_ponto_id: params.pontoId,
-        }
+        },
       );
 
       if (error) {
@@ -695,6 +692,25 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
           throw new Error("Sem permissão para criar a submissão de revisão.");
         }
 
+        const rawMsg =
+          typeof (error as any)?.message === "string" ? (error as any).message : "";
+        const msg = rawMsg.trim().toLowerCase();
+        if (
+          msg &&
+          msg.includes("submission") &&
+          (msg.includes("not initialized") ||
+            msg.includes("not initialised") ||
+            msg.includes("does not exist") ||
+            msg.includes("não inicial") ||
+            msg.includes("nao inicial") ||
+            msg.includes("não existe") ||
+            msg.includes("nao existe"))
+        ) {
+          throw new Error(
+            "Não foi possível concluir o envio porque a submissão não foi inicializada. Volte e tente enviar novamente.",
+          );
+        }
+
         throw error;
       }
 
@@ -702,8 +718,8 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
         typeof data === "string" || typeof data === "number"
           ? String(data)
           : data && typeof data === "object" && "id" in (data as any)
-          ? String((data as any).id)
-          : null;
+            ? String((data as any).id)
+            : null;
 
       console.log("[audio] post-upload rpc ok", {
         submission_id: submissionId,
@@ -721,24 +737,21 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
 }
 
 export async function getPontoAudioPlaybackUrl(pontoAudioId: string) {
-  const data = await callFunctionPublic<any>(
-    "ponto-audio-playback",
-    {
-      ponto_audio_id: pontoAudioId,
-    }
-  );
+  const data = await callFunctionPublic<any>("ponto-audio-playback", {
+    ponto_audio_id: pontoAudioId,
+  });
 
   const expiresRaw =
     data && typeof data === "object" && data
-      ? (data as any).expires_in_seconds ?? (data as any).expires_in
+      ? ((data as any).expires_in_seconds ?? (data as any).expires_in)
       : null;
 
   const expiresInSeconds =
     typeof expiresRaw === "number"
       ? expiresRaw
       : typeof expiresRaw === "string"
-      ? Number(expiresRaw)
-      : null;
+        ? Number(expiresRaw)
+        : null;
 
   return {
     url: typeof data?.url === "string" ? data.url : "",
