@@ -14,6 +14,7 @@ export function usePlayerAudio(params: {
   const [positionMillis, setPositionMillis] = useState(0);
   const [durationMillis, setDurationMillis] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const loadingRef = useRef(false);
 
   const hasAudio = useMemo(
     () => typeof audioUrl === "string" && audioUrl.trim().length > 0,
@@ -59,37 +60,45 @@ export function usePlayerAudio(params: {
   }, []);
 
   const load = useCallback(async () => {
-    await cleanup();
-    setError(null);
-
-    if (blocked) {
-      if (__DEV__) {
-        console.info("[Curimba] áudio bloqueado");
-      }
-      return;
-    }
-
-    if (!hasAudio) return;
+    // Prevent concurrent loads
+    if (loadingRef.current) return;
+    loadingRef.current = true;
 
     try {
-      await Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: audioUrl as string },
-        { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-        onStatus
-      );
-
-      soundRef.current = sound;
-      setIsLoaded(true);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro ao carregar áudio.");
       await cleanup();
+      setError(null);
+
+      if (blocked) {
+        if (__DEV__) {
+          console.info("[Curimba] áudio bloqueado");
+        }
+        return;
+      }
+
+      if (!hasAudio) return;
+
+      try {
+        await Audio.setAudioModeAsync({
+          allowsRecordingIOS: false,
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: false,
+          shouldDuckAndroid: true,
+        });
+
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUrl as string },
+          { shouldPlay: false, progressUpdateIntervalMillis: 250 },
+          onStatus
+        );
+
+        soundRef.current = sound;
+        setIsLoaded(true);
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Erro ao carregar áudio.");
+        await cleanup();
+      }
+    } finally {
+      loadingRef.current = false;
     }
   }, [audioUrl, blocked, cleanup, hasAudio, onStatus]);
 

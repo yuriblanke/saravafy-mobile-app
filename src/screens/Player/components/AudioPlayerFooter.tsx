@@ -40,6 +40,7 @@ export function AudioPlayerFooter(props: {
     null
   );
   const [isResolvingUrl, setIsResolvingUrl] = useState(false);
+  const [isBusy, setIsBusy] = useState(false);
   const renewalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactiveRefreshRef = useRef(0);
 
@@ -201,7 +202,11 @@ export function AudioPlayerFooter(props: {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={player.isPlaying ? "Pausar" : "Tocar"}
+          disabled={isBusy || isResolvingUrl}
           onPress={async () => {
+            // Prevent multiple simultaneous clicks
+            if (isBusy || isResolvingUrl) return;
+
             if (curimbaEnabled) {
               Alert.alert(
                 "Modo Curimba ativo",
@@ -225,8 +230,21 @@ export function AudioPlayerFooter(props: {
               return;
             }
 
+            setIsBusy(true);
             try {
-              await ensurePlaybackUrl({ force: true });
+              // If already playing, just pause
+              if (player.isPlaying) {
+                await player.togglePlayPause();
+                return;
+              }
+
+              // Ensure we have a valid URL before attempting to play
+              await ensurePlaybackUrl({ force: false });
+              
+              // Wait a bit for the player to load the new URL
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // Now toggle play
               await player.togglePlayPause();
             } catch (e) {
               const msg =
@@ -234,16 +252,18 @@ export function AudioPlayerFooter(props: {
                   ? e.message
                   : "Não foi possível tocar o áudio.";
               Alert.alert("Erro no áudio", msg);
+            } finally {
+              setIsBusy(false);
             }
           }}
           style={({ pressed }) => [
             styles.playBtn,
             { borderColor: accent },
-            (curimbaEnabled || !canPlay) && styles.playBtnDisabled,
+            (curimbaEnabled || !canPlay || isBusy || isResolvingUrl) && styles.playBtnDisabled,
             pressed && styles.playBtnPressed,
           ]}
         >
-          {isResolvingUrl ? (
+          {isResolvingUrl || isBusy ? (
             <ActivityIndicator color={accent} />
           ) : (
             <Ionicons

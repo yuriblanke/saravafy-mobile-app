@@ -44,6 +44,18 @@ function getErrorMessage(error: unknown): string {
   return message.trim() ? message.trim() : "Erro";
 }
 
+function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
+  const anyErr = error as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
+  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
+  if (code !== "PGRST202") return false;
+  return (
+    message.includes(`(${paramName})`) ||
+    message.includes(`parameter ${paramName}`) ||
+    message.includes(paramName)
+  );
+}
+
 function mapReviewErrorToFriendlyMessage(error: unknown): string {
   const raw = getErrorMessage(error);
   const lower = raw.toLowerCase();
@@ -418,7 +430,27 @@ export default function ReviewSubmissionScreen() {
 
   const reviewNewMutation = useMutation({
     mutationFn: async (payload: RpcPayload) => {
-      const res: any = await supabase.rpc("review_ponto_submission", payload);
+      // Try with p_ prefix first (new signature)
+      let res: any = await supabase.rpc("review_ponto_submission", payload);
+      
+      // Fallback to old signature if param mismatch
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_submission_id")) {
+        const fallbackPayload = {
+          submission_id: payload.p_submission_id,
+          decision: payload.p_decision,
+          review_note: payload.p_review_note,
+          title: payload.p_title,
+          lyrics: payload.p_lyrics,
+          tags: payload.p_tags,
+          artist: payload.p_artist,
+          author_name: payload.p_author_name,
+          interpreter_name: payload.p_interpreter_name,
+          has_author_consent: payload.p_has_author_consent,
+          author_contact: payload.p_author_contact,
+        };
+        res = await supabase.rpc("review_ponto_submission", fallbackPayload);
+      }
+
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
@@ -432,10 +464,21 @@ export default function ReviewSubmissionScreen() {
 
   const approveCorrectionMutation = useMutation({
     mutationFn: async (payload: ApproveCorrectionRpcPayload) => {
-      const res: any = await supabase.rpc(
+      // Try with p_ prefix first (new signature)
+      let res: any = await supabase.rpc(
         "approve_ponto_correction_submission",
         payload
       );
+      
+      // Fallback to old signature if param mismatch
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_submission_id")) {
+        const fallbackPayload = {
+          submission_id: payload.p_submission_id,
+          review_note: payload.p_review_note,
+        };
+        res = await supabase.rpc("approve_ponto_correction_submission", fallbackPayload);
+      }
+
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
@@ -449,7 +492,18 @@ export default function ReviewSubmissionScreen() {
 
   const rejectMutation = useMutation({
     mutationFn: async (payload: RejectSubmissionRpcPayload) => {
-      const res: any = await supabase.rpc("reject_ponto_submission", payload);
+      // Try with p_ prefix first (new signature)
+      let res: any = await supabase.rpc("reject_ponto_submission", payload);
+      
+      // Fallback to old signature if param mismatch
+      if (res?.error && isRpcFunctionParamMismatch(res.error, "p_submission_id")) {
+        const fallbackPayload = {
+          submission_id: payload.p_submission_id,
+          review_note: payload.p_review_note,
+        };
+        res = await supabase.rpc("reject_ponto_submission", fallbackPayload);
+      }
+
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
