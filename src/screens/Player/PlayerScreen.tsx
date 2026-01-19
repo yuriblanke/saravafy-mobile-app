@@ -12,7 +12,6 @@ import {
 } from "@/src/components/pontos/PontoUpsertModal";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
-import { useHasAnyUploadedPontoAudio } from "@/src/hooks/pontoAudio";
 import { useApprovedPontoAudioSubmission } from "@/src/queries/pontoSubmissions";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
@@ -83,8 +82,8 @@ export default function PlayerScreen() {
     typeof params.initialPontoId === "string"
       ? params.initialPontoId
       : typeof params.pontoId === "string"
-      ? params.pontoId
-      : null;
+        ? params.pontoId
+        : null;
   const initialPosition =
     typeof params.initialPosition === "string"
       ? parseIntSafe(params.initialPosition)
@@ -115,7 +114,7 @@ export default function PlayerScreen() {
 
   const { items, isLoading, error, isEmpty, reload, patchPontoById } =
     useCollectionPlayerData(
-      source === "all" ? { mode: "all", query: searchQuery } : { collectionId }
+      source === "all" ? { mode: "all", query: searchQuery } : { collectionId },
     );
 
   const membership = useTerreiroMembershipStatus(terreiroId);
@@ -134,7 +133,7 @@ export default function PlayerScreen() {
 
   const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
     { terreiroId, pontoIds },
-    { enabled: canSeeMediumTags && pontoIds.length > 0 }
+    { enabled: canSeeMediumTags && pontoIds.length > 0 },
   );
   const customTagsMap = customTagsMapQuery.data ?? {};
 
@@ -148,7 +147,7 @@ export default function PlayerScreen() {
   const [isNoAudioOpen, setIsNoAudioOpen] = useState(false);
   const [isAudioInReviewOpen, setIsAudioInReviewOpen] = useState(false);
   const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
-    null
+    null,
   );
 
   const [deleteTarget, setDeleteTarget] = useState<null | {
@@ -200,7 +199,7 @@ export default function PlayerScreen() {
 
   const approvedAudioSubmissionQuery = useApprovedPontoAudioSubmission(
     activePonto?.id,
-    { enabled: !!activePonto?.id }
+    { enabled: !!activePonto?.id },
   );
 
   const approvedPontoAudioId =
@@ -208,16 +207,11 @@ export default function PlayerScreen() {
   const hasPendingFromSubmission =
     approvedAudioSubmissionQuery.data?.hasPendingAudioSubmission ?? false;
 
-  const hasUploadedAudioQuery = useHasAnyUploadedPontoAudio(activePonto?.id, {
-    enabled: !approvedPontoAudioId && !!activePonto?.id,
-  });
-
   const audioState: PlayerAudioState = useMemo(() => {
     if (approvedPontoAudioId) return "AUDIO_APPROVED";
-    if (hasPendingFromSubmission || hasUploadedAudioQuery.data === true)
-      return "AUDIO_IN_REVIEW";
+    if (hasPendingFromSubmission) return "AUDIO_IN_REVIEW";
     return "NO_AUDIO";
-  }, [approvedPontoAudioId, hasPendingFromSubmission, hasUploadedAudioQuery.data]);
+  }, [approvedPontoAudioId, hasPendingFromSubmission]);
 
   const editingInitialValues: PontoUpsertInitialValues | undefined =
     useMemo(() => {
@@ -320,7 +314,7 @@ export default function PlayerScreen() {
     (_: ArrayLike<CollectionPlayerItem> | null | undefined, index: number) => {
       return { length: width, offset: width * index, index };
     },
-    [width]
+    [width],
   );
 
   if (isLoading) {
@@ -480,8 +474,8 @@ export default function PlayerScreen() {
                   curimbaEnabled
                     ? curimbaOnPng
                     : variant === "light"
-                    ? curimbaOffOnLightPng
-                    : curimbaOffOnDarkPng
+                      ? curimbaOffOnLightPng
+                      : curimbaOffOnDarkPng
                 }
                 style={styles.curimbaIcon}
                 resizeMode="contain"
@@ -542,7 +536,7 @@ export default function PlayerScreen() {
                   variant={variant}
                   lyricsFontSize={lyricsFontSize}
                   mediumTags={
-                    canSeeMediumTags ? customTagsMap[item.ponto.id] ?? [] : []
+                    canSeeMediumTags ? (customTagsMap[item.ponto.id] ?? []) : []
                   }
                   canAddMediumTag={canEditCustomTags}
                   onPressAddMediumTag={() =>
@@ -562,7 +556,7 @@ export default function PlayerScreen() {
             )}
             onMomentumScrollEnd={(e) => {
               const nextIndex = Math.round(
-                e.nativeEvent.contentOffset.x / width
+                e.nativeEvent.contentOffset.x / width,
               );
               if (Number.isFinite(nextIndex)) setActiveIndex(nextIndex);
             }}
@@ -695,7 +689,9 @@ export default function PlayerScreen() {
                 pressed && styles.primaryBtnPressed,
               ]}
             >
-              <Text style={styles.primaryBtnText}>Enviar áudio deste ponto</Text>
+              <Text style={styles.primaryBtnText}>
+                Enviar áudio deste ponto
+              </Text>
             </Pressable>
 
             <Pressable
@@ -726,9 +722,9 @@ export default function PlayerScreen() {
               Áudio em revisão
             </Text>
             <Text style={[styles.simpleModalBody, { color: textSecondary }]}>
-              Existe um áudio para esse ponto aguardando aprovação pelos guardiões
-              do acervo do Saravafy. O áudio ficará disponível assim que aprovado
-              pela equipe.
+              Existe um áudio para esse ponto aguardando aprovação pelos
+              guardiões do acervo do Saravafy. O áudio ficará disponível assim
+              que aprovado pela equipe.
             </Text>
 
             <Pressable

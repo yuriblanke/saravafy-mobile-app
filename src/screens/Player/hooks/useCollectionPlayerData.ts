@@ -85,11 +85,11 @@ function getErrorMessage(e: unknown): string {
 
 export function useCollectionPlayerData(
   params: PlayerDataParams,
-  options?: { enabled?: boolean; allowCachedWhileDisabled?: boolean }
+  options?: { enabled?: boolean; allowCachedWhileDisabled?: boolean },
 ) {
   const isAllMode = "mode" in params && params.mode === "all";
   const collectionId = "collectionId" in params ? params.collectionId : "";
-  const query = isAllMode && "query" in params ? params.query ?? "" : "";
+  const query = isAllMode && "query" in params ? (params.query ?? "") : "";
 
   const enabled = options?.enabled ?? true;
   const allowCachedWhileDisabled = options?.allowCachedWhileDisabled ?? false;
@@ -111,7 +111,7 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain"
+          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain",
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -206,7 +206,7 @@ export function useCollectionPlayerData(
     : collectionPontosQuery.isSuccess;
   const isEmpty = useMemo(
     () => enabled && isSuccess && !error && items.length === 0,
-    [enabled, error, isSuccess, items.length]
+    [enabled, error, isSuccess, items.length],
   );
 
   const patchPontoById = useCallback((updated: PatchablePontoFields) => {
@@ -228,22 +228,22 @@ export function useCollectionPlayerData(
                     typeof updated.artist === "string" ||
                     updated.artist === null
                       ? updated.artist
-                      : it.ponto.artist ?? null,
+                      : (it.ponto.artist ?? null),
                   author_name:
                     typeof updated.author_name === "string" ||
                     updated.author_name === null
                       ? updated.author_name
-                      : (it.ponto as any).author_name ?? null,
+                      : ((it.ponto as any).author_name ?? null),
                   is_public_domain:
                     typeof updated.is_public_domain === "boolean" ||
                     updated.is_public_domain === null
                       ? updated.is_public_domain
-                      : (it.ponto as any).is_public_domain ?? null,
+                      : ((it.ponto as any).is_public_domain ?? null),
                   lyrics: updated.lyrics,
                   tags: updated.tags,
                 },
               }
-            : it
+            : it,
         );
       });
     }
@@ -261,23 +261,23 @@ export function useCollectionPlayerData(
                 artist:
                   typeof updated.artist === "string" || updated.artist === null
                     ? updated.artist
-                    : p.artist ?? null,
+                    : (p.artist ?? null),
                 author_name:
                   typeof updated.author_name === "string" ||
                   updated.author_name === null
                     ? updated.author_name
-                    : (p as any).author_name ?? null,
+                    : ((p as any).author_name ?? null),
                 is_public_domain:
                   typeof updated.is_public_domain === "boolean" ||
                   updated.is_public_domain === null
                     ? updated.is_public_domain
-                    : (p as any).is_public_domain ?? null,
+                    : ((p as any).is_public_domain ?? null),
                 lyrics: updated.lyrics,
                 tags: updated.tags,
               }
-            : p
+            : p,
         );
-      }
+      },
     );
   }, []);
 

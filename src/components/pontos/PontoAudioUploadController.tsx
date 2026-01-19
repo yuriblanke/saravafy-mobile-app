@@ -230,7 +230,7 @@ export function PontoAudioUploadController({
       start,
       reset,
     }),
-    [errorMessage, isUploading, phase, progress, reset, result, start]
+    [errorMessage, isUploading, phase, progress, reset, result, start],
   );
 
   return <>{children(ctx)}</>;

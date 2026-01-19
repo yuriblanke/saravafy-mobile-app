@@ -693,7 +693,9 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
         }
 
         const rawMsg =
-          typeof (error as any)?.message === "string" ? (error as any).message : "";
+          typeof (error as any)?.message === "string"
+            ? (error as any).message
+            : "";
         const msg = rawMsg.trim().toLowerCase();
         if (
           msg &&

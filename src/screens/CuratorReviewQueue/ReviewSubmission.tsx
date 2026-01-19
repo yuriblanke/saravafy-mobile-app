@@ -1,9 +1,9 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { getPontoAudioPlaybackUrl } from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
-import { getPontoAudioPlaybackUrl } from "@/src/api/pontoAudio";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import {
   extractSubmissionContentFromPayload,
@@ -18,6 +18,7 @@ import {
 } from "@/src/utils/sanitizeReviewSubmission";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Audio, type AVPlaybackStatus } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -32,7 +33,6 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Audio, type AVPlaybackStatus } from "expo-av";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -62,11 +62,11 @@ function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
  */
 async function callRpcWithParamFallback(
   functionName: string,
-  payloadWithPrefix: Record<string, any>
+  payloadWithPrefix: Record<string, any>,
 ): Promise<any> {
   // Try with p_ prefix first (new signature)
   let res: any = await supabase.rpc(functionName, payloadWithPrefix);
-  
+
   // Fallback to old signature if param mismatch
   if (res?.error && isRpcFunctionParamMismatch(res.error, "p_submission_id")) {
     const fallbackPayload: Record<string, any> = {};
@@ -210,14 +210,25 @@ export default function ReviewSubmissionScreen() {
   const submission = submissionQuery.data;
 
   const kindNorm =
-    typeof submission?.kind === "string" ? submission.kind.trim().toLowerCase() : "";
+    typeof submission?.kind === "string"
+      ? submission.kind.trim().toLowerCase()
+      : "";
   const isAudioUpload = kindNorm === "audio_upload";
 
   const pontoId =
     typeof submission?.ponto_id === "string" ? submission.ponto_id : null;
   const pontoAudioId =
-    typeof (submission as any)?.ponto_audio_id === "string"
-      ? String((submission as any).ponto_audio_id)
+    typeof submission?.ponto_audio_id === "string"
+      ? submission.ponto_audio_id
+      : null;
+
+  const submissionAudioBucketId =
+    typeof submission?.audio_bucket_id === "string"
+      ? submission.audio_bucket_id
+      : null;
+  const submissionAudioObjectPath =
+    typeof submission?.audio_object_path === "string"
+      ? submission.audio_object_path
       : null;
 
   const [title, setTitle] = useState("");
@@ -232,7 +243,7 @@ export default function ReviewSubmissionScreen() {
   const soundRef = useRef<Audio.Sound | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioUrlExpiresAtMs, setAudioUrlExpiresAtMs] = useState<number | null>(
-    null
+    null,
   );
   const [isFetchingAudioUrl, setIsFetchingAudioUrl] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
@@ -304,12 +315,12 @@ export default function ReviewSubmissionScreen() {
     const content = extractSubmissionContentFromPayload(submission.payload);
     setTitle(content.title ?? "");
     setAuthorName(
-      typeof submission.author_name === "string" ? submission.author_name : ""
+      typeof submission.author_name === "string" ? submission.author_name : "",
     );
     setInterpreterName(
       typeof submission.interpreter_name === "string"
         ? submission.interpreter_name
-        : ""
+        : "",
     );
     setLyrics(content.lyrics ?? "");
     setTagsText((content.tags ?? []).join(", "));
@@ -326,7 +337,9 @@ export default function ReviewSubmissionScreen() {
 
       const res = await supabase
         .from("pontos")
-        .select("id, title, lyrics, author_name, tags, is_public_domain, duration_seconds")
+        .select(
+          "id, title, lyrics, author_name, tags, is_public_domain, duration_seconds",
+        )
         .eq("id", pontoId)
         .eq("is_active", true)
         .maybeSingle();
@@ -339,19 +352,24 @@ export default function ReviewSubmissionScreen() {
         id: String(row.id ?? ""),
         title: typeof row.title === "string" ? row.title : "",
         lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
-        author_name: typeof row.author_name === "string" ? row.author_name : null,
+        author_name:
+          typeof row.author_name === "string" ? row.author_name : null,
         tags: Array.isArray(row.tags)
           ? row.tags.filter((t: any) => typeof t === "string")
           : typeof row.tags === "string"
-          ? row.tags
-              .split(/[,|]/g)
-              .map((t: string) => t.trim())
-              .filter(Boolean)
-          : [],
+            ? row.tags
+                .split(/[,|]/g)
+                .map((t: string) => t.trim())
+                .filter(Boolean)
+            : [],
         is_public_domain:
-          typeof row.is_public_domain === "boolean" ? row.is_public_domain : null,
+          typeof row.is_public_domain === "boolean"
+            ? row.is_public_domain
+            : null,
         duration_seconds:
-          typeof row.duration_seconds === "number" ? row.duration_seconds : null,
+          typeof row.duration_seconds === "number"
+            ? row.duration_seconds
+            : null,
       } satisfies PontoRow;
     },
     placeholderData: (prev) => prev,
@@ -361,7 +379,13 @@ export default function ReviewSubmissionScreen() {
     queryKey: pontoAudioId
       ? (["pontoAudios", "metaById", pontoAudioId] as const)
       : [],
-    enabled: isAudioUpload && !!pontoAudioId,
+    // Meta is informational only; playback gating must rely on submission fields.
+    enabled:
+      isAudioUpload &&
+      submission?.has_audio === true &&
+      !!pontoAudioId &&
+      !!submissionAudioBucketId &&
+      !!submissionAudioObjectPath,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {
@@ -370,10 +394,9 @@ export default function ReviewSubmissionScreen() {
       const res = await supabase
         .from("ponto_audios")
         .select(
-          "id, interpreter_name, duration_ms, size_bytes, mime_type, upload_status, is_active"
+          "id, interpreter_name, duration_ms, size_bytes, mime_type, upload_status, is_active",
         )
         .eq("id", pontoAudioId)
-        .eq("upload_status", "uploaded")
         .eq("is_active", true)
         .maybeSingle();
 
@@ -384,8 +407,11 @@ export default function ReviewSubmissionScreen() {
       return {
         id: String(row.id ?? ""),
         interpreter_name:
-          typeof row.interpreter_name === "string" ? row.interpreter_name : null,
-        duration_ms: typeof row.duration_ms === "number" ? row.duration_ms : null,
+          typeof row.interpreter_name === "string"
+            ? row.interpreter_name
+            : null,
+        duration_ms:
+          typeof row.duration_ms === "number" ? row.duration_ms : null,
         size_bytes: typeof row.size_bytes === "number" ? row.size_bytes : null,
         mime_type: typeof row.mime_type === "string" ? row.mime_type : null,
         upload_status:
@@ -412,7 +438,10 @@ export default function ReviewSubmissionScreen() {
     if (!isAudioUpload) return;
     const meta = pontoAudioMetaQuery.data;
     if (!meta) return;
-    if (typeof meta.interpreter_name === "string" && meta.interpreter_name.trim()) {
+    if (
+      typeof meta.interpreter_name === "string" &&
+      meta.interpreter_name.trim()
+    ) {
       setInterpreterName(meta.interpreter_name.trim());
     }
   }, [isAudioUpload, pontoAudioMetaQuery.data]);
@@ -449,19 +478,22 @@ export default function ReviewSubmissionScreen() {
       (prev: PendingPontoSubmission[] | undefined) => {
         const list = Array.isArray(prev) ? prev : [];
         return list.filter((s) => s.id !== id);
-      }
+      },
     );
   };
 
   const reviewNewMutation = useMutation({
     mutationFn: async (payload: RpcPayload) => {
-      const res = await callRpcWithParamFallback("review_ponto_submission", payload);
+      const res = await callRpcWithParamFallback(
+        "review_ponto_submission",
+        payload,
+      );
 
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Erro ao revisar envio."
+            : "Erro ao revisar envio.",
         );
       }
       return res?.data ?? null;
@@ -472,14 +504,14 @@ export default function ReviewSubmissionScreen() {
     mutationFn: async (payload: ApproveCorrectionRpcPayload) => {
       const res = await callRpcWithParamFallback(
         "approve_ponto_correction_submission",
-        payload
+        payload,
       );
 
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Erro ao aprovar correção."
+            : "Erro ao aprovar correção.",
         );
       }
       return res?.data ?? null;
@@ -488,13 +520,16 @@ export default function ReviewSubmissionScreen() {
 
   const rejectMutation = useMutation({
     mutationFn: async (payload: RejectSubmissionRpcPayload) => {
-      const res = await callRpcWithParamFallback("reject_ponto_submission", payload);
+      const res = await callRpcWithParamFallback(
+        "reject_ponto_submission",
+        payload,
+      );
 
       if (res?.error) {
         throw new Error(
           typeof res.error?.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Erro ao rejeitar envio."
+            : "Erro ao rejeitar envio.",
         );
       }
       return res?.data ?? null;
@@ -673,7 +708,7 @@ export default function ReviewSubmissionScreen() {
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -746,6 +781,15 @@ export default function ReviewSubmissionScreen() {
 
   const isPublicDomain = submission.ponto_is_public_domain !== false;
   const hasAudio = isAudioUpload || submission.has_audio === true;
+
+  const isAudioReadyForPlayback =
+    isAudioUpload &&
+    submission.has_audio === true &&
+    !!pontoAudioId &&
+    typeof submissionAudioBucketId === "string" &&
+    submissionAudioBucketId.trim().length > 0 &&
+    typeof submissionAudioObjectPath === "string" &&
+    submissionAudioObjectPath.trim().length > 0;
   const authorConsentGranted = submission.author_consent_granted === true;
   const interpreterConsentGranted =
     submission.interpreter_consent_granted === true;
@@ -771,11 +815,15 @@ export default function ReviewSubmissionScreen() {
         .join(" • ");
 
   const ensureAudioUrl = async (options?: { force?: boolean }) => {
+    if (!isAudioReadyForPlayback) {
+      throw new Error("Áudio em revisão. Disponível em breve.");
+    }
     if (!pontoAudioId) throw new Error("Áudio inválido.");
 
     const force = options?.force === true;
     const isExpired =
-      typeof audioUrlExpiresAtMs === "number" && Date.now() > audioUrlExpiresAtMs;
+      typeof audioUrlExpiresAtMs === "number" &&
+      Date.now() > audioUrlExpiresAtMs;
 
     if (!force && audioUrl && !isExpired) return;
 
@@ -807,7 +855,7 @@ export default function ReviewSubmissionScreen() {
     const { sound } = await Audio.Sound.createAsync(
       { uri: audioUrl },
       { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-      onAudioStatus
+      onAudioStatus,
     );
 
     soundRef.current = sound;
@@ -817,9 +865,8 @@ export default function ReviewSubmissionScreen() {
     setAudioError(null);
     if (!isAudioUpload) return;
 
-    const metaOk = pontoAudioMetaQuery.data;
-    if (!metaOk) {
-      setAudioError("Áudio indisponível para revisão.");
+    if (!isAudioReadyForPlayback) {
+      setAudioError("Áudio em revisão. Disponível em breve.");
       return;
     }
 
@@ -833,7 +880,8 @@ export default function ReviewSubmissionScreen() {
 
     // If we have a loaded sound but URL is expired, unload and get a fresh URL for resume.
     const urlExpired =
-      typeof audioUrlExpiresAtMs === "number" && Date.now() > audioUrlExpiresAtMs;
+      typeof audioUrlExpiresAtMs === "number" &&
+      Date.now() > audioUrlExpiresAtMs;
     if (urlExpired && sound && !isAudioPlaying) {
       await stopAndUnload();
       setAudioUrl(null);
@@ -851,7 +899,7 @@ export default function ReviewSubmissionScreen() {
       setAudioError(
         e instanceof Error && e.message.trim()
           ? e.message
-          : "Não foi possível tocar o áudio."
+          : "Não foi possível tocar o áudio.",
       );
       await stopAndUnload();
     }
@@ -868,7 +916,7 @@ export default function ReviewSubmissionScreen() {
       setAudioError(
         e instanceof Error && e.message.trim()
           ? e.message
-          : "Não foi possível carregar o áudio."
+          : "Não foi possível carregar o áudio.",
       );
     }
   };
@@ -1034,34 +1082,49 @@ export default function ReviewSubmissionScreen() {
                 Áudio
               </Text>
 
-              {pontoAudioMetaQuery.isLoading ? (
-                <View style={styles.audioLoadingRow}>
-                  <ActivityIndicator />
-                  <Text style={[styles.audioMetaText, { color: textSecondary }]}>
-                    Carregando áudio…
-                  </Text>
-                </View>
-              ) : pontoAudioMetaQuery.data ? (
+              {!isAudioReadyForPlayback ? (
+                <Text style={[styles.audioMetaLine, { color: textSecondary }]}>
+                  Áudio em revisão. Disponível em breve.
+                </Text>
+              ) : (
                 <>
-                  <Text style={[styles.audioMetaText, { color: textPrimary }]}>
-                    {(
-                      typeof pontoAudioMetaQuery.data.interpreter_name ===
-                        "string" &&
-                      pontoAudioMetaQuery.data.interpreter_name.trim()
-                        ? pontoAudioMetaQuery.data.interpreter_name.trim()
-                        : "Interpretação não informada"
-                    ).trim()}
-                  </Text>
+                  {pontoAudioMetaQuery.isLoading ? (
+                    <View style={styles.audioLoadingRow}>
+                      <ActivityIndicator />
+                      <Text
+                        style={[styles.audioMetaText, { color: textSecondary }]}
+                      >
+                        Carregando detalhes do áudio…
+                      </Text>
+                    </View>
+                  ) : pontoAudioMetaQuery.data ? (
+                    <>
+                      <Text
+                        style={[styles.audioMetaText, { color: textPrimary }]}
+                      >
+                        {(typeof pontoAudioMetaQuery.data.interpreter_name ===
+                          "string" &&
+                        pontoAudioMetaQuery.data.interpreter_name.trim()
+                          ? pontoAudioMetaQuery.data.interpreter_name.trim()
+                          : "Interpretação não informada"
+                        ).trim()}
+                      </Text>
 
-                  <Text style={[styles.audioMetaLine, { color: textSecondary }]}>
-                    {[
-                      formatDurationFromMs(pontoAudioMetaQuery.data.duration_ms),
-                      formatBytesAsMb(pontoAudioMetaQuery.data.size_bytes),
-                      formatFromMime(pontoAudioMetaQuery.data.mime_type),
-                    ]
-                      .filter((v) => typeof v === "string" && v.trim())
-                      .join(" • ")}
-                  </Text>
+                      <Text
+                        style={[styles.audioMetaLine, { color: textSecondary }]}
+                      >
+                        {[
+                          formatDurationFromMs(
+                            pontoAudioMetaQuery.data.duration_ms,
+                          ),
+                          formatBytesAsMb(pontoAudioMetaQuery.data.size_bytes),
+                          formatFromMime(pontoAudioMetaQuery.data.mime_type),
+                        ]
+                          .filter((v) => typeof v === "string" && v.trim())
+                          .join(" • ")}
+                      </Text>
+                    </>
+                  ) : null}
 
                   <View style={styles.audioStatusRow}>
                     <Badge label="Pronto para ouvir" variant={variant} />
@@ -1071,7 +1134,10 @@ export default function ReviewSubmissionScreen() {
                   {audioError ? (
                     <View style={styles.audioErrorBox}>
                       <Text
-                        style={[styles.audioErrorText, { color: colors.brass600 }]}
+                        style={[
+                          styles.audioErrorText,
+                          { color: colors.brass600 },
+                        ]}
                       >
                         {audioError}
                       </Text>
@@ -1123,10 +1189,6 @@ export default function ReviewSubmissionScreen() {
                     </Text>
                   </Pressable>
                 </>
-              ) : (
-                <Text style={[styles.audioMetaLine, { color: colors.brass600 }]}>
-                  Áudio indisponível para revisão.
-                </Text>
               )}
             </View>
           ) : null}

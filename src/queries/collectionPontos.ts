@@ -42,7 +42,7 @@ function getErrorMessage(e: unknown): string {
 }
 
 export async function fetchCollectionPontosItems(
-  collectionId: string
+  collectionId: string,
 ): Promise<CollectionPlayerItem[]> {
   if (!collectionId) {
     throw new Error("Collection inválida.");
@@ -51,7 +51,7 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      "position, pontos:ponto_id (id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain)"
+      "position, pontos:ponto_id (id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain)",
     )
     .eq("collection_id", collectionId)
     .order("position", { ascending: true });
@@ -135,7 +135,7 @@ export function getCollectionPontosQueryOptions(collectionId: string) {
 
 export function useCollectionPontosQuery(
   collectionId: string,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean },
 ) {
   const enabled = options?.enabled ?? true;
 

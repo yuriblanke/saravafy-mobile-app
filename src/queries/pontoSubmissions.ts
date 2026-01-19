@@ -14,6 +14,9 @@ export type PendingPontoSubmission = {
   ponto_id?: string | null;
   ponto_audio_id?: string | null;
 
+  audio_bucket_id?: string | null;
+  audio_object_path?: string | null;
+
   payload?: unknown;
 
   ponto_is_public_domain?: boolean | null;
@@ -42,7 +45,7 @@ function coerceTags(value: unknown): string[] {
 }
 
 export function getSubmissionPayloadObject(
-  payload: unknown
+  payload: unknown,
 ): Record<string, unknown> {
   if (!payload || typeof payload !== "object") return {};
   if (Array.isArray(payload)) return {};
@@ -86,7 +89,7 @@ export async function fetchPendingPontoSubmissions(): Promise<
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, ponto_audio_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted"
+      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, ponto_audio_id, audio_bucket_id, audio_object_path, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted",
     )
     .eq("status", "pending")
     .order("created_at", { ascending: false });
@@ -106,6 +109,10 @@ export async function fetchPendingPontoSubmissions(): Promise<
     ponto_id: typeof row.ponto_id === "string" ? row.ponto_id : null,
     ponto_audio_id:
       typeof row.ponto_audio_id === "string" ? row.ponto_audio_id : null,
+    audio_bucket_id:
+      typeof row.audio_bucket_id === "string" ? row.audio_bucket_id : null,
+    audio_object_path:
+      typeof row.audio_object_path === "string" ? row.audio_object_path : null,
     payload: row.payload ?? null,
     ponto_is_public_domain:
       typeof row.ponto_is_public_domain === "boolean"
@@ -129,14 +136,14 @@ export async function fetchPendingPontoSubmissions(): Promise<
 }
 
 export async function fetchPontoSubmissionById(
-  submissionId: string
+  submissionId: string,
 ): Promise<PendingPontoSubmission | null> {
   if (!submissionId) return null;
 
   const res = await supabase
     .from("pontos_submissions")
     .select(
-      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, ponto_audio_id, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted"
+      "id, kind, status, created_at, created_by, reviewed_at, reviewed_by, ponto_id, ponto_audio_id, audio_bucket_id, audio_object_path, payload, ponto_is_public_domain, author_name, author_consent_granted, terms_version, has_audio, interpreter_name, interpreter_consent_granted",
     )
     .eq("id", submissionId)
     .maybeSingle();
@@ -162,6 +169,10 @@ export async function fetchPontoSubmissionById(
     ponto_id: typeof row.ponto_id === "string" ? row.ponto_id : null,
     ponto_audio_id:
       typeof row.ponto_audio_id === "string" ? row.ponto_audio_id : null,
+    audio_bucket_id:
+      typeof row.audio_bucket_id === "string" ? row.audio_bucket_id : null,
+    audio_object_path:
+      typeof row.audio_object_path === "string" ? row.audio_object_path : null,
     payload: row.payload ?? null,
     ponto_is_public_domain:
       typeof row.ponto_is_public_domain === "boolean"
@@ -221,7 +232,7 @@ export type ApprovedAudioSubmissionResult = {
 };
 
 export async function fetchApprovedPontoAudioSubmission(
-  pontoId: string
+  pontoId: string,
 ): Promise<ApprovedAudioSubmissionResult> {
   if (!pontoId) {
     return {
@@ -241,7 +252,7 @@ export async function fetchApprovedPontoAudioSubmission(
 
   if (res.error) {
     throw new Error(
-      toErrorMessage(res.error, "Erro ao carregar submissões de áudio.")
+      toErrorMessage(res.error, "Erro ao carregar submissões de áudio."),
     );
   }
 
@@ -273,7 +284,7 @@ export async function fetchApprovedPontoAudioSubmission(
 
 export function useApprovedPontoAudioSubmission(
   pontoId: string | null | undefined,
-  options?: { enabled?: boolean }
+  options?: { enabled?: boolean },
 ) {
   const enabled = (options?.enabled ?? true) && !!pontoId;
 

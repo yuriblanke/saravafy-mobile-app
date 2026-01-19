@@ -38,8 +38,8 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
-import { useRouter } from "expo-router";
 import * as FileSystem from "expo-file-system";
+import { useRouter } from "expo-router";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -431,7 +431,14 @@ export function PontoUpsertModal({
       },
     } as any);
     return;
-  }, [initialValues?.id, initialValues?.title, isSubmitting, mode, router, showToast]);
+  }, [
+    initialValues?.id,
+    initialValues?.title,
+    isSubmitting,
+    mode,
+    router,
+    showToast,
+  ]);
 
   const pickSubmissionAudio = useCallback(async () => {
     if (mode !== "create") return;
