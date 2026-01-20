@@ -2,9 +2,13 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
-  getPontoAudioPlaybackUrlReview,
-  getReviewPlaybackUrlEnsured,
-} from "@/src/api/pontoAudio";
+  ensureLoaded,
+  getCurrentSubmissionId,
+  loadAndPlay,
+  seekToSeconds,
+  togglePlayPause,
+  useRntpPlayback,
+} from "@/src/audio/rntpService";
 import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
@@ -22,7 +26,6 @@ import {
 } from "@/src/utils/sanitizeReviewSubmission";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Audio, type AVPlaybackStatus } from "expo-av";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -286,89 +289,25 @@ export default function ReviewSubmissionScreen() {
   const [inlineError, setInlineError] = useState<string | null>(null);
 
   // --- Secure audio playback state (audio_upload only) ---
-  const soundRef = useRef<Audio.Sound | null>(null);
-  const loadedAudioUrlRef = useRef<string | null>(null);
-  const audioModePromiseRef = useRef<Promise<void> | null>(null);
-  const [audioUrl, setAudioUrl] = useState<string | null>(null);
-  const [audioUrlExpiresAtMs, setAudioUrlExpiresAtMs] = useState<number | null>(
-    null,
-  );
-  const [isFetchingAudioUrl, setIsFetchingAudioUrl] = useState(false);
-  const [isStartingPlayback, setIsStartingPlayback] = useState(false);
-  const inFlightPlaybackRef = useRef<Promise<void> | null>(null);
-  const [audioError, setAudioError] = useState<string | null>(null);
-  const [isAudioPlaying, setIsAudioPlaying] = useState(false);
-  const [audioPositionMillis, setAudioPositionMillis] = useState(0);
-  const [audioDurationMillis, setAudioDurationMillis] = useState(0);
+  // RNTP is the single source of truth; no expo-av, no URL caching/refresh.
+  const rntp = useRntpPlayback(250);
+  const [audioUiError, setAudioUiError] = useState<string | null>(null);
   const audioPreloadStartedRef = useRef(false);
-  const audioDurationLoggedRef = useRef(false);
-  const lastAudioUrlErrorRef = useRef<{
-    status: number | null;
-    noRetry: boolean;
-    message: string;
-  } | null>(null);
+
+  const isThisSubmissionCurrent =
+    rntp.current?.kind === "review" && rntp.current.id === submissionId;
+  const isAudioPlaying = isThisSubmissionCurrent && rntp.isPlaying;
+  const audioPositionMillis = isThisSubmissionCurrent ? rntp.positionMillis : 0;
+  const audioDurationMillis = isThisSubmissionCurrent ? rntp.durationMillis : 0;
+  const audioError =
+    isThisSubmissionCurrent && rntp.error ? rntp.error : audioUiError;
+  const isStartingPlayback = rntp.isLoading;
 
   const hydratedRef = useRef(false);
 
-  const stopAndUnload = async () => {
-    const sound = soundRef.current;
-    soundRef.current = null;
-    loadedAudioUrlRef.current = null;
-    setIsAudioPlaying(false);
-    setAudioPositionMillis(0);
-    setAudioDurationMillis(0);
-
-    if (sound) {
-      try {
-        await sound.stopAsync();
-      } catch {
-        // ignore
-      }
-      try {
-        await sound.unloadAsync();
-      } catch {
-        // ignore
-      }
-    }
-  };
-
-  const onAudioStatus = (status: AVPlaybackStatus) => {
-    if (!status.isLoaded) {
-      setIsAudioPlaying(false);
-      setAudioPositionMillis(0);
-      setAudioDurationMillis(0);
-      return;
-    }
-
-    setIsAudioPlaying(Boolean(status.isPlaying));
-    setAudioPositionMillis(
-      typeof status.positionMillis === "number" ? status.positionMillis : 0,
-    );
-    setAudioDurationMillis(
-      typeof status.durationMillis === "number" ? status.durationMillis : 0,
-    );
-
-    if (
-      !audioDurationLoggedRef.current &&
-      typeof status.durationMillis === "number" &&
-      status.durationMillis > 0
-    ) {
-      audioDurationLoggedRef.current = true;
-      console.log("[review-audio-upload] duration:detected", {
-        submissionId,
-        pontoAudioId,
-        duration_ms: status.durationMillis,
-      });
-    }
-    if ((status as any).didJustFinish) {
-      setIsAudioPlaying(false);
-    }
-  };
-
   const handleSeekAudio = async (nextPositionMillis: number) => {
-    const sound = soundRef.current;
-    if (!sound) return;
     if (!audioDurationMillis) return;
+    if (getCurrentSubmissionId() !== submissionId) return;
 
     const clamped = Math.max(
       0,
@@ -376,8 +315,7 @@ export default function ReviewSubmissionScreen() {
     );
 
     try {
-      await sound.setPositionAsync(clamped);
-      setAudioPositionMillis(clamped);
+      await seekToSeconds(clamped / 1000);
     } catch {
       // best-effort only
     }
@@ -386,7 +324,6 @@ export default function ReviewSubmissionScreen() {
   useEffect(() => {
     hydratedRef.current = false;
     audioPreloadStartedRef.current = false;
-    audioDurationLoggedRef.current = false;
     setTitle("");
     setAuthorName("");
     setInterpreterName("");
@@ -396,19 +333,8 @@ export default function ReviewSubmissionScreen() {
     setInlineError(null);
 
     // Reset audio playback state on submission change.
-    setAudioError(null);
-    setAudioUrl(null);
-    setAudioUrlExpiresAtMs(null);
-    void stopAndUnload();
+    setAudioUiError(null);
   }, [submissionId]);
-
-  // Cleanup on exit.
-  useEffect(() => {
-    return () => {
-      void stopAndUnload();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   useEffect(() => {
     if (hydratedRef.current) return;
@@ -436,27 +362,34 @@ export default function ReviewSubmissionScreen() {
     if (!isAudioUpload) return;
     if (!isAudioReadyForPlayback) return;
     if (!submissionId) return;
-    if (!pontoAudioId) return;
 
     if (audioPreloadStartedRef.current) return;
-    audioPreloadStartedRef.current = true;
 
-    console.log("[review-audio-upload] preload:start", {
-      submissionId,
-      pontoAudioId,
-    });
+    // Don't disrupt another global track (single source of truth).
+    if (
+      rntp.current !== null &&
+      !(rntp.current.kind === "review" && rntp.current.id === submissionId)
+    ) {
+      return;
+    }
+
+    audioPreloadStartedRef.current = true;
 
     void (async () => {
       try {
-        const url = await ensureAudioUrl({ force: false });
-        if (!url) throw new Error("Não foi possível carregar o áudio.");
-        await loadAudio(url);
-        console.log("[review-audio-upload] preload:loaded", {
+        setAudioUiError(null);
+
+        await ensureLoaded({
+          kind: "review",
           submissionId,
-          pontoAudioId,
+          title: title.trim() ? title.trim() : "Ponto",
+          artist:
+            interpreterName.trim() || authorName.trim()
+              ? (interpreterName.trim() || authorName.trim())
+              : null,
         });
       } catch (e) {
-        setAudioError(
+        setAudioUiError(
           e instanceof Error && e.message.trim()
             ? e.message
             : "Não foi possível carregar o áudio.",
@@ -465,7 +398,7 @@ export default function ReviewSubmissionScreen() {
     })();
     // Intentionally do not depend on ensureAudioUrl/loadAudio; we run once per submission.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAudioReadyForPlayback, isAudioUpload, pontoAudioId, submissionId]);
+  }, [isAudioReadyForPlayback, isAudioUpload, submissionId]);
 
   const pontoQuery = useQuery({
     queryKey: pontoId ? (["pontos", "byId", pontoId] as const) : [],
@@ -1208,294 +1141,45 @@ export default function ReviewSubmissionScreen() {
         .filter(Boolean)
         .join(" • ");
 
-  async function ensureAudioUrl(options?: { force?: boolean }) {
-    if (!isAudioReadyForPlayback) {
-      throw new Error("Áudio em revisão. Disponível em breve.");
-    }
-    if (!pontoAudioId) throw new Error("Áudio inválido.");
-
-    const force = options?.force === true;
-    const isExpired =
-      typeof audioUrlExpiresAtMs === "number" &&
-      Date.now() > audioUrlExpiresAtMs;
-
-    if (!force && audioUrl && !isExpired) return audioUrl;
-
-    setIsFetchingAudioUrl(true);
-    try {
-      const callByAudioId = async () =>
-        await getPontoAudioPlaybackUrlReview(pontoAudioId);
-
-      if (submissionId) {
-        try {
-          const entry = await getReviewPlaybackUrlEnsured(submissionId);
-          if (!entry?.url || typeof entry.url !== "string") {
-            throw new Error("Não foi possível obter a URL do áudio.");
-          }
-          setAudioUrl(entry.url);
-          setAudioUrlExpiresAtMs(entry.expiresAtMs);
-          lastAudioUrlErrorRef.current = null;
-          return entry.url;
-        } catch (err) {
-          const kind =
-            typeof (err as any)?.playbackKind === "string"
-              ? (err as any).playbackKind
-              : null;
-          if (kind !== "object_not_found") throw err;
-
-          const res = await callByAudioId();
-          if (!res.url || typeof res.url !== "string") {
-            throw new Error("Não foi possível obter a URL do áudio.");
-          }
-          setAudioUrl(res.url);
-          setAudioUrlExpiresAtMs(Date.now() + res.expiresIn * 1000);
-          lastAudioUrlErrorRef.current = null;
-          return res.url as string;
-        }
-      }
-
-      const res = await callByAudioId();
-      if (!res.url || typeof res.url !== "string") {
-        throw new Error("Não foi possível obter a URL do áudio.");
-      }
-      setAudioUrl(res.url);
-      setAudioUrlExpiresAtMs(Date.now() + res.expiresIn * 1000);
-      lastAudioUrlErrorRef.current = null;
-      return res.url as string;
-    } catch (e) {
-      const kind =
-        typeof (e as any)?.playbackKind === "string"
-          ? (e as any).playbackKind
-          : null;
-      if (__DEV__ && kind === "object_not_found") {
-        console.log("[audio] playback object not found (review)", {
-          submissionId,
-          pontoAudioId,
-          audio_bucket_id: submissionAudioBucketId,
-          audio_object_path: submissionAudioObjectPath,
-          sbRequestId: (e as any)?.sbRequestId ?? null,
-          status: (e as any)?.status ?? null,
-        });
-      }
-
-      const status =
-        typeof (e as any)?.status === "number" ? (e as any).status : null;
-      const noRetry = (e as any)?.noRetry === true;
-      const message =
-        e instanceof Error && e.message.trim()
-          ? e.message.trim()
-          : "Não foi possível carregar o áudio.";
-      lastAudioUrlErrorRef.current = { status, noRetry, message };
-      throw e;
-    } finally {
-      setIsFetchingAudioUrl(false);
-    }
-  }
-
-  async function ensureAudioMode() {
-    if (!audioModePromiseRef.current) {
-      audioModePromiseRef.current = Audio.setAudioModeAsync({
-        allowsRecordingIOS: false,
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
-      });
-    }
-    await audioModePromiseRef.current;
-  }
-
-  function getUrlHostSafe(url: string) {
-    try {
-      return new URL(url).host;
-    } catch {
-      return null;
-    }
-  }
-
-  async function loadAudio(url: string) {
-    const urlHost = getUrlHostSafe(url);
-
-    if (__DEV__) {
-      console.log("[AUDIO][LOAD_START]", { url_host: urlHost, mode: "review" });
-    }
-
-    await ensureAudioMode();
-
-    // If there's an existing sound instance, unload it before loading another.
-    if (soundRef.current) {
-      await stopAndUnload();
-    }
-
-    try {
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: url },
-        { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-        onAudioStatus,
-      );
-
-      soundRef.current = sound;
-      loadedAudioUrlRef.current = url;
-
-      if (__DEV__) {
-        console.log("[AUDIO][LOAD_OK]");
-      }
-    } catch (e) {
-      if (__DEV__) {
-        console.log("[AUDIO][LOAD_ERR]", {
-          error_string: e instanceof Error ? e.message : String(e),
-          error:
-            e instanceof Error
-              ? { name: e.name, message: e.message, stack: e.stack }
-              : String(e),
-        });
-      }
-      throw e;
-    }
-  }
-
-  const delayMs = async (ms: number) =>
-    await new Promise<void>((resolve) => setTimeout(resolve, ms));
-
   const handleTogglePlay = async () => {
-    if (inFlightPlaybackRef.current) return;
+    setAudioUiError(null);
 
-    const op = (async () => {
-      setAudioError(null);
-      if (!isAudioUpload) return;
+    if (!isAudioUpload) return;
 
-      if (!isAudioReadyForPlayback) {
-        setAudioError("Áudio em revisão. Disponível em breve.");
-        return;
-      }
-
-      const sound = soundRef.current;
-
-      // Pause if already playing.
-      if (sound && isAudioPlaying) {
-        await sound.pauseAsync();
-        return;
-      }
-
-      // If we have a loaded sound but URL is expired, unload and get a fresh URL for resume.
-      const urlExpired =
-        typeof audioUrlExpiresAtMs === "number" &&
-        Date.now() > audioUrlExpiresAtMs;
-      if (urlExpired && sound && !isAudioPlaying) {
-        await stopAndUnload();
-        setAudioUrl(null);
-        setAudioUrlExpiresAtMs(null);
-      }
-
-      try {
-        setIsStartingPlayback(true);
-
-        const url = await ensureAudioUrl();
-        const nextUrl =
-          typeof url === "string" && url.trim()
-            ? url
-            : typeof audioUrl === "string" && audioUrl.trim()
-              ? audioUrl
-              : null;
-        if (!nextUrl) throw new Error("Não foi possível carregar o áudio.");
-
-        const attemptPlayOnce = async () => {
-          // REQUIRED sequence (await each step):
-          await ensureAudioMode();
-          await stopAndUnload();
-          await loadAudio(nextUrl);
-          const nextSound = soundRef.current;
-          if (!nextSound) throw new Error("Não foi possível carregar o áudio.");
-          await nextSound.playAsync();
-        };
-
-        try {
-          await attemptPlayOnce();
-        } catch (firstErr) {
-          if (__DEV__) {
-            console.log("[AUDIO][RETRY_ONCE]", {
-              attempt: 1,
-              error_string:
-                firstErr instanceof Error ? firstErr.message : String(firstErr),
-              error:
-                firstErr instanceof Error
-                  ? {
-                      name: firstErr.name,
-                      message: firstErr.message,
-                      stack: firstErr.stack,
-                    }
-                  : String(firstErr),
-            });
-          }
-
-          await stopAndUnload();
-          await delayMs(200);
-
-          try {
-            await attemptPlayOnce();
-            if (__DEV__) {
-              console.log("[AUDIO][RETRY_OK]");
-            }
-          } catch (secondErr) {
-            if (__DEV__) {
-              console.log("[AUDIO][RETRY_FAILED]", {
-                error_string:
-                  secondErr instanceof Error
-                    ? secondErr.message
-                    : String(secondErr),
-                error:
-                  secondErr instanceof Error
-                    ? {
-                        name: secondErr.name,
-                        message: secondErr.message,
-                        stack: secondErr.stack,
-                      }
-                    : String(secondErr),
-              });
-            }
-            throw secondErr;
-          }
-        }
-      } catch (e) {
-        setAudioError(
-          e instanceof Error && e.message.trim()
-            ? e.message
-            : "Não foi possível tocar o áudio.",
-        );
-        await stopAndUnload();
-      } finally {
-        setIsStartingPlayback(false);
-      }
-    })();
-
-    inFlightPlaybackRef.current = op;
-    try {
-      await op;
-    } finally {
-      if (inFlightPlaybackRef.current === op) {
-        inFlightPlaybackRef.current = null;
-      }
-    }
-  };
-
-  const handleRetryAudio = async () => {
-    setAudioError(null);
-
-    if (lastAudioUrlErrorRef.current?.noRetry) {
-      setAudioError(lastAudioUrlErrorRef.current.message);
+    if (!isAudioReadyForPlayback) {
+      setAudioUiError("Áudio em revisão. Disponível em breve.");
       return;
     }
 
-    await stopAndUnload();
-    setAudioUrl(null);
-    setAudioUrlExpiresAtMs(null);
+    if (!submissionId) {
+      setAudioUiError("Envio inválido.");
+      return;
+    }
+
+    const reqTitle = title.trim() ? title.trim() : "Ponto";
+    const reqArtist =
+      interpreterName.trim() || authorName.trim()
+        ? (interpreterName.trim() || authorName.trim())
+        : null;
+
     try {
-      await ensureAudioUrl({ force: true });
+      if (getCurrentSubmissionId() === submissionId) {
+        await togglePlayPause();
+        return;
+      }
+
+      await loadAndPlay({
+        kind: "review",
+        submissionId,
+        title: reqTitle,
+        artist: reqArtist,
+      });
     } catch (e) {
-      setAudioError(
+      const msg =
         e instanceof Error && e.message.trim()
-          ? e.message
-          : "Não foi possível carregar o áudio.",
-      );
+          ? e.message.trim()
+          : "Não foi possível tocar o áudio.";
+      setAudioUiError(msg);
     }
   };
 
@@ -1719,30 +1403,12 @@ export default function ReviewSubmissionScreen() {
                       >
                         {audioError}
                       </Text>
-                      <Pressable
-                        accessibilityRole="button"
-                        onPress={() => void handleRetryAudio()}
-                        style={({ pressed }) => [
-                          styles.audioRetryBtn,
-                          { borderColor: colors.brass600 },
-                          pressed ? styles.audioRetryBtnPressed : null,
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            styles.audioRetryText,
-                            { color: colors.brass600 },
-                          ]}
-                        >
-                          Tentar novamente
-                        </Text>
-                      </Pressable>
                     </View>
                   ) : null}
 
                   <Pressable
                     accessibilityRole="button"
-                    disabled={isFetchingAudioUrl || isStartingPlayback}
+                    disabled={isStartingPlayback}
                     onPress={() => void handleTogglePlay()}
                     style={({ pressed }) => [
                       styles.audioPlayBtn,
@@ -1751,12 +1417,10 @@ export default function ReviewSubmissionScreen() {
                         borderWidth: tagOutlineWidth,
                       },
                       pressed ? styles.audioPlayBtnPressed : null,
-                      isFetchingAudioUrl || isStartingPlayback
-                        ? { opacity: 0.7 }
-                        : null,
+                      isStartingPlayback ? { opacity: 0.7 } : null,
                     ]}
                   >
-                    {isFetchingAudioUrl || isStartingPlayback ? (
+                    {isStartingPlayback ? (
                       <ActivityIndicator color={colors.brass600} />
                     ) : (
                       <Ionicons
@@ -1778,7 +1442,7 @@ export default function ReviewSubmissionScreen() {
                       audioDurationMillis ? audioPositionMillis : 0
                     }
                     durationMillis={audioDurationMillis}
-                    disabled={isFetchingAudioUrl || isStartingPlayback}
+                    disabled={isStartingPlayback}
                     accentColor={colors.brass600}
                     trackBorderColor={inputBorder}
                     onSeek={handleSeekAudio}

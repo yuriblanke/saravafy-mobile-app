@@ -19,7 +19,7 @@ function variantFromEasBuildProfile(profile: string): CanonicalVariant {
       return "production";
     default:
       throw new Error(
-        `[app.config] Invalid EAS_BUILD_PROFILE: "${profile}" (expected: development | preview | production)`
+        `[app.config] Invalid EAS_BUILD_PROFILE: "${profile}" (expected: development | preview | production)`,
       );
   }
 }
@@ -35,7 +35,7 @@ function variantFromAppVariant(value: string): CanonicalVariant {
       return "dev";
     default:
       throw new Error(
-        `[app.config] Invalid APP_VARIANT: "${value}" (expected: dev | preview | production)`
+        `[app.config] Invalid APP_VARIANT: "${value}" (expected: dev | preview | production)`,
       );
   }
 }
@@ -43,8 +43,8 @@ function variantFromAppVariant(value: string): CanonicalVariant {
 const APP_VARIANT: CanonicalVariant = process.env.EAS_BUILD_PROFILE
   ? variantFromEasBuildProfile(process.env.EAS_BUILD_PROFILE)
   : process.env.APP_VARIANT
-  ? variantFromAppVariant(process.env.APP_VARIANT)
-  : "production";
+    ? variantFromAppVariant(process.env.APP_VARIANT)
+    : "production";
 
 const IS_DEV = APP_VARIANT === "dev";
 

@@ -30,6 +30,11 @@ Se o projeto já estiver na variante `dev`, reinstalações não exigem rebuild 
 
 Quando você adiciona/remove módulos nativos (ex.: `expo-document-picker`), é necessário rebuildar o app nativo (dev client).
 
+Exemplo de módulo nativo (requer rebuild): `react-native-track-player`.
+
+Se aparecer `INSTALL_FAILED_USER_RESTRICTED` ao instalar o APK via `expo run:android`, é porque o Android bloqueou a instalação no dispositivo.
+Resolva aceitando o prompt no aparelho ou habilitando **Install via USB** nas opções de desenvolvedor.
+
 ---
 
 ## Reinstalar Saravafy Dev (sem rebuild)

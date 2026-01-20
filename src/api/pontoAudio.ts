@@ -1218,7 +1218,7 @@ async function getPontoAudioPlaybackUrlInternal(
     expiresIn:
       typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)
         ? expiresInSeconds
-        : 60,
+        : 3600,
     mimeType:
       typeof (data as any)?.mime_type === "string"
         ? (data as any).mime_type
@@ -1322,7 +1322,7 @@ export async function getReviewPlaybackUrlEnsured(submissionId: string) {
       const expiresInSeconds =
         typeof res?.expiresIn === "number" && Number.isFinite(res.expiresIn)
           ? res.expiresIn
-          : 60;
+          : 3600;
 
       const entry: ReviewPlaybackUrlCacheEntry = {
         url: res.url,
