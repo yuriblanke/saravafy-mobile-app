@@ -54,6 +54,20 @@ const inFlightPostUploadByPontoAudioId = new Map<
   Promise<{ ok: true; submissionId: string | null }>
 >();
 
+type ReviewPlaybackUrlCacheEntry = {
+  url: string;
+  fetchedAtMs: number;
+  expiresAtMs: number;
+};
+
+const REVIEW_PLAYBACK_URL_CACHE = new Map<string, ReviewPlaybackUrlCacheEntry>();
+const inFlightReviewPlaybackBySubmissionId = new Map<
+  string,
+  Promise<ReviewPlaybackUrlCacheEntry>
+>();
+
+const REVIEW_PLAYBACK_EXPIRY_BUFFER_MS = 5_000;
+
 function sleep(ms: number) {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
@@ -1167,4 +1181,164 @@ export async function getPontoAudioPlaybackUrlReviewBySubmission(
   return getPontoAudioPlaybackUrlInternal("review", {
     submission_id: submissionId,
   });
+}
+
+function getCachedReviewPlaybackUrl(submissionId: string) {
+  const entry = REVIEW_PLAYBACK_URL_CACHE.get(submissionId);
+  if (!entry) {
+    if (__DEV__) {
+      console.log("[CACHE][MISS]", {
+        file: "src/api/pontoAudio.ts",
+        key: "review_playback_url",
+        submission_id: submissionId,
+      });
+    }
+    return null;
+  }
+
+  const now = Date.now();
+  const isExpired = now + REVIEW_PLAYBACK_EXPIRY_BUFFER_MS >= entry.expiresAtMs;
+
+  if (isExpired) {
+    REVIEW_PLAYBACK_URL_CACHE.delete(submissionId);
+    if (__DEV__) {
+      console.log("[CACHE][EXPIRED]", {
+        file: "src/api/pontoAudio.ts",
+        key: "review_playback_url",
+        submission_id: submissionId,
+        now_ms: now,
+        expires_at_ms: entry.expiresAtMs,
+        fetched_at_ms: entry.fetchedAtMs,
+      });
+    }
+    return null;
+  }
+
+  if (__DEV__) {
+    console.log("[CACHE][HIT]", {
+      file: "src/api/pontoAudio.ts",
+      key: "review_playback_url",
+      submission_id: submissionId,
+      now_ms: now,
+      expires_at_ms: entry.expiresAtMs,
+      fetched_at_ms: entry.fetchedAtMs,
+    });
+  }
+  return entry;
+}
+
+export async function getReviewPlaybackUrlEnsured(submissionId: string) {
+  const sid = String(submissionId ?? "").trim();
+  if (!sid) throw new Error("submissionId inválido.");
+
+  const cached = getCachedReviewPlaybackUrl(sid);
+  if (cached) return cached;
+
+  const inflight = inFlightReviewPlaybackBySubmissionId.get(sid);
+  if (inflight) {
+    if (__DEV__) {
+      console.log("[CACHE][INFLIGHT_REUSE]", {
+        file: "src/api/pontoAudio.ts",
+        key: "review_playback_url",
+        submission_id: sid,
+      });
+    }
+    return inflight;
+  }
+
+  const promise = (async () => {
+    try {
+      const fetchedAtMs = Date.now();
+      const res = await getPontoAudioPlaybackUrlReviewBySubmission(sid);
+
+      const expiresInSeconds =
+        typeof res?.expiresIn === "number" && Number.isFinite(res.expiresIn)
+          ? res.expiresIn
+          : 60;
+
+      const entry: ReviewPlaybackUrlCacheEntry = {
+        url: res.url,
+        fetchedAtMs,
+        expiresAtMs: fetchedAtMs + expiresInSeconds * 1000,
+      };
+
+      REVIEW_PLAYBACK_URL_CACHE.set(sid, entry);
+      return entry;
+    } finally {
+      inFlightReviewPlaybackBySubmissionId.delete(sid);
+    }
+  })();
+
+  inFlightReviewPlaybackBySubmissionId.set(sid, promise);
+  return promise;
+}
+
+export function prefetchReviewPlaybackUrl(submissionId: string) {
+  const sid = String(submissionId ?? "").trim();
+  if (!sid) return;
+
+  const cached = getCachedReviewPlaybackUrl(sid);
+  if (cached) return;
+
+  const inflight = inFlightReviewPlaybackBySubmissionId.get(sid);
+  if (inflight) {
+    if (__DEV__) {
+      console.log("[CACHE][INFLIGHT_REUSE]", {
+        file: "src/api/pontoAudio.ts",
+        key: "review_playback_url",
+        submission_id: sid,
+        via: "prefetch",
+      });
+    }
+    return;
+  }
+
+  const start =
+    typeof performance !== "undefined" && typeof performance.now === "function"
+      ? performance.now()
+      : null;
+
+  if (__DEV__) {
+    console.log("[PERF][PREFETCH][START]", {
+      file: "src/api/pontoAudio.ts",
+      key: "review_playback_url",
+      submission_id: sid,
+    });
+  }
+
+  void getReviewPlaybackUrlEnsured(sid).then(
+    () => {
+      if (__DEV__) {
+        console.log("[PERF][PREFETCH][END]", {
+          file: "src/api/pontoAudio.ts",
+          key: "review_playback_url",
+          submission_id: sid,
+          ok: true,
+          ms:
+            start !== null &&
+            typeof performance !== "undefined" &&
+            typeof performance.now === "function"
+              ? Math.round(performance.now() - start)
+              : null,
+        });
+      }
+    },
+    (e) => {
+      if (__DEV__) {
+        console.log("[PERF][PREFETCH][END]", {
+          file: "src/api/pontoAudio.ts",
+          key: "review_playback_url",
+          submission_id: sid,
+          ok: false,
+          ms:
+            start !== null &&
+            typeof performance !== "undefined" &&
+            typeof performance.now === "function"
+              ? Math.round(performance.now() - start)
+              : null,
+          error: serializeErrorForLog(e),
+        });
+      }
+    },
+  );
 }

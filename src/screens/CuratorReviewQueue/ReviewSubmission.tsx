@@ -3,7 +3,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
   getPontoAudioPlaybackUrlReview,
-  getPontoAudioPlaybackUrlReviewBySubmission,
+  getReviewPlaybackUrlEnsured,
 } from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
@@ -842,39 +842,41 @@ export default function ReviewSubmissionScreen() {
 
     setIsFetchingAudioUrl(true);
     try {
-      const tryBySubmissionFirst = Boolean(submissionId);
-
-      const callBySubmission = async () =>
-        await getPontoAudioPlaybackUrlReviewBySubmission(
-          submissionId as string,
-        );
-
       const callByAudioId = async () =>
         await getPontoAudioPlaybackUrlReview(pontoAudioId);
 
-      let res: any;
-      if (tryBySubmissionFirst) {
+      if (submissionId) {
         try {
-          res = await callBySubmission();
+          const entry = await getReviewPlaybackUrlEnsured(submissionId);
+          if (!entry?.url || typeof entry.url !== "string") {
+            throw new Error("Não foi possível obter a URL do áudio.");
+          }
+          setAudioUrl(entry.url);
+          setAudioUrlExpiresAtMs(entry.expiresAtMs);
+          lastAudioUrlErrorRef.current = null;
+          return entry.url;
         } catch (err) {
           const kind =
             typeof (err as any)?.playbackKind === "string"
               ? (err as any).playbackKind
               : null;
-          if (kind === "object_not_found") {
-            res = await callByAudioId();
-          } else {
-            throw err;
+          if (kind !== "object_not_found") throw err;
+
+          const res = await callByAudioId();
+          if (!res.url || typeof res.url !== "string") {
+            throw new Error("Não foi possível obter a URL do áudio.");
           }
+          setAudioUrl(res.url);
+          setAudioUrlExpiresAtMs(Date.now() + res.expiresIn * 1000);
+          lastAudioUrlErrorRef.current = null;
+          return res.url as string;
         }
-      } else {
-        res = await callByAudioId();
       }
 
+      const res = await callByAudioId();
       if (!res.url || typeof res.url !== "string") {
         throw new Error("Não foi possível obter a URL do áudio.");
       }
-
       setAudioUrl(res.url);
       setAudioUrlExpiresAtMs(Date.now() + res.expiresIn * 1000);
       lastAudioUrlErrorRef.current = null;

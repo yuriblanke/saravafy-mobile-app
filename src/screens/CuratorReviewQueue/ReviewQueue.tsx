@@ -1,5 +1,6 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { prefetchReviewPlaybackUrl } from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
@@ -72,6 +73,13 @@ export default function ReviewQueueScreen() {
       : colors.textSecondaryOnDark;
 
   const items = useMemo(() => submissionsQuery.data ?? [], [submissionsQuery]);
+
+  const firstSubmissionId = items?.[0]?.id ? String(items[0].id) : null;
+
+  useEffect(() => {
+    if (!firstSubmissionId) return;
+    prefetchReviewPlaybackUrl(firstSubmissionId);
+  }, [firstSubmissionId]);
 
   const [profilesById, setProfilesById] = useState<Record<string, PublicProfile>>(
     {},
