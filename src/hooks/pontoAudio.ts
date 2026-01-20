@@ -20,6 +20,57 @@ export type PontoAudioRow = {
   is_active: boolean | null;
 };
 
+export type PontoAudioMetaById = {
+  id: string;
+  interpreter_name: string | null;
+  mime_type: string | null;
+  upload_status: string | null;
+  is_active: boolean | null;
+};
+
+export function usePontoAudioMetaById(
+  pontoAudioId: string | null | undefined,
+  options?: { enabled?: boolean },
+) {
+  const enabled = (options?.enabled ?? true) && !!pontoAudioId;
+
+  return useQuery({
+    queryKey: pontoAudioId
+      ? (["pontoAudios", "metaById", pontoAudioId] as const)
+      : [],
+    enabled,
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
+    queryFn: async () => {
+      if (!pontoAudioId) return null;
+
+      const res = await supabase
+        .from("ponto_audios")
+        .select("id, interpreter_name, mime_type, upload_status, is_active")
+        .eq("id", pontoAudioId)
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (res.error) throw res.error;
+      if (!res.data) return null;
+
+      const row: any = res.data;
+      return {
+        id: String(row.id ?? ""),
+        interpreter_name:
+          typeof row.interpreter_name === "string"
+            ? row.interpreter_name
+            : null,
+        mime_type: typeof row.mime_type === "string" ? row.mime_type : null,
+        upload_status:
+          typeof row.upload_status === "string" ? row.upload_status : null,
+        is_active: typeof row.is_active === "boolean" ? row.is_active : null,
+      } satisfies PontoAudioMetaById;
+    },
+    placeholderData: (prev) => prev,
+  });
+}
+
 type LatestPontoAudioMetaRow = {
   id: string;
   ponto_id: string;

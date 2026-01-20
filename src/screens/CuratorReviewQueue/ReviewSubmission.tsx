@@ -1,7 +1,10 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import { getPontoAudioPlaybackUrl } from "@/src/api/pontoAudio";
+import {
+  getPontoAudioPlaybackUrlReview,
+  getPontoAudioPlaybackUrlReviewBySubmission,
+} from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
@@ -248,6 +251,11 @@ export default function ReviewSubmissionScreen() {
   const [isFetchingAudioUrl, setIsFetchingAudioUrl] = useState(false);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const lastAudioUrlErrorRef = useRef<{
+    status: number | null;
+    noRetry: boolean;
+    message: string;
+  } | null>(null);
 
   const hydratedRef = useRef(false);
 
@@ -829,13 +837,67 @@ export default function ReviewSubmissionScreen() {
 
     setIsFetchingAudioUrl(true);
     try {
-      const res = await getPontoAudioPlaybackUrl(pontoAudioId);
+      const tryBySubmissionFirst = Boolean(submissionId);
+
+      const callBySubmission = async () =>
+        await getPontoAudioPlaybackUrlReviewBySubmission(
+          submissionId as string,
+        );
+
+      const callByAudioId = async () =>
+        await getPontoAudioPlaybackUrlReview(pontoAudioId);
+
+      let res: any;
+      if (tryBySubmissionFirst) {
+        try {
+          res = await callBySubmission();
+        } catch (err) {
+          const kind =
+            typeof (err as any)?.playbackKind === "string"
+              ? (err as any).playbackKind
+              : null;
+          if (kind === "object_not_found") {
+            res = await callByAudioId();
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        res = await callByAudioId();
+      }
+
       if (!res.url || typeof res.url !== "string") {
         throw new Error("Não foi possível obter a URL do áudio.");
       }
 
       setAudioUrl(res.url);
       setAudioUrlExpiresAtMs(Date.now() + res.expiresIn * 1000);
+      lastAudioUrlErrorRef.current = null;
+    } catch (e) {
+      const kind =
+        typeof (e as any)?.playbackKind === "string"
+          ? (e as any).playbackKind
+          : null;
+      if (__DEV__ && kind === "object_not_found") {
+        console.log("[audio] playback object not found (review)", {
+          submissionId,
+          pontoAudioId,
+          audio_bucket_id: submissionAudioBucketId,
+          audio_object_path: submissionAudioObjectPath,
+          sbRequestId: (e as any)?.sbRequestId ?? null,
+          status: (e as any)?.status ?? null,
+        });
+      }
+
+      const status =
+        typeof (e as any)?.status === "number" ? (e as any).status : null;
+      const noRetry = (e as any)?.noRetry === true;
+      const message =
+        e instanceof Error && e.message.trim()
+          ? e.message.trim()
+          : "Não foi possível carregar o áudio.";
+      lastAudioUrlErrorRef.current = { status, noRetry, message };
+      throw e;
     } finally {
       setIsFetchingAudioUrl(false);
     }
@@ -907,6 +969,12 @@ export default function ReviewSubmissionScreen() {
 
   const handleRetryAudio = async () => {
     setAudioError(null);
+
+    if (lastAudioUrlErrorRef.current?.noRetry) {
+      setAudioError(lastAudioUrlErrorRef.current.message);
+      return;
+    }
+
     await stopAndUnload();
     setAudioUrl(null);
     setAudioUrlExpiresAtMs(null);

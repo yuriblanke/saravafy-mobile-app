@@ -228,6 +228,7 @@ export function usePontoSubmissionById(params: {
 
 export type ApprovedAudioSubmissionResult = {
   approvedPontoAudioId: string | null;
+  approvedInterpreterName: string | null;
   hasPendingAudioSubmission: boolean;
 };
 
@@ -237,13 +238,16 @@ export async function fetchApprovedPontoAudioSubmission(
   if (!pontoId) {
     return {
       approvedPontoAudioId: null,
+      approvedInterpreterName: null,
       hasPendingAudioSubmission: false,
     };
   }
 
   const res = await supabase
     .from("pontos_submissions")
-    .select("id, status, ponto_audio_id, reviewed_at, created_at")
+    .select(
+      "id, status, ponto_audio_id, interpreter_name, reviewed_at, created_at",
+    )
     .eq("ponto_id", pontoId)
     .eq("kind", "audio_upload")
     .in("status", ["approved", "pending"])
@@ -259,15 +263,19 @@ export async function fetchApprovedPontoAudioSubmission(
   const rows = (res.data ?? []) as any[];
 
   let approvedPontoAudioId: string | null = null;
+  let approvedInterpreterName: string | null = null;
   let hasPendingAudioSubmission = false;
 
   for (const row of rows) {
     const status = typeof row.status === "string" ? row.status : "";
     const pontoAudioId =
       typeof row.ponto_audio_id === "string" ? row.ponto_audio_id : "";
+    const interpreterName =
+      typeof row.interpreter_name === "string" ? row.interpreter_name : "";
 
     if (status === "approved" && pontoAudioId) {
       approvedPontoAudioId = pontoAudioId;
+      approvedInterpreterName = interpreterName ? interpreterName.trim() : null;
       break;
     }
 
@@ -278,6 +286,7 @@ export async function fetchApprovedPontoAudioSubmission(
 
   return {
     approvedPontoAudioId,
+    approvedInterpreterName,
     hasPendingAudioSubmission,
   };
 }
@@ -299,6 +308,7 @@ export function useApprovedPontoAudioSubmission(
       if (!pontoId) {
         return {
           approvedPontoAudioId: null,
+          approvedInterpreterName: null,
           hasPendingAudioSubmission: false,
         };
       }

@@ -27,9 +27,15 @@ export type CompleteUploadResponse = {
 };
 
 export type PlaybackResponse = {
-  url: string;
-  expires_in: number;
-  mime_type: string | null;
+  // New contract (preferred)
+  signed_url: string;
+  resolved_url?: string | null;
+  resolved_head_status?: number | null;
+  expires_in?: number;
+  expires_in_seconds?: number;
+  mime_type?: string | null;
+  // Back-compat (older contract)
+  url?: string;
 };
 
 const inFlightCompleteByKey = new Map<
@@ -63,6 +69,18 @@ function summarizeBodyForLog(body: unknown) {
     return {
       keys: Array.isArray(body) ? null : Object.keys(o).slice(0, 12),
       message: typeof o?.message === "string" ? o.message : null,
+      error:
+        typeof o?.error === "string"
+          ? o.error
+          : o?.error && typeof o.error === "object"
+            ? JSON.stringify(o.error).slice(0, 220)
+            : null,
+      details:
+        typeof o?.details === "string"
+          ? o.details
+          : o?.details && typeof o.details === "object"
+            ? JSON.stringify(o.details).slice(0, 220)
+            : null,
       code: typeof o?.code === "string" ? o.code : null,
       retryable: typeof o?.retryable === "boolean" ? o.retryable : null,
     };
@@ -76,6 +94,36 @@ function getErrorMessage(error: unknown): string {
     return String((error as any).message);
   }
   return String(error ?? "Erro");
+}
+
+function maskHeaderValueForLog(key: string, value: unknown) {
+  const k = String(key ?? "").toLowerCase();
+  if (k === "authorization") {
+    if (typeof value === "string" && value.trim()) return "Bearer <present>";
+    return "<absent>";
+  }
+  if (k === "apikey") {
+    if (typeof value === "string" && value.trim()) return "<present>";
+    return "<absent>";
+  }
+  return value;
+}
+
+function maskHeadersForLog(headers: Record<string, unknown>) {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(headers ?? {})) {
+    out[k] = maskHeaderValueForLog(k, v);
+  }
+  return out;
+}
+
+function safeJsonStringifyForLog(value: unknown, maxLen = 2000) {
+  try {
+    const s = JSON.stringify(value);
+    return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+  } catch {
+    return "<unstringifiable>";
+  }
 }
 
 function safeSignedUrlSummary(urlOrNull: unknown) {
@@ -180,6 +228,7 @@ async function callFunctionAuthedHttp(
   status: number;
   bodyText: string;
   bodyJson: any | null;
+  sbRequestId: string | null;
 }> {
   const session = await requireSession();
 
@@ -189,17 +238,41 @@ async function callFunctionAuthedHttp(
     throw new Error("Configuração do Supabase ausente.");
   }
 
-  const url = `${baseUrl}/functions/v1/${name}`;
-  const resp = await fetch(url, {
+  const url = new URL(`${baseUrl}/functions/v1/${name}`);
+
+  const requestHeaders = {
+    apikey: anonKey,
+    Authorization: `Bearer ${session.access_token}`,
+    "content-type": "application/json",
+    accept: "application/json",
+  };
+
+  if (__DEV__) {
+    console.log("[PLAYBACK][REQUEST]", {
+      file: "src/api/pontoAudio.ts",
+      fn: "callFunctionAuthedHttp",
+      mode: "fetch",
+      context: "review",
+      url: url.toString(),
+      method: "POST",
+      headers: maskHeadersForLog(requestHeaders),
+      hasAuthToken: Boolean(session?.access_token),
+      body,
+      bodyText: safeJsonStringifyForLog(body),
+    });
+  }
+
+  const resp = await fetch(url.toString(), {
     method: "POST",
-    headers: {
-      apikey: anonKey,
-      Authorization: `Bearer ${session.access_token}`,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-    },
+    headers: requestHeaders,
     body: JSON.stringify(body ?? {}),
   });
+
+  const sbRequestId =
+    resp.headers.get("sb-request-id") ??
+    resp.headers.get("x-sb-request-id") ??
+    resp.headers.get("sb_request_id") ??
+    null;
 
   const bodyText = await resp.text();
   let bodyJson: any | null = null;
@@ -209,7 +282,160 @@ async function callFunctionAuthedHttp(
     bodyJson = null;
   }
 
-  return { status: resp.status, bodyText, bodyJson };
+  if (__DEV__) {
+    console.log("[PLAYBACK][RESPONSE]", {
+      file: "src/api/pontoAudio.ts",
+      fn: "callFunctionAuthedHttp",
+      context: "review",
+      url: url.toString(),
+      status: resp.status,
+      sbRequestId,
+      responseHeaders: {
+        "content-type": resp.headers.get("content-type"),
+        "content-length": resp.headers.get("content-length"),
+      },
+      bodyTextPreview: bodyText?.trim?.()
+        ? bodyText.trim().slice(0, 2000)
+        : null,
+      bodyJson: summarizeBodyForLog(bodyJson),
+    });
+  }
+
+  return { status: resp.status, bodyText, bodyJson, sbRequestId };
+}
+
+async function callFunctionPublicHttp(
+  name: string,
+  body: unknown,
+): Promise<{
+  status: number;
+  bodyText: string;
+  bodyJson: any | null;
+  sbRequestId: string | null;
+}> {
+  const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  if (!baseUrl || !anonKey) {
+    throw new Error("Configuração do Supabase ausente.");
+  }
+
+  const url = new URL(`${baseUrl}/functions/v1/${name}`);
+
+  const requestHeaders = {
+    apikey: anonKey,
+    // IMPORTANT: public playback must NOT send Authorization.
+    "content-type": "application/json",
+    accept: "application/json",
+  };
+
+  if (__DEV__) {
+    console.log("[PLAYBACK][REQUEST]", {
+      file: "src/api/pontoAudio.ts",
+      fn: "callFunctionPublicHttp",
+      mode: "fetch",
+      context: "player",
+      url: url.toString(),
+      method: "POST",
+      headers: maskHeadersForLog(requestHeaders),
+      hasAuthToken: false,
+      body,
+      bodyText: safeJsonStringifyForLog(body),
+    });
+  }
+
+  const resp = await fetch(url.toString(), {
+    method: "POST",
+    headers: requestHeaders,
+    body: JSON.stringify(body ?? {}),
+  });
+
+  const sbRequestId =
+    resp.headers.get("sb-request-id") ??
+    resp.headers.get("x-sb-request-id") ??
+    resp.headers.get("sb_request_id") ??
+    null;
+
+  const bodyText = await resp.text();
+  let bodyJson: any | null = null;
+  try {
+    bodyJson = bodyText ? JSON.parse(bodyText) : null;
+  } catch {
+    bodyJson = null;
+  }
+
+  if (__DEV__) {
+    console.log("[PLAYBACK][RESPONSE]", {
+      file: "src/api/pontoAudio.ts",
+      fn: "callFunctionPublicHttp",
+      context: "player",
+      url: url.toString(),
+      status: resp.status,
+      sbRequestId,
+      responseHeaders: {
+        "content-type": resp.headers.get("content-type"),
+        "content-length": resp.headers.get("content-length"),
+      },
+      bodyTextPreview: bodyText?.trim?.()
+        ? bodyText.trim().slice(0, 2000)
+        : null,
+      bodyJson: summarizeBodyForLog(bodyJson),
+    });
+  }
+
+  return { status: resp.status, bodyText, bodyJson, sbRequestId };
+}
+
+function mapPlaybackError(params: { status: number; rawMessage: string }): {
+  message: string;
+  noRetry: boolean;
+} {
+  const status = params.status;
+  const msg = (params.rawMessage ?? "").trim();
+  const msgLower = msg.toLowerCase();
+
+  // Storage failure (backend should ideally return 404/409, but some deployments return 500).
+  if (
+    msgLower.includes("failed to create signed playback url") ||
+    msgLower.includes("object not found")
+  ) {
+    return {
+      message: "Áudio indisponível no momento.",
+      noRetry: false,
+    };
+  }
+
+  if (status === 401) {
+    return {
+      message: "Áudio em revisão. Disponível em breve.",
+      noRetry: true,
+    };
+  }
+
+  if (status === 403) {
+    return {
+      message: "Só curators podem ouvir antes da aprovação.",
+      noRetry: true,
+    };
+  }
+
+  if (status === 409 || msgLower.includes("not ready")) {
+    return {
+      message: "Upload em processamento. Tente novamente em instantes.",
+      noRetry: false,
+    };
+  }
+
+  if (status === 404) {
+    return {
+      message: "Áudio indisponível no momento.",
+      noRetry: true,
+    };
+  }
+
+  return {
+    message: msg || `Erro ao chamar ponto-audio-playback-url (HTTP ${status}).`,
+    noRetry: false,
+  };
 }
 
 export async function callFunctionPublic<T>(
@@ -234,19 +460,32 @@ export async function callFunctionPublic<T>(
     method: "GET",
     headers: {
       apikey: anonKey,
-      Authorization: `Bearer ${anonKey}`,
       Accept: "application/json",
     },
   });
 
   const text = await resp.text();
-  const data = text ? (JSON.parse(text) as any) : null;
+  let data: any | null = null;
+  try {
+    data = text ? (JSON.parse(text) as any) : null;
+  } catch {
+    data = null;
+  }
 
   if (!resp.ok) {
+    const fallback = (() => {
+      const trimmed = text?.trim?.() ? String(text).trim() : "";
+      if (trimmed)
+        return trimmed.length > 160 ? `${trimmed.slice(0, 160)}…` : trimmed;
+      return null;
+    })();
+
     const e = new Error(
       typeof data?.message === "string" && data.message.trim()
         ? data.message
-        : `Erro ao chamar ${name}.`,
+        : fallback
+          ? `Erro ao chamar ${name} (HTTP ${resp.status}): ${fallback}`
+          : `Erro ao chamar ${name} (HTTP ${resp.status}).`,
     );
     (e as any).status = resp.status;
     throw e;
@@ -287,19 +526,6 @@ export async function initPontoAudioUpload(params: {
   console.log("[audio] init ok", {
     ponto_audio_id: data.ponto_audio_id,
     signedUploadUrl: safeSignedUrlSummary(data?.signed_upload?.signedUrl),
-    expires_in:
-      typeof data?.expires_in === "number"
-        ? data.expires_in
-        : typeof data?.signed_upload?.expires_in === "number"
-          ? data.signed_upload.expires_in
-          : null,
-    mime_type:
-      typeof data?.mime_type === "string" || data?.mime_type === null
-        ? data.mime_type
-        : typeof data?.signed_upload?.mime_type === "string" ||
-            data?.signed_upload?.mime_type === null
-          ? data.signed_upload.mime_type
-          : params.mimeType,
   });
 
   return {
@@ -738,10 +964,88 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
   return promise;
 }
 
-export async function getPontoAudioPlaybackUrl(pontoAudioId: string) {
-  const data = await callFunctionPublic<any>("ponto-audio-playback", {
-    ponto_audio_id: pontoAudioId,
-  });
+async function getPontoAudioPlaybackUrlInternal(
+  mode: "public" | "review",
+  body: { ponto_audio_id?: string; submission_id?: string },
+) {
+  const name = "ponto-audio-playback-url";
+
+  const res =
+    mode === "review"
+      ? await callFunctionAuthedHttp(name, body)
+      : await callFunctionPublicHttp(name, body);
+
+  if (res.status < 200 || res.status >= 300) {
+    const raw = (() => {
+      const bj: any = res.bodyJson;
+      if (typeof bj?.message === "string" && bj.message.trim())
+        return bj.message;
+
+      const errStr =
+        typeof bj?.error === "string" && bj.error.trim()
+          ? bj.error.trim()
+          : null;
+      const detailsStr =
+        typeof bj?.details === "string" && bj.details.trim()
+          ? bj.details.trim()
+          : null;
+      if (errStr && detailsStr) return `${errStr} (${detailsStr})`;
+      if (errStr) return errStr;
+      if (detailsStr) return detailsStr;
+
+      if (bj?.error && typeof bj.error === "object") {
+        try {
+          return JSON.stringify(bj.error);
+        } catch {
+          // ignore
+        }
+      }
+      if (bj?.details && typeof bj.details === "object") {
+        try {
+          return JSON.stringify(bj.details);
+        } catch {
+          // ignore
+        }
+      }
+      return typeof res.bodyText === "string" ? res.bodyText : "";
+    })();
+
+    const rawLower = String(raw ?? "").toLowerCase();
+    const mapped = mapPlaybackError({ status: res.status, rawMessage: raw });
+    const e = new Error(mapped.message);
+    (e as any).status = res.status;
+    (e as any).noRetry = mapped.noRetry;
+    (e as any).sbRequestId = res.sbRequestId;
+    (e as any).playbackKind =
+      rawLower.includes("failed to create signed playback url") ||
+      rawLower.includes("object not found")
+        ? "object_not_found"
+        : res.status === 409 || rawLower.includes("not ready")
+          ? "not_ready"
+          : res.status === 401
+            ? "unauthorized"
+            : res.status === 403
+              ? "forbidden"
+              : res.status === 404
+                ? "not_found"
+                : "unknown";
+
+    if (__DEV__) {
+      console.log("[audio] playback error", {
+        status: res.status,
+        sbRequestId: res.sbRequestId,
+        request: summarizeBodyForLog(body),
+        response: summarizeBodyForLog(res.bodyJson ?? res.bodyText),
+        responseTextPreview:
+          typeof res.bodyText === "string" && res.bodyText.trim()
+            ? res.bodyText.trim().slice(0, 400)
+            : null,
+      });
+    }
+    throw e;
+  }
+
+  const data = res.bodyJson;
 
   const expiresRaw =
     data && typeof data === "object" && data
@@ -755,12 +1059,79 @@ export async function getPontoAudioPlaybackUrl(pontoAudioId: string) {
         ? Number(expiresRaw)
         : null;
 
+  const signedUrl =
+    typeof (data as any)?.signed_url === "string"
+      ? String((data as any).signed_url)
+      : typeof (data as any)?.url === "string"
+        ? String((data as any).url)
+        : "";
+
+  const resolvedUrl =
+    typeof (data as any)?.resolved_url === "string"
+      ? String((data as any).resolved_url)
+      : null;
+
+  const resolvedHeadStatusRaw = (data as any)?.resolved_head_status;
+  const resolvedHeadStatus =
+    typeof resolvedHeadStatusRaw === "number" &&
+    Number.isFinite(resolvedHeadStatusRaw)
+      ? resolvedHeadStatusRaw
+      : typeof resolvedHeadStatusRaw === "string" && resolvedHeadStatusRaw
+        ? Number(resolvedHeadStatusRaw)
+        : null;
+
+  const usingResolvedUrl = Boolean(resolvedUrl);
+  const finalUrl = resolvedUrl ?? signedUrl;
+
+  let urlHost: string | null = null;
+  try {
+    urlHost = finalUrl ? new URL(finalUrl).host : null;
+  } catch {
+    urlHost = null;
+  }
+
+  if (__DEV__) {
+    console.log("[PLAYBACK][URL_SELECTED]", {
+      file: "src/api/pontoAudio.ts",
+      fn: "getPontoAudioPlaybackUrlInternal",
+      mode,
+      using_resolved_url: usingResolvedUrl,
+      resolved_head_status: resolvedHeadStatus,
+      url_host: urlHost,
+    });
+  }
+
   return {
-    url: typeof data?.url === "string" ? data.url : "",
+    url: finalUrl,
     expiresIn:
       typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)
         ? expiresInSeconds
         : 60,
-    mimeType: typeof data?.mime_type === "string" ? data.mime_type : null,
+    mimeType: typeof (data as any)?.mime_type === "string" ? (data as any).mime_type : null,
+    signedUrl,
+    resolvedUrl,
+    resolvedHeadStatus,
+    usingResolvedUrl,
+    urlHost,
   };
+}
+
+export async function getPontoAudioPlaybackUrlPublic(pontoAudioId: string) {
+  return getPontoAudioPlaybackUrlInternal("public", {
+    ponto_audio_id: pontoAudioId,
+  });
+}
+
+export async function getPontoAudioPlaybackUrlReview(pontoAudioId: string) {
+  return getPontoAudioPlaybackUrlInternal("review", {
+    ponto_audio_id: pontoAudioId,
+  });
+}
+
+export async function getPontoAudioPlaybackUrlReviewBySubmission(
+  submissionId: string,
+) {
+  return getPontoAudioPlaybackUrlInternal("review", {
+    submission_id: submissionId,
+  });
 }
