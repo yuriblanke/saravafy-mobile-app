@@ -40,7 +40,7 @@ export function usePlayerAudio(params: {
 
   const hasAudio = useMemo(
     () => typeof audioUrl === "string" && audioUrl.trim().length > 0,
-    [audioUrl]
+    [audioUrl],
   );
 
   const cleanup = useCallback(async () => {
@@ -92,10 +92,10 @@ export function usePlayerAudio(params: {
     setIsLoaded(true);
     setIsPlaying(Boolean(status.isPlaying));
     setPositionMillis(
-      typeof status.positionMillis === "number" ? status.positionMillis : 0
+      typeof status.positionMillis === "number" ? status.positionMillis : 0,
     );
     setDurationMillis(
-      typeof status.durationMillis === "number" ? status.durationMillis : 0
+      typeof status.durationMillis === "number" ? status.durationMillis : 0,
     );
 
     if (status.didJustFinish) {
@@ -131,7 +131,7 @@ export function usePlayerAudio(params: {
         const { sound } = await Audio.Sound.createAsync(
           { uri: audioUrl as string },
           { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-          onStatus
+          onStatus,
         );
         const tLoadEnd = performance.now();
         if (__DEV__) {
@@ -207,7 +207,7 @@ export function usePlayerAudio(params: {
         const { sound } = await Audio.Sound.createAsync(
           { uri: audioUrl as string },
           { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-          onStatus
+          onStatus,
         );
         const tLoadEnd = performance.now();
         if (__DEV__) {
@@ -263,7 +263,8 @@ export function usePlayerAudio(params: {
         if (__DEV__) {
           console.log("[AUDIO][LOAD_ERR]", {
             attempt: 1,
-            error: firstErr instanceof Error ? firstErr.message : String(firstErr),
+            error:
+              firstErr instanceof Error ? firstErr.message : String(firstErr),
           });
 
           console.log("[AUDIO][RETRY_ONCE]");
@@ -281,7 +282,9 @@ export function usePlayerAudio(params: {
             console.log("[AUDIO][LOAD_ERR]", {
               attempt: 2,
               error:
-                secondErr instanceof Error ? secondErr.message : String(secondErr),
+                secondErr instanceof Error
+                  ? secondErr.message
+                  : String(secondErr),
             });
             console.log("[AUDIO][RETRY_FAILED]", {
               error_string:
@@ -290,7 +293,9 @@ export function usePlayerAudio(params: {
                   : String(secondErr),
             });
           }
-          setError(secondErr instanceof Error ? secondErr.message : "Erro no player.");
+          setError(
+            secondErr instanceof Error ? secondErr.message : "Erro no player.",
+          );
           await cleanup();
         }
       }

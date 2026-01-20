@@ -7,9 +7,10 @@ import {
   extractSubmissionContentFromPayload,
   usePendingPontoSubmissions,
 } from "@/src/queries/pontoSubmissions";
+import { resolveProfiles, type PublicProfile } from "@/src/features/identity/resolveProfiles";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Pressable,
@@ -71,6 +72,40 @@ export default function ReviewQueueScreen() {
       : colors.textSecondaryOnDark;
 
   const items = useMemo(() => submissionsQuery.data ?? [], [submissionsQuery]);
+
+  const [profilesById, setProfilesById] = useState<Record<string, PublicProfile>>(
+    {},
+  );
+
+  useEffect(() => {
+    const userIds = Array.from(
+      new Set(
+        (items ?? [])
+          .map((s) => (typeof s.created_by === "string" ? s.created_by : ""))
+          .filter(Boolean),
+      ),
+    );
+
+    if (userIds.length === 0) {
+      setProfilesById({});
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const res = await resolveProfiles({ userIds });
+        if (cancelled) return;
+        setProfilesById(res.byId);
+      } catch {
+        // best-effort only
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [items]);
 
   if (isCuratorLoading) {
     return (
@@ -146,7 +181,7 @@ export default function ReviewQueueScreen() {
             {items.map((s) => {
               const dateLabel = formatDateLabel(s.created_at ?? null);
               const content = extractSubmissionContentFromPayload(s.payload);
-              const title = content.title?.trim() || "(Sem título)";
+              const title = (s.ponto_title ?? "").trim() || "(Ponto)";
 
               const isPublicDomain = s.ponto_is_public_domain !== false;
               const hasAudio = s.has_audio === true;
@@ -170,6 +205,36 @@ export default function ReviewQueueScreen() {
               ]
                 .filter(Boolean)
                 .join(" — ");
+
+              const submitterProfile =
+                typeof s.created_by === "string" && s.created_by
+                  ? profilesById[s.created_by] ?? null
+                  : null;
+
+              const submitterName =
+                (typeof submitterProfile?.full_name === "string"
+                  ? submitterProfile.full_name
+                  : "")
+                  .trim()
+                  .slice(0, 80);
+
+              const submitterEmail = (
+                typeof submitterProfile?.email === "string"
+                  ? submitterProfile.email
+                  : typeof content.submitter_email === "string"
+                    ? content.submitter_email
+                    : ""
+              )
+                .trim()
+                .slice(0, 120);
+
+              const submitterLine = (() => {
+                const name = submitterName;
+                const email = submitterEmail;
+                if (!name && !email) return null;
+                if (name && email) return `Enviado por: ${name} (${email})`;
+                return `Enviado por: ${name || email}`;
+              })();
 
               const consentLine = [
                 !isPublicDomain
@@ -216,6 +281,15 @@ export default function ReviewQueueScreen() {
                         numberOfLines={1}
                       >
                         {peopleLine}
+                      </Text>
+                    ) : null}
+
+                    {submitterLine ? (
+                      <Text
+                        style={[styles.cardMeta, { color: textSecondary }]}
+                        numberOfLines={1}
+                      >
+                        {submitterLine}
                       </Text>
                     ) : null}
 
