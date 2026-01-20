@@ -244,11 +244,15 @@ export default function ReviewSubmissionScreen() {
 
   // --- Secure audio playback state (audio_upload only) ---
   const soundRef = useRef<Audio.Sound | null>(null);
+  const loadedAudioUrlRef = useRef<string | null>(null);
+  const audioModePromiseRef = useRef<Promise<void> | null>(null);
   const [audioUrl, setAudioUrl] = useState<string | null>(null);
   const [audioUrlExpiresAtMs, setAudioUrlExpiresAtMs] = useState<number | null>(
     null,
   );
   const [isFetchingAudioUrl, setIsFetchingAudioUrl] = useState(false);
+  const [isStartingPlayback, setIsStartingPlayback] = useState(false);
+  const inFlightPlaybackRef = useRef<Promise<void> | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
   const lastAudioUrlErrorRef = useRef<{
@@ -262,6 +266,7 @@ export default function ReviewSubmissionScreen() {
   const stopAndUnload = async () => {
     const sound = soundRef.current;
     soundRef.current = null;
+    loadedAudioUrlRef.current = null;
     setIsAudioPlaying(false);
 
     if (sound) {
@@ -833,7 +838,7 @@ export default function ReviewSubmissionScreen() {
       typeof audioUrlExpiresAtMs === "number" &&
       Date.now() > audioUrlExpiresAtMs;
 
-    if (!force && audioUrl && !isExpired) return;
+    if (!force && audioUrl && !isExpired) return audioUrl;
 
     setIsFetchingAudioUrl(true);
     try {
@@ -873,6 +878,7 @@ export default function ReviewSubmissionScreen() {
       setAudioUrl(res.url);
       setAudioUrlExpiresAtMs(Date.now() + res.expiresIn * 1000);
       lastAudioUrlErrorRef.current = null;
+      return res.url as string;
     } catch (e) {
       const kind =
         typeof (e as any)?.playbackKind === "string"
@@ -903,67 +909,191 @@ export default function ReviewSubmissionScreen() {
     }
   };
 
-  const loadAudioIfNeeded = async () => {
-    if (!audioUrl) return;
-    if (soundRef.current) return;
-
-    await Audio.setAudioModeAsync({
-      allowsRecordingIOS: false,
-      playsInSilentModeIOS: true,
-      staysActiveInBackground: false,
-      shouldDuckAndroid: true,
-    });
-
-    const { sound } = await Audio.Sound.createAsync(
-      { uri: audioUrl },
-      { shouldPlay: false, progressUpdateIntervalMillis: 250 },
-      onAudioStatus,
-    );
-
-    soundRef.current = sound;
+  const ensureAudioMode = async () => {
+    if (!audioModePromiseRef.current) {
+      audioModePromiseRef.current = Audio.setAudioModeAsync({
+        allowsRecordingIOS: false,
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      });
+    }
+    await audioModePromiseRef.current;
   };
 
-  const handleTogglePlay = async () => {
-    setAudioError(null);
-    if (!isAudioUpload) return;
+  const getUrlHostSafe = (url: string) => {
+    try {
+      return new URL(url).host;
+    } catch {
+      return null;
+    }
+  };
 
-    if (!isAudioReadyForPlayback) {
-      setAudioError("Áudio em revisão. Disponível em breve.");
-      return;
+  const loadAudio = async (url: string) => {
+    const urlHost = getUrlHostSafe(url);
+
+    if (__DEV__) {
+      console.log("[AUDIO][LOAD_START]", { url_host: urlHost, mode: "review" });
     }
 
-    const sound = soundRef.current;
+    await ensureAudioMode();
 
-    // Pause if already playing.
-    if (sound && isAudioPlaying) {
-      await sound.pauseAsync();
-      return;
-    }
-
-    // If we have a loaded sound but URL is expired, unload and get a fresh URL for resume.
-    const urlExpired =
-      typeof audioUrlExpiresAtMs === "number" &&
-      Date.now() > audioUrlExpiresAtMs;
-    if (urlExpired && sound && !isAudioPlaying) {
+    // If there's an existing sound instance, unload it before loading another.
+    if (soundRef.current) {
       await stopAndUnload();
-      setAudioUrl(null);
-      setAudioUrlExpiresAtMs(null);
     }
 
     try {
-      await ensureAudioUrl();
-      await loadAudioIfNeeded();
-
-      const nextSound = soundRef.current;
-      if (!nextSound) throw new Error("Não foi possível carregar o áudio.");
-      await nextSound.playAsync();
-    } catch (e) {
-      setAudioError(
-        e instanceof Error && e.message.trim()
-          ? e.message
-          : "Não foi possível tocar o áudio.",
+      const { sound } = await Audio.Sound.createAsync(
+        { uri: url },
+        { shouldPlay: false, progressUpdateIntervalMillis: 250 },
+        onAudioStatus,
       );
-      await stopAndUnload();
+
+      soundRef.current = sound;
+      loadedAudioUrlRef.current = url;
+
+      if (__DEV__) {
+        console.log("[AUDIO][LOAD_OK]");
+      }
+    } catch (e) {
+      if (__DEV__) {
+        console.log("[AUDIO][LOAD_ERR]", {
+          error_string: e instanceof Error ? e.message : String(e),
+          error:
+            e instanceof Error
+              ? { name: e.name, message: e.message, stack: e.stack }
+              : String(e),
+        });
+      }
+      throw e;
+    }
+  };
+
+  const ensureAudioLoaded = async (url: string) => {
+    if (soundRef.current && loadedAudioUrlRef.current === url) return;
+    await loadAudio(url);
+  };
+
+  const delayMs = async (ms: number) =>
+    await new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+  const handleTogglePlay = async () => {
+    if (inFlightPlaybackRef.current) return;
+
+    const op = (async () => {
+      setAudioError(null);
+      if (!isAudioUpload) return;
+
+      if (!isAudioReadyForPlayback) {
+        setAudioError("Áudio em revisão. Disponível em breve.");
+        return;
+      }
+
+      const sound = soundRef.current;
+
+      // Pause if already playing.
+      if (sound && isAudioPlaying) {
+        await sound.pauseAsync();
+        return;
+      }
+
+    // If we have a loaded sound but URL is expired, unload and get a fresh URL for resume.
+      const urlExpired =
+        typeof audioUrlExpiresAtMs === "number" &&
+        Date.now() > audioUrlExpiresAtMs;
+      if (urlExpired && sound && !isAudioPlaying) {
+        await stopAndUnload();
+        setAudioUrl(null);
+        setAudioUrlExpiresAtMs(null);
+      }
+
+      try {
+        setIsStartingPlayback(true);
+
+        const url = await ensureAudioUrl();
+        const nextUrl =
+          typeof url === "string" && url.trim()
+            ? url
+            : typeof audioUrl === "string" && audioUrl.trim()
+              ? audioUrl
+              : null;
+        if (!nextUrl) throw new Error("Não foi possível carregar o áudio.");
+
+        const attemptPlayOnce = async () => {
+          // REQUIRED sequence (await each step):
+          await ensureAudioMode();
+          await stopAndUnload();
+          await loadAudio(nextUrl);
+          const nextSound = soundRef.current;
+          if (!nextSound) throw new Error("Não foi possível carregar o áudio.");
+          await nextSound.playAsync();
+        };
+
+        try {
+          await attemptPlayOnce();
+        } catch (firstErr) {
+          if (__DEV__) {
+            console.log("[AUDIO][RETRY_ONCE]", {
+              attempt: 1,
+              error_string:
+                firstErr instanceof Error ? firstErr.message : String(firstErr),
+              error:
+                firstErr instanceof Error
+                  ? {
+                      name: firstErr.name,
+                      message: firstErr.message,
+                      stack: firstErr.stack,
+                    }
+                  : String(firstErr),
+            });
+          }
+
+          await stopAndUnload();
+          await delayMs(200);
+
+          try {
+            await attemptPlayOnce();
+            if (__DEV__) {
+              console.log("[AUDIO][RETRY_OK]");
+            }
+          } catch (secondErr) {
+            if (__DEV__) {
+              console.log("[AUDIO][RETRY_FAILED]", {
+                error_string:
+                  secondErr instanceof Error ? secondErr.message : String(secondErr),
+                error:
+                  secondErr instanceof Error
+                    ? {
+                        name: secondErr.name,
+                        message: secondErr.message,
+                        stack: secondErr.stack,
+                      }
+                    : String(secondErr),
+              });
+            }
+            throw secondErr;
+          }
+        }
+      } catch (e) {
+        setAudioError(
+          e instanceof Error && e.message.trim()
+            ? e.message
+            : "Não foi possível tocar o áudio.",
+        );
+        await stopAndUnload();
+      } finally {
+        setIsStartingPlayback(false);
+      }
+    })();
+
+    inFlightPlaybackRef.current = op;
+    try {
+      await op;
+    } finally {
+      if (inFlightPlaybackRef.current === op) {
+        inFlightPlaybackRef.current = null;
+      }
     }
   };
 
@@ -1232,16 +1362,18 @@ export default function ReviewSubmissionScreen() {
 
                   <Pressable
                     accessibilityRole="button"
-                    disabled={isFetchingAudioUrl}
+                    disabled={isFetchingAudioUrl || isStartingPlayback}
                     onPress={() => void handleTogglePlay()}
                     style={({ pressed }) => [
                       styles.audioPlayBtn,
                       { borderColor: colors.brass600 },
                       pressed ? styles.audioPlayBtnPressed : null,
-                      isFetchingAudioUrl ? { opacity: 0.7 } : null,
+                      isFetchingAudioUrl || isStartingPlayback
+                        ? { opacity: 0.7 }
+                        : null,
                     ]}
                   >
-                    {isFetchingAudioUrl ? (
+                    {isFetchingAudioUrl || isStartingPlayback ? (
                       <ActivityIndicator color={colors.brass600} />
                     ) : (
                       <Ionicons
