@@ -5,6 +5,7 @@ import {
   getPontoAudioPlaybackUrlReview,
   getReviewPlaybackUrlEnsured,
 } from "@/src/api/pontoAudio";
+import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
@@ -118,6 +119,18 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
   if (has("missing_title")) return "Informe um título antes de aprovar.";
   if (has("missing_lyrics")) return "Informe a letra antes de aprovar.";
   if (has("invalid_decision")) return "Ação inválida.";
+
+  if (
+    has("trg_enforce_audio_duration_on_approval") ||
+    (has("duration_ms") && has("ponto_audios")) ||
+    (has("duration") && has("audio") && has("approval"))
+  ) {
+    return "Não foi possível aprovar porque a duração do áudio não foi registrada.";
+  }
+
+  if (has("registrar a duração do áudio")) {
+    return raw;
+  }
 
   // Guard-rail do banco: correction approved deve bater com target_ponto_id.
   // Não expor nomes de constraints na UI.
@@ -255,6 +268,15 @@ export default function ReviewSubmissionScreen() {
       ? submission.audio_object_path
       : null;
 
+  const isAudioReadyForPlayback =
+    isAudioUpload &&
+    submission?.has_audio === true &&
+    !!pontoAudioId &&
+    typeof submissionAudioBucketId === "string" &&
+    submissionAudioBucketId.trim().length > 0 &&
+    typeof submissionAudioObjectPath === "string" &&
+    submissionAudioObjectPath.trim().length > 0;
+
   const [title, setTitle] = useState("");
   const [authorName, setAuthorName] = useState("");
   const [interpreterName, setInterpreterName] = useState("");
@@ -276,6 +298,10 @@ export default function ReviewSubmissionScreen() {
   const inFlightPlaybackRef = useRef<Promise<void> | null>(null);
   const [audioError, setAudioError] = useState<string | null>(null);
   const [isAudioPlaying, setIsAudioPlaying] = useState(false);
+  const [audioPositionMillis, setAudioPositionMillis] = useState(0);
+  const [audioDurationMillis, setAudioDurationMillis] = useState(0);
+  const audioPreloadStartedRef = useRef(false);
+  const audioDurationLoggedRef = useRef(false);
   const lastAudioUrlErrorRef = useRef<{
     status: number | null;
     noRetry: boolean;
@@ -289,6 +315,8 @@ export default function ReviewSubmissionScreen() {
     soundRef.current = null;
     loadedAudioUrlRef.current = null;
     setIsAudioPlaying(false);
+    setAudioPositionMillis(0);
+    setAudioDurationMillis(0);
 
     if (sound) {
       try {
@@ -307,17 +335,58 @@ export default function ReviewSubmissionScreen() {
   const onAudioStatus = (status: AVPlaybackStatus) => {
     if (!status.isLoaded) {
       setIsAudioPlaying(false);
+      setAudioPositionMillis(0);
+      setAudioDurationMillis(0);
       return;
     }
 
     setIsAudioPlaying(Boolean(status.isPlaying));
+    setAudioPositionMillis(
+      typeof status.positionMillis === "number" ? status.positionMillis : 0,
+    );
+    setAudioDurationMillis(
+      typeof status.durationMillis === "number" ? status.durationMillis : 0,
+    );
+
+    if (
+      !audioDurationLoggedRef.current &&
+      typeof status.durationMillis === "number" &&
+      status.durationMillis > 0
+    ) {
+      audioDurationLoggedRef.current = true;
+      console.log("[review-audio-upload] duration:detected", {
+        submissionId,
+        pontoAudioId,
+        duration_ms: status.durationMillis,
+      });
+    }
     if ((status as any).didJustFinish) {
       setIsAudioPlaying(false);
     }
   };
 
+  const handleSeekAudio = async (nextPositionMillis: number) => {
+    const sound = soundRef.current;
+    if (!sound) return;
+    if (!audioDurationMillis) return;
+
+    const clamped = Math.max(
+      0,
+      Math.min(audioDurationMillis, Math.round(nextPositionMillis)),
+    );
+
+    try {
+      await sound.setPositionAsync(clamped);
+      setAudioPositionMillis(clamped);
+    } catch {
+      // best-effort only
+    }
+  };
+
   useEffect(() => {
     hydratedRef.current = false;
+    audioPreloadStartedRef.current = false;
+    audioDurationLoggedRef.current = false;
     setTitle("");
     setAuthorName("");
     setInterpreterName("");
@@ -360,6 +429,43 @@ export default function ReviewSubmissionScreen() {
     setTagsText((content.tags ?? []).join(", "));
     setReviewNote("");
   }, [submission]);
+
+  // Preload audio on open (review UX): fetch URL and load Sound so
+  // `status.durationMillis` becomes available for the slider.
+  useEffect(() => {
+    if (!isAudioUpload) return;
+    if (!isAudioReadyForPlayback) return;
+    if (!submissionId) return;
+    if (!pontoAudioId) return;
+
+    if (audioPreloadStartedRef.current) return;
+    audioPreloadStartedRef.current = true;
+
+    console.log("[review-audio-upload] preload:start", {
+      submissionId,
+      pontoAudioId,
+    });
+
+    void (async () => {
+      try {
+        const url = await ensureAudioUrl({ force: false });
+        if (!url) throw new Error("Não foi possível carregar o áudio.");
+        await loadAudio(url);
+        console.log("[review-audio-upload] preload:loaded", {
+          submissionId,
+          pontoAudioId,
+        });
+      } catch (e) {
+        setAudioError(
+          e instanceof Error && e.message.trim()
+            ? e.message
+            : "Não foi possível carregar o áudio.",
+        );
+      }
+    })();
+    // Intentionally do not depend on ensureAudioUrl/loadAudio; we run once per submission.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAudioReadyForPlayback, isAudioUpload, pontoAudioId, submissionId]);
 
   const pontoQuery = useQuery({
     queryKey: pontoId ? (["pontos", "byId", pontoId] as const) : [],
@@ -500,6 +606,9 @@ export default function ReviewSubmissionScreen() {
   const inputBorder =
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
+  // Match TagChip outline thickness (light uses 2, dark uses hairline).
+  const tagOutlineWidth = 2;
+
   const normalizedTags = useMemo(() => {
     return normalizeTagsFromText(tagsText);
   }, [tagsText]);
@@ -576,9 +685,52 @@ export default function ReviewSubmissionScreen() {
     rejectMutation.isPending;
 
   const approveAudioUploadMutation = useMutation({
-    mutationFn: async (vars: { submissionId: string }) => {
+    mutationFn: async (vars: {
+      submissionId: string;
+      pontoAudioId: string;
+      durationMs: number;
+    }) => {
       const sid = String(vars.submissionId ?? "").trim();
       if (!sid) throw new Error("Envio inválido.");
+
+      const paid = String(vars.pontoAudioId ?? "").trim();
+      if (!paid) throw new Error("Áudio inválido.");
+
+      const durationMs =
+        typeof vars.durationMs === "number" && Number.isFinite(vars.durationMs)
+          ? Math.round(vars.durationMs)
+          : 0;
+
+      if (durationMs <= 0) {
+        throw new Error("Carregue o áudio para aprovar.");
+      }
+
+      console.log("[review-audio-upload] duration:persist:start", {
+        submissionId: sid,
+        pontoAudioId: paid,
+        duration_ms: durationMs,
+      });
+
+      const durRes = await supabase
+        .from("ponto_audios")
+        .update({ duration_ms: durationMs })
+        .eq("id", paid);
+
+      if (durRes.error) {
+        console.error("[review-audio-upload] duration:persist:error", {
+          submissionId: sid,
+          pontoAudioId: paid,
+          duration_ms: durationMs,
+          error: serializeSupabaseErrorForLog(durRes.error),
+        });
+        throw new Error("Não foi possível registrar a duração do áudio.");
+      }
+
+      console.log("[review-audio-upload] duration:persist:success", {
+        submissionId: sid,
+        pontoAudioId: paid,
+        duration_ms: durationMs,
+      });
 
       console.log("[review-audio-upload] approve:start", {
         submissionId: sid,
@@ -717,7 +869,26 @@ export default function ReviewSubmissionScreen() {
 
     if (isAudioUploadKind) {
       try {
-        await approveAudioUploadMutation.mutateAsync({ submissionId });
+        const durationMs = audioDurationMillis;
+        if (durationMs <= 0) {
+          const msg = "Carregue o áudio para aprovar.";
+          setInlineError(msg);
+          showToast(msg);
+          return;
+        }
+
+        if (!pontoAudioId) {
+          const msg = "Áudio inválido.";
+          setInlineError(msg);
+          showToast(msg);
+          return;
+        }
+
+        await approveAudioUploadMutation.mutateAsync({
+          submissionId,
+          pontoAudioId,
+          durationMs,
+        });
 
         removeFromPendingList(submissionId);
 
@@ -1013,14 +1184,6 @@ export default function ReviewSubmissionScreen() {
   const isPublicDomain = submission.ponto_is_public_domain !== false;
   const hasAudio = isAudioUpload || submission.has_audio === true;
 
-  const isAudioReadyForPlayback =
-    isAudioUpload &&
-    submission.has_audio === true &&
-    !!pontoAudioId &&
-    typeof submissionAudioBucketId === "string" &&
-    submissionAudioBucketId.trim().length > 0 &&
-    typeof submissionAudioObjectPath === "string" &&
-    submissionAudioObjectPath.trim().length > 0;
   const authorConsentGranted = submission.author_consent_granted === true;
   const interpreterConsentGranted =
     submission.interpreter_consent_granted === true;
@@ -1045,7 +1208,7 @@ export default function ReviewSubmissionScreen() {
         .filter(Boolean)
         .join(" • ");
 
-  const ensureAudioUrl = async (options?: { force?: boolean }) => {
+  async function ensureAudioUrl(options?: { force?: boolean }) {
     if (!isAudioReadyForPlayback) {
       throw new Error("Áudio em revisão. Disponível em breve.");
     }
@@ -1127,9 +1290,9 @@ export default function ReviewSubmissionScreen() {
     } finally {
       setIsFetchingAudioUrl(false);
     }
-  };
+  }
 
-  const ensureAudioMode = async () => {
+  async function ensureAudioMode() {
     if (!audioModePromiseRef.current) {
       audioModePromiseRef.current = Audio.setAudioModeAsync({
         allowsRecordingIOS: false,
@@ -1139,17 +1302,17 @@ export default function ReviewSubmissionScreen() {
       });
     }
     await audioModePromiseRef.current;
-  };
+  }
 
-  const getUrlHostSafe = (url: string) => {
+  function getUrlHostSafe(url: string) {
     try {
       return new URL(url).host;
     } catch {
       return null;
     }
-  };
+  }
 
-  const loadAudio = async (url: string) => {
+  async function loadAudio(url: string) {
     const urlHost = getUrlHostSafe(url);
 
     if (__DEV__) {
@@ -1188,7 +1351,7 @@ export default function ReviewSubmissionScreen() {
       }
       throw e;
     }
-  };
+  }
 
   const delayMs = async (ms: number) =>
     await new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -1583,7 +1746,10 @@ export default function ReviewSubmissionScreen() {
                     onPress={() => void handleTogglePlay()}
                     style={({ pressed }) => [
                       styles.audioPlayBtn,
-                      { borderColor: colors.brass600 },
+                      {
+                        borderColor: colors.brass600,
+                        borderWidth: tagOutlineWidth,
+                      },
                       pressed ? styles.audioPlayBtnPressed : null,
                       isFetchingAudioUrl || isStartingPlayback
                         ? { opacity: 0.7 }
@@ -1605,6 +1771,18 @@ export default function ReviewSubmissionScreen() {
                       {isAudioPlaying ? "Pausar" : "Tocar"}
                     </Text>
                   </Pressable>
+
+                  <AudioProgressSlider
+                    variant={variant}
+                    positionMillis={
+                      audioDurationMillis ? audioPositionMillis : 0
+                    }
+                    durationMillis={audioDurationMillis}
+                    disabled={isFetchingAudioUrl || isStartingPlayback}
+                    accentColor={colors.brass600}
+                    trackBorderColor={inputBorder}
+                    onSeek={handleSeekAudio}
+                  />
                 </>
               )}
             </View>

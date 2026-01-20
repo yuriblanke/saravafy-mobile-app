@@ -183,6 +183,71 @@ function serializeErrorForLog(e: unknown) {
   };
 }
 
+export async function getPontoAudioDurationMs(pontoAudioId: string) {
+  const id = String(pontoAudioId ?? "").trim();
+  if (!id) return null;
+
+  const res = await supabase
+    .from("ponto_audios")
+    .select("duration_ms")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (res.error) {
+    if (__DEV__) {
+      console.log("[PLAYBACK][DURATION_FETCH_ERR]", {
+        ponto_audio_id: id,
+        message: res.error.message,
+      });
+    }
+    return null;
+  }
+
+  const raw = (res.data as any)?.duration_ms;
+  const num =
+    typeof raw === "number" && Number.isFinite(raw)
+      ? raw
+      : typeof raw === "string" && raw.trim()
+        ? Number(raw)
+        : null;
+
+  return typeof num === "number" && Number.isFinite(num) ? num : null;
+}
+
+export async function tryPersistPontoAudioDurationMs(params: {
+  pontoAudioId: string;
+  durationMs: number;
+}) {
+  const id = String(params.pontoAudioId ?? "").trim();
+  const durationMs =
+    typeof params.durationMs === "number" && Number.isFinite(params.durationMs)
+      ? Math.round(params.durationMs)
+      : 0;
+
+  if (!id) return { ok: false as const, status: null };
+  if (durationMs <= 0) return { ok: false as const, status: null };
+
+  const res = await supabase
+    .from("ponto_audios")
+    .update({ duration_ms: durationMs })
+    .eq("id", id)
+    .or("duration_ms.is.null,duration_ms.lte.0")
+    .select("id")
+    .maybeSingle();
+
+  if (res.error) {
+    if (__DEV__) {
+      console.log("[PLAYBACK][DURATION_PERSIST_ERR]", {
+        ponto_audio_id: id,
+        message: res.error.message,
+      });
+    }
+    return { ok: false as const, status: null };
+  }
+
+  return { ok: true as const, status: 200 };
+}
+
 async function withTimeout<T>(
   promise: Promise<T>,
   timeoutMs: number,

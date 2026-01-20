@@ -1,4 +1,13 @@
-import { getPontoAudioPlaybackUrlPublic } from "@/src/api/pontoAudio";
+import {
+  getPontoAudioDurationMs,
+  getPontoAudioPlaybackUrlPublic,
+  tryPersistPontoAudioDurationMs,
+} from "@/src/api/pontoAudio";
+import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
+import {
+  markDurationAutoHealTried,
+  shouldTryDurationAutoHeal,
+} from "@/src/lib/audioDurationAutoHeal";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import React, {
@@ -39,15 +48,31 @@ export function AudioPlayerFooter(props: {
   const approvedPontoAudioId = props.approvedPontoAudioId;
 
   const noAutoRetryStatusRef = useRef<number | null>(null);
+  const approvedPontoAudioIdRef = useRef<string | null>(null);
+
+  const [backendDurationMs, setBackendDurationMs] = useState(0);
+  const lastLoggedLoadedForIdRef = useRef<string | null>(null);
 
   const [playbackUrl, setPlaybackUrl] = useState<string | null>(null);
   const [playbackExpiresAtMs, setPlaybackExpiresAtMs] = useState<number | null>(
     null,
   );
+  const playbackUrlRef = useRef<string | null>(null);
+  const playbackExpiresAtMsRef = useRef<number | null>(null);
+  const [autoplayNonce, setAutoplayNonce] = useState(0);
   const [isResolvingUrl, setIsResolvingUrl] = useState(false);
   const [isBusy, setIsBusy] = useState(false);
   const renewalTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reactiveRefreshRef = useRef(0);
+
+  useEffect(() => {
+    playbackUrlRef.current = playbackUrl;
+    playbackExpiresAtMsRef.current = playbackExpiresAtMs;
+  }, [playbackExpiresAtMs, playbackUrl]);
+
+  useEffect(() => {
+    approvedPontoAudioIdRef.current = approvedPontoAudioId;
+  }, [approvedPontoAudioId]);
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -55,6 +80,9 @@ export function AudioPlayerFooter(props: {
     variant === "light"
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
+
+  // Keep play/pause outline thickness consistent across themes.
+  const tagOutlineWidth = 2;
 
   // Botão principal dourado (sem implementar áudio)
   const accent = variant === "light" ? colors.brass500 : colors.brass600;
@@ -65,12 +93,15 @@ export function AudioPlayerFooter(props: {
   const bg = variant === "light" ? colors.paper200 : colors.surfaceCardBg;
 
   const canPlay = audioState === "AUDIO_APPROVED" && !!approvedPontoAudioId;
+  const showProgress = canPlay && !curimbaEnabled;
 
   const ensurePlaybackUrl = useCallback(
     async (options?: { force?: boolean; source?: "auto" | "user" }) => {
       if (audioState !== "AUDIO_APPROVED") return;
       if (!approvedPontoAudioId) return;
       if (curimbaEnabled) return;
+
+      const requestedPontoAudioId = approvedPontoAudioId;
 
       const source = options?.source ?? "auto";
       if (
@@ -86,18 +117,51 @@ export function AudioPlayerFooter(props: {
 
       if (
         !force &&
-        playbackUrl &&
-        typeof playbackExpiresAtMs === "number" &&
-        Date.now() < playbackExpiresAtMs - 20_000
+        playbackUrlRef.current &&
+        typeof playbackExpiresAtMsRef.current === "number" &&
+        Date.now() < playbackExpiresAtMsRef.current - 20_000
       ) {
         return;
       }
 
       setIsResolvingUrl(true);
       try {
-        const res = await getPontoAudioPlaybackUrlPublic(approvedPontoAudioId);
-        setPlaybackUrl(res.url);
-        setPlaybackExpiresAtMs(Date.now() + res.expiresIn * 1000);
+        const res = await getPontoAudioPlaybackUrlPublic(requestedPontoAudioId);
+
+        // Ignore late arrivals after the user changed tracks.
+        if (approvedPontoAudioIdRef.current !== requestedPontoAudioId) return;
+
+        const nextUrl = res.url;
+        const nextExpiresAt = Date.now() + res.expiresIn * 1000;
+
+        if (__DEV__) {
+          let urlHost: string | null = null;
+          let pathname: string | null = null;
+          let queryLength: number | null = null;
+          try {
+            const u = new URL(nextUrl);
+            urlHost = u.host;
+            pathname = u.pathname;
+            queryLength = u.search ? u.search.length : 0;
+          } catch {
+            urlHost = null;
+            pathname = null;
+            queryLength = null;
+          }
+
+          console.log("[PLAYER][PUBLIC][PLAYBACK_URL]", {
+            ponto_audio_id: requestedPontoAudioId,
+            url_host: urlHost,
+            pathname,
+            query_length: queryLength,
+            expires_in_s: res.expiresIn,
+          });
+        }
+
+        playbackUrlRef.current = nextUrl;
+        playbackExpiresAtMsRef.current = nextExpiresAt;
+        setPlaybackUrl(nextUrl);
+        setPlaybackExpiresAtMs(nextExpiresAt);
       } catch (e) {
         const status =
           typeof (e as any)?.status === "number" ? (e as any).status : null;
@@ -109,20 +173,47 @@ export function AudioPlayerFooter(props: {
         setIsResolvingUrl(false);
       }
     },
-    [
-      audioState,
-      approvedPontoAudioId,
-      curimbaEnabled,
-      playbackExpiresAtMs,
-      playbackUrl,
-    ],
+    [audioState, approvedPontoAudioId, curimbaEnabled],
   );
+
+  // Best-effort: fetch stored duration_ms so UI can show total time immediately.
+  useEffect(() => {
+    setBackendDurationMs(0);
+
+    if (curimbaEnabled) return;
+    if (audioState !== "AUDIO_APPROVED") return;
+    if (!approvedPontoAudioId) return;
+
+    let cancelled = false;
+    const requestedId = approvedPontoAudioId;
+
+    void (async () => {
+      const duration = await getPontoAudioDurationMs(requestedId);
+      if (cancelled) return;
+      if (approvedPontoAudioIdRef.current !== requestedId) return;
+
+      const next =
+        typeof duration === "number" && Number.isFinite(duration)
+          ? Math.max(0, Math.round(duration))
+          : 0;
+
+      if (next > 0) {
+        setBackendDurationMs(next);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [approvedPontoAudioId, audioState, curimbaEnabled]);
 
   // Reset when changing track / audio row
   useEffect(() => {
     setPlaybackUrl(null);
     setPlaybackExpiresAtMs(null);
     reactiveRefreshRef.current = 0;
+    setIsBusy(false);
+    lastLoggedLoadedForIdRef.current = null;
     if (renewalTimerRef.current) {
       clearTimeout(renewalTimerRef.current);
       renewalTimerRef.current = null;
@@ -133,7 +224,11 @@ export function AudioPlayerFooter(props: {
       approvedPontoAudioId &&
       !curimbaEnabled
     ) {
-      void ensurePlaybackUrl({ force: true, source: "auto" }).catch(() => null);
+      setIsBusy(true);
+      setAutoplayNonce((n) => n + 1);
+      void ensurePlaybackUrl({ force: true, source: "auto" }).catch(() => {
+        setIsBusy(false);
+      });
     }
   }, [approvedPontoAudioId, audioState, curimbaEnabled, ensurePlaybackUrl]);
 
@@ -141,6 +236,158 @@ export function AudioPlayerFooter(props: {
     audioUrl: playbackUrl,
     blocked: curimbaEnabled,
   });
+
+  const uiDurationMs = useMemo(() => {
+    const loadedDuration =
+      typeof player.durationMillis === "number" &&
+      Number.isFinite(player.durationMillis)
+        ? Math.max(0, Math.round(player.durationMillis))
+        : 0;
+
+    if (loadedDuration > 0) return loadedDuration;
+    return backendDurationMs > 0 ? backendDurationMs : 0;
+  }, [backendDurationMs, player.durationMillis]);
+
+  const canSeek =
+    !curimbaEnabled &&
+    audioState === "AUDIO_APPROVED" &&
+    !!approvedPontoAudioId &&
+    player.isLoaded &&
+    (typeof player.durationMillis === "number"
+      ? player.durationMillis > 0
+      : false);
+
+  // Log once when loaded duration becomes available (per track).
+  useEffect(() => {
+    if (audioState !== "AUDIO_APPROVED") return;
+    if (!approvedPontoAudioId) return;
+    if (!player.isLoaded) return;
+    if (!(player.durationMillis > 0)) return;
+
+    if (lastLoggedLoadedForIdRef.current === approvedPontoAudioId) return;
+    lastLoggedLoadedForIdRef.current = approvedPontoAudioId;
+
+    if (__DEV__) {
+      console.log("[PLAYER][PUBLIC][AUDIO_LOADED]", {
+        ponto_audio_id: approvedPontoAudioId,
+        duration_ms: Math.round(player.durationMillis),
+      });
+    }
+  }, [
+    approvedPontoAudioId,
+    audioState,
+    player.durationMillis,
+    player.isLoaded,
+  ]);
+
+  // Auto-heal (best effort): if DB duration_ms is missing/invalid for approved audio,
+  // persist durationMillis once per ponto_audio_id per app session.
+  useEffect(() => {
+    if (curimbaEnabled) return;
+    if (audioState !== "AUDIO_APPROVED") return;
+    if (!approvedPontoAudioId) return;
+
+    // Only heal if backend duration looks missing/invalid.
+    if (backendDurationMs > 0) return;
+
+    if (!player.isLoaded) return;
+    if (!(player.durationMillis > 0)) return;
+
+    const requestedId = approvedPontoAudioId;
+    if (!shouldTryDurationAutoHeal(requestedId)) return;
+    markDurationAutoHealTried(requestedId);
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        const durationMs = Math.round(player.durationMillis);
+
+        if (__DEV__) {
+          console.log("[PLAYER][PUBLIC][DURATION_AUTOHEAL_TRY]", {
+            ponto_audio_id: requestedId,
+            duration_ms: durationMs,
+          });
+        }
+
+        const res = await tryPersistPontoAudioDurationMs({
+          pontoAudioId: requestedId,
+          durationMs,
+        });
+
+        if (cancelled) return;
+        if (approvedPontoAudioIdRef.current !== requestedId) return;
+
+        if (__DEV__) {
+          console.log("[PLAYER][PUBLIC][DURATION_AUTOHEAL_RESULT]", {
+            ponto_audio_id: requestedId,
+            ok: res.ok,
+            status: res.status,
+          });
+        }
+      } catch (e) {
+        if (__DEV__) {
+          console.log("[PLAYER][PUBLIC][DURATION_AUTOHEAL_ERR]", {
+            ponto_audio_id: requestedId,
+            message: e instanceof Error ? e.message : String(e),
+          });
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    approvedPontoAudioId,
+    audioState,
+    backendDurationMs,
+    curimbaEnabled,
+    player.durationMillis,
+    player.isLoaded,
+  ]);
+
+  // Autoplay: keep spinner until loaded, then start playing once.
+  useEffect(() => {
+    if (autoplayNonce <= 0) return;
+    if (curimbaEnabled) {
+      setIsBusy(false);
+      return;
+    }
+    if (audioState !== "AUDIO_APPROVED" || !approvedPontoAudioId) {
+      setIsBusy(false);
+      return;
+    }
+    if (!playbackUrl) return;
+    if (!player.hasAudio) return;
+    if (!player.isLoaded) return;
+    if (player.isPlaying) {
+      setIsBusy(false);
+      return;
+    }
+
+    let cancelled = false;
+    void (async () => {
+      try {
+        await player.togglePlayPause();
+      } finally {
+        if (!cancelled) setIsBusy(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    approvedPontoAudioId,
+    audioState,
+    autoplayNonce,
+    curimbaEnabled,
+    playbackUrl,
+    player.hasAudio,
+    player.isLoaded,
+    player.isPlaying,
+    player.togglePlayPause,
+  ]);
 
   // Proactive renewal (avoid touching while playing; renew next chance)
   useEffect(() => {
@@ -296,7 +543,7 @@ export function AudioPlayerFooter(props: {
           }}
           style={({ pressed }) => [
             styles.playBtn,
-            { borderColor: accent },
+            { borderColor: accent, borderWidth: tagOutlineWidth },
             (curimbaEnabled || !canPlay || isBusy || isResolvingUrl) &&
               styles.playBtnDisabled,
             pressed && styles.playBtnPressed,
@@ -314,28 +561,22 @@ export function AudioPlayerFooter(props: {
         </Pressable>
       </View>
 
-      <View
-        style={[styles.progressTrack, { borderColor }]}
-        accessibilityLabel="Progresso"
-      >
-        <View
-          style={[
-            styles.progressFill,
-            {
-              backgroundColor:
-                canPlay && !curimbaEnabled && player.hasAudio
-                  ? accent
-                  : "transparent",
-              width: `${Math.round(player.progress * 100)}%`,
-            },
-          ]}
+      {showProgress ? (
+        <AudioProgressSlider
+          variant={variant}
+          positionMillis={player.positionMillis}
+          durationMillis={uiDurationMs}
+          disabled={!canSeek}
+          accentColor={accent}
+          trackBorderColor={borderColor}
+          onSeek={(ms) => player.seekTo(ms)}
         />
-      </View>
+      ) : null}
     </View>
   );
 }
 
-const FOOTER_HEIGHT = 104;
+const FOOTER_HEIGHT = 132;
 export const AUDIO_FOOTER_HEIGHT = FOOTER_HEIGHT;
 
 const styles = StyleSheet.create({
@@ -384,15 +625,5 @@ const styles = StyleSheet.create({
   },
   playBtnDisabled: {
     opacity: 0.55,
-  },
-  progressTrack: {
-    marginTop: spacing.sm,
-    height: 6,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-  },
-  progressFill: {
-    height: "100%",
   },
 });

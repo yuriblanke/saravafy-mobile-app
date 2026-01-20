@@ -34,6 +34,7 @@ export function usePlayerAudio(params: {
   const [durationMillis, setDurationMillis] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
+  const inFlightKindRef = useRef<"load" | "toggle" | null>(null);
   const playRequestedAtMsRef = useRef<number | null>(null);
   const playRequestedAttemptRef = useRef<number | null>(null);
   const playLatencyLoggedRef = useRef(false);
@@ -154,11 +155,13 @@ export function usePlayerAudio(params: {
     })();
 
     inFlightRef.current = op;
+    inFlightKindRef.current = "load";
     try {
       await op;
     } finally {
       if (inFlightRef.current === op) {
         inFlightRef.current = null;
+        inFlightKindRef.current = null;
       }
     }
   }, [audioUrl, blocked, cleanup, hasAudio, onStatus]);
@@ -177,8 +180,19 @@ export function usePlayerAudio(params: {
   }, [load, cleanup]);
 
   const togglePlayPause = useCallback(async () => {
-    // Real mutex: ignore concurrent play attempts.
-    if (inFlightRef.current) return;
+    // If we're already loading due to an URL change, wait for it so the first
+    // play attempt doesn't get dropped (keep UI in loading state until ready).
+    const inflight = inFlightRef.current;
+    if (inflight && inFlightKindRef.current === "load") {
+      try {
+        await inflight;
+      } catch {
+        // ignore
+      }
+    } else if (inFlightRef.current) {
+      // Another toggle is already running; ignore additional clicks.
+      return;
+    }
 
     const op = (async () => {
       setError(null);
@@ -302,14 +316,58 @@ export function usePlayerAudio(params: {
     })();
 
     inFlightRef.current = op;
+    inFlightKindRef.current = "toggle";
     try {
       await op;
     } finally {
       if (inFlightRef.current === op) {
         inFlightRef.current = null;
+        inFlightKindRef.current = null;
       }
     }
   }, [audioUrl, blocked, cleanup, hasAudio, onStatus]);
+
+  const seekTo = useCallback(
+    async (nextPositionMillis: number) => {
+      if (blocked) return;
+
+      // If we're currently loading (URL change), wait so we seek the latest sound.
+      const inflight = inFlightRef.current;
+      if (inflight && inFlightKindRef.current === "load") {
+        try {
+          await inflight;
+        } catch {
+          // ignore
+        }
+      }
+
+      const sound = soundRef.current;
+      if (!sound) return;
+
+      try {
+        const status = await sound.getStatusAsync();
+        if (!status.isLoaded) return;
+
+        const duration =
+          typeof status.durationMillis === "number" &&
+          Number.isFinite(status.durationMillis)
+            ? Math.max(0, status.durationMillis)
+            : 0;
+
+        const raw =
+          typeof nextPositionMillis === "number" &&
+          Number.isFinite(nextPositionMillis)
+            ? Math.max(0, nextPositionMillis)
+            : 0;
+
+        const clamped = duration > 0 ? Math.min(raw, duration) : raw;
+        await sound.setPositionAsync(clamped);
+      } catch {
+        // best-effort seek only
+      }
+    },
+    [blocked],
+  );
 
   const progress = useMemo(() => {
     if (!durationMillis) return 0;
@@ -325,5 +383,6 @@ export function usePlayerAudio(params: {
     durationMillis,
     error,
     togglePlayPause,
+    seekTo,
   };
 }
