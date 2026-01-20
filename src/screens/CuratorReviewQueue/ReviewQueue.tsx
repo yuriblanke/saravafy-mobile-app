@@ -72,7 +72,10 @@ export default function ReviewQueueScreen() {
       ? colors.textSecondaryOnLight
       : colors.textSecondaryOnDark;
 
-  const items = useMemo(() => submissionsQuery.data ?? [], [submissionsQuery]);
+  const items = useMemo(
+    () => submissionsQuery.data ?? [],
+    [submissionsQuery.data],
+  );
 
   const firstSubmissionId = items?.[0]?.id ? String(items[0].id) : null;
 
