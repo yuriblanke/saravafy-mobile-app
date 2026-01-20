@@ -23,6 +23,7 @@ export function usePlayerAudio(params: {
   audioUrl?: string | null;
   blocked?: boolean;
 }) {
+  const mode = "player" as const;
   const { audioUrl } = params;
   const blocked = params.blocked === true;
 
@@ -122,11 +123,23 @@ export function usePlayerAudio(params: {
 
       try {
         await ensureAudioModeOnce();
+
+        const tLoadStart = performance.now();
+        if (__DEV__) {
+          console.log("[PERF][AUDIO][LOAD_START]", { mode });
+        }
         const { sound } = await Audio.Sound.createAsync(
           { uri: audioUrl as string },
           { shouldPlay: false, progressUpdateIntervalMillis: 250 },
           onStatus
         );
+        const tLoadEnd = performance.now();
+        if (__DEV__) {
+          console.log("[PERF][AUDIO][LOAD_END]", {
+            mode,
+            ms: Math.round(tLoadEnd - tLoadStart),
+          });
+        }
         soundRef.current = sound;
         setIsLoaded(true);
       } catch (e) {
@@ -179,18 +192,39 @@ export function usePlayerAudio(params: {
       if (!hasAudio) return;
 
       const attempt = async (attemptNum: number) => {
+        const t0 = performance.now();
         if (__DEV__) {
           console.log("[AUDIO][LOAD_START]", { attempt: attemptNum });
         }
         // REQUIRED sequence (await each step):
         await ensureAudioModeOnce();
         await cleanup();
+
+        const tLoadStart = performance.now();
+        if (__DEV__) {
+          console.log("[PERF][AUDIO][LOAD_START]", { mode });
+        }
         const { sound } = await Audio.Sound.createAsync(
           { uri: audioUrl as string },
           { shouldPlay: false, progressUpdateIntervalMillis: 250 },
           onStatus
         );
+        const tLoadEnd = performance.now();
+        if (__DEV__) {
+          console.log("[PERF][AUDIO][LOAD_END]", {
+            mode,
+            ms: Math.round(tLoadEnd - tLoadStart),
+          });
+        }
         soundRef.current = sound;
+
+        const tReady = performance.now();
+        if (__DEV__) {
+          console.log("[PERF][AUDIO][READY_TO_PLAY]", {
+            mode,
+            total_ms: Math.round(tReady - t0),
+          });
+        }
 
         playRequestedAtMsRef.current = Date.now();
         playRequestedAttemptRef.current = attemptNum;

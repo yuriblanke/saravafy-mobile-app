@@ -262,11 +262,26 @@ async function callFunctionAuthedHttp(
     });
   }
 
+  const isPlaybackEdge = name === "ponto-audio-playback-url";
+  const t0 = isPlaybackEdge ? performance.now() : 0;
+  if (__DEV__ && isPlaybackEdge) {
+    console.log("[PERF][PLAYBACK][EDGE_START]", { mode: "review" });
+  }
+
   const resp = await fetch(url.toString(), {
     method: "POST",
     headers: requestHeaders,
     body: JSON.stringify(body ?? {}),
   });
+
+  if (__DEV__ && isPlaybackEdge) {
+    const t1 = performance.now();
+    console.log("[PERF][PLAYBACK][EDGE_END]", {
+      mode: "review",
+      ms: Math.round(t1 - t0),
+      status: resp.status,
+    });
+  }
 
   const sbRequestId =
     resp.headers.get("sb-request-id") ??
@@ -343,11 +358,26 @@ async function callFunctionPublicHttp(
     });
   }
 
+  const isPlaybackEdge = name === "ponto-audio-playback-url";
+  const t0 = isPlaybackEdge ? performance.now() : 0;
+  if (__DEV__ && isPlaybackEdge) {
+    console.log("[PERF][PLAYBACK][EDGE_START]", { mode: "public" });
+  }
+
   const resp = await fetch(url.toString(), {
     method: "POST",
     headers: requestHeaders,
     body: JSON.stringify(body ?? {}),
   });
+
+  if (__DEV__ && isPlaybackEdge) {
+    const t1 = performance.now();
+    console.log("[PERF][PLAYBACK][EDGE_END]", {
+      mode: "public",
+      ms: Math.round(t1 - t0),
+      status: resp.status,
+    });
+  }
 
   const sbRequestId =
     resp.headers.get("sb-request-id") ??
