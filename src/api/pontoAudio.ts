@@ -60,7 +60,10 @@ type ReviewPlaybackUrlCacheEntry = {
   expiresAtMs: number;
 };
 
-const REVIEW_PLAYBACK_URL_CACHE = new Map<string, ReviewPlaybackUrlCacheEntry>();
+const REVIEW_PLAYBACK_URL_CACHE = new Map<
+  string,
+  ReviewPlaybackUrlCacheEntry
+>();
 const inFlightReviewPlaybackBySubmissionId = new Map<
   string,
   Promise<ReviewPlaybackUrlCacheEntry>

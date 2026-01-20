@@ -3,12 +3,15 @@ import { useToast } from "@/contexts/ToastContext";
 import { prefetchReviewPlaybackUrl } from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import {
+  resolveProfiles,
+  type PublicProfile,
+} from "@/src/features/identity/resolveProfiles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import {
   extractSubmissionContentFromPayload,
   usePendingPontoSubmissions,
 } from "@/src/queries/pontoSubmissions";
-import { resolveProfiles, type PublicProfile } from "@/src/features/identity/resolveProfiles";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -84,9 +87,9 @@ export default function ReviewQueueScreen() {
     prefetchReviewPlaybackUrl(firstSubmissionId);
   }, [firstSubmissionId]);
 
-  const [profilesById, setProfilesById] = useState<Record<string, PublicProfile>>(
-    {},
-  );
+  const [profilesById, setProfilesById] = useState<
+    Record<string, PublicProfile>
+  >({});
 
   useEffect(() => {
     const userIds = Array.from(
@@ -174,7 +177,7 @@ export default function ReviewQueueScreen() {
               {String(
                 submissionsQuery.error instanceof Error
                   ? submissionsQuery.error.message
-                  : "Erro"
+                  : "Erro",
               )}
             </Text>
           </View>
@@ -219,15 +222,16 @@ export default function ReviewQueueScreen() {
 
               const submitterProfile =
                 typeof s.created_by === "string" && s.created_by
-                  ? profilesById[s.created_by] ?? null
+                  ? (profilesById[s.created_by] ?? null)
                   : null;
 
-              const submitterName =
-                (typeof submitterProfile?.full_name === "string"
+              const submitterName = (
+                typeof submitterProfile?.full_name === "string"
                   ? submitterProfile.full_name
-                  : "")
-                  .trim()
-                  .slice(0, 80);
+                  : ""
+              )
+                .trim()
+                .slice(0, 80);
 
               const submitterEmail = (
                 typeof submitterProfile?.email === "string"

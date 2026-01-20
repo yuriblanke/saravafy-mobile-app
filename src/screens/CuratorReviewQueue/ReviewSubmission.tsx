@@ -47,6 +47,27 @@ function getErrorMessage(error: unknown): string {
   return message.trim() ? message.trim() : "Erro";
 }
 
+function safeJsonForLog(value: unknown, maxLen = 4000) {
+  try {
+    const s = JSON.stringify(value);
+    return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
+  } catch {
+    return "<unstringifiable>";
+  }
+}
+
+function serializeSupabaseErrorForLog(error: unknown) {
+  const e: any = error as any;
+  return {
+    message: typeof e?.message === "string" ? e.message : null,
+    details: typeof e?.details === "string" ? e.details : null,
+    hint: typeof e?.hint === "string" ? e.hint : null,
+    code: typeof e?.code === "string" ? e.code : null,
+    status: typeof e?.status === "number" ? e.status : null,
+    raw: safeJsonForLog(error),
+  };
+}
+
 function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
   const anyErr = error as any;
   const code = typeof anyErr?.code === "string" ? anyErr.code : "";
@@ -554,6 +575,86 @@ export default function ReviewSubmissionScreen() {
     approveCorrectionMutation.isPending ||
     rejectMutation.isPending;
 
+  const approveAudioUploadMutation = useMutation({
+    mutationFn: async (vars: { submissionId: string }) => {
+      const sid = String(vars.submissionId ?? "").trim();
+      if (!sid) throw new Error("Envio inválido.");
+
+      console.log("[review-audio-upload] approve:start", {
+        submissionId: sid,
+      });
+
+      const res = await supabase.rpc("approve_audio_upload_submission", {
+        p_submission_id: sid,
+      });
+
+      if (res.error) {
+        console.error("[review-audio-upload] approve:error", {
+          submissionId: sid,
+          kind: "audio_upload",
+          pontoId:
+            typeof submission?.ponto_id === "string"
+              ? submission.ponto_id
+              : null,
+          data: safeJsonForLog(res.data),
+          error: serializeSupabaseErrorForLog(res.error),
+        });
+        throw res.error;
+      }
+
+      console.log("[review-audio-upload] approve:success", {
+        submissionId: sid,
+        data: safeJsonForLog(res.data),
+      });
+
+      return res.data ?? null;
+    },
+  });
+
+  const rejectAudioUploadMutation = useMutation({
+    mutationFn: async (vars: { submissionId: string; reviewNote: string }) => {
+      const sid = String(vars.submissionId ?? "").trim();
+      const note = String(vars.reviewNote ?? "").trim();
+      if (!sid) throw new Error("Envio inválido.");
+      if (!note) throw new Error("Informe um motivo para rejeitar.");
+
+      console.log("[review-audio-upload] reject:start", {
+        submissionId: sid,
+      });
+
+      const res = await supabase.rpc("reject_audio_upload_submission", {
+        p_submission_id: sid,
+        p_review_note: note,
+      });
+
+      if (res.error) {
+        console.error("[review-audio-upload] reject:error", {
+          submissionId: sid,
+          kind: "audio_upload",
+          pontoId:
+            typeof submission?.ponto_id === "string"
+              ? submission.ponto_id
+              : null,
+          data: safeJsonForLog(res.data),
+          error: serializeSupabaseErrorForLog(res.error),
+        });
+        throw res.error;
+      }
+
+      console.log("[review-audio-upload] reject:success", {
+        submissionId: sid,
+        data: safeJsonForLog(res.data),
+      });
+
+      return res.data ?? null;
+    },
+  });
+
+  const isMutatingAny =
+    isMutating ||
+    approveAudioUploadMutation.isPending ||
+    rejectAudioUploadMutation.isPending;
+
   const approve = async () => {
     setInlineError(null);
 
@@ -565,6 +666,9 @@ export default function ReviewSubmissionScreen() {
     const kind = typeof submission?.kind === "string" ? submission.kind : null;
     const isCorrection =
       typeof kind === "string" && kind.trim().toLowerCase() === "correction";
+
+    const isAudioUploadKind =
+      typeof kind === "string" && kind.trim().toLowerCase() === "audio_upload";
 
     if (isCorrection) {
       const payload: ApproveCorrectionRpcPayload = {
@@ -604,6 +708,61 @@ export default function ReviewSubmissionScreen() {
         void raw;
 
         // Não remover da fila em erro.
+        setInlineError(friendly);
+        showToast(friendly);
+      }
+
+      return;
+    }
+
+    if (isAudioUploadKind) {
+      try {
+        await approveAudioUploadMutation.mutateAsync({ submissionId });
+
+        removeFromPendingList(submissionId);
+
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pontosSubmissions.pending(),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pontosSubmissions.byId(submissionId),
+        });
+
+        const pid =
+          typeof submission?.ponto_id === "string" ? submission.ponto_id : null;
+        if (pid) {
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.pontosSubmissions.approvedAudioByPontoId(pid),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.pontoAudios.byPontoId(pid),
+          });
+          queryClient.invalidateQueries({
+            queryKey: queryKeys.pontoAudios.hasAnyUploadedByPontoId(pid),
+          });
+        }
+
+        if (typeof pontoAudioId === "string" && pontoAudioId) {
+          queryClient.invalidateQueries({
+            queryKey: ["pontoAudios", "metaById", pontoAudioId],
+          });
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["pontos"] });
+
+        showToast("Áudio aprovado.");
+        router.back();
+      } catch (e) {
+        const friendly = mapReviewErrorToFriendlyMessage(e);
+        const raw = getErrorMessage(e);
+
+        if (raw.toLowerCase().includes("submission_not_pending")) {
+          removeFromPendingList(submissionId);
+          showToast("Já foi revisado.");
+          router.back();
+          return;
+        }
+
         setInlineError(friendly);
         showToast(friendly);
       }
@@ -682,6 +841,20 @@ export default function ReviewSubmissionScreen() {
       return;
     }
 
+    const kind = typeof submission?.kind === "string" ? submission.kind : null;
+    const isAudioUploadKind =
+      typeof kind === "string" && kind.trim().toLowerCase() === "audio_upload";
+
+    if (isAudioUploadKind) {
+      const note = String(reviewNote ?? "").trim();
+      if (!note) {
+        const msg = "Informe um motivo para rejeitar.";
+        setInlineError(msg);
+        showToast(msg);
+        return;
+      }
+    }
+
     Alert.alert(
       "Rejeitar envio",
       "Tem certeza que deseja rejeitar este envio?",
@@ -691,12 +864,57 @@ export default function ReviewSubmissionScreen() {
           text: "Rejeitar",
           style: "destructive",
           onPress: async () => {
-            const payload: RejectSubmissionRpcPayload = {
-              p_submission_id: submissionId,
-              p_review_note: sanitizeOptionalText(reviewNote),
-            };
-
             try {
+              if (isAudioUploadKind) {
+                await rejectAudioUploadMutation.mutateAsync({
+                  submissionId,
+                  reviewNote: String(reviewNote ?? ""),
+                });
+
+                removeFromPendingList(submissionId);
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.pontosSubmissions.pending(),
+                });
+                queryClient.invalidateQueries({
+                  queryKey: queryKeys.pontosSubmissions.byId(submissionId),
+                });
+
+                const pid =
+                  typeof submission?.ponto_id === "string"
+                    ? submission.ponto_id
+                    : null;
+                if (pid) {
+                  queryClient.invalidateQueries({
+                    queryKey:
+                      queryKeys.pontosSubmissions.approvedAudioByPontoId(pid),
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey: queryKeys.pontoAudios.byPontoId(pid),
+                  });
+                  queryClient.invalidateQueries({
+                    queryKey:
+                      queryKeys.pontoAudios.hasAnyUploadedByPontoId(pid),
+                  });
+                }
+
+                if (typeof pontoAudioId === "string" && pontoAudioId) {
+                  queryClient.invalidateQueries({
+                    queryKey: ["pontoAudios", "metaById", pontoAudioId],
+                  });
+                }
+
+                queryClient.invalidateQueries({ queryKey: ["pontos"] });
+
+                showToast("Áudio rejeitado.");
+                router.back();
+                return;
+              }
+
+              const payload: RejectSubmissionRpcPayload = {
+                p_submission_id: submissionId,
+                p_review_note: sanitizeOptionalText(reviewNote),
+              };
+
               await rejectMutation.mutateAsync(payload);
 
               removeFromPendingList(submissionId);
@@ -972,11 +1190,6 @@ export default function ReviewSubmissionScreen() {
     }
   };
 
-  const ensureAudioLoaded = async (url: string) => {
-    if (soundRef.current && loadedAudioUrlRef.current === url) return;
-    await loadAudio(url);
-  };
-
   const delayMs = async (ms: number) =>
     await new Promise<void>((resolve) => setTimeout(resolve, ms));
 
@@ -1208,7 +1421,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={title}
             onChangeText={setTitle}
-            editable={!isMutating && !isAudioUpload}
+            editable={!isMutatingAny && !isAudioUpload}
             placeholder="Título"
             placeholderTextColor={
               variant === "light"
@@ -1229,7 +1442,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={authorName}
             onChangeText={setAuthorName}
-            editable={!isMutating && !isAudioUpload}
+            editable={!isMutatingAny && !isAudioUpload}
             placeholder={isPublicDomain ? "Autor (opcional)" : "Autor"}
             placeholderTextColor={
               variant === "light"
@@ -1254,7 +1467,7 @@ export default function ReviewSubmissionScreen() {
               <TextInput
                 value={interpreterName}
                 onChangeText={setInterpreterName}
-                editable={!isMutating && !isAudioUpload}
+                editable={!isMutatingAny && !isAudioUpload}
                 placeholder="Intérprete"
                 placeholderTextColor={
                   variant === "light"
@@ -1401,7 +1614,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={lyrics}
             onChangeText={setLyrics}
-            editable={!isMutating && !isAudioUpload}
+            editable={!isMutatingAny && !isAudioUpload}
             multiline
             textAlignVertical="top"
             placeholder="Letra"
@@ -1424,7 +1637,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={tagsText}
             onChangeText={setTagsText}
-            editable={!isMutating && !isAudioUpload}
+            editable={!isMutatingAny && !isAudioUpload}
             placeholder="Ex.: Ogum, Caboclo, Xangô"
             placeholderTextColor={
               variant === "light"
@@ -1455,7 +1668,7 @@ export default function ReviewSubmissionScreen() {
           <TextInput
             value={reviewNote}
             onChangeText={setReviewNote}
-            editable={!isMutating}
+            editable={!isMutatingAny}
             multiline
             placeholder="Ex.: corrigir autor, melhorar clareza da letra…"
             placeholderTextColor={
@@ -1476,13 +1689,13 @@ export default function ReviewSubmissionScreen() {
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="button"
-              disabled={isMutating}
+              disabled={isMutatingAny}
               onPress={() => void reject()}
               style={({ pressed }) => [
                 styles.rejectBtn,
                 {
                   borderColor: colors.brass600,
-                  opacity: isMutating ? 0.7 : 1,
+                  opacity: isMutatingAny ? 0.7 : 1,
                 },
                 pressed ? styles.actionPressed : null,
               ]}
@@ -1494,14 +1707,14 @@ export default function ReviewSubmissionScreen() {
 
             <Pressable
               accessibilityRole="button"
-              disabled={isMutating}
+              disabled={isMutatingAny}
               onPress={() => void approve()}
               style={({ pressed }) => [
                 styles.approveBtn,
                 {
                   backgroundColor:
                     variant === "light" ? colors.forest700 : colors.forest300,
-                  opacity: isMutating ? 0.7 : 1,
+                  opacity: isMutatingAny ? 0.7 : 1,
                 },
                 pressed ? styles.actionPressed : null,
               ]}
@@ -1515,7 +1728,7 @@ export default function ReviewSubmissionScreen() {
                   },
                 ]}
               >
-                {isMutating ? "Enviando…" : "Aprovar"}
+                {isMutatingAny ? "Enviando…" : "Aprovar"}
               </Text>
             </Pressable>
           </View>
