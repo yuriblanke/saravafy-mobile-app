@@ -159,6 +159,9 @@ export function usePlayerAudio(params: {
       if (!hasAudio) return;
 
       const attempt = async () => {
+        if (__DEV__) {
+          console.log("[AUDIO][LOAD_START]", { attempt: 1 });
+        }
         // REQUIRED sequence (await each step):
         await ensureAudioModeOnce();
         await cleanup();
@@ -169,6 +172,10 @@ export function usePlayerAudio(params: {
         );
         soundRef.current = sound;
         await sound.playAsync();
+
+        if (__DEV__) {
+          console.log("[AUDIO][LOAD_OK]", { attempt: 1 });
+        }
       };
 
       // If we already have a loaded sound, toggle pause/play without recreating.
@@ -193,22 +200,36 @@ export function usePlayerAudio(params: {
         await attempt();
       } catch (firstErr) {
         if (__DEV__) {
-          console.log("[AUDIO][RETRY_ONCE]", {
+          console.log("[AUDIO][LOAD_ERR]", {
             attempt: 1,
-            error_string:
-              firstErr instanceof Error ? firstErr.message : String(firstErr),
+            error: firstErr instanceof Error ? firstErr.message : String(firstErr),
           });
+
+          console.log("[AUDIO][RETRY_ONCE]");
         }
 
         await delayMs(200);
 
         try {
+          if (__DEV__) {
+            console.log("[AUDIO][LOAD_START]", { attempt: 2 });
+          }
+
           await attempt();
+
+          if (__DEV__) {
+            console.log("[AUDIO][LOAD_OK]", { attempt: 2 });
+          }
           if (__DEV__) {
             console.log("[AUDIO][RETRY_OK]");
           }
         } catch (secondErr) {
           if (__DEV__) {
+            console.log("[AUDIO][LOAD_ERR]", {
+              attempt: 2,
+              error:
+                secondErr instanceof Error ? secondErr.message : String(secondErr),
+            });
             console.log("[AUDIO][RETRY_FAILED]", {
               error_string:
                 secondErr instanceof Error
