@@ -1107,7 +1107,10 @@ async function getPontoAudioPlaybackUrlInternal(
       typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)
         ? expiresInSeconds
         : 60,
-    mimeType: typeof (data as any)?.mime_type === "string" ? (data as any).mime_type : null,
+    mimeType:
+      typeof (data as any)?.mime_type === "string"
+        ? (data as any).mime_type
+        : null,
     signedUrl,
     resolvedUrl,
     resolvedHeadStatus,

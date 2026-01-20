@@ -1,6 +1,24 @@
 import { Audio, type AVPlaybackStatus } from "expo-av";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+let audioModePromise: Promise<void> | null = null;
+
+function ensureAudioModeOnce() {
+  if (!audioModePromise) {
+    audioModePromise = Audio.setAudioModeAsync({
+      allowsRecordingIOS: false,
+      playsInSilentModeIOS: true,
+      staysActiveInBackground: false,
+      shouldDuckAndroid: true,
+    });
+  }
+  return audioModePromise;
+}
+
+async function delayMs(ms: number) {
+  await new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 export function usePlayerAudio(params: {
   audioUrl?: string | null;
   blocked?: boolean;
@@ -14,7 +32,7 @@ export function usePlayerAudio(params: {
   const [positionMillis, setPositionMillis] = useState(0);
   const [durationMillis, setDurationMillis] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const loadingRef = useRef(false);
+  const inFlightRef = useRef<Promise<void> | null>(null);
 
   const hasAudio = useMemo(
     () => typeof audioUrl === "string" && audioUrl.trim().length > 0,
@@ -30,6 +48,11 @@ export function usePlayerAudio(params: {
     setDurationMillis(0);
 
     if (sound) {
+      try {
+        await sound.stopAsync();
+      } catch {
+        // ignore
+      }
       try {
         await sound.unloadAsync();
       } catch {
@@ -60,11 +83,11 @@ export function usePlayerAudio(params: {
   }, []);
 
   const load = useCallback(async () => {
-    // Prevent concurrent loads
-    if (loadingRef.current) return;
-    loadingRef.current = true;
+    // NOTE: This function is still called by an effect (to keep old behavior),
+    // but it must not race with play. A ref-mutex controls concurrency.
+    if (inFlightRef.current) return;
 
-    try {
+    const op = (async () => {
       await cleanup();
       setError(null);
 
@@ -78,27 +101,32 @@ export function usePlayerAudio(params: {
       if (!hasAudio) return;
 
       try {
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: false,
-          playsInSilentModeIOS: true,
-          staysActiveInBackground: false,
-          shouldDuckAndroid: true,
-        });
-
+        await ensureAudioModeOnce();
         const { sound } = await Audio.Sound.createAsync(
           { uri: audioUrl as string },
           { shouldPlay: false, progressUpdateIntervalMillis: 250 },
           onStatus
         );
-
         soundRef.current = sound;
         setIsLoaded(true);
       } catch (e) {
+        if (__DEV__) {
+          console.log("[AUDIO][LOAD_ERR]", {
+            error_string: e instanceof Error ? e.message : String(e),
+          });
+        }
         setError(e instanceof Error ? e.message : "Erro ao carregar áudio.");
         await cleanup();
       }
+    })();
+
+    inFlightRef.current = op;
+    try {
+      await op;
     } finally {
-      loadingRef.current = false;
+      if (inFlightRef.current === op) {
+        inFlightRef.current = null;
+      }
     }
   }, [audioUrl, blocked, cleanup, hasAudio, onStatus]);
 
@@ -116,22 +144,93 @@ export function usePlayerAudio(params: {
   }, [load, cleanup]);
 
   const togglePlayPause = useCallback(async () => {
-    const sound = soundRef.current;
-    if (!sound) return;
+    // Real mutex: ignore concurrent play attempts.
+    if (inFlightRef.current) return;
 
-    try {
-      const status = await sound.getStatusAsync();
-      if (!status.isLoaded) return;
+    const op = (async () => {
+      setError(null);
 
-      if (status.isPlaying) {
-        await sound.pauseAsync();
-      } else {
-        await sound.playAsync();
+      if (blocked) {
+        if (__DEV__) {
+          console.info("[Curimba] áudio bloqueado");
+        }
+        return;
       }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Erro no player.");
+      if (!hasAudio) return;
+
+      const attempt = async () => {
+        // REQUIRED sequence (await each step):
+        await ensureAudioModeOnce();
+        await cleanup();
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: audioUrl as string },
+          { shouldPlay: false, progressUpdateIntervalMillis: 250 },
+          onStatus
+        );
+        soundRef.current = sound;
+        await sound.playAsync();
+      };
+
+      // If we already have a loaded sound, toggle pause/play without recreating.
+      const existing = soundRef.current;
+      if (existing) {
+        try {
+          const status = await existing.getStatusAsync();
+          if (status.isLoaded) {
+            if (status.isPlaying) {
+              await existing.pauseAsync();
+            } else {
+              await existing.playAsync();
+            }
+            return;
+          }
+        } catch {
+          // Fall through to recreate sound deterministically.
+        }
+      }
+
+      try {
+        await attempt();
+      } catch (firstErr) {
+        if (__DEV__) {
+          console.log("[AUDIO][RETRY_ONCE]", {
+            attempt: 1,
+            error_string:
+              firstErr instanceof Error ? firstErr.message : String(firstErr),
+          });
+        }
+
+        await delayMs(200);
+
+        try {
+          await attempt();
+          if (__DEV__) {
+            console.log("[AUDIO][RETRY_OK]");
+          }
+        } catch (secondErr) {
+          if (__DEV__) {
+            console.log("[AUDIO][RETRY_FAILED]", {
+              error_string:
+                secondErr instanceof Error
+                  ? secondErr.message
+                  : String(secondErr),
+            });
+          }
+          setError(secondErr instanceof Error ? secondErr.message : "Erro no player.");
+          await cleanup();
+        }
+      }
+    })();
+
+    inFlightRef.current = op;
+    try {
+      await op;
+    } finally {
+      if (inFlightRef.current === op) {
+        inFlightRef.current = null;
+      }
     }
-  }, []);
+  }, [audioUrl, blocked, cleanup, hasAudio, onStatus]);
 
   const progress = useMemo(() => {
     if (!durationMillis) return 0;

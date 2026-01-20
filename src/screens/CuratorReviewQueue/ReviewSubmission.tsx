@@ -998,7 +998,7 @@ export default function ReviewSubmissionScreen() {
         return;
       }
 
-    // If we have a loaded sound but URL is expired, unload and get a fresh URL for resume.
+      // If we have a loaded sound but URL is expired, unload and get a fresh URL for resume.
       const urlExpired =
         typeof audioUrlExpiresAtMs === "number" &&
         Date.now() > audioUrlExpiresAtMs;
@@ -1061,7 +1061,9 @@ export default function ReviewSubmissionScreen() {
             if (__DEV__) {
               console.log("[AUDIO][RETRY_FAILED]", {
                 error_string:
-                  secondErr instanceof Error ? secondErr.message : String(secondErr),
+                  secondErr instanceof Error
+                    ? secondErr.message
+                    : String(secondErr),
                 error:
                   secondErr instanceof Error
                     ? {
