@@ -27,7 +27,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -122,6 +122,10 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
   if (has("missing_title")) return "Informe um título antes de aprovar.";
   if (has("missing_lyrics")) return "Informe a letra antes de aprovar.";
   if (has("invalid_decision")) return "Ação inválida.";
+
+  if (has("invalid_activation") || has("cannot activate ponto_audio")) {
+    return "Não foi possível ativar o áudio deste envio. Tente novamente.";
+  }
 
   if (
     has("trg_enforce_audio_duration_on_approval") ||
@@ -295,7 +299,7 @@ export default function ReviewSubmissionScreen() {
   const audioPreloadStartedRef = useRef(false);
 
   const isThisSubmissionCurrent =
-    rntp.current?.kind === "review" && rntp.current.id === submissionId;
+    rntp.current?.kind === "submission" && rntp.current.id === submissionId;
   const isAudioPlaying = isThisSubmissionCurrent && rntp.isPlaying;
   const audioPositionMillis = isThisSubmissionCurrent ? rntp.positionMillis : 0;
   const audioDurationMillis = isThisSubmissionCurrent ? rntp.durationMillis : 0;
@@ -368,7 +372,7 @@ export default function ReviewSubmissionScreen() {
     // Don't disrupt another global track (single source of truth).
     if (
       rntp.current !== null &&
-      !(rntp.current.kind === "review" && rntp.current.id === submissionId)
+      !(rntp.current.kind === "submission" && rntp.current.id === submissionId)
     ) {
       return;
     }
@@ -380,12 +384,12 @@ export default function ReviewSubmissionScreen() {
         setAudioUiError(null);
 
         await ensureLoaded({
-          kind: "review",
+          kind: "submission",
           submissionId,
           title: title.trim() ? title.trim() : "Ponto",
           artist:
             interpreterName.trim() || authorName.trim()
-              ? (interpreterName.trim() || authorName.trim())
+              ? interpreterName.trim() || authorName.trim()
               : null,
         });
       } catch (e) {
@@ -669,9 +673,45 @@ export default function ReviewSubmissionScreen() {
         submissionId: sid,
       });
 
-      const res = await supabase.rpc("approve_audio_upload_submission", {
+      let res = await supabase.rpc("approve_audio_upload_submission", {
         p_submission_id: sid,
       });
+
+      // Some backends validate activation against an *already approved* audio_upload
+      // submission. If so, approve via the canonical review RPC first.
+      if (res.error) {
+        const msg =
+          typeof (res.error as any)?.message === "string"
+            ? String((res.error as any).message)
+            : "";
+        const msgLower = msg.toLowerCase();
+
+        if (
+          msgLower.includes("invalid_activation") ||
+          msgLower.includes("cannot activate ponto_audio")
+        ) {
+          const fallback = await callRpcWithParamFallback(
+            "review_ponto_submission",
+            {
+              p_submission_id: sid,
+              p_decision: "approved",
+              p_review_note: null,
+            },
+          );
+
+          if (fallback?.error) {
+            throw new Error(
+              typeof fallback.error?.message === "string" &&
+                fallback.error.message.trim()
+                ? fallback.error.message
+                : "Erro ao aprovar envio.",
+            );
+          }
+
+          // Normalize return shape.
+          res = { data: fallback?.data ?? null, error: null } as any;
+        }
+      }
 
       if (res.error) {
         console.error("[review-audio-upload] approve:error", {
@@ -1159,7 +1199,7 @@ export default function ReviewSubmissionScreen() {
     const reqTitle = title.trim() ? title.trim() : "Ponto";
     const reqArtist =
       interpreterName.trim() || authorName.trim()
-        ? (interpreterName.trim() || authorName.trim())
+        ? interpreterName.trim() || authorName.trim()
         : null;
 
     try {
@@ -1169,7 +1209,7 @@ export default function ReviewSubmissionScreen() {
       }
 
       await loadAndPlay({
-        kind: "review",
+        kind: "submission",
         submissionId,
         title: reqTitle,
         artist: reqArtist,

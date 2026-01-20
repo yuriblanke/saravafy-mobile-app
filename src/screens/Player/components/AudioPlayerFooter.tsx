@@ -3,7 +3,7 @@ import {
   tryPersistPontoAudioDurationMs,
 } from "@/src/api/pontoAudio";
 import {
-  getCurrentPontoAudioId,
+  getCurrentPontoId,
   loadAndPlay,
   pause as rntpPause,
   seekToSeconds,
@@ -17,14 +17,8 @@ import {
 } from "@/src/lib/audioDurationAutoHeal";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
 
 export type PlayerAudioState =
@@ -133,19 +127,26 @@ export function AudioPlayerFooter(props: {
     if (curimbaEnabled) return;
     if (audioState !== "AUDIO_APPROVED") return;
     if (!approvedPontoAudioId) return;
+    if (!ponto?.id) return;
 
     if (lastAutoplayForIdRef.current === approvedPontoAudioId) return;
     lastAutoplayForIdRef.current = approvedPontoAudioId;
 
     void loadAndPlay({
-      kind: "public",
-      pontoAudioId: approvedPontoAudioId,
+      kind: "approved",
+      pontoId: ponto.id,
       title:
         typeof ponto?.title === "string" && ponto.title.trim()
           ? ponto.title
           : "Ponto",
     });
-  }, [approvedPontoAudioId, audioState, curimbaEnabled, ponto?.title]);
+  }, [
+    approvedPontoAudioId,
+    audioState,
+    curimbaEnabled,
+    ponto?.id,
+    ponto?.title,
+  ]);
 
   const uiDurationMs = useMemo(() => {
     if (loadedDurationMillis > 0) return loadedDurationMillis;
@@ -241,7 +242,8 @@ export function AudioPlayerFooter(props: {
 
   const subtitle = useMemo(() => {
     if (curimbaEnabled) return "Modo Curimba: apenas letra";
-    if (audioState === "AUDIO_IN_REVIEW") return "Áudio em revisão. Em breve.";
+    if (audioState === "AUDIO_IN_REVIEW")
+      return "Áudio em revisão. Disponível em breve.";
     if (audioState === "NO_AUDIO") return "Sem áudio";
     if (rntp.error) return "Erro no áudio. Tente novamente.";
     if (isBusy) return "Carregando áudio…";
@@ -315,6 +317,11 @@ export function AudioPlayerFooter(props: {
               return;
             }
 
+            if (!ponto?.id) {
+              props.onOpenNoAudioModal();
+              return;
+            }
+
             try {
               // If already playing, just pause.
               if (isPlaying) {
@@ -323,14 +330,14 @@ export function AudioPlayerFooter(props: {
               }
 
               // If the current track is the same, resume; otherwise load+play.
-              if (getCurrentPontoAudioId() === approvedPontoAudioId) {
+              if (getCurrentPontoId() === ponto.id) {
                 await togglePlayPause();
                 return;
               }
 
               await loadAndPlay({
-                kind: "public",
-                pontoAudioId: approvedPontoAudioId,
+                kind: "approved",
+                pontoId: ponto.id,
                 title:
                   typeof ponto?.title === "string" && ponto.title.trim()
                     ? ponto.title

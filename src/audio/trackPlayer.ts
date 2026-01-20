@@ -5,6 +5,8 @@ import TrackPlayer, {
   type Track,
 } from "react-native-track-player";
 
+import { getNotificationAccentColorForCurrentTheme } from "./notificationTheme";
+
 let setupPromise: Promise<void> | null = null;
 let optionsPromise: Promise<void> | null = null;
 
@@ -20,11 +22,13 @@ export type SaravafyTrack = {
 export async function configureTrackPlayerOptions() {
   if (!optionsPromise) {
     optionsPromise = (async () => {
+      const accentColor = await getNotificationAccentColorForCurrentTheme();
       await TrackPlayer.updateOptions({
         android: {
           appKilledPlaybackBehavior:
             AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         },
+        color: accentColor,
         capabilities: [
           Capability.Play,
           Capability.Pause,

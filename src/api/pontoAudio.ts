@@ -1078,7 +1078,9 @@ export async function finalizeAudioUploadAndCreateSubmission(params: {
 
 async function getPontoAudioPlaybackUrlInternal(
   mode: "public" | "review",
-  body: { ponto_audio_id?: string; submission_id?: string },
+  body:
+    | { kind: "approved"; ponto_id: string }
+    | { kind: "submission"; submission_id: string },
 ) {
   const name = "ponto-audio-playback-url";
 
@@ -1218,7 +1220,7 @@ async function getPontoAudioPlaybackUrlInternal(
     expiresIn:
       typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)
         ? expiresInSeconds
-        : 3600,
+        : 420,
     mimeType:
       typeof (data as any)?.mime_type === "string"
         ? (data as any).mime_type
@@ -1231,15 +1233,10 @@ async function getPontoAudioPlaybackUrlInternal(
   };
 }
 
-export async function getPontoAudioPlaybackUrlPublic(pontoAudioId: string) {
+export async function getPontoAudioPlaybackUrlPublic(pontoId: string) {
   return getPontoAudioPlaybackUrlInternal("public", {
-    ponto_audio_id: pontoAudioId,
-  });
-}
-
-export async function getPontoAudioPlaybackUrlReview(pontoAudioId: string) {
-  return getPontoAudioPlaybackUrlInternal("review", {
-    ponto_audio_id: pontoAudioId,
+    kind: "approved",
+    ponto_id: pontoId,
   });
 }
 
@@ -1247,6 +1244,7 @@ export async function getPontoAudioPlaybackUrlReviewBySubmission(
   submissionId: string,
 ) {
   return getPontoAudioPlaybackUrlInternal("review", {
+    kind: "submission",
     submission_id: submissionId,
   });
 }
@@ -1322,7 +1320,7 @@ export async function getReviewPlaybackUrlEnsured(submissionId: string) {
       const expiresInSeconds =
         typeof res?.expiresIn === "number" && Number.isFinite(res.expiresIn)
           ? res.expiresIn
-          : 3600;
+          : 420;
 
       const entry: ReviewPlaybackUrlCacheEntry = {
         url: res.url,

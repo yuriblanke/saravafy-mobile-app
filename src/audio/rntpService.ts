@@ -11,11 +11,11 @@ import TrackPlayer, {
   type Track,
 } from "react-native-track-player";
 
-import { setupTrackPlayerOnce } from "./trackPlayer";
+import { resetAndStop, setupTrackPlayerOnce } from "./trackPlayer";
 
-export type PublicPlaybackRequest = {
-  kind: "public";
-  pontoAudioId: string;
+export type ApprovedPlaybackRequest = {
+  kind: "approved";
+  pontoId: string;
   title: string;
   artist?: string | null;
   /** Seconds (RNTP expects seconds). */
@@ -23,8 +23,8 @@ export type PublicPlaybackRequest = {
   artwork?: string | number | null;
 };
 
-export type ReviewPlaybackRequest = {
-  kind: "review";
+export type SubmissionPlaybackRequest = {
+  kind: "submission";
   submissionId: string;
   title: string;
   artist?: string | null;
@@ -33,12 +33,21 @@ export type ReviewPlaybackRequest = {
   artwork?: string | number | null;
 };
 
-export type PlaybackRequest = PublicPlaybackRequest | ReviewPlaybackRequest;
+export type PlaybackRequest =
+  | ApprovedPlaybackRequest
+  | SubmissionPlaybackRequest;
 
 export type CurrentPlaybackKey =
-  | { kind: "public"; id: string }
-  | { kind: "review"; id: string }
+  | { kind: "approved"; id: string }
+  | { kind: "submission"; id: string }
   | null;
+
+export type PlaybackStatus =
+  | "idle"
+  | "loading"
+  | "playing"
+  | "paused"
+  | "error";
 
 type Snapshot = {
   current: CurrentPlaybackKey;
@@ -53,6 +62,10 @@ let snapshot: Snapshot = {
   isLoading: false,
   error: null,
 };
+
+let currentRequest: PlaybackRequest | null = null;
+let renewalInFlight: Promise<void> | null = null;
+const renewedOnceForKey = new Set<string>();
 
 const subscribers = new Set<() => void>();
 
@@ -89,9 +102,9 @@ function coerceDurationSeconds(raw: unknown) {
 }
 
 function getTrackId(req: PlaybackRequest) {
-  return req.kind === "public"
-    ? String(req.pontoAudioId)
-    : `review:${String(req.submissionId)}`;
+  return req.kind === "approved"
+    ? `approved:${String(req.pontoId)}`
+    : `submission:${String(req.submissionId)}`;
 }
 
 function buildTrack(req: PlaybackRequest, url: string): Track {
@@ -112,9 +125,9 @@ function buildTrack(req: PlaybackRequest, url: string): Track {
 }
 
 async function resolveUrl(req: PlaybackRequest) {
-  if (req.kind === "public") {
-    const id = String(req.pontoAudioId ?? "").trim();
-    if (!id) throw new Error("pontoAudioId inválido.");
+  if (req.kind === "approved") {
+    const id = String(req.pontoId ?? "").trim();
+    if (!id) throw new Error("pontoId inválido.");
     const res = await getPontoAudioPlaybackUrlPublic(id);
     if (!res?.url) throw new Error("URL de áudio inválida.");
     return res.url;
@@ -127,21 +140,104 @@ async function resolveUrl(req: PlaybackRequest) {
   return res.url;
 }
 
+function getCurrentKeyString() {
+  if (!snapshot.current) return null;
+  return `${snapshot.current.kind}:${snapshot.current.id}`;
+}
+
+async function attemptRenewalOnceOnError(evt: unknown): Promise<boolean> {
+  if (!snapshot.current) return false;
+  if (!currentRequest) return false;
+  if (snapshot.isLoading) return false;
+
+  const keyStr = getCurrentKeyString();
+  if (!keyStr) return false;
+  if (renewedOnceForKey.has(keyStr)) return false;
+
+  renewedOnceForKey.add(keyStr);
+
+  if (renewalInFlight) {
+    await renewalInFlight;
+    return true;
+  }
+
+  renewalInFlight = (async () => {
+    setError(null);
+    setLoading(true);
+
+    const msgFromEvt =
+      typeof (evt as any)?.error?.message === "string" &&
+      (evt as any).error.message.trim()
+        ? String((evt as any).error.message)
+        : null;
+
+    try {
+      const position = await TrackPlayer.getPosition().catch(() => 0);
+      const url = await resolveUrl(currentRequest);
+
+      await TrackPlayer.reset();
+      await TrackPlayer.add([buildTrack(currentRequest, url)]);
+
+      if (
+        typeof position === "number" &&
+        Number.isFinite(position) &&
+        position > 0
+      ) {
+        await TrackPlayer.seekTo(position).catch(() => null);
+      }
+
+      await TrackPlayer.play();
+
+      if (__DEV__) {
+        console.log("[RNTP][RENEWAL_RETRY_OK]", {
+          current: snapshot.current,
+          position,
+        });
+      }
+    } catch (e) {
+      const msg =
+        e instanceof Error && e.message.trim()
+          ? e.message.trim()
+          : (msgFromEvt ?? "Erro ao tocar o áudio.");
+
+      setError(msg);
+      await resetAndStop().catch(() => null);
+
+      if (__DEV__) {
+        console.log("[RNTP][RENEWAL_RETRY_FAIL]", {
+          current: snapshot.current,
+          error: msg,
+        });
+      }
+    } finally {
+      setLoading(false);
+      renewalInFlight = null;
+    }
+  })();
+
+  await renewalInFlight;
+  return true;
+}
+
 function registerListenersOnce() {
   if (listenersRegistered) return;
   listenersRegistered = true;
 
   TrackPlayer.addEventListener(Event.PlaybackError, (evt) => {
-    setLoading(false);
+    void (async () => {
+      const didRetry = await attemptRenewalOnceOnError(evt).catch(() => false);
+      if (didRetry) return;
 
-    const msg =
-      typeof (evt as any)?.error?.message === "string" &&
-      (evt as any).error.message.trim()
-        ? String((evt as any).error.message)
-        : "Erro ao tocar o áudio.";
+      const msg =
+        typeof (evt as any)?.error?.message === "string" &&
+        (evt as any).error.message.trim()
+          ? String((evt as any).error.message)
+          : "Erro ao tocar o áudio.";
 
-    setError(msg);
-    void TrackPlayer.stop().catch(() => null);
+      setLoading(false);
+      setError(msg);
+      await resetAndStop().catch(() => null);
+    })();
   });
 }
 
@@ -175,6 +271,15 @@ export function useRntpPlayback(updateIntervalMs = 250) {
       : (playbackStateAny as any)?.state;
   const isPlaying = playbackState === State.Playing;
 
+  const status: PlaybackStatus = (() => {
+    if (snap.isLoading) return "loading";
+    if (snap.error) return "error";
+    if (!snap.current) return "idle";
+    if (playbackState === State.Playing) return "playing";
+    if (playbackState === State.Paused) return "paused";
+    return "idle";
+  })();
+
   const progressAny = useProgress(updateIntervalMs);
   const positionSec =
     typeof (progressAny as any)?.position === "number" &&
@@ -189,6 +294,7 @@ export function useRntpPlayback(updateIntervalMs = 250) {
 
   return {
     playbackState,
+    status,
     isPlaying,
     isLoading: snap.isLoading,
     error: snap.error,
@@ -198,12 +304,12 @@ export function useRntpPlayback(updateIntervalMs = 250) {
   };
 }
 
-export function getCurrentPontoAudioId() {
-  return snapshot.current?.kind === "public" ? snapshot.current.id : null;
+export function getCurrentPontoId() {
+  return snapshot.current?.kind === "approved" ? snapshot.current.id : null;
 }
 
 export function getCurrentSubmissionId() {
-  return snapshot.current?.kind === "review" ? snapshot.current.id : null;
+  return snapshot.current?.kind === "submission" ? snapshot.current.id : null;
 }
 
 export async function ensureLoaded(req: PlaybackRequest) {
@@ -212,11 +318,12 @@ export async function ensureLoaded(req: PlaybackRequest) {
   setLoading(true);
 
   const key: CurrentPlaybackKey =
-    req.kind === "public"
-      ? { kind: "public", id: String(req.pontoAudioId ?? "").trim() }
-      : { kind: "review", id: String(req.submissionId ?? "").trim() };
+    req.kind === "approved"
+      ? { kind: "approved", id: String(req.pontoId ?? "").trim() }
+      : { kind: "submission", id: String(req.submissionId ?? "").trim() };
 
   setSnapshot({ current: key });
+  currentRequest = req;
 
   try {
     const url = await resolveUrl(req);
@@ -278,4 +385,13 @@ export async function seekToSeconds(seconds: number) {
   const s =
     typeof seconds === "number" && Number.isFinite(seconds) ? seconds : 0;
   await TrackPlayer.seekTo(Math.max(0, s));
+}
+
+export async function stop() {
+  await ensureSetup();
+  setError(null);
+  setLoading(false);
+  currentRequest = null;
+  setSnapshot({ current: null });
+  await resetAndStop();
 }
