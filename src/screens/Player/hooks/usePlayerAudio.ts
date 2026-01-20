@@ -33,6 +33,9 @@ export function usePlayerAudio(params: {
   const [durationMillis, setDurationMillis] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
+  const playRequestedAtMsRef = useRef<number | null>(null);
+  const playRequestedAttemptRef = useRef<number | null>(null);
+  const playLatencyLoggedRef = useRef(false);
 
   const hasAudio = useMemo(
     () => typeof audioUrl === "string" && audioUrl.trim().length > 0,
@@ -66,6 +69,23 @@ export function usePlayerAudio(params: {
       setIsLoaded(false);
       setIsPlaying(false);
       return;
+    }
+
+    if (
+      status.isPlaying &&
+      typeof playRequestedAtMsRef.current === "number" &&
+      !playLatencyLoggedRef.current
+    ) {
+      const elapsedMs = Date.now() - playRequestedAtMsRef.current;
+      playLatencyLoggedRef.current = true;
+      playRequestedAtMsRef.current = null;
+
+      if (__DEV__) {
+        console.log("[AUDIO][PLAY_START_LATENCY]", {
+          attempt: playRequestedAttemptRef.current,
+          ms: elapsedMs,
+        });
+      }
     }
 
     setIsLoaded(true);
@@ -158,9 +178,9 @@ export function usePlayerAudio(params: {
       }
       if (!hasAudio) return;
 
-      const attempt = async () => {
+      const attempt = async (attemptNum: number) => {
         if (__DEV__) {
-          console.log("[AUDIO][LOAD_START]", { attempt: 1 });
+          console.log("[AUDIO][LOAD_START]", { attempt: attemptNum });
         }
         // REQUIRED sequence (await each step):
         await ensureAudioModeOnce();
@@ -171,10 +191,14 @@ export function usePlayerAudio(params: {
           onStatus
         );
         soundRef.current = sound;
+
+        playRequestedAtMsRef.current = Date.now();
+        playRequestedAttemptRef.current = attemptNum;
+        playLatencyLoggedRef.current = false;
         await sound.playAsync();
 
         if (__DEV__) {
-          console.log("[AUDIO][LOAD_OK]", { attempt: 1 });
+          console.log("[AUDIO][LOAD_OK]", { attempt: attemptNum });
         }
       };
 
@@ -187,6 +211,9 @@ export function usePlayerAudio(params: {
             if (status.isPlaying) {
               await existing.pauseAsync();
             } else {
+              playRequestedAtMsRef.current = Date.now();
+              playRequestedAttemptRef.current = 0;
+              playLatencyLoggedRef.current = false;
               await existing.playAsync();
             }
             return;
@@ -197,7 +224,7 @@ export function usePlayerAudio(params: {
       }
 
       try {
-        await attempt();
+        await attempt(1);
       } catch (firstErr) {
         if (__DEV__) {
           console.log("[AUDIO][LOAD_ERR]", {
@@ -211,15 +238,7 @@ export function usePlayerAudio(params: {
         await delayMs(200);
 
         try {
-          if (__DEV__) {
-            console.log("[AUDIO][LOAD_START]", { attempt: 2 });
-          }
-
-          await attempt();
-
-          if (__DEV__) {
-            console.log("[AUDIO][LOAD_OK]", { attempt: 2 });
-          }
+          await attempt(2);
           if (__DEV__) {
             console.log("[AUDIO][RETRY_OK]");
           }
