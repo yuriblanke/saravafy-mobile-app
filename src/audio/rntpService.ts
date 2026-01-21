@@ -11,7 +11,7 @@ import TrackPlayer, {
   type Track,
 } from "react-native-track-player";
 
-import { resetAndStop, setupTrackPlayerOnce } from "./trackPlayer";
+import { ensureTrackPlayerReady, resetAndStop } from "./trackPlayer";
 
 export type ApprovedPlaybackRequest = {
   kind: "approved";
@@ -242,7 +242,7 @@ function registerListenersOnce() {
 }
 
 export async function ensureSetup() {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   registerListenersOnce();
 }
 

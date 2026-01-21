@@ -130,6 +130,16 @@ function registerMainRuntimeDebugListenersOnce() {
   });
 }
 
+async function isNativeTrackPlayerInitialized(): Promise<boolean> {
+  try {
+    // If the native module is initialized, this should succeed.
+    await TrackPlayer.getState();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export type SaravafyTrack = {
   id: string;
   url: string;
@@ -221,36 +231,61 @@ export async function configureTrackPlayerOptions() {
       await TrackPlayer.setRepeatMode(RepeatMode.Off);
     })();
   } else {
-    log("updateOptions: already in-flight (skipping)");
+    log("updateOptions: reusing existing promise", {
+      callerTag: "trackPlayer.configureTrackPlayerOptions",
+    });
   }
 
   return optionsPromise;
 }
 
-export async function setupTrackPlayerOnce() {
+export async function ensureTrackPlayerReady() {
   if (!setupPromise) {
     setupPromise = (async () => {
       log("setupPlayer: start", {
-        callerTag: "trackPlayer.setupTrackPlayerOnce",
+        callerTag: "trackPlayer.ensureTrackPlayerReady",
       });
-      await TrackPlayer.setupPlayer();
-      log("setupPlayer: done", {
-        callerTag: "trackPlayer.setupTrackPlayerOnce",
-      });
+
+      const alreadyInitialized = await isNativeTrackPlayerInitialized();
+      if (alreadyInitialized) {
+        log(
+          "setupPlayer: native already initialized (skipping TrackPlayer.setupPlayer)",
+          {
+            callerTag: "trackPlayer.ensureTrackPlayerReady",
+          },
+        );
+      } else {
+        // Requested log: setupPlayer really runs (first time).
+        log("setupPlayer: first time (calling TrackPlayer.setupPlayer)", {
+          callerTag: "trackPlayer.ensureTrackPlayerReady",
+        });
+        await TrackPlayer.setupPlayer();
+        log("setupPlayer: done", {
+          callerTag: "trackPlayer.ensureTrackPlayerReady",
+        });
+      }
 
       await configureTrackPlayerOptions();
 
       registerMainRuntimeDebugListenersOnce();
     })();
   } else {
-    log("setupPlayer: already in-flight (skipping)");
+    // Requested log: setupPlayer promise reuse.
+    log("setupPlayer: reusing existing promise", {
+      callerTag: "trackPlayer.ensureTrackPlayerReady",
+    });
   }
 
   return setupPromise;
 }
 
+// Back-compat: keep older API name used by other modules.
+export async function setupTrackPlayerOnce() {
+  return ensureTrackPlayerReady();
+}
+
 export async function resetAndLoadTrack(track: SaravafyTrack) {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
 
   log("resetAndLoadTrack: start", {
     id: String(track?.id ?? ""),
@@ -293,12 +328,12 @@ export async function resetAndLoadTrack(track: SaravafyTrack) {
 }
 
 export async function reset() {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   await TrackPlayer.reset();
 }
 
 export async function resetAndStop() {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   try {
     await TrackPlayer.stop();
   } catch {
@@ -312,7 +347,7 @@ export async function resetAndStop() {
 }
 
 export async function play() {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   log("play(): start");
   try {
     await TrackPlayer.play();
@@ -324,7 +359,7 @@ export async function play() {
 }
 
 export async function pause() {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   log("pause(): start");
   try {
     await TrackPlayer.pause();
@@ -336,12 +371,12 @@ export async function pause() {
 }
 
 export async function stop() {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   await TrackPlayer.stop();
 }
 
 export async function seekTo(seconds: number) {
-  await setupTrackPlayerOnce();
+  await ensureTrackPlayerReady();
   const s =
     typeof seconds === "number" && Number.isFinite(seconds) ? seconds : 0;
   await TrackPlayer.seekTo(Math.max(0, s));
