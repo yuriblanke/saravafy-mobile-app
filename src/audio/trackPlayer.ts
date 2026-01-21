@@ -1,6 +1,5 @@
 import TrackPlayer, {
   AppKilledPlaybackBehavior,
-  Capability,
   RepeatMode,
   type Track,
 } from "react-native-track-player";
@@ -29,12 +28,11 @@ export async function configureTrackPlayerOptions() {
             AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         },
         color: accentColor,
-        capabilities: [Capability.Pause, Capability.SeekTo],
-        notificationCapabilities: [
-          Capability.Pause,
-          Capability.SeekTo,
-        ],
-        compactCapabilities: [Capability.Pause],
+        // Notification UI must be informational only (no remote controls).
+        // This disables play/pause/seek actions in Android notification & lock screen.
+        capabilities: [],
+        notificationCapabilities: [],
+        compactCapabilities: [],
         progressUpdateEventInterval: 1,
       });
 
@@ -78,6 +76,7 @@ export async function resetAndLoadTrack(track: SaravafyTrack) {
     id,
     url,
     title,
+    artwork: require("../../assets/images/filler.png"),
     artist:
       typeof track.artist === "string" && track.artist.trim()
         ? track.artist.trim()

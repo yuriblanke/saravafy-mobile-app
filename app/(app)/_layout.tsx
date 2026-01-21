@@ -18,10 +18,12 @@ import {
   Stack,
   useGlobalSearchParams,
   usePathname,
+  useRouter,
   useSegments,
 } from "expo-router";
 import React, { useMemo } from "react";
 import {
+  AppState,
   BackHandler,
   Platform,
   StatusBar,
@@ -89,7 +91,82 @@ export default function AppLayout() {
   const { user } = useAuth();
   const segments = useSegments() as string[];
   const pathname = usePathname();
+  const router = useRouter();
   const rootPager = useRootPagerOptional();
+
+  const lastAppStateRef = React.useRef(AppState.currentState);
+  const didInitialNowPlayingNavRef = React.useRef(false);
+
+  const navigateToNowPlayingIfAny = React.useCallback(async () => {
+    // Avoid taking over when already in the destination.
+    if (
+      typeof pathname === "string" &&
+      (pathname.startsWith("/player") ||
+        pathname.startsWith("/review-submissions"))
+    ) {
+      return;
+    }
+
+    // TrackPlayer can be missing in some dev-client builds; avoid hard crash.
+    let TrackPlayer: any = null;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      TrackPlayer = require("react-native-track-player").default;
+    } catch {
+      return;
+    }
+
+    try {
+      const track = await TrackPlayer.getActiveTrack();
+      const idRaw = typeof track?.id === "string" ? track.id.trim() : "";
+      if (!idRaw) return;
+
+      if (idRaw.startsWith("approved:")) {
+        const pontoId = idRaw.slice("approved:".length).trim();
+        if (!pontoId) return;
+        router.push({
+          pathname: "/player" as any,
+          params: { source: "all", pontoId },
+        });
+        return;
+      }
+
+      if (idRaw.startsWith("submission:")) {
+        const submissionId = idRaw.slice("submission:".length).trim();
+        if (!submissionId) return;
+        router.push({
+          pathname: "/review-submissions/[submissionId]" as any,
+          params: { submissionId },
+        });
+      }
+    } catch {
+      // ignore: navigation is best-effort
+    }
+  }, [pathname, router]);
+
+  // Cold start: best-effort deep-link to what's playing.
+  React.useEffect(() => {
+    if (didInitialNowPlayingNavRef.current) return;
+    didInitialNowPlayingNavRef.current = true;
+    const t = setTimeout(() => {
+      navigateToNowPlayingIfAny().catch(() => undefined);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [navigateToNowPlayingIfAny]);
+
+  // Resume from background: tapping the media notification should open the
+  // current point/submission screen, without controlling playback.
+  React.useEffect(() => {
+    const sub = AppState.addEventListener("change", (nextState) => {
+      const prevState = lastAppStateRef.current;
+      lastAppStateRef.current = nextState;
+
+      if (prevState !== "active" && nextState === "active") {
+        navigateToNowPlayingIfAny().catch(() => undefined);
+      }
+    });
+    return () => sub.remove();
+  }, [navigateToNowPlayingIfAny]);
 
   const prefersSolidUnderlay =
     (typeof pathname === "string" && pathname.startsWith("/preferences")) ||

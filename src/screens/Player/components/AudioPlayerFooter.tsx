@@ -129,6 +129,14 @@ export function AudioPlayerFooter(props: {
     if (!approvedPontoAudioId) return;
     if (!ponto?.id) return;
 
+    // If the requested ponto is already the current track, do not reload it.
+    // This prevents restarting audio when navigating to the player from the
+    // system notification.
+    if (getCurrentPontoId() === ponto.id) {
+      lastAutoplayForIdRef.current = approvedPontoAudioId;
+      return;
+    }
+
     if (lastAutoplayForIdRef.current === approvedPontoAudioId) return;
     lastAutoplayForIdRef.current = approvedPontoAudioId;
 

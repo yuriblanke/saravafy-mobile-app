@@ -13,6 +13,8 @@ import TrackPlayer, {
 
 import { resetAndStop, setupTrackPlayerOnce } from "./trackPlayer";
 
+const fallbackArtworkPng = require("../../assets/images/filler.png");
+
 export type ApprovedPlaybackRequest = {
   kind: "approved";
   pontoId: string;
@@ -53,6 +55,8 @@ type Snapshot = {
   current: CurrentPlaybackKey;
   isLoading: boolean;
   error: string | null;
+  playbackState?: State;
+  playWhenReady?: boolean;
 };
 
 let listenersRegistered = false;
@@ -61,6 +65,8 @@ let snapshot: Snapshot = {
   current: null,
   isLoading: false,
   error: null,
+  playbackState: undefined,
+  playWhenReady: undefined,
 };
 
 let currentRequest: PlaybackRequest | null = null;
@@ -120,7 +126,7 @@ function buildTrack(req: PlaybackRequest, url: string): Track {
     artwork:
       req.artwork !== null && req.artwork !== undefined
         ? (req.artwork as any)
-        : undefined,
+        : fallbackArtworkPng,
   };
 }
 
@@ -223,6 +229,20 @@ function registerListenersOnce() {
   if (listenersRegistered) return;
   listenersRegistered = true;
 
+  TrackPlayer.addEventListener(Event.PlaybackState, (evt) => {
+    const nextState = (evt as any)?.state;
+    if (typeof nextState === "string") {
+      setSnapshot({ playbackState: nextState as State });
+    }
+  });
+
+  TrackPlayer.addEventListener(Event.PlaybackPlayWhenReadyChanged, (evt) => {
+    const next = (evt as any)?.playWhenReady;
+    if (typeof next === "boolean") {
+      setSnapshot({ playWhenReady: next });
+    }
+  });
+
   TrackPlayer.addEventListener(Event.PlaybackError, (evt) => {
     void (async () => {
       const didRetry = await attemptRenewalOnceOnError(evt).catch(() => false);
@@ -244,6 +264,23 @@ function registerListenersOnce() {
 export async function ensureSetup() {
   await setupTrackPlayerOnce();
   registerListenersOnce();
+
+  // Best-effort: hydrate snapshot with current native state so UI is correct
+  // even before events fire (and even if progress isn't updating).
+  try {
+    const [pb, pwr] = await Promise.all([
+      TrackPlayer.getPlaybackState().catch(() => null),
+      TrackPlayer.getPlayWhenReady().catch(() => undefined),
+    ]);
+
+    const nextState = (pb as any)?.state;
+    const patch: Partial<Snapshot> = {};
+    if (typeof nextState === "string") patch.playbackState = nextState as State;
+    if (typeof pwr === "boolean") patch.playWhenReady = pwr;
+    if (Object.keys(patch).length > 0) setSnapshot(patch);
+  } catch {
+    // ignore
+  }
 }
 
 export function subscribeSnapshot(cb: () => void) {
@@ -264,12 +301,27 @@ export function useRntpPlayback(updateIntervalMs = 250) {
 
   const snap = useSyncExternalStore(subscribeSnapshot, getSnapshot);
 
+  // Keep these hooks for progress/state updates, but treat our snapshot as the
+  // source of truth for UI play/pause (it updates even when progress doesn't).
   const playbackStateAny = usePlaybackState();
-  const playbackState =
+  const hookPlaybackState =
     typeof playbackStateAny === "number"
       ? playbackStateAny
       : (playbackStateAny as any)?.state;
-  const isPlaying = playbackState === State.Playing;
+
+  const playbackState = snap.playbackState ?? hookPlaybackState;
+
+  const isPlaying = (() => {
+    const state = playbackState;
+    const pwr = snap.playWhenReady;
+    if (typeof pwr !== "boolean" || typeof state !== "string") {
+      return state === State.Playing;
+    }
+    const isErrored = state === State.Error;
+    const isEnded = state === State.Ended;
+    const isNone = state === State.None;
+    return pwr && !(isErrored || isEnded || isNone);
+  })();
 
   const status: PlaybackStatus = (() => {
     if (snap.isLoading) return "loading";
