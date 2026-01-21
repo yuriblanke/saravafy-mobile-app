@@ -148,19 +148,36 @@ export async function configureTrackPlayerOptions() {
 
       const accentColor = await getNotificationAccentColorForCurrentTheme();
 
+      const maybePlayPause = (Capability as any).PlayPause;
+      const playPauseCap =
+        typeof maybePlayPause === "number" ? maybePlayPause : null;
+
+      if (__DEV__ && playPauseCap == null) {
+        warn("Capability.PlayPause not available in this RNTP build");
+      }
+
       const options = {
         android: {
           appKilledPlaybackBehavior:
             AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         },
         color: accentColor,
-        capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
+        capabilities: [
+          Capability.Play,
+          Capability.Pause,
+          ...(playPauseCap == null ? [] : [playPauseCap]),
+          Capability.SeekTo,
+        ],
         notificationCapabilities: [
           Capability.Play,
           Capability.Pause,
+          ...(playPauseCap == null ? [] : [playPauseCap]),
           Capability.SeekTo,
         ],
-        compactCapabilities: [Capability.Play, Capability.Pause],
+        compactCapabilities:
+          playPauseCap == null
+            ? [Capability.Play, Capability.Pause]
+            : [playPauseCap],
         progressUpdateEventInterval: 1,
       };
 
@@ -176,6 +193,7 @@ export async function configureTrackPlayerOptions() {
           capabilityValues: {
             Play: Capability.Play,
             Pause: Capability.Pause,
+            PlayPause: playPauseCap,
             SeekTo: Capability.SeekTo,
           },
           raw: {

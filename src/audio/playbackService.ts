@@ -4,6 +4,19 @@ import { log, error as logError } from "./debugLog";
 
 console.log("[RNTP-SVC] module loaded");
 
+function logRemote(name: string, extra?: unknown) {
+  if (extra === undefined) {
+    console.log(`RNTP_SVC_REMOTE ${name}`);
+  } else {
+    console.log(`RNTP_SVC_REMOTE ${name}`, extra);
+  }
+}
+
+function getEvent(name: string): string | null {
+  const v = (Event as any)?.[name];
+  return typeof v === "string" && v.length > 0 ? v : null;
+}
+
 export default async function playbackService() {
   console.log("[RNTP-SVC] service entry called");
 
@@ -17,20 +30,29 @@ export default async function playbackService() {
     starts: g.__RNTP_NOTIF_PLAYBACK_SERVICE_STARTS__,
   });
 
-  const maybeToggleEvent =
-    (Event as any).RemoteTogglePlayPause ?? (Event as any).RemotePlayPause;
+  const registered = new Set<string>();
+  const addListenerIfPresent = (eventName: string, fn: (event: any) => any) => {
+    const e = getEvent(eventName);
+    if (!e || registered.has(e)) return;
+    registered.add(e);
+    TrackPlayer.addEventListener(e as any, fn as any);
+  };
 
-  TrackPlayer.addEventListener(Event.RemotePlay, async () => {
-    console.log("[RNTP-SVC] RemotePlay -> TrackPlayer.play()");
+  const safeGetState = async () => {
+    try {
+      return await TrackPlayer.getState();
+    } catch (err) {
+      logError("getState() error", err);
+      return null;
+    }
+  };
+
+  addListenerIfPresent("RemotePlay", async () => {
+    logRemote("RemotePlay");
     log("event RemotePlay: received");
     try {
-      const before = await TrackPlayer.getState();
-      log("event RemotePlay: state before", { state: before });
       await TrackPlayer.play();
-      const after = await TrackPlayer.getState();
-      log("event RemotePlay: play() resolved", { state: after });
     } catch (err) {
-      // Important: don't throw; keep service alive.
       logError("event RemotePlay: play() error", err);
     }
   });
@@ -48,44 +70,53 @@ export default async function playbackService() {
     });
   });
 
-  TrackPlayer.addEventListener(Event.RemotePause, async () => {
-    console.log("[RNTP-SVC] RemotePause -> TrackPlayer.pause()");
+  addListenerIfPresent("RemotePause", async () => {
+    logRemote("RemotePause");
     log("event RemotePause: received");
     try {
-      const before = await TrackPlayer.getState();
-      log("event RemotePause: state before", { state: before });
       await TrackPlayer.pause();
-      const after = await TrackPlayer.getState();
-      log("event RemotePause: pause() resolved", { state: after });
     } catch (err) {
       logError("event RemotePause: pause() error", err);
     }
   });
 
-  if (typeof maybeToggleEvent === "string" && maybeToggleEvent.length > 0) {
-    TrackPlayer.addEventListener(maybeToggleEvent as any, async () => {
-      log("event RemoteTogglePlayPause: received");
-      try {
-        const state = await TrackPlayer.getState();
-        log("event RemoteTogglePlayPause: state before", { state });
-        if (state === State.Playing) {
-          await TrackPlayer.pause();
-        } else {
-          await TrackPlayer.play();
-        }
-        const after = await TrackPlayer.getState();
-        log("event RemoteTogglePlayPause: resolved", { state: after });
-      } catch (err) {
-        logError("event RemoteTogglePlayPause: error", err);
-      }
-    });
-  }
+  addListenerIfPresent("RemoteStop", async () => {
+    logRemote("RemoteStop");
+    try {
+      await TrackPlayer.stop();
+    } catch (err) {
+      logError("event RemoteStop: stop() error", err);
+    }
+  });
 
-  TrackPlayer.addEventListener(Event.RemoteSeek, async (event) => {
+  const toggle = async (source: string) => {
+    logRemote(source);
+    try {
+      const state = await safeGetState();
+      if (state === State.Playing) {
+        await TrackPlayer.pause();
+      } else {
+        await TrackPlayer.play();
+      }
+    } catch (err) {
+      logError(`${source}: toggle error`, err as any);
+    }
+  };
+
+  // Some devices/OS versions dispatch a single toggle event.
+  addListenerIfPresent("RemotePlayPause", async () => {
+    await toggle("RemotePlayPause");
+  });
+  addListenerIfPresent("RemoteTogglePlayPause", async () => {
+    await toggle("RemoteTogglePlayPause");
+  });
+
+  addListenerIfPresent("RemoteSeek", async (event) => {
     const position =
       typeof (event as any)?.position === "number"
         ? (event as any).position
         : 0;
+    logRemote("RemoteSeek", { position });
     log("event RemoteSeek: received", { position });
     try {
       await TrackPlayer.seekTo(Math.max(0, position));
@@ -97,24 +128,36 @@ export default async function playbackService() {
 
   // Extra diagnostics: if Android is dispatching a different remote event than we expect.
   // Keep these as logs-only to avoid changing product behavior.
-  TrackPlayer.addEventListener(Event.RemoteSkip, async () => {
-    log("event RemoteSkip: received");
-  });
-
-  TrackPlayer.addEventListener(Event.RemoteNext, async () => {
-    log("event RemoteNext: received");
-  });
-
-  TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-    log("event RemotePrevious: received");
-  });
-
-  TrackPlayer.addEventListener(Event.RemoteDuck, async (event) => {
-    log("event RemoteDuck: received", {
+  addListenerIfPresent("RemoteDuck", async (event) => {
+    logRemote("RemoteDuck", {
       permanent: (event as any)?.permanent ?? null,
       paused: (event as any)?.paused ?? null,
       ducking: (event as any)?.ducking ?? null,
     });
+  });
+
+  addListenerIfPresent("RemoteJumpForward", async (event) => {
+    logRemote("RemoteJumpForward", event ?? null);
+  });
+
+  addListenerIfPresent("RemoteJumpBackward", async (event) => {
+    logRemote("RemoteJumpBackward", event ?? null);
+  });
+
+  addListenerIfPresent("RemoteNext", async () => {
+    logRemote("RemoteNext");
+  });
+
+  addListenerIfPresent("RemotePrevious", async () => {
+    logRemote("RemotePrevious");
+  });
+
+  addListenerIfPresent("RemoteSkip", async () => {
+    logRemote("RemoteSkip");
+  });
+
+  addListenerIfPresent("RemotePlayId", async (event) => {
+    logRemote("RemotePlayId", event ?? null);
   });
 
   log("playbackService: handlers registered");
