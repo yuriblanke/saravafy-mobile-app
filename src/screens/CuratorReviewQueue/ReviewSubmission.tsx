@@ -86,8 +86,19 @@ async function callRpcWithParamFallback(
   functionName: string,
   payloadWithPrefix: Record<string, any>,
 ): Promise<any> {
+  const startedAt = Date.now();
+
   // Try with p_ prefix first (new signature)
   let res: any = await supabase.rpc(functionName, payloadWithPrefix);
+
+  if (__DEV__ && res?.error) {
+    console.error("[review-rpc] error:first-attempt", {
+      functionName,
+      ms: Date.now() - startedAt,
+      payloadKeys: Object.keys(payloadWithPrefix ?? {}),
+      error: serializeSupabaseErrorForLog(res.error),
+    });
+  }
 
   // Fallback to old signature if param mismatch
   if (res?.error && isRpcParamMismatch(res.error)) {
@@ -97,7 +108,25 @@ async function callRpcWithParamFallback(
       const newKey = key.startsWith("p_") ? key.substring(2) : key;
       fallbackPayload[newKey] = value;
     }
+
+    if (__DEV__) {
+      console.log("[review-rpc] retry:fallback-params", {
+        functionName,
+        firstAttemptKeys: Object.keys(payloadWithPrefix ?? {}),
+        fallbackKeys: Object.keys(fallbackPayload ?? {}),
+      });
+    }
+
     res = await supabase.rpc(functionName, fallbackPayload);
+
+    if (__DEV__ && res?.error) {
+      console.error("[review-rpc] error:fallback-attempt", {
+        functionName,
+        ms: Date.now() - startedAt,
+        payloadKeys: Object.keys(fallbackPayload ?? {}),
+        error: serializeSupabaseErrorForLog(res.error),
+      });
+    }
   }
 
   return res;
@@ -676,9 +705,12 @@ export default function ReviewSubmissionScreen() {
         submissionId: sid,
       });
 
-      let res = await callRpcWithParamFallback("approve_audio_upload_submission", {
-        p_submission_id: sid,
-      });
+      let res = await callRpcWithParamFallback(
+        "approve_audio_upload_submission",
+        {
+          p_submission_id: sid,
+        },
+      );
 
       // Some backends validate activation against an *already approved* audio_upload
       // submission. If so, approve via the canonical review RPC first.
@@ -750,10 +782,13 @@ export default function ReviewSubmissionScreen() {
         submissionId: sid,
       });
 
-      const res = await callRpcWithParamFallback("reject_audio_upload_submission", {
-        p_submission_id: sid,
-        p_review_note: note,
-      });
+      const res = await callRpcWithParamFallback(
+        "reject_audio_upload_submission",
+        {
+          p_submission_id: sid,
+          p_review_note: note,
+        },
+      );
 
       if (res.error) {
         console.error("[review-audio-upload] reject:error", {
