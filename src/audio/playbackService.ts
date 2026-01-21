@@ -82,8 +82,10 @@ export default async function playbackService() {
 
   addListenerIfPresent("RemoteStop", async () => {
     logRemote("RemoteStop");
+    log("event RemoteStop: received");
     try {
       await TrackPlayer.stop();
+      log("event RemoteStop: stop() resolved");
     } catch (err) {
       logError("event RemoteStop: stop() error", err);
     }
@@ -146,10 +148,24 @@ export default async function playbackService() {
 
   addListenerIfPresent("RemoteNext", async () => {
     logRemote("RemoteNext");
+    log("event RemoteNext: received");
+    try {
+      await TrackPlayer.skipToNext();
+      log("event RemoteNext: skipToNext() resolved");
+    } catch (err) {
+      logError("event RemoteNext: skipToNext() error", err);
+    }
   });
 
   addListenerIfPresent("RemotePrevious", async () => {
     logRemote("RemotePrevious");
+    log("event RemotePrevious: received");
+    try {
+      await TrackPlayer.skipToPrevious();
+      log("event RemotePrevious: skipToPrevious() resolved");
+    } catch (err) {
+      logError("event RemotePrevious: skipToPrevious() error", err);
+    }
   });
 
   addListenerIfPresent("RemoteSkip", async () => {

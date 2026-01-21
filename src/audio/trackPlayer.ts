@@ -176,18 +176,24 @@ export async function configureTrackPlayerOptions() {
           Capability.Play,
           Capability.Pause,
           ...(playPauseCap == null ? [] : [playPauseCap]),
+          Capability.SkipToNext,
+          Capability.SkipToPrevious,
+          Capability.Stop,
           Capability.SeekTo,
         ],
         notificationCapabilities: [
           Capability.Play,
           Capability.Pause,
           ...(playPauseCap == null ? [] : [playPauseCap]),
+          Capability.SkipToNext,
+          Capability.SkipToPrevious,
+          Capability.Stop,
           Capability.SeekTo,
         ],
         compactCapabilities:
           playPauseCap == null
-            ? [Capability.Play, Capability.Pause]
-            : [playPauseCap],
+            ? [Capability.SkipToPrevious, Capability.Play, Capability.SkipToNext]
+            : [Capability.SkipToPrevious, playPauseCap, Capability.SkipToNext],
         progressUpdateEventInterval: 1,
       };
 
@@ -204,6 +210,9 @@ export async function configureTrackPlayerOptions() {
             Play: Capability.Play,
             Pause: Capability.Pause,
             PlayPause: playPauseCap,
+            SkipToNext: Capability.SkipToNext,
+            SkipToPrevious: Capability.SkipToPrevious,
+            Stop: Capability.Stop,
             SeekTo: Capability.SeekTo,
           },
           raw: {

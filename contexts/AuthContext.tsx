@@ -7,7 +7,7 @@ import {
 import { Session, User } from "@supabase/supabase-js";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
-import React, {
+import {
   createContext,
   ReactNode,
   useCallback,
@@ -66,7 +66,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   // OAuth watchdog robusto (à prova de background)
   const oauthBrowserOpenStartedAtMsRef = useRef<number | null>(null);
   const oauthFlowStateRef = useRef<"IDLE" | "BROWSER_OPENED" | "COMPLETED">(
-    "IDLE"
+    "IDLE",
   );
   const oauthCompletedRef = useRef(false);
 
@@ -97,7 +97,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         | "deeplink_success"
         | "session_established"
         | "other",
-      details?: Record<string, any>
+      details?: Record<string, any>,
     ) => {
       const attempt = currentAttemptRef.current;
       if (oauthCompletedRef.current) return;
@@ -131,7 +131,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       backgroundLoggedForAttemptIdRef.current = null;
       timeoutReportedRef.current = {};
     },
-    []
+    [],
   );
 
   const handleOAuthCallbackUrl = useCallback(
@@ -168,7 +168,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         ...Object.fromEntries(
           Object.entries(queryParams)
             .filter(([, v]) => typeof v === "string")
-            .map(([k, v]) => [k, v as string])
+            .map(([k, v]) => [k, v as string]),
         ),
         ...fragmentParams,
       };
@@ -197,8 +197,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
       const callbackKey = code
         ? `code:${code}`
         : access_token && refresh_token
-        ? `tokens:${access_token.slice(0, 6)}:${refresh_token.slice(0, 6)}`
-        : null;
+          ? `tokens:${access_token.slice(0, 6)}:${refresh_token.slice(0, 6)}`
+          : null;
 
       if (
         callbackKey &&
@@ -223,9 +223,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
             hasCode: true,
           });
 
-          const { data, error } = await supabase.auth.exchangeCodeForSession(
-            code
-          );
+          const { data, error } =
+            await supabase.auth.exchangeCodeForSession(code);
 
           if (error) {
             await attempt?.log("deep_link_exchange_code_error", {
@@ -307,7 +306,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
         setAuthError("Erro inesperado ao concluir o login. Tente novamente.");
       }
     },
-    [concludeOAuthFlow]
+    [concludeOAuthFlow],
   );
 
   // Listener de AppState (robusto para watchdog em background)
@@ -366,7 +365,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
             }
 
             setAuthError(
-              "Não conseguimos concluir o login voltando do Google para o app. Tente novamente."
+              "Não conseguimos concluir o login voltando do Google para o app. Tente novamente.",
             );
             setAuthInProgress(false);
           }
@@ -417,7 +416,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
         if (isInvalidRefreshToken) {
           console.warn(
-            "[Auth] Refresh token corrompido detectado. Limpando sessão..."
+            "[Auth] Refresh token corrompido detectado. Limpando sessão...",
           );
           try {
             await supabase.auth.signOut({ scope: "local" });
@@ -590,7 +589,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
               };
 
               console.warn(
-                "[AuthWatchdog] Timeout (timer): login não concluído em 12s"
+                "[AuthWatchdog] Timeout (timer): login não concluído em 12s",
               );
 
               await attempt.log("oauth_timeout_timer", {
@@ -605,7 +604,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
           setAuthInProgress(false);
           setAuthError(
-            "Não conseguimos concluir o login voltando do Google para o app. Tente novamente."
+            "Não conseguimos concluir o login voltando do Google para o app. Tente novamente.",
           );
 
           oauthCompletedRef.current = true;
@@ -627,7 +626,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       // Abre o navegador e aguarda retorno para o redirectUri
       const result = await WebBrowser.openAuthSessionAsync(
         data.url,
-        redirectUri
+        redirectUri,
       );
       console.log("Resultado do navegador:", result);
 
@@ -647,8 +646,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
           result.type === "cancel"
             ? "cancel"
             : result.type === "dismiss"
-            ? "dismiss"
-            : "other";
+              ? "dismiss"
+              : "other";
 
         await concludeOAuthFlow(outcome, {
           browserResultType: result.type,
