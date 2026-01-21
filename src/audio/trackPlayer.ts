@@ -29,11 +29,7 @@ export async function configureTrackPlayerOptions() {
             AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         },
         color: accentColor,
-        capabilities: [
-          Capability.Play,
-          Capability.Pause,
-          Capability.SeekTo,
-        ],
+        capabilities: [Capability.Play, Capability.Pause, Capability.SeekTo],
         notificationCapabilities: [
           Capability.Play,
           Capability.Pause,

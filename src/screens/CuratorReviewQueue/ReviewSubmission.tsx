@@ -72,16 +72,10 @@ function serializeSupabaseErrorForLog(error: unknown) {
   };
 }
 
-function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
+function isRpcParamMismatch(error: unknown) {
   const anyErr = error as any;
   const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
-  if (code !== "PGRST202") return false;
-  return (
-    message.includes(`(${paramName})`) ||
-    message.includes(`parameter ${paramName}`) ||
-    message.includes(paramName)
-  );
+  return code === "PGRST202";
 }
 
 /**
@@ -96,7 +90,7 @@ async function callRpcWithParamFallback(
   let res: any = await supabase.rpc(functionName, payloadWithPrefix);
 
   // Fallback to old signature if param mismatch
-  if (res?.error && isRpcFunctionParamMismatch(res.error, "p_submission_id")) {
+  if (res?.error && isRpcParamMismatch(res.error)) {
     const fallbackPayload: Record<string, any> = {};
     for (const [key, value] of Object.entries(payloadWithPrefix)) {
       // Remove p_ prefix from parameter names
@@ -122,6 +116,15 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
   if (has("missing_title")) return "Informe um título antes de aprovar.";
   if (has("missing_lyrics")) return "Informe a letra antes de aprovar.";
   if (has("invalid_decision")) return "Ação inválida.";
+
+  const code =
+    error && typeof error === "object" && "code" in (error as any)
+      ? String((error as any).code)
+      : "";
+
+  if (code === "PGRST202") {
+    return "Servidor desatualizado para este fluxo. Atualize o app e tente novamente.";
+  }
 
   if (has("invalid_activation") || has("cannot activate ponto_audio")) {
     return "Não foi possível ativar o áudio deste envio. Tente novamente.";
@@ -673,7 +676,7 @@ export default function ReviewSubmissionScreen() {
         submissionId: sid,
       });
 
-      let res = await supabase.rpc("approve_audio_upload_submission", {
+      let res = await callRpcWithParamFallback("approve_audio_upload_submission", {
         p_submission_id: sid,
       });
 
@@ -747,7 +750,7 @@ export default function ReviewSubmissionScreen() {
         submissionId: sid,
       });
 
-      const res = await supabase.rpc("reject_audio_upload_submission", {
+      const res = await callRpcWithParamFallback("reject_audio_upload_submission", {
         p_submission_id: sid,
         p_review_note: note,
       });
