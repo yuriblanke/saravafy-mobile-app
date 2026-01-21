@@ -1,6 +1,6 @@
 import TrackPlayer, { Event, State } from "react-native-track-player";
 
-import { error as logError, log } from "./debugLog";
+import { log, error as logError } from "./debugLog";
 
 export default async function playbackService() {
   const g = globalThis as any;
@@ -28,6 +28,19 @@ export default async function playbackService() {
       // Important: don't throw; keep service alive.
       logError("event RemotePlay: play() error", err);
     }
+  });
+
+  TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+    // This event is emitted from native regardless of whether RemotePlay/RemotePause are wired.
+    log("event PlaybackState: received", {
+      state: (event as any)?.state ?? null,
+    });
+  });
+
+  TrackPlayer.addEventListener(Event.PlaybackPlayWhenReadyChanged, (event) => {
+    log("event PlaybackPlayWhenReadyChanged: received", {
+      playWhenReady: (event as any)?.playWhenReady ?? null,
+    });
   });
 
   TrackPlayer.addEventListener(Event.RemotePause, async () => {
@@ -74,6 +87,28 @@ export default async function playbackService() {
     } catch (err) {
       logError("event RemoteSeek: seekTo() error", err);
     }
+  });
+
+  // Extra diagnostics: if Android is dispatching a different remote event than we expect.
+  // Keep these as logs-only to avoid changing product behavior.
+  TrackPlayer.addEventListener(Event.RemoteSkip, async () => {
+    log("event RemoteSkip: received");
+  });
+
+  TrackPlayer.addEventListener(Event.RemoteNext, async () => {
+    log("event RemoteNext: received");
+  });
+
+  TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
+    log("event RemotePrevious: received");
+  });
+
+  TrackPlayer.addEventListener(Event.RemoteDuck, async (event) => {
+    log("event RemoteDuck: received", {
+      permanent: (event as any)?.permanent ?? null,
+      paused: (event as any)?.paused ?? null,
+      ducking: (event as any)?.ducking ?? null,
+    });
   });
 
   log("playbackService: handlers registered");

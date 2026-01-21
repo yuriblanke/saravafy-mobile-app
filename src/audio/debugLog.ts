@@ -18,7 +18,8 @@ function nowIso() {
 
 export function getSessionId(): string {
   const g = globalThis as GlobalWithSession;
-  if (typeof g[SESSION_KEY] === "string" && g[SESSION_KEY]) return g[SESSION_KEY];
+  if (typeof g[SESSION_KEY] === "string" && g[SESSION_KEY])
+    return g[SESSION_KEY];
 
   const id = Math.random().toString(16).slice(2);
   g[SESSION_KEY] = id;

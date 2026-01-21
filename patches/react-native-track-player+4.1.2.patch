@@ -1,7 +1,50 @@
+diff --git a/node_modules/react-native-track-player/android/.project b/node_modules/react-native-track-player/android/.project
+new file mode 100644
+index 0000000..3aa531b
+--- /dev/null
++++ b/node_modules/react-native-track-player/android/.project
+@@ -0,0 +1,28 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<projectDescription>
++	<name>react-native-track-player</name>
++	<comment>Project react-native-track-player created by Buildship.</comment>
++	<projects>
++	</projects>
++	<buildSpec>
++		<buildCommand>
++			<name>org.eclipse.buildship.core.gradleprojectbuilder</name>
++			<arguments>
++			</arguments>
++		</buildCommand>
++	</buildSpec>
++	<natures>
++		<nature>org.eclipse.buildship.core.gradleprojectnature</nature>
++	</natures>
++	<filteredResources>
++		<filter>
++			<id>1768940077171</id>
++			<name></name>
++			<type>30</type>
++			<matcher>
++				<id>org.eclipse.core.resources.regexFilterMatcher</id>
++				<arguments>node_modules|\.git|__CREATED_BY_JAVA_LANGUAGE_SERVER__</arguments>
++			</matcher>
++		</filter>
++	</filteredResources>
++</projectDescription>
 diff --git a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
-index b2409a0..e0e97a4 100644
+index b2409a0..31d2433 100644
 --- a/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
 +++ b/node_modules/react-native-track-player/android/src/main/java/com/doublesymmetry/trackplayer/module/MusicModule.kt
+@@ -128,7 +128,7 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
+             this["CAPABILITY_PAUSE"] = Capability.PAUSE.ordinal
+             this["CAPABILITY_STOP"] = Capability.STOP.ordinal
+             this["CAPABILITY_SEEK_TO"] = Capability.SEEK_TO.ordinal
+-            this["CAPABILITY_SKIP"] = OnErrorAction.SKIP.ordinal
++            this["CAPABILITY_SKIP"] = Capability.SKIP.ordinal
+             this["CAPABILITY_SKIP_TO_NEXT"] = Capability.SKIP_TO_NEXT.ordinal
+             this["CAPABILITY_SKIP_TO_PREVIOUS"] = Capability.SKIP_TO_PREVIOUS.ordinal
+             this["CAPABILITY_SET_RATING"] = Capability.SET_RATING.ordinal
 @@ -251,87 +251,97 @@ class MusicModule(reactContext: ReactApplicationContext) : ReactContextBaseJavaM
      }
  

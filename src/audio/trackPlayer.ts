@@ -6,19 +6,35 @@ import TrackPlayer, {
   type Track,
 } from "react-native-track-player";
 
-import { getNotificationAccentColorForCurrentTheme } from "./notificationTheme";
 import { error, log, warn } from "./debugLog";
+import { getNotificationAccentColorForCurrentTheme } from "./notificationTheme";
 
 let setupPromise: Promise<void> | null = null;
 let optionsPromise: Promise<void> | null = null;
 
 let mainRuntimeDebugListenersRegistered = false;
 
+function isNumericKey(key: string): boolean {
+  // TS enums emit reverse mappings as numeric string keys (e.g., "0": "Play").
+  return String(Number(key)) === key;
+}
+
+function capabilityValueToNames(value: number): string[] {
+  const names: string[] = [];
+  for (const [key, v] of Object.entries(Capability as any)) {
+    if (isNumericKey(key)) continue;
+    if (typeof v === "number" && v === value) names.push(key);
+  }
+  return names;
+}
+
 function capabilityLabel(cap: any): string {
   if (typeof cap === "string") return cap;
   if (typeof cap === "number") {
-    const reverse = (Capability as any)[cap];
-    return typeof reverse === "string" ? reverse : String(cap);
+    const names = capabilityValueToNames(cap);
+    if (names.length === 1) return names[0];
+    if (names.length > 1) return `${names.join("|")} (dup:${cap})`;
+    return String(cap);
   }
   return String(cap);
 }
@@ -46,8 +62,10 @@ function validateCapabilities(options: {
 
   const missing: string[] = [];
   if (!hasPlay(caps) || !hasPause(caps)) missing.push("capabilities");
-  if (!hasPlay(compact) || !hasPause(compact)) missing.push("compactCapabilities");
-  if (!hasPlay(notif) || !hasPause(notif)) missing.push("notificationCapabilities");
+  if (!hasPlay(compact) || !hasPause(compact))
+    missing.push("compactCapabilities");
+  if (!hasPlay(notif) || !hasPause(notif))
+    missing.push("notificationCapabilities");
 
   if (missing.length > 0) {
     warn("capabilities validation: FAIL", {
@@ -81,8 +99,34 @@ function registerMainRuntimeDebugListenersOnce() {
 
   TrackPlayer.addEventListener(Event.RemoteSeek, (event) => {
     const position =
-      typeof (event as any)?.position === "number" ? (event as any).position : null;
+      typeof (event as any)?.position === "number"
+        ? (event as any).position
+        : null;
     log("main runtime: Event.RemoteSeek received", { position });
+  });
+
+  TrackPlayer.addEventListener(Event.RemoteSkip, async () => {
+    log("main runtime: Event.RemoteSkip received");
+  });
+
+  TrackPlayer.addEventListener(Event.RemoteNext, async () => {
+    log("main runtime: Event.RemoteNext received");
+  });
+
+  TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
+    log("main runtime: Event.RemotePrevious received");
+  });
+
+  TrackPlayer.addEventListener(Event.PlaybackState, (event) => {
+    log("main runtime: Event.PlaybackState received", {
+      state: (event as any)?.state ?? null,
+    });
+  });
+
+  TrackPlayer.addEventListener(Event.PlaybackPlayWhenReadyChanged, (event) => {
+    log("main runtime: Event.PlaybackPlayWhenReadyChanged received", {
+      playWhenReady: (event as any)?.playWhenReady ?? null,
+    });
   });
 }
 
@@ -98,7 +142,9 @@ export type SaravafyTrack = {
 export async function configureTrackPlayerOptions() {
   if (!optionsPromise) {
     optionsPromise = (async () => {
-      log("updateOptions: start", { callerTag: "trackPlayer.configureTrackPlayerOptions" });
+      log("updateOptions: start", {
+        callerTag: "trackPlayer.configureTrackPlayerOptions",
+      });
 
       const accentColor = await getNotificationAccentColorForCurrentTheme();
 
@@ -127,16 +173,32 @@ export async function configureTrackPlayerOptions() {
             ),
           },
           color: options.color,
+          capabilityValues: {
+            Play: Capability.Play,
+            Pause: Capability.Pause,
+            SeekTo: Capability.SeekTo,
+          },
+          raw: {
+            capabilities: options.capabilities,
+            compactCapabilities: options.compactCapabilities,
+            notificationCapabilities: options.notificationCapabilities,
+          },
           capabilities: describeCapabilities(options.capabilities),
-          compactCapabilities: describeCapabilities(options.compactCapabilities),
-          notificationCapabilities: describeCapabilities(options.notificationCapabilities),
+          compactCapabilities: describeCapabilities(
+            options.compactCapabilities,
+          ),
+          notificationCapabilities: describeCapabilities(
+            options.notificationCapabilities,
+          ),
         });
       }
 
       validateCapabilities(options);
 
       await TrackPlayer.updateOptions(options);
-      log("updateOptions: done", { callerTag: "trackPlayer.configureTrackPlayerOptions" });
+      log("updateOptions: done", {
+        callerTag: "trackPlayer.configureTrackPlayerOptions",
+      });
 
       await TrackPlayer.setRepeatMode(RepeatMode.Off);
     })();
@@ -150,9 +212,13 @@ export async function configureTrackPlayerOptions() {
 export async function setupTrackPlayerOnce() {
   if (!setupPromise) {
     setupPromise = (async () => {
-      log("setupPlayer: start", { callerTag: "trackPlayer.setupTrackPlayerOnce" });
+      log("setupPlayer: start", {
+        callerTag: "trackPlayer.setupTrackPlayerOnce",
+      });
       await TrackPlayer.setupPlayer();
-      log("setupPlayer: done", { callerTag: "trackPlayer.setupTrackPlayerOnce" });
+      log("setupPlayer: done", {
+        callerTag: "trackPlayer.setupTrackPlayerOnce",
+      });
 
       await configureTrackPlayerOptions();
 
