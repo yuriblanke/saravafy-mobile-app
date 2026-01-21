@@ -1,6 +1,7 @@
 import TrackPlayer from "react-native-track-player";
 
 // Must be registered at startup for background/remote controls.
+console.log("[RNTP] registerPlaybackService (entry)");
 TrackPlayer.registerPlaybackService(
   () =>
     // eslint-disable-next-line @typescript-eslint/no-var-requires
