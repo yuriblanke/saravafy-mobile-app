@@ -2,7 +2,11 @@ import TrackPlayer, { Event, State } from "react-native-track-player";
 
 import { log, error as logError } from "./debugLog";
 
+console.log("[RNTP-SVC] module loaded");
+
 export default async function playbackService() {
+  console.log("[RNTP-SVC] service entry called");
+
   const g = globalThis as any;
   g.__RNTP_NOTIF_PLAYBACK_SERVICE_STARTS__ =
     typeof g.__RNTP_NOTIF_PLAYBACK_SERVICE_STARTS__ === "number"
@@ -17,6 +21,7 @@ export default async function playbackService() {
     (Event as any).RemoteTogglePlayPause ?? (Event as any).RemotePlayPause;
 
   TrackPlayer.addEventListener(Event.RemotePlay, async () => {
+    console.log("[RNTP-SVC] RemotePlay -> TrackPlayer.play()");
     log("event RemotePlay: received");
     try {
       const before = await TrackPlayer.getState();
@@ -44,6 +49,7 @@ export default async function playbackService() {
   });
 
   TrackPlayer.addEventListener(Event.RemotePause, async () => {
+    console.log("[RNTP-SVC] RemotePause -> TrackPlayer.pause()");
     log("event RemotePause: received");
     try {
       const before = await TrackPlayer.getState();
