@@ -1,0 +1,42 @@
+diff --git a/src/components/CuratorInviteGate.tsx b/src/components/CuratorInviteGate.tsx
+--- a/src/components/CuratorInviteGate.tsx
++++ b/src/components/CuratorInviteGate.tsx
+@@
+   const bannerText = useMemo(() => {
+-    return `Convite para: ${roleLabel}`;
++    return "Convite para Guardiã(o) do Acervo";
+   }, [roleLabel]);
+
+   const modalLead = useMemo(() => {
+-    return "Você recebeu um convite para ajudar a manter a qualidade do acervo:";
++    return "Você recebeu um convite para ajudar a cuidar do acervo do Saravafy.\n\nEsse é um papel de confiança e cuidado.\nSeu olhar atento ajuda a manter as letras bem cuidadas, os pontos organizados e a energia do canto preservada para quem chega.";
+   }, []);
+@@
+               <Text style={[styles.modalTitle, { color: textPrimary }]}>
+-                {roleLabel}
++                Convite para Guardiã(o) do Acervo
+               </Text>
+
+               {isProcessing ? (
+                 <View style={styles.processingRow}>
+                   <ActivityIndicator />
+
+diff --git a/src/domain/globalRoles.ts b/src/domain/globalRoles.ts
+--- a/src/domain/globalRoles.ts
++++ b/src/domain/globalRoles.ts
+@@
+   curator: {
+-    badgeLabel: "Guardiã do Acervo",
+-    infoTitle: "Guardiã do Acervo",
++    badgeLabel: "Guardiã(o) do Acervo",
++    infoTitle: "Guardiã(o) do Acervo",
+     infoBody:
+-      "Esse papel existe para manter a qualidade do acervo, corrigindo letras, títulos e tags.",
++      "Esse papel existe para manter a qualidade do acervo do Saravafy, corrigindo letras, títulos e tags.",
+     permissions: [
+       "Editar qualquer ponto do acervo",
+       "Corrigir letras e títulos",
+       "Adicionar e remover tags do acervo",
+       "Atuar sobre submissions conforme política",
+     ],
+   },

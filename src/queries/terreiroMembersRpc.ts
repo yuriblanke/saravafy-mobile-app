@@ -1,0 +1,179 @@
+import { supabase } from "@/lib/supabase";
+
+export type TerreiroMembersVisibilityTier = "public" | "member" | "admin";
+
+export type TerreiroMembersListTier = "admins" | "members" | "public";
+
+export type TerreiroMemberPublic = {
+  user_id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+};
+
+export type TerreiroMemberMember = TerreiroMemberPublic & {
+  role: string | null;
+  status: string | null;
+};
+
+export type TerreiroMemberAdmin = TerreiroMemberMember & {
+  email: string | null;
+};
+
+export type TerreiroMemberAny =
+  | TerreiroMemberPublic
+  | TerreiroMemberMember
+  | TerreiroMemberAdmin;
+
+function getErrorMessage(e: unknown): string {
+  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
+    return e.message;
+  }
+
+  if (e && typeof e === "object") {
+    const anyErr = e as any;
+    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
+      return anyErr.message;
+    }
+  }
+
+  return String(e);
+}
+
+function asStringOrNull(value: unknown): string | null {
+  return typeof value === "string" ? value : null;
+}
+
+function parsePublicRow(row: unknown): TerreiroMemberPublic | null {
+  if (!row || typeof row !== "object") return null;
+  const r = row as any;
+
+  const user_id = typeof r.user_id === "string" ? r.user_id : "";
+  if (!user_id) return null;
+
+  return {
+    user_id,
+    full_name: asStringOrNull(r.full_name),
+    avatar_url: asStringOrNull(r.avatar_url),
+  };
+}
+
+function parseMemberRow(row: unknown): TerreiroMemberMember | null {
+  const base = parsePublicRow(row);
+  if (!base) return null;
+  const r = row as any;
+
+  return {
+    ...base,
+    role: asStringOrNull(r.role),
+    status: asStringOrNull(r.status),
+  };
+}
+
+function parseAdminRow(row: unknown): TerreiroMemberAdmin | null {
+  const base = parseMemberRow(row);
+  if (!base) return null;
+  const r = row as any;
+
+  return {
+    ...base,
+    email: asStringOrNull(r.email),
+  };
+}
+
+export async function fetchTerreiroMembersCount(terreiroId: string) {
+  if (!terreiroId) return null as number | null;
+
+  const res = await supabase.rpc("get_terreiro_members_count", {
+    p_terreiro_id: terreiroId,
+  });
+
+  if (res.error) {
+    throw new Error(
+      typeof res.error.message === "string" && res.error.message.trim()
+        ? res.error.message
+        : "Não foi possível carregar a contagem de membros."
+    );
+  }
+
+  const data: any = res.data;
+
+  if (typeof data === "number" && Number.isFinite(data)) return data;
+
+  if (data && typeof data === "object" && typeof data.count === "number") {
+    return data.count;
+  }
+
+  if (Array.isArray(data) && data.length > 0) {
+    const first = data[0];
+    if (typeof first === "number" && Number.isFinite(first)) return first;
+    if (
+      first &&
+      typeof first === "object" &&
+      typeof (first as any).count === "number"
+    ) {
+      return (first as any).count;
+    }
+  }
+
+  return null;
+}
+
+export async function fetchTerreiroMembersList(params: {
+  terreiroId: string;
+  visibilityTier: TerreiroMembersVisibilityTier;
+}): Promise<TerreiroMemberAny[]> {
+  const { terreiroId, visibilityTier } = params;
+
+  if (!terreiroId) return [];
+
+  const tier: TerreiroMembersListTier =
+    visibilityTier === "admin"
+      ? "admins"
+      : visibilityTier === "member"
+      ? "members"
+      : "public";
+
+  // Compat: esta função histórica traz "tudo"; mantemos um limite alto,
+  // mas SEMPRE passando p_limit/p_offset para evitar ambiguidade de RPC.
+  return await fetchTerreiroMembersPage(tier, terreiroId, 2000, 0);
+}
+
+export async function fetchTerreiroMembersPage(
+  tier: TerreiroMembersListTier,
+  terreiroId: string,
+  limit: number,
+  offset: number
+): Promise<TerreiroMemberAny[]> {
+  if (!terreiroId) return [];
+
+  const fn =
+    tier === "admins"
+      ? "get_terreiro_members_for_admins"
+      : tier === "members"
+      ? "get_terreiro_members_for_members"
+      : "get_terreiro_members_public";
+
+  const res = await supabase.rpc(fn, {
+    p_terreiro_id: terreiroId,
+    p_limit: limit,
+    p_offset: offset,
+  });
+
+  if (res.error) {
+    throw new Error(
+      getErrorMessage(res.error) || "Não foi possível carregar os membros."
+    );
+  }
+
+  const rows = Array.isArray(res.data) ? res.data : [];
+
+  if (tier === "admins") {
+    return rows.map(parseAdminRow).filter(Boolean) as TerreiroMemberAdmin[];
+  }
+
+  if (tier === "members") {
+    return rows.map(parseMemberRow).filter(Boolean) as TerreiroMemberMember[];
+  }
+
+  return rows.map(parsePublicRow).filter(Boolean) as TerreiroMemberPublic[];
+}

@@ -1,0 +1,70 @@
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+node_modules/
+
+# Expo
+.expo/
+dist/
+web-build/
+# expo-env.d.ts  <-- RECOMENDO versionar, então removi do ignore
+
+# Native / secrets
+.kotlin/
+*.orig.*
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+
+# Metro
+.metro-health-check*
+
+# debug
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+
+# local env files
+.env
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# test coverage (optional, but safe)
+coverage/
+
+# Android / iOS builds (optional, but safe)
+*.apk
+*.aab
+
+# Native build artifacts (Android)
+android/**/build/
+android/**/.gradle/
+android/**/.cxx/
+android/**/captures/
+android/**/local.properties
+
+# Native build artifacts (iOS)
+ios/**/build/
+ios/Pods/
+
+# VS Code (keep only shared settings)
+.vscode/*
+!.vscode/settings.json
+
+
+
+# Local dev artifacts (schema dumps)
+README.schema-completo.json
+README.schema-query.sql
+
+# Local-only destructive maintenance scripts
+scripts/supabase/delete-playlists.sql

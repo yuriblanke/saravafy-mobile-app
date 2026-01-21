@@ -1,0 +1,29 @@
+import { useEffect } from "react";
+
+import { useLocalSearchParams, useRouter } from "expo-router";
+
+import { useToast } from "@/contexts/ToastContext";
+import { isUuid } from "@/src/utils/pontoCode";
+
+export default function DeepLinkPontoRoute() {
+  const router = useRouter();
+  const { showToast } = useToast();
+  const params = useLocalSearchParams<{ id?: string }>();
+
+  useEffect(() => {
+    const id = String(params.id ?? "").trim();
+
+    if (!isUuid(id)) {
+      showToast("Link inválido.");
+      router.replace("/");
+      return;
+    }
+
+    router.replace({
+      pathname: "/(app)/player",
+      params: { source: "all", pontoId: id },
+    });
+  }, [params.id, router, showToast]);
+
+  return null;
+}
