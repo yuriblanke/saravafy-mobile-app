@@ -1,7 +1,4 @@
-import TrackPlayer, {
-  RepeatMode,
-  type Track,
-} from "react-native-track-player";
+import TrackPlayer, { RepeatMode, type Track } from "react-native-track-player";
 
 let setupPromise: Promise<void> | null = null;
 
@@ -27,7 +24,7 @@ export async function ensureTrackPlayerReady() {
   if (!setupPromise) {
     setupPromise = (async () => {
       const alreadyInitialized = await isNativeTrackPlayerInitialized();
-      
+
       if (!alreadyInitialized) {
         await TrackPlayer.setupPlayer();
       }
