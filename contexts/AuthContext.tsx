@@ -406,12 +406,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
           userId: session?.user?.id,
         });
       })
-      .catch((error) => {
+      .catch(async (error) => {
         console.error("[Auth] Erro ao obter sessão inicial:", error);
+
+        // Detectar refresh token corrompido e limpar sessão automaticamente
+        const isInvalidRefreshToken =
+          error?.name === "AuthApiError" &&
+          (error?.message?.includes("Invalid Refresh Token") ||
+            error?.message?.includes("Refresh Token Not Found"));
+
+        if (isInvalidRefreshToken) {
+          console.warn(
+            "[Auth] Refresh token corrompido detectado. Limpando sessão..."
+          );
+          try {
+            await supabase.auth.signOut({ scope: "local" });
+            console.info("[Auth] Sessão local limpa com sucesso.");
+          } catch (signOutError) {
+            console.error("[Auth] Erro ao limpar sessão:", signOutError);
+          }
+        }
+
         setIsLoading(false);
 
         void bootAttempt.log("boot_get_session_error", {
           error: String(error),
+          isInvalidRefreshToken,
         });
       });
 
