@@ -28,8 +28,7 @@ export async function configureTrackPlayerOptions() {
             AppKilledPlaybackBehavior.StopPlaybackAndRemoveNotification,
         },
         color: accentColor,
-        // Notification UI must be informational only (no remote controls).
-        // This disables play/pause/seek actions in Android notification & lock screen.
+        // Informational-only notification: no transport controls.
         capabilities: [],
         notificationCapabilities: [],
         compactCapabilities: [],

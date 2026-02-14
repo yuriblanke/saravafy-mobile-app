@@ -1,4 +1,4 @@
-package com.yuriblanke.saravafy.dev
+package com.yuriblanke.saravafy
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

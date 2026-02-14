@@ -195,7 +195,9 @@ export default function ReviewQueueScreen() {
             {items.map((s) => {
               const dateLabel = formatDateLabel(s.created_at ?? null);
               const content = extractSubmissionContentFromPayload(s.payload);
-              const title = (s.ponto_title ?? "").trim() || "(Ponto)";
+              const payloadTitle = (content.title ?? "").trim();
+              const title =
+                (s.ponto_title ?? "").trim() || payloadTitle || "(Ponto)";
 
               const isPublicDomain = s.ponto_is_public_domain !== false;
               const hasAudio = s.has_audio === true;

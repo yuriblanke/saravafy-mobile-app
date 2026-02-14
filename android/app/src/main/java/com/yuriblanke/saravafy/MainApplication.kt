@@ -1,4 +1,4 @@
-package com.yuriblanke.saravafy.dev
+package com.yuriblanke.saravafy
 
 import android.app.Application
 import android.content.res.Configuration

@@ -55,6 +55,35 @@ function isAllowedExt(ext: string) {
   return ["mp3", "m4a", "aac", "ogg", "wav"].includes(e);
 }
 
+function normalizeMimeType(raw: unknown): string {
+  return typeof raw === "string" ? raw.trim().toLowerCase() : "";
+}
+
+function extFromMimeType(mimeTypeRaw: unknown): string {
+  const mimeType = normalizeMimeType(mimeTypeRaw);
+  if (!mimeType) return "";
+  if (mimeType === "audio/mpeg") return "mp3";
+  if (mimeType === "audio/mp4" || mimeType === "audio/x-m4a") return "m4a";
+  if (mimeType === "audio/aac") return "aac";
+  if (mimeType === "audio/ogg") return "ogg";
+  if (mimeType === "audio/wav" || mimeType === "audio/x-wav") return "wav";
+  return "";
+}
+
+function isAllowedAudioMimeType(mimeTypeRaw: unknown) {
+  const mimeType = normalizeMimeType(mimeTypeRaw);
+  if (!mimeType) return false;
+  return [
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/aac",
+    "audio/ogg",
+    "audio/wav",
+    "audio/x-wav",
+  ].includes(mimeType);
+}
+
 function guessMimeType(ext: string): string {
   const e = ext.trim().toLowerCase();
   if (e === "mp3") return "audio/mpeg";
@@ -122,8 +151,11 @@ export default function PlayerAudioUpload() {
   }, [params.pontoTitle]);
 
   const validateSelected = useCallback((audio: SelectedAudio) => {
-    const ext = normalizeExt(audio.name);
-    if (!ext || !isAllowedExt(ext)) {
+    const ext = normalizeExt(audio.name) || normalizeExt(audio.uri);
+    const okByExt = Boolean(ext) && isAllowedExt(ext);
+    const okByMime = isAllowedAudioMimeType(audio.mimeType);
+
+    if (!okByExt && !okByMime) {
       throw new Error("Formato inválido. Use mp3, m4a, aac, ogg ou wav.");
     }
 
@@ -253,47 +285,71 @@ function PlayerAudioUploadView(props: {
 
   const pickAudioFile = useCallback(async () => {
     if (ctx.isUploading) return;
+    try {
+      const res = await DocumentPicker.getDocumentAsync({
+        type: "audio/*",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
 
-    const res = await DocumentPicker.getDocumentAsync({
-      type: "audio/*",
-      copyToCacheDirectory: true,
-      multiple: false,
-    });
+      if (res.canceled) return;
+      const asset =
+        Array.isArray(res.assets) && res.assets.length > 0
+          ? res.assets[0]
+          : null;
+      if (!asset?.uri) return;
 
-    if (res.canceled) return;
-    const asset =
-      Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
-    if (!asset?.uri) return;
+      const rawName =
+        typeof asset.name === "string" && asset.name.trim() ? asset.name : "";
 
-    const name =
-      typeof asset.name === "string" && asset.name.trim()
-        ? asset.name
-        : "audio";
-    const ext = normalizeExt(name) || "m4a";
-    const mimeType =
-      typeof (asset as any).mimeType === "string" &&
-      (asset as any).mimeType.trim()
-        ? String((asset as any).mimeType)
+      const mimeTypeFromAsset =
+        typeof (asset as any).mimeType === "string" &&
+        (asset as any).mimeType.trim()
+          ? String((asset as any).mimeType)
+          : "";
+
+      const extFromName = normalizeExt(rawName);
+      const extFromUri = normalizeExt(asset.uri);
+      const extFromMime = extFromMimeType(mimeTypeFromAsset);
+
+      const ext = extFromName || extFromUri || extFromMime || "m4a";
+      const name = (() => {
+        const base = rawName || "audio";
+        const hasExt = Boolean(normalizeExt(base));
+        return hasExt ? base : `${base}.${ext}`;
+      })();
+
+      const mimeType = mimeTypeFromAsset
+        ? mimeTypeFromAsset
         : guessMimeType(ext);
 
-    const sizeBytes =
-      typeof (asset as any).size === "number" ? (asset as any).size : null;
+      const sizeBytes =
+        typeof (asset as any).size === "number" ? (asset as any).size : null;
 
-    const next: SelectedAudio = {
-      uri: asset.uri,
-      name,
-      mimeType,
-      sizeBytes,
-      source: "file",
-    };
+      const next: SelectedAudio = {
+        uri: asset.uri,
+        name,
+        mimeType,
+        sizeBytes,
+        source: "file",
+      };
 
-    validateSelected(next);
-    onChangeSelectedAudio(next);
-    onSetUploadError(null);
+      validateSelected(next);
+      onChangeSelectedAudio(next);
+      onSetUploadError(null);
+    } catch (e) {
+      const message =
+        e instanceof Error && e.message.trim()
+          ? e.message.trim()
+          : "Erro ao selecionar o áudio.";
+      onSetUploadError(message);
+      showToast(message);
+    }
   }, [
     ctx.isUploading,
     onChangeSelectedAudio,
     onSetUploadError,
+    showToast,
     validateSelected,
   ]);
 

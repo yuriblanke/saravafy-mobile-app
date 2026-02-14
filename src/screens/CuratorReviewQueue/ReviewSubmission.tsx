@@ -2,17 +2,13 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
-  ensureLoaded,
-  getCurrentSubmissionId,
-  loadAndPlay,
   seekToSeconds,
-  togglePlayPause,
-  useRntpPlayback,
 } from "@/src/audio/rntpService";
 import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { useSubmissionPlayback } from "@/src/hooks/useSubmissionPlayback";
 import {
   extractSubmissionContentFromPayload,
   usePontoSubmissionById,
@@ -298,23 +294,8 @@ export default function ReviewSubmissionScreen() {
       ? submission.ponto_audio_id
       : null;
 
-  const submissionAudioBucketId =
-    typeof submission?.audio_bucket_id === "string"
-      ? submission.audio_bucket_id
-      : null;
-  const submissionAudioObjectPath =
-    typeof submission?.audio_object_path === "string"
-      ? submission.audio_object_path
-      : null;
-
-  const isAudioReadyForPlayback =
-    isAudioUpload &&
-    submission?.has_audio === true &&
-    !!pontoAudioId &&
-    typeof submissionAudioBucketId === "string" &&
-    submissionAudioBucketId.trim().length > 0 &&
-    typeof submissionAudioObjectPath === "string" &&
-    submissionAudioObjectPath.trim().length > 0;
+  // Central contract: has_audio is the source of truth for playback.
+  const isAudioReadyForPlayback = submission?.has_audio === true;
 
   const [title, setTitle] = useState("");
   const [authorName, setAuthorName] = useState("");
@@ -324,26 +305,24 @@ export default function ReviewSubmissionScreen() {
   const [reviewNote, setReviewNote] = useState("");
   const [inlineError, setInlineError] = useState<string | null>(null);
 
-  // --- Secure audio playback state (audio_upload only) ---
-  // RNTP is the single source of truth; no expo-av, no URL caching/refresh.
-  const rntp = useRntpPlayback(250);
+  // --- Secure audio playback state (RN Track Player) ---
+  // RNTP is the single source of truth; playback URLs are resolved via Edge.
+  const playback = useSubmissionPlayback(submission);
   const [audioUiError, setAudioUiError] = useState<string | null>(null);
   const audioPreloadStartedRef = useRef(false);
 
-  const isThisSubmissionCurrent =
-    rntp.current?.kind === "submission" && rntp.current.id === submissionId;
-  const isAudioPlaying = isThisSubmissionCurrent && rntp.isPlaying;
-  const audioPositionMillis = isThisSubmissionCurrent ? rntp.positionMillis : 0;
-  const audioDurationMillis = isThisSubmissionCurrent ? rntp.durationMillis : 0;
-  const audioError =
-    isThisSubmissionCurrent && rntp.error ? rntp.error : audioUiError;
-  const isStartingPlayback = rntp.isLoading;
+  const isThisSubmissionCurrent = playback.isCurrent;
+  const isAudioPlaying = playback.isPlaying;
+  const audioPositionMillis = playback.positionMillis;
+  const audioDurationMillis = playback.durationMillis;
+  const audioError = playback.error ? playback.error : audioUiError;
+  const isStartingPlayback = playback.isLoadingPlaybackUrl;
 
   const hydratedRef = useRef(false);
 
   const handleSeekAudio = async (nextPositionMillis: number) => {
     if (!audioDurationMillis) return;
-    if (getCurrentSubmissionId() !== submissionId) return;
+    if (!isThisSubmissionCurrent) return;
 
     const clamped = Math.max(
       0,
@@ -395,7 +374,6 @@ export default function ReviewSubmissionScreen() {
   // Preload audio on open (review UX): fetch URL and load Sound so
   // `status.durationMillis` becomes available for the slider.
   useEffect(() => {
-    if (!isAudioUpload) return;
     if (!isAudioReadyForPlayback) return;
     if (!submissionId) return;
 
@@ -403,8 +381,11 @@ export default function ReviewSubmissionScreen() {
 
     // Don't disrupt another global track (single source of truth).
     if (
-      rntp.current !== null &&
-      !(rntp.current.kind === "submission" && rntp.current.id === submissionId)
+      playback.current !== null &&
+      !(
+        playback.current.kind === "submission" &&
+        playback.current.id === submissionId
+      )
     ) {
       return;
     }
@@ -415,9 +396,7 @@ export default function ReviewSubmissionScreen() {
       try {
         setAudioUiError(null);
 
-        await ensureLoaded({
-          kind: "submission",
-          submissionId,
+        await playback.preload({
           title: title.trim() ? title.trim() : "Ponto",
           artist:
             interpreterName.trim() || authorName.trim()
@@ -434,7 +413,7 @@ export default function ReviewSubmissionScreen() {
     })();
     // Intentionally do not depend on ensureAudioUrl/loadAudio; we run once per submission.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAudioReadyForPlayback, isAudioUpload, submissionId]);
+  }, [isAudioReadyForPlayback, submissionId]);
 
   const pontoQuery = useQuery({
     queryKey: pontoId ? (["pontos", "byId", pontoId] as const) : [],
@@ -489,12 +468,7 @@ export default function ReviewSubmissionScreen() {
       ? (["pontoAudios", "metaById", pontoAudioId] as const)
       : [],
     // Meta is informational only; playback gating must rely on submission fields.
-    enabled:
-      isAudioUpload &&
-      submission?.has_audio === true &&
-      !!pontoAudioId &&
-      !!submissionAudioBucketId &&
-      !!submissionAudioObjectPath,
+    enabled: isAudioUpload && submission?.has_audio === true && !!pontoAudioId,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
     queryFn: async () => {
@@ -1193,7 +1167,7 @@ export default function ReviewSubmissionScreen() {
       : "";
 
   const isPublicDomain = submission.ponto_is_public_domain !== false;
-  const hasAudio = isAudioUpload || submission.has_audio === true;
+  const hasAudio = isAudioUpload || isAudioReadyForPlayback;
 
   const authorConsentGranted = submission.author_consent_granted === true;
   const interpreterConsentGranted =
@@ -1222,10 +1196,12 @@ export default function ReviewSubmissionScreen() {
   const handleTogglePlay = async () => {
     setAudioUiError(null);
 
-    if (!isAudioUpload) return;
-
     if (!isAudioReadyForPlayback) {
-      setAudioUiError("Áudio em revisão. Disponível em breve.");
+      setAudioUiError(
+        isAudioUpload
+          ? "Áudio em revisão. Disponível em breve."
+          : "Este envio não tem áudio.",
+      );
       return;
     }
 
@@ -1241,17 +1217,7 @@ export default function ReviewSubmissionScreen() {
         : null;
 
     try {
-      if (getCurrentSubmissionId() === submissionId) {
-        await togglePlayPause();
-        return;
-      }
-
-      await loadAndPlay({
-        kind: "submission",
-        submissionId,
-        title: reqTitle,
-        artist: reqArtist,
-      });
+      await playback.play({ title: reqTitle, artist: reqArtist });
     } catch (e) {
       const msg =
         e instanceof Error && e.message.trim()
@@ -1411,7 +1377,7 @@ export default function ReviewSubmissionScreen() {
             </>
           ) : null}
 
-          {isAudioUpload ? (
+          {isAudioUpload || isAudioReadyForPlayback ? (
             <View
               style={[
                 styles.audioBox,
@@ -1424,46 +1390,58 @@ export default function ReviewSubmissionScreen() {
 
               {!isAudioReadyForPlayback ? (
                 <Text style={[styles.audioMetaLine, { color: textSecondary }]}>
-                  Áudio em revisão. Disponível em breve.
+                  {isAudioUpload
+                    ? "Áudio em revisão. Disponível em breve."
+                    : "Sem áudio disponível."}
                 </Text>
               ) : (
                 <>
-                  {pontoAudioMetaQuery.isLoading ? (
-                    <View style={styles.audioLoadingRow}>
-                      <ActivityIndicator />
-                      <Text
-                        style={[styles.audioMetaText, { color: textSecondary }]}
-                      >
-                        Carregando detalhes do áudio…
-                      </Text>
-                    </View>
-                  ) : pontoAudioMetaQuery.data ? (
-                    <>
-                      <Text
-                        style={[styles.audioMetaText, { color: textPrimary }]}
-                      >
-                        {(typeof pontoAudioMetaQuery.data.interpreter_name ===
-                          "string" &&
-                        pontoAudioMetaQuery.data.interpreter_name.trim()
-                          ? pontoAudioMetaQuery.data.interpreter_name.trim()
-                          : "Interpretação não informada"
-                        ).trim()}
-                      </Text>
+                  {isAudioUpload ? (
+                    pontoAudioMetaQuery.isLoading ? (
+                      <View style={styles.audioLoadingRow}>
+                        <ActivityIndicator />
+                        <Text
+                          style={[
+                            styles.audioMetaText,
+                            { color: textSecondary },
+                          ]}
+                        >
+                          Carregando detalhes do áudio…
+                        </Text>
+                      </View>
+                    ) : pontoAudioMetaQuery.data ? (
+                      <>
+                        <Text
+                          style={[styles.audioMetaText, { color: textPrimary }]}
+                        >
+                          {(typeof pontoAudioMetaQuery.data
+                            .interpreter_name === "string" &&
+                          pontoAudioMetaQuery.data.interpreter_name.trim()
+                            ? pontoAudioMetaQuery.data.interpreter_name.trim()
+                            : "Interpretação não informada"
+                          ).trim()}
+                        </Text>
 
-                      <Text
-                        style={[styles.audioMetaLine, { color: textSecondary }]}
-                      >
-                        {[
-                          formatDurationFromMs(
-                            pontoAudioMetaQuery.data.duration_ms,
-                          ),
-                          formatBytesAsMb(pontoAudioMetaQuery.data.size_bytes),
-                          formatFromMime(pontoAudioMetaQuery.data.mime_type),
-                        ]
-                          .filter((v) => typeof v === "string" && v.trim())
-                          .join(" • ")}
-                      </Text>
-                    </>
+                        <Text
+                          style={[
+                            styles.audioMetaLine,
+                            { color: textSecondary },
+                          ]}
+                        >
+                          {[
+                            formatDurationFromMs(
+                              pontoAudioMetaQuery.data.duration_ms,
+                            ),
+                            formatBytesAsMb(
+                              pontoAudioMetaQuery.data.size_bytes,
+                            ),
+                            formatFromMime(pontoAudioMetaQuery.data.mime_type),
+                          ]
+                            .filter((v) => typeof v === "string" && v.trim())
+                            .join(" • ")}
+                        </Text>
+                      </>
+                    ) : null
                   ) : null}
 
                   <View style={styles.audioStatusRow}>

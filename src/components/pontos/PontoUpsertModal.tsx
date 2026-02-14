@@ -27,19 +27,17 @@ import {
 } from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
-import {
-  PontoAudioUploadController,
-  type PontoAudioUploadControllerRenderProps,
-} from "@/src/components/pontos/PontoAudioUploadController";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { uploadSubmissionAudio } from "@/src/services/submissionAudio";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
 import { useRouter } from "expo-router";
+
+import { metroError, metroLog } from "@/src/utils/metroLog";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -75,9 +73,28 @@ type Props = {
 };
 
 function toUserFriendlyErrorMessage(error: unknown) {
+  // IMPORTANT: This function is used to map a variety of Supabase/PostgREST
+  // errors into a user-friendly toast. We intentionally keep production
+  // messaging generic, but in development we surface the backend message to
+  // speed up debugging.
   const message =
     error && typeof error === "object" && "message" in error
       ? String((error as any).message)
+      : "";
+
+  const details =
+    error && typeof error === "object" && "details" in (error as any)
+      ? String((error as any).details ?? "")
+      : "";
+
+  const hint =
+    error && typeof error === "object" && "hint" in (error as any)
+      ? String((error as any).hint ?? "")
+      : "";
+
+  const code =
+    error && typeof error === "object" && "code" in (error as any)
+      ? String((error as any).code ?? "")
       : "";
 
   const lower = message.toLowerCase();
@@ -88,20 +105,35 @@ function toUserFriendlyErrorMessage(error: unknown) {
     lower.includes("jwt") ||
     lower.includes("unauthorized")
   ) {
-    return "Você precisa estar logada para concluir.";
+    return "Sem permissão para concluir. Verifique se você está logada e se tem acesso.";
+  }
+
+  // In dev builds, show the backend error message (when available) so we can
+  // quickly spot RLS, constraint violations, missing columns, etc.
+  if (typeof __DEV__ === "boolean" && __DEV__ && message.trim()) {
+    return message.trim();
+  }
+
+  // Some Supabase/PostgREST errors may carry details/hint/code even when the
+  // message is generic or empty.
+  if (typeof __DEV__ === "boolean" && __DEV__) {
+    const d = details.trim();
+    const h = hint.trim();
+    const c = code.trim();
+    if (d || h || c) {
+      const parts = [
+        c ? `code=${c}` : "",
+        d ? `details=${d}` : "",
+        h ? `hint=${h}` : "",
+      ].filter(Boolean);
+      return parts.join(" | ");
+    }
+
+    const fallback = String(error ?? "").trim();
+    if (fallback) return fallback;
   }
 
   return "Não foi possível salvar agora. Tente novamente.";
-}
-
-async function getFileSizeBytes(uri: string): Promise<number | null> {
-  try {
-    const info = await FileSystem.getInfoAsync(uri, { size: true } as any);
-    const size = (info as any)?.size;
-    return typeof size === "number" ? size : null;
-  } catch {
-    return null;
-  }
 }
 
 export function PontoUpsertModal({
@@ -143,18 +175,6 @@ export function PontoUpsertModal({
   ] = useState(false);
   const [termsSheetVisible, setTermsSheetVisible] = useState(false);
 
-  const [submissionAudioPontoId, setSubmissionAudioPontoId] = useState<
-    string | null
-  >(null);
-  const [shouldStartSubmissionAudio, setShouldStartSubmissionAudio] =
-    useState(false);
-  const submissionAudioControllerRef =
-    useRef<PontoAudioUploadControllerRenderProps | null>(null);
-  const submissionAudioDeferredRef = useRef<null | {
-    resolve: () => void;
-    reject: (e: unknown) => void;
-  }>(null);
-
   const [attachedAudio, setAttachedAudio] = useState<null | {
     uri: string;
     name: string;
@@ -180,9 +200,6 @@ export function PontoUpsertModal({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const createdSubmissionIdRef = useRef<string | null>(null);
-  const [audioUploadPhase, setAudioUploadPhase] = useState<
-    null | "init" | "upload" | "complete"
-  >(null);
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -209,8 +226,7 @@ export function PontoUpsertModal({
         ? "Enviar correção"
         : "Salvar alterações";
 
-  const isBusy =
-    isSubmitting || Boolean(submissionAudioControllerRef.current?.isUploading);
+  const isBusy = isSubmitting;
 
   const canSubmit = useMemo(() => {
     return title.trim().length > 0 && lyrics.trim().length > 0;
@@ -261,10 +277,6 @@ export function PontoUpsertModal({
       setSubmissionAudio(null);
       setSubmissionAudioDeclarationChecked(false);
       setTermsSheetVisible(false);
-      setSubmissionAudioPontoId(null);
-      setShouldStartSubmissionAudio(false);
-      submissionAudioControllerRef.current = null;
-      submissionAudioDeferredRef.current = null;
       setIsPublicDomain(true);
       setAttachedAudio(null);
       pendingAudioRef.current = null;
@@ -273,7 +285,6 @@ export function PontoUpsertModal({
       setRightsChecked(false);
       resumeSubmitAfterConsentRef.current = false;
       createdSubmissionIdRef.current = null;
-      setAudioUploadPhase(null);
     }
   }, [initialValues, mode, visible]);
 
@@ -444,6 +455,8 @@ export function PontoUpsertModal({
     if (mode !== "create") return;
     if (isBusy) return;
 
+    metroLog("PontoUpsert", "pickSubmissionAudio start");
+
     const res = await DocumentPicker.getDocumentAsync({
       type: "audio/*",
       copyToCacheDirectory: true,
@@ -462,6 +475,13 @@ export function PontoUpsertModal({
       return;
     }
 
+    metroLog("PontoUpsert", "pickSubmissionAudio selected", {
+      uri: asset.uri,
+      name: asset.name,
+      mimeType: (asset as any).mimeType ?? null,
+      sizeBytes,
+    });
+
     setSubmissionAudio({
       uri: asset.uri,
       name:
@@ -474,46 +494,18 @@ export function PontoUpsertModal({
     setSubmissionAudioDeclarationChecked(false);
   }, [isBusy, mode]);
 
-  const submissionAudioInput = useMemo(() => {
-    if (!submissionAudio) return null;
-    const mimeTypeRaw =
-      typeof submissionAudio.mimeType === "string" &&
-      submissionAudio.mimeType.trim()
-        ? submissionAudio.mimeType.trim()
-        : "audio/m4a";
-
-    return {
-      uri: submissionAudio.uri,
-      mimeType: mimeTypeRaw,
-      sizeBytes:
-        typeof submissionAudio.sizeBytes === "number"
-          ? submissionAudio.sizeBytes
-          : null,
-    };
-  }, [submissionAudio]);
-
-  useEffect(() => {
-    if (!shouldStartSubmissionAudio) return;
-    if (!submissionAudioPontoId) return;
-    const ctx = submissionAudioControllerRef.current;
-    if (!ctx) return;
-
-    setShouldStartSubmissionAudio(false);
-
-    void (async () => {
-      try {
-        await ctx.start();
-        submissionAudioDeferredRef.current?.resolve();
-      } catch (e) {
-        submissionAudioDeferredRef.current?.reject(e);
-      } finally {
-        submissionAudioDeferredRef.current = null;
-      }
-    })();
-  }, [shouldStartSubmissionAudio, submissionAudioPontoId]);
-
   const submit = async () => {
     setErrorMessage(null);
+
+    metroLog("PontoUpsert", "submit start", {
+      mode,
+      hasAudioSelected,
+      hasRightsConsent,
+      isTraditional,
+      titleLen: title.trim().length,
+      lyricsLen: lyrics.trim().length,
+      tagsCount: tags.length,
+    });
 
     if (!title.trim() || !lyrics.trim()) {
       setErrorMessage("Preencha Título e Letra.");
@@ -571,65 +563,51 @@ export function PontoUpsertModal({
       if (mode === "create") {
         let submissionId = createdSubmissionIdRef.current;
         if (!submissionId) {
+          metroLog("PontoUpsert", "createPontoSubmission call", {
+            titleLen: title.trim().length,
+            lyricsLen: lyrics.trim().length,
+            tagsCount: tagsValue.length,
+            hasAuthorName: Boolean(authorValue),
+            hasInterpreterName: Boolean(interpreterValue),
+            ponto_is_public_domain: isTraditional ? true : false,
+            author_consent_granted: !isTraditional && hasRightsConsent,
+            has_audio_intent: Boolean(submissionAudio),
+          });
+
           const created = await createPontoSubmission({
             title: title.trim(),
             lyrics: lyrics.trim(),
             tags: tagsValue,
             author_name: authorValue ? authorValue : null,
             interpreter_name: interpreterValue ? interpreterValue : null,
-            has_author_consent: hasRightsConsent ? true : null,
+            // When the user toggles "ponto tradicional", we treat it as public domain.
+            // In that case, no author consent is required.
+            ponto_is_public_domain: isTraditional ? true : false,
+            author_consent_granted:
+              !isTraditional && hasRightsConsent ? true : false,
+            has_audio_intent: submissionAudio ? true : false,
           });
 
           submissionId = created.id;
           createdSubmissionIdRef.current = submissionId;
+
+          metroLog("PontoUpsert", "createPontoSubmission ok", {
+            submissionId,
+          });
         }
 
         // Optional audio flow (ponto -> ids -> áudio)
         if (submissionAudio) {
-          const { data: subRow, error: subErr } = await supabase
-            .from("pontos_submissions")
-            .select("id, approved_ponto_id")
-            .eq("id", submissionId)
-            .single();
-
-          if (subErr) {
-            showToast(
-              "Ponto enviado, mas não foi possível iniciar o envio do áudio. Você poderá reenviar o áudio depois.",
-            );
-            onCancel();
-            onSuccess?.();
-            return;
-          }
-
-          const pontoIdForAudio =
-            subRow && typeof (subRow as any).approved_ponto_id === "string"
-              ? String((subRow as any).approved_ponto_id)
-              : null;
-
-          if (!pontoIdForAudio) {
-            showToast(
-              "Ponto enviado, mas o áudio não foi enviado (ID do ponto indisponível). Você poderá reenviar o áudio depois.",
-            );
-            onCancel();
-            onSuccess?.();
-            return;
-          }
-
-          setSubmissionAudioPontoId(pontoIdForAudio);
-          setShouldStartSubmissionAudio(true);
-
           try {
-            await new Promise<void>((resolve, reject) => {
-              submissionAudioDeferredRef.current = { resolve, reject };
+            await uploadSubmissionAudio({
+              submissionId,
+              file: {
+                uri: submissionAudio.uri,
+                name: submissionAudio.name,
+                mimeType: submissionAudio.mimeType ?? null,
+              },
             });
 
-            await queryClient.invalidateQueries({
-              queryKey: queryKeys.pontoAudios.byPontoId(pontoIdForAudio),
-            });
-            await queryClient.invalidateQueries({
-              queryKey:
-                queryKeys.pontoAudios.hasAnyUploadedByPontoId(pontoIdForAudio),
-            });
             await queryClient.invalidateQueries({
               queryKey: queryKeys.pontosSubmissions.pending(),
             });
@@ -727,11 +705,24 @@ export function PontoUpsertModal({
       onCancel();
       onSuccess?.(updated);
     } catch (e) {
+      // Keep a console breadcrumb for debugging (Metro / device logs).
+      // This helps identify if the error is coming from Supabase (RLS/DB)
+      // vs. client-side validation.
+      console.error("[PontoUpsertModal] submit failed", e);
+      metroError("PontoUpsert", "submit failed", e, {
+        mode,
+        hasAudioSelected,
+        titleLen: title.trim().length,
+        lyricsLen: lyrics.trim().length,
+        tagsCount: tags.length,
+      });
       const msg = toUserFriendlyErrorMessage(e);
+      metroLog("PontoUpsert", "submit mapped error", {
+        message: msg,
+      });
       setErrorMessage(msg);
       showToast(msg);
     } finally {
-      setAudioUploadPhase(null);
       setIsSubmitting(false);
     }
   };
@@ -1363,22 +1354,6 @@ export function PontoUpsertModal({
                   </Pressable>
                 ) : null}
 
-                <PontoAudioUploadController
-                  pontoId={submissionAudioPontoId ?? ""}
-                  interpreterName={interpreterName}
-                  audio={submissionAudioInput}
-                  canStart={
-                    Boolean(submissionAudioInput) &&
-                    Boolean(interpreterName.trim()) &&
-                    submissionAudioDeclarationChecked
-                  }
-                  interpreterConsent={submissionAudioDeclarationChecked}
-                >
-                  {(ctx) => {
-                    submissionAudioControllerRef.current = ctx;
-                    return null;
-                  }}
-                </PontoAudioUploadController>
               </View>
             ) : null}
 

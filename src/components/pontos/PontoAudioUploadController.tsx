@@ -4,6 +4,7 @@ import {
   initPontoAudioUpload,
   uploadToSignedUpload,
 } from "@/src/api/pontoAudio";
+import { metroError, metroLog } from "@/src/utils/metroLog";
 import * as FileSystem from "expo-file-system";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
@@ -100,6 +101,15 @@ export function PontoAudioUploadController({
       setResult(null);
 
       try {
+        metroLog("PontoAudioUpload", "start", {
+          pontoId,
+          interpreterNamePresent: Boolean(String(interpreterName ?? "").trim()),
+          interpreterConsent,
+          hasAudio: Boolean(audio),
+          mimeType: audio?.mimeType ?? null,
+          sizeBytes: audio?.sizeBytes ?? null,
+        });
+
         if (canStart === false) {
           throw new Error("Não é possível iniciar o envio agora.");
         }
@@ -136,6 +146,11 @@ export function PontoAudioUploadController({
             ? audio.sizeBytes
             : await getFileSizeBytes(uri);
 
+        metroLog("PontoAudioUpload", "resolved file size", {
+          sizeBytes: resolvedSizeBytes,
+          maxBytes: MAX_AUDIO_BYTES,
+        });
+
         if (
           typeof resolvedSizeBytes === "number" &&
           resolvedSizeBytes > MAX_AUDIO_BYTES
@@ -160,6 +175,12 @@ export function PontoAudioUploadController({
 
         setPhase("upload");
         setProgress(0.2);
+
+        metroLog("PontoAudioUpload", "uploadToSignedUpload start", {
+          bucket: init.bucket,
+          path: init.path,
+          pontoAudioId: init.pontoAudioId,
+        });
 
         await uploadToSignedUpload({
           bucket: init.bucket,
@@ -205,9 +226,16 @@ export function PontoAudioUploadController({
         setProgress(1);
         setResult(out);
         onDone?.(out);
+        metroLog("PontoAudioUpload", "done", out);
         return out;
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Não foi possível enviar.";
+        metroError("PontoAudioUpload", "failed", e, {
+          phase,
+          pontoId,
+          interpreterConsent,
+          hasAudio: Boolean(audio),
+        });
         setPhase("error");
         setErrorMessage(msg);
         throw e;

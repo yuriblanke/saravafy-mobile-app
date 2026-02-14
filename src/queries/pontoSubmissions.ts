@@ -13,10 +13,13 @@ export type PendingPontoSubmission = {
   reviewed_by?: string | null;
   ponto_id?: string | null;
   ponto_title?: string | null;
-  ponto_audio_id?: string | null;
+  ponto_audio_id: string | null;
 
-  audio_bucket_id?: string | null;
-  audio_object_path?: string | null;
+  // Source of truth for whether there is playback audio for this submission.
+  // Treat null as false on the client.
+  has_audio: boolean;
+  audio_bucket_id: string | null;
+  audio_object_path: string | null;
 
   payload?: unknown;
 
@@ -25,10 +28,12 @@ export type PendingPontoSubmission = {
   author_consent_granted?: boolean | null;
   terms_version?: string | null;
 
-  has_audio?: boolean | null;
   interpreter_name?: string | null;
   interpreter_consent_granted?: boolean | null;
 };
+
+// Alias for readability in audio-related hooks/services.
+export type Submission = PendingPontoSubmission;
 
 function coerceTags(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -132,7 +137,7 @@ export async function fetchPendingPontoSubmissions(): Promise<
         : null,
     terms_version:
       typeof row.terms_version === "string" ? row.terms_version : null,
-    has_audio: typeof row.has_audio === "boolean" ? row.has_audio : null,
+    has_audio: typeof row.has_audio === "boolean" ? row.has_audio : false,
     interpreter_name:
       typeof row.interpreter_name === "string" ? row.interpreter_name : null,
     interpreter_consent_granted:
@@ -197,7 +202,7 @@ export async function fetchPontoSubmissionById(
         : null,
     terms_version:
       typeof row.terms_version === "string" ? row.terms_version : null,
-    has_audio: typeof row.has_audio === "boolean" ? row.has_audio : null,
+    has_audio: typeof row.has_audio === "boolean" ? row.has_audio : false,
     interpreter_consent_granted:
       typeof row.interpreter_consent_granted === "boolean"
         ? row.interpreter_consent_granted

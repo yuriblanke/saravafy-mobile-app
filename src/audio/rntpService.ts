@@ -59,6 +59,15 @@ type Snapshot = {
   playWhenReady?: boolean;
 };
 
+function normalizePlaybackState(raw: unknown): State | undefined {
+  if (typeof raw === "string") return raw as State;
+  if (raw && typeof raw === "object") {
+    const inner = (raw as any)?.state;
+    if (typeof inner === "string") return inner as State;
+  }
+  return undefined;
+}
+
 let listenersRegistered = false;
 
 let snapshot: Snapshot = {
@@ -230,10 +239,8 @@ function registerListenersOnce() {
   listenersRegistered = true;
 
   TrackPlayer.addEventListener(Event.PlaybackState, (evt) => {
-    const nextState = (evt as any)?.state;
-    if (typeof nextState === "string") {
-      setSnapshot({ playbackState: nextState as State });
-    }
+    const next = normalizePlaybackState(evt);
+    if (next) setSnapshot({ playbackState: next });
   });
 
   TrackPlayer.addEventListener(Event.PlaybackPlayWhenReadyChanged, (evt) => {
@@ -273,9 +280,9 @@ export async function ensureSetup() {
       TrackPlayer.getPlayWhenReady().catch(() => undefined),
     ]);
 
-    const nextState = (pb as any)?.state;
+    const nextState = normalizePlaybackState(pb);
     const patch: Partial<Snapshot> = {};
-    if (typeof nextState === "string") patch.playbackState = nextState as State;
+    if (nextState) patch.playbackState = nextState;
     if (typeof pwr === "boolean") patch.playWhenReady = pwr;
     if (Object.keys(patch).length > 0) setSnapshot(patch);
   } catch {
@@ -305,7 +312,7 @@ export function useRntpPlayback(updateIntervalMs = 250) {
   // source of truth for UI play/pause (it updates even when progress doesn't).
   const playbackStateAny = usePlaybackState();
   const hookPlaybackState =
-    typeof playbackStateAny === "number"
+    typeof playbackStateAny === "number" || typeof playbackStateAny === "string"
       ? playbackStateAny
       : (playbackStateAny as any)?.state;
 
@@ -314,13 +321,19 @@ export function useRntpPlayback(updateIntervalMs = 250) {
   const isPlaying = (() => {
     const state = playbackState;
     const pwr = snap.playWhenReady;
-    if (typeof pwr !== "boolean" || typeof state !== "string") {
-      return state === State.Playing;
-    }
+    if (typeof state !== "string") return false;
+
+    // RNTP's recommended logic: playWhenReady + not (errored/ended/none).
+    // When playWhenReady hasn't arrived yet, fallback to state===Playing so
+    // the UI doesn't get stuck showing the Play icon during autoplay.
+    const effectivePlayWhenReady =
+      typeof pwr === "boolean" ? pwr : state === State.Playing;
+
     const isErrored = state === State.Error;
     const isEnded = state === State.Ended;
     const isNone = state === State.None;
-    return pwr && !(isErrored || isEnded || isNone);
+
+    return effectivePlayWhenReady && !(isErrored || isEnded || isNone);
   })();
 
   const status: PlaybackStatus = (() => {
@@ -377,6 +390,9 @@ export async function ensureLoaded(req: PlaybackRequest) {
   setSnapshot({ current: key });
   currentRequest = req;
 
+  // Optimistic UI: we're about to load a new item.
+  setSnapshot({ playbackState: State.Loading, playWhenReady: false });
+
   try {
     const url = await resolveUrl(req);
     await TrackPlayer.reset();
@@ -396,6 +412,8 @@ export async function ensureLoaded(req: PlaybackRequest) {
 export async function loadAndPlay(req: PlaybackRequest) {
   await ensureLoaded(req);
   try {
+    // Optimistic UI: user asked to play.
+    setSnapshot({ playWhenReady: true });
     await TrackPlayer.play();
   } catch (e) {
     const msg =
@@ -413,9 +431,13 @@ export async function togglePlayPause() {
   try {
     const state = await TrackPlayer.getState();
     if (state === State.Playing) {
+      // Optimistic UI.
+      setSnapshot({ playWhenReady: false, playbackState: State.Paused });
       await TrackPlayer.pause();
       return;
     }
+    // Optimistic UI.
+    setSnapshot({ playWhenReady: true });
     await TrackPlayer.play();
   } catch (e) {
     const msg =
@@ -429,6 +451,8 @@ export async function togglePlayPause() {
 
 export async function pause() {
   await ensureSetup();
+  // Optimistic UI.
+  setSnapshot({ playWhenReady: false, playbackState: State.Paused });
   await TrackPlayer.pause();
 }
 
@@ -444,6 +468,10 @@ export async function stop() {
   setError(null);
   setLoading(false);
   currentRequest = null;
-  setSnapshot({ current: null });
+  setSnapshot({
+    current: null,
+    playWhenReady: false,
+    playbackState: State.None,
+  });
   await resetAndStop();
 }
