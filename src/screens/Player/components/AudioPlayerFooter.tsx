@@ -1,59 +1,39 @@
+import { fetchPontoApprovedPlaybackUrl } from "@/src/api/pontoAudio";
 import {
-  getPontoAudioDurationMs,
-  tryPersistPontoAudioDurationMs,
-} from "@/src/api/pontoAudio";
-import {
-  getCurrentPontoId,
-  loadAndPlay,
+  playTrack,
+  resume,
   pause as rntpPause,
   seekToSeconds,
+  setResolvingPlayback,
   togglePlayPause,
   useRntpPlayback,
 } from "@/src/audio/rntpService";
 import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
-import {
-  markDurationAutoHealTried,
-  shouldTryDurationAutoHeal,
-} from "@/src/lib/audioDurationAutoHeal";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
 
-export type PlayerAudioState =
-  | "NO_AUDIO"
-  | "AUDIO_IN_REVIEW"
-  | "AUDIO_APPROVED";
+export type PlayerAudioState = "NO_AUDIO" | "AUDIO_APPROVED";
 
 export function AudioPlayerFooter(props: {
   ponto: PlayerPonto | null;
   variant: "light" | "dark";
   curimbaEnabled?: boolean;
   audioState: PlayerAudioState;
-  approvedPontoAudioId: string | null;
-  onOpenNoAudioModal: () => void;
-  onOpenAudioInReviewModal: () => void;
+  onOpenNoAudioModal: (ponto: PlayerPonto) => void;
 }) {
   const { ponto, variant } = props;
   const curimbaEnabled = props.curimbaEnabled === true;
   const audioState = props.audioState;
-  const approvedPontoAudioId = props.approvedPontoAudioId;
-
-  const approvedPontoAudioIdRef = useRef<string | null>(null);
-  const lastAutoplayForIdRef = useRef<string | null>(null);
-
-  const [backendDurationMs, setBackendDurationMs] = useState(0);
+  const [trackDurationMs, setTrackDurationMs] = useState(0);
   const lastLoggedLoadedForIdRef = useRef<string | null>(null);
 
   const rntp = useRntpPlayback(250);
 
-  const isBusy = rntp.isLoading;
+  const isBusy = rntp.isResolvingPlayback;
   const isPlaying = rntp.isPlaying;
-
-  useEffect(() => {
-    approvedPontoAudioIdRef.current = approvedPontoAudioId;
-  }, [approvedPontoAudioId]);
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -73,7 +53,7 @@ export function AudioPlayerFooter(props: {
       : colors.surfaceCardBorder;
   const bg = variant === "light" ? colors.paper200 : colors.surfaceCardBg;
 
-  const canPlay = audioState === "AUDIO_APPROVED" && !!approvedPontoAudioId;
+  const canPlay = audioState === "AUDIO_APPROVED" && !!ponto?.audio;
   const showProgress = canPlay && !curimbaEnabled;
 
   // If Modo Curimba is enabled while audio is playing, pause it.
@@ -82,179 +62,54 @@ export function AudioPlayerFooter(props: {
     void rntpPause().catch(() => null);
   }, [curimbaEnabled]);
 
-  // Best-effort: fetch stored duration_ms so UI can show total time immediately.
-  useEffect(() => {
-    setBackendDurationMs(0);
-
-    if (curimbaEnabled) return;
-    if (audioState !== "AUDIO_APPROVED") return;
-    if (!approvedPontoAudioId) return;
-
-    let cancelled = false;
-    const requestedId = approvedPontoAudioId;
-
-    void (async () => {
-      const duration = await getPontoAudioDurationMs(requestedId);
-      if (cancelled) return;
-      if (approvedPontoAudioIdRef.current !== requestedId) return;
-
-      const next =
-        typeof duration === "number" && Number.isFinite(duration)
-          ? Math.max(0, Math.round(duration))
-          : 0;
-
-      if (next > 0) {
-        setBackendDurationMs(next);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [approvedPontoAudioId, audioState, curimbaEnabled]);
-
-  // Reset some UI refs when changing track.
   useEffect(() => {
     lastLoggedLoadedForIdRef.current = null;
-    lastAutoplayForIdRef.current = null;
-  }, [approvedPontoAudioId]);
+    setTrackDurationMs(0);
+  }, [ponto?.id]);
 
   const positionMillis = rntp.positionMillis;
   const loadedDurationMillis = rntp.durationMillis;
 
-  // Autoplay once per approvedPontoAudioId.
-  useEffect(() => {
-    if (curimbaEnabled) return;
-    if (audioState !== "AUDIO_APPROVED") return;
-    if (!approvedPontoAudioId) return;
-    if (!ponto?.id) return;
-
-    // If the requested ponto is already the current track, do not reload it.
-    // This prevents restarting audio when navigating to the player from the
-    // system notification.
-    if (getCurrentPontoId() === ponto.id) {
-      lastAutoplayForIdRef.current = approvedPontoAudioId;
-      return;
-    }
-
-    if (lastAutoplayForIdRef.current === approvedPontoAudioId) return;
-    lastAutoplayForIdRef.current = approvedPontoAudioId;
-
-    void loadAndPlay({
-      kind: "approved",
-      pontoId: ponto.id,
-      title:
-        typeof ponto?.title === "string" && ponto.title.trim()
-          ? ponto.title
-          : "Ponto",
-    });
-  }, [
-    approvedPontoAudioId,
-    audioState,
-    curimbaEnabled,
-    ponto?.id,
-    ponto?.title,
-  ]);
-
   const uiDurationMs = useMemo(() => {
     if (loadedDurationMillis > 0) return loadedDurationMillis;
-    return backendDurationMs > 0 ? backendDurationMs : 0;
-  }, [backendDurationMs, loadedDurationMillis]);
+    if (trackDurationMs > 0) return trackDurationMs;
+    const audioDuration =
+      typeof ponto?.audio?.duration === "number" &&
+      Number.isFinite(ponto.audio.duration)
+        ? Math.max(0, Math.round(ponto.audio.duration))
+        : 0;
+    return audioDuration;
+  }, [loadedDurationMillis, ponto?.audio?.duration, trackDurationMs]);
 
   const canSeek =
     !curimbaEnabled &&
     audioState === "AUDIO_APPROVED" &&
-    !!approvedPontoAudioId &&
+    !!ponto?.audio &&
     loadedDurationMillis > 0;
 
   // Log once when loaded duration becomes available (per track).
   useEffect(() => {
     if (audioState !== "AUDIO_APPROVED") return;
-    if (!approvedPontoAudioId) return;
+    if (!ponto?.id) return;
     if (!(loadedDurationMillis > 0)) return;
 
-    if (lastLoggedLoadedForIdRef.current === approvedPontoAudioId) return;
-    lastLoggedLoadedForIdRef.current = approvedPontoAudioId;
+    if (lastLoggedLoadedForIdRef.current === ponto.id) return;
+    lastLoggedLoadedForIdRef.current = ponto.id;
+    setTrackDurationMs(loadedDurationMillis);
 
     if (__DEV__) {
       console.log("[PLAYER][PUBLIC][AUDIO_LOADED]", {
-        ponto_audio_id: approvedPontoAudioId,
+        ponto_id: ponto.id,
         duration_ms: loadedDurationMillis,
       });
     }
-  }, [approvedPontoAudioId, audioState, loadedDurationMillis]);
-
-  // Auto-heal (best effort): if DB duration_ms is missing/invalid for approved audio,
-  // persist durationMillis once per ponto_audio_id per app session.
-  useEffect(() => {
-    if (curimbaEnabled) return;
-    if (audioState !== "AUDIO_APPROVED") return;
-    if (!approvedPontoAudioId) return;
-
-    // Only heal if backend duration looks missing/invalid.
-    if (backendDurationMs > 0) return;
-
-    if (!(loadedDurationMillis > 0)) return;
-
-    const requestedId = approvedPontoAudioId;
-    if (!shouldTryDurationAutoHeal(requestedId)) return;
-    markDurationAutoHealTried(requestedId);
-
-    let cancelled = false;
-    void (async () => {
-      try {
-        const durationMs = loadedDurationMillis;
-
-        if (__DEV__) {
-          console.log("[PLAYER][PUBLIC][DURATION_AUTOHEAL_TRY]", {
-            ponto_audio_id: requestedId,
-            duration_ms: durationMs,
-          });
-        }
-
-        const res = await tryPersistPontoAudioDurationMs({
-          pontoAudioId: requestedId,
-          durationMs,
-        });
-
-        if (cancelled) return;
-        if (approvedPontoAudioIdRef.current !== requestedId) return;
-
-        if (__DEV__) {
-          console.log("[PLAYER][PUBLIC][DURATION_AUTOHEAL_RESULT]", {
-            ponto_audio_id: requestedId,
-            ok: res.ok,
-            status: res.status,
-          });
-        }
-      } catch (e) {
-        if (__DEV__) {
-          console.log("[PLAYER][PUBLIC][DURATION_AUTOHEAL_ERR]", {
-            ponto_audio_id: requestedId,
-            message: e instanceof Error ? e.message : String(e),
-          });
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [
-    approvedPontoAudioId,
-    audioState,
-    backendDurationMs,
-    curimbaEnabled,
-    loadedDurationMillis,
-  ]);
+  }, [audioState, loadedDurationMillis, ponto?.id]);
 
   const subtitle = useMemo(() => {
     if (curimbaEnabled) return "Modo Curimba: apenas letra";
-    if (audioState === "AUDIO_IN_REVIEW")
-      return "Áudio em revisão. Disponível em breve.";
     if (audioState === "NO_AUDIO") return "Sem áudio";
     if (rntp.error) return "Erro no áudio. Tente novamente.";
-    if (isBusy) return "Carregando áudio…";
+    if (isBusy) return "Preparando áudio…";
     return "Áudio";
   }, [audioState, curimbaEnabled, isBusy, rntp.error]);
 
@@ -310,23 +165,18 @@ export function AudioPlayerFooter(props: {
               return;
             }
 
-            if (audioState === "AUDIO_IN_REVIEW") {
-              props.onOpenAudioInReviewModal();
-              return;
-            }
-
             if (audioState === "NO_AUDIO") {
-              props.onOpenNoAudioModal();
+              if (ponto) props.onOpenNoAudioModal(ponto);
               return;
             }
 
-            if (!approvedPontoAudioId) {
-              props.onOpenNoAudioModal();
+            if (!ponto?.audio) {
+              if (ponto) props.onOpenNoAudioModal(ponto);
               return;
             }
 
             if (!ponto?.id) {
-              props.onOpenNoAudioModal();
+              if (ponto) props.onOpenNoAudioModal(ponto);
               return;
             }
 
@@ -337,19 +187,33 @@ export function AudioPlayerFooter(props: {
                 return;
               }
 
-              // If the current track is the same, resume; otherwise load+play.
-              if (getCurrentPontoId() === ponto.id) {
-                await togglePlayPause();
+              if (rntp.currentTrack && rntp.currentTrack.pontoId === ponto.id) {
+                await resume();
                 return;
               }
 
-              await loadAndPlay({
-                kind: "approved",
+              setResolvingPlayback(true);
+              const playbackUrl = await fetchPontoApprovedPlaybackUrl(ponto.id);
+              const subtitle = Array.isArray(ponto.tags)
+                ? ponto.tags
+                    .filter((t) => typeof t === "string" && t.trim())
+                    .slice(0, 2)
+                    .join(" • ")
+                : "";
+
+              await playTrack({
                 pontoId: ponto.id,
                 title:
                   typeof ponto?.title === "string" && ponto.title.trim()
                     ? ponto.title
                     : "Ponto",
+                subtitle: subtitle || undefined,
+                audioUrl: playbackUrl,
+                duration:
+                  typeof ponto.audio.duration === "number" &&
+                  Number.isFinite(ponto.audio.duration)
+                    ? ponto.audio.duration
+                    : null,
               });
             } catch (e) {
               const msg =
@@ -358,6 +222,7 @@ export function AudioPlayerFooter(props: {
                   : "Não foi possível tocar o áudio.";
               Alert.alert("Erro no áudio", msg);
             } finally {
+              setResolvingPlayback(false);
             }
           }}
           style={({ pressed }) => [

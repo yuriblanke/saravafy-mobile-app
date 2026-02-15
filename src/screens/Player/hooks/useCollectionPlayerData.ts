@@ -6,6 +6,10 @@ import {
   getCollectionPontosQueryOptions,
   useCollectionPontosQuery,
 } from "@/src/queries/collectionPontos";
+import {
+  fetchUploadedActiveAudioMapByPontoIds,
+  type PontoAudio,
+} from "@/src/queries/pontoAudioMap";
 
 export type PlayerPonto = {
   id: string;
@@ -18,6 +22,7 @@ export type PlayerPonto = {
   lyrics: string;
   lyrics_preview_6?: string | null;
   tags: string[];
+  audio?: PontoAudio | null;
 };
 
 export type CollectionPlayerItem = {
@@ -130,7 +135,7 @@ export function useCollectionPlayerData(
       }
 
       const rows = (res.data ?? []) as any[];
-      const mapped: PlayerPonto[] = rows
+      const mappedBase: PlayerPonto[] = rows
         .map((row) => {
           if (!row || typeof row !== "object") return null;
 
@@ -159,6 +164,7 @@ export function useCollectionPlayerData(
                 ? row.lyrics_preview_6
                 : null,
             tags: coerceTags(row.tags),
+            audio: null,
           };
 
           if (!p.id) return null;
@@ -166,7 +172,14 @@ export function useCollectionPlayerData(
         })
         .filter(Boolean) as PlayerPonto[];
 
-      return mapped;
+      const audioByPontoId = await fetchUploadedActiveAudioMapByPontoIds(
+        mappedBase.map((item) => item.id),
+      );
+
+      return mappedBase.map((item) => ({
+        ...item,
+        audio: audioByPontoId[item.id] ?? null,
+      }));
     },
   });
 

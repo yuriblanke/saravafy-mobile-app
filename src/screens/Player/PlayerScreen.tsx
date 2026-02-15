@@ -12,7 +12,6 @@ import {
 } from "@/src/components/pontos/PontoUpsertModal";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
-import { useApprovedPontoAudioSubmission } from "@/src/queries/pontoSubmissions";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
@@ -144,7 +143,9 @@ export default function PlayerScreen() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
   const [isCorrectionOpen, setIsCorrectionOpen] = useState(false);
-  const [isNoAudioOpen, setIsNoAudioOpen] = useState(false);
+  const [noAudioPonto, setNoAudioPonto] = useState<
+    CollectionPlayerItem["ponto"] | null
+  >(null);
   const [isAudioInReviewOpen, setIsAudioInReviewOpen] = useState(false);
   const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
     null,
@@ -197,21 +198,10 @@ export default function PlayerScreen() {
 
   const activePonto = items[activeIndex]?.ponto ?? null;
 
-  const approvedAudioSubmissionQuery = useApprovedPontoAudioSubmission(
-    activePonto?.id,
-    { enabled: !!activePonto?.id },
-  );
-
-  const approvedPontoAudioId =
-    approvedAudioSubmissionQuery.data?.approvedPontoAudioId ?? null;
-  const hasPendingFromSubmission =
-    approvedAudioSubmissionQuery.data?.hasPendingAudioSubmission ?? false;
-
   const audioState: PlayerAudioState = useMemo(() => {
-    if (approvedPontoAudioId) return "AUDIO_APPROVED";
-    if (hasPendingFromSubmission) return "AUDIO_IN_REVIEW";
+    if (activePonto?.audio) return "AUDIO_APPROVED";
     return "NO_AUDIO";
-  }, [approvedPontoAudioId, hasPendingFromSubmission]);
+  }, [activePonto?.audio]);
 
   const editingInitialValues: PontoUpsertInitialValues | undefined =
     useMemo(() => {
@@ -244,27 +234,39 @@ export default function PlayerScreen() {
     setIsCorrectionOpen(true);
   }, [activePonto?.id, editingInitialValues?.id, showToast]);
 
-  const openAudioUpload = useCallback(() => {
-    if (!activePonto?.id) {
-      showToast("Ponto inválido para envio de áudio.");
-      return;
-    }
+  const openAudioUpload = useCallback(
+    (target?: { pontoId: string; pontoTitle?: string | null }) => {
+      const pontoId =
+        typeof target?.pontoId === "string" && target.pontoId.trim()
+          ? target.pontoId.trim()
+          : (activePonto?.id ?? "");
 
-    setIsReportOpen(false);
-    setIsNoAudioOpen(false);
-    setIsAudioInReviewOpen(false);
+      const pontoTitle =
+        typeof target?.pontoTitle === "string" && target.pontoTitle.trim()
+          ? target.pontoTitle.trim()
+          : typeof activePonto?.title === "string"
+            ? activePonto.title
+            : "";
 
-    router.push({
-      pathname: "/ponto-audio-upload" as any,
-      params: {
-        pontoId: activePonto.id,
-        pontoTitle:
-          typeof (activePonto as any)?.title === "string"
-            ? (activePonto as any).title
-            : "",
-      },
-    } as any);
-  }, [activePonto, router, showToast]);
+      if (!pontoId) {
+        showToast("Ponto inválido para envio de áudio.");
+        return;
+      }
+
+      setIsReportOpen(false);
+      setNoAudioPonto(null);
+      setIsAudioInReviewOpen(false);
+
+      router.push({
+        pathname: "/ponto-audio-upload" as any,
+        params: {
+          pontoId,
+          pontoTitle,
+        },
+      } as any);
+    },
+    [activePonto?.id, activePonto?.title, router, showToast],
+  );
 
   const handleShare = useCallback(async () => {
     if (!activePonto?.id) {
@@ -570,9 +572,7 @@ export default function PlayerScreen() {
           variant={variant}
           curimbaEnabled={curimbaEnabled}
           audioState={audioState}
-          approvedPontoAudioId={approvedPontoAudioId}
-          onOpenNoAudioModal={() => setIsNoAudioOpen(true)}
-          onOpenAudioInReviewModal={() => setIsAudioInReviewOpen(true)}
+          onOpenNoAudioModal={(ponto) => setNoAudioPonto(ponto)}
         />
 
         <PlayerSearchModal
@@ -650,7 +650,11 @@ export default function PlayerScreen() {
             <Pressable
               accessibilityRole="button"
               onPress={() => {
-                openAudioUpload();
+                openAudioUpload(
+                  activePonto
+                    ? { pontoId: activePonto.id, pontoTitle: activePonto.title }
+                    : undefined,
+                );
               }}
               style={({ pressed }) => [
                 styles.sheetOption,
@@ -665,8 +669,8 @@ export default function PlayerScreen() {
         </BottomSheet>
 
         <BottomSheet
-          visible={isNoAudioOpen}
-          onClose={() => setIsNoAudioOpen(false)}
+          visible={!!noAudioPonto}
+          onClose={() => setNoAudioPonto(null)}
           variant={variant}
           snapPoints={[300]}
         >
@@ -682,7 +686,14 @@ export default function PlayerScreen() {
               accessibilityRole="button"
               accessibilityLabel="Enviar áudio deste ponto"
               onPress={() => {
-                openAudioUpload();
+                openAudioUpload(
+                  noAudioPonto
+                    ? {
+                        pontoId: noAudioPonto.id,
+                        pontoTitle: noAudioPonto.title,
+                      }
+                    : undefined,
+                );
               }}
               style={({ pressed }) => [
                 styles.primaryBtn,
@@ -697,7 +708,7 @@ export default function PlayerScreen() {
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Entendi"
-              onPress={() => setIsNoAudioOpen(false)}
+              onPress={() => setNoAudioPonto(null)}
               style={({ pressed }) => [
                 styles.secondaryBtn,
                 { borderColor },

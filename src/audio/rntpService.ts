@@ -51,9 +51,19 @@ export type PlaybackStatus =
   | "paused"
   | "error";
 
+export type GlobalPlaybackTrack = {
+  pontoId: string;
+  title: string;
+  subtitle?: string;
+  audioUrl: string;
+  duration?: number | null;
+};
+
 type Snapshot = {
   current: CurrentPlaybackKey;
+  currentTrack: GlobalPlaybackTrack | null;
   isLoading: boolean;
+  isResolvingPlayback: boolean;
   error: string | null;
   playbackState?: State;
   playWhenReady?: boolean;
@@ -72,7 +82,9 @@ let listenersRegistered = false;
 
 let snapshot: Snapshot = {
   current: null,
+  currentTrack: null,
   isLoading: false,
+  isResolvingPlayback: false,
   error: null,
   playbackState: undefined,
   playWhenReady: undefined,
@@ -98,7 +110,11 @@ function setError(message: string | null) {
 }
 
 function setLoading(isLoading: boolean) {
-  setSnapshot({ isLoading });
+  setSnapshot({ isLoading, isResolvingPlayback: isLoading });
+}
+
+export function setResolvingPlayback(value: boolean) {
+  setSnapshot({ isLoading: value, isResolvingPlayback: value });
 }
 
 function coerceTitle(raw: unknown) {
@@ -250,6 +266,11 @@ function registerListenersOnce() {
     }
   });
 
+  TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
+    setSnapshot({ playWhenReady: false, playbackState: State.Paused });
+    void TrackPlayer.pause().catch(() => null);
+  });
+
   TrackPlayer.addEventListener(Event.PlaybackError, (evt) => {
     void (async () => {
       const didRetry = await attemptRenewalOnceOnError(evt).catch(() => false);
@@ -362,8 +383,10 @@ export function useRntpPlayback(updateIntervalMs = 250) {
     status,
     isPlaying,
     isLoading: snap.isLoading,
+    isResolvingPlayback: snap.isResolvingPlayback,
     error: snap.error,
     current: snap.current,
+    currentTrack: snap.currentTrack,
     positionMillis: Math.max(0, Math.round(positionSec * 1000)),
     durationMillis: Math.max(0, Math.round(durationSec * 1000)),
   };
@@ -397,6 +420,22 @@ export async function ensureLoaded(req: PlaybackRequest) {
     const url = await resolveUrl(req);
     await TrackPlayer.reset();
     await TrackPlayer.add([buildTrack(req, url)]);
+
+    if (req.kind === "approved") {
+      setSnapshot({
+        currentTrack: {
+          pontoId: String(req.pontoId ?? "").trim(),
+          title: coerceTitle(req.title),
+          subtitle: coerceArtist(req.artist) ?? undefined,
+          audioUrl: url,
+          duration:
+            typeof req.durationSeconds === "number" &&
+            Number.isFinite(req.durationSeconds)
+              ? Math.round(req.durationSeconds * 1000)
+              : null,
+        },
+      });
+    }
   } catch (e) {
     const msg =
       e instanceof Error && e.message.trim()
@@ -407,6 +446,53 @@ export async function ensureLoaded(req: PlaybackRequest) {
   } finally {
     setLoading(false);
   }
+}
+
+export async function playTrack(track: GlobalPlaybackTrack) {
+  await ensureSetup();
+
+  const pontoId = String(track?.pontoId ?? "").trim();
+  const audioUrl = String(track?.audioUrl ?? "").trim();
+  if (!pontoId || !audioUrl) {
+    throw new Error("Faixa inválida para reprodução.");
+  }
+
+  setError(null);
+  setSnapshot({
+    current: { kind: "approved", id: pontoId },
+    currentTrack: {
+      pontoId,
+      title: coerceTitle(track.title),
+      subtitle: coerceArtist(track.subtitle) ?? undefined,
+      audioUrl,
+      duration:
+        typeof track.duration === "number" && Number.isFinite(track.duration)
+          ? Math.max(0, Math.round(track.duration))
+          : null,
+    },
+    playbackState: State.Loading,
+    playWhenReady: false,
+  });
+
+  const durationSeconds =
+    typeof track.duration === "number" && Number.isFinite(track.duration)
+      ? Math.max(0, track.duration / 1000)
+      : undefined;
+
+  await TrackPlayer.reset();
+  await TrackPlayer.add([
+    {
+      id: `approved:${pontoId}`,
+      url: audioUrl,
+      title: coerceTitle(track.title),
+      artist: coerceArtist(track.subtitle) ?? undefined,
+      duration: durationSeconds,
+      artwork: fallbackArtworkPng,
+    },
+  ]);
+
+  setSnapshot({ playWhenReady: true });
+  await TrackPlayer.play();
 }
 
 export async function loadAndPlay(req: PlaybackRequest) {
@@ -456,6 +542,13 @@ export async function pause() {
   await TrackPlayer.pause();
 }
 
+export async function resume() {
+  await ensureSetup();
+  if (!snapshot.currentTrack) return;
+  setSnapshot({ playWhenReady: true });
+  await TrackPlayer.play();
+}
+
 export async function seekToSeconds(seconds: number) {
   await ensureSetup();
   const s =
@@ -470,6 +563,7 @@ export async function stop() {
   currentRequest = null;
   setSnapshot({
     current: null,
+    currentTrack: null,
     playWhenReady: false,
     playbackState: State.None,
   });

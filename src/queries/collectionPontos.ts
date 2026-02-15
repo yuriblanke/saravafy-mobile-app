@@ -5,6 +5,7 @@ import {
   type UseQueryOptions,
 } from "@tanstack/react-query";
 
+import { fetchUploadedActiveAudioMapByPontoIds } from "@/src/queries/pontoAudioMap";
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
   type CollectionPlayerItem,
@@ -102,6 +103,7 @@ export async function fetchCollectionPontosItems(
             ? (ponto as any).lyrics_preview_6
             : null,
         tags: coerceTags(ponto.tags),
+        audio: null,
       };
 
       const position =
@@ -114,7 +116,17 @@ export async function fetchCollectionPontosItems(
     })
     .filter(Boolean) as CollectionPlayerItem[];
 
-  return next;
+  const audioByPontoId = await fetchUploadedActiveAudioMapByPontoIds(
+    next.map((item) => item.ponto.id),
+  );
+
+  return next.map((item) => ({
+    ...item,
+    ponto: {
+      ...item.ponto,
+      audio: audioByPontoId[item.ponto.id] ?? null,
+    },
+  }));
 }
 
 export function getCollectionPontosQueryOptions(collectionId: string) {

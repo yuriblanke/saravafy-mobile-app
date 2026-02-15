@@ -518,14 +518,14 @@ function mapPlaybackError(params: { status: number; rawMessage: string }): {
 
   if (status === 401) {
     return {
-      message: "Áudio em revisão. Disponível em breve.",
+      message: "Você precisa estar logada para ouvir este áudio.",
       noRetry: true,
     };
   }
 
   if (status === 403) {
     return {
-      message: "Só curators podem ouvir antes da aprovação.",
+      message: "Só curators podem ouvir este áudio.",
       noRetry: true,
     };
   }
@@ -545,7 +545,7 @@ function mapPlaybackError(params: { status: number; rawMessage: string }): {
   }
 
   return {
-    message: msg || `Erro ao chamar ponto-audio-playback-url (HTTP ${status}).`,
+    message: "Não foi possível carregar o áudio.",
     noRetry: false,
   };
 }
@@ -1238,6 +1238,73 @@ export async function getPontoAudioPlaybackUrlPublic(pontoId: string) {
     kind: "approved",
     ponto_id: pontoId,
   });
+}
+
+export async function fetchPontoApprovedPlaybackUrl(
+  pontoId: string,
+): Promise<string> {
+  const id = String(pontoId ?? "").trim();
+  if (!id) {
+    throw new Error("Ponto inválido para reprodução.");
+  }
+
+  const baseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+  if (!baseUrl || !anonKey) {
+    throw new Error("Configuração do Supabase ausente.");
+  }
+
+  const session = await supabase.auth.getSession().catch(() => null);
+  const token = session?.data?.session?.access_token ?? null;
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    apikey: anonKey,
+  };
+
+  if (typeof token === "string" && token.trim()) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const response = await fetch(
+    `${baseUrl}/functions/v1/ponto-audio-playback-url`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ kind: "approved", ponto_id: id }),
+    },
+  );
+
+  const rawText = await response.text();
+  let data: any = null;
+  try {
+    data = rawText ? JSON.parse(rawText) : null;
+  } catch {
+    data = null;
+  }
+
+  if (!response.ok) {
+    const errMsg =
+      typeof data?.error === "string" && data.error.trim()
+        ? data.error.trim()
+        : `Falha ao obter URL de playback (HTTP ${response.status}).`;
+    const error = new Error(errMsg);
+    (error as any).status = response.status;
+    throw error;
+  }
+
+  const playbackUrl =
+    typeof data?.resolved_url === "string" && data.resolved_url.trim()
+      ? data.resolved_url.trim()
+      : typeof data?.signed_url === "string" && data.signed_url.trim()
+        ? data.signed_url.trim()
+        : "";
+
+  if (!playbackUrl) {
+    throw new Error("URL de reprodução não disponível.");
+  }
+
+  return playbackUrl;
 }
 
 export async function getPontoAudioPlaybackUrlReviewBySubmission(
