@@ -7,7 +7,12 @@ import {
   ThemeProvider,
 } from "@react-navigation/native";
 import { useFonts } from "expo-font";
-import { Slot, useRouter, useSegments } from "expo-router";
+import {
+  Slot,
+  useGlobalSearchParams,
+  useRouter,
+  useSegments,
+} from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect, useRef, useState } from "react";
 import { View } from "react-native";
@@ -154,6 +159,12 @@ function RootLayoutNav() {
   const segments = useSegments();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const globalParams = useGlobalSearchParams<{
+    redirectTo?: string;
+    pontoId?: string;
+    pontoTitle?: string;
+    resumeUpload?: string;
+  }>();
 
   const bootstrapStartPageRef = useRef(bootstrapStartPage);
   const didRunPrefetchPlanRef = useRef<Set<string>>(new Set());
@@ -320,7 +331,7 @@ function RootLayoutNav() {
       try {
         editableTerreiroIds = await prefetchEditableTerreiroIds(
           queryClient,
-          userId
+          userId,
         );
       } catch (e) {
         console.error("[BootPrefetch] erro ao prefetch memberships:", e);
@@ -331,12 +342,12 @@ function RootLayoutNav() {
       try {
         accessTerreiroIds = await prefetchMyTerreiroAccessIds(
           queryClient,
-          userId
+          userId,
         );
       } catch (e) {
         console.error(
           "[BootPrefetch] erro ao prefetch terreiro access ids:",
-          e
+          e,
         );
         accessTerreiroIds = [];
       }
@@ -344,8 +355,8 @@ function RootLayoutNav() {
       // 3c) Coleções por terreiro (apenas owner_terreiro_id) para a aba Terreiros
       const collectionsQueries = await Promise.allSettled(
         accessTerreiroIds.map((terreiroId) =>
-          prefetchCollectionsByTerreiro(queryClient, { terreiroId })
-        )
+          prefetchCollectionsByTerreiro(queryClient, { terreiroId }),
+        ),
       );
 
       const collectionsPrefetchedCount = collectionsQueries.reduce((acc, r) => {
@@ -363,7 +374,7 @@ function RootLayoutNav() {
       } catch (e) {
         console.error(
           "[BootPrefetch] erro ao prefetch terreiros do perfil (prefs):",
-          e
+          e,
         );
       }
 
@@ -421,8 +432,42 @@ function RootLayoutNav() {
     const first = segments[0];
     if (first !== "(auth)") return;
 
+    const redirectTo =
+      typeof globalParams?.redirectTo === "string"
+        ? globalParams.redirectTo.trim()
+        : "";
+
+    if (redirectTo.startsWith("/")) {
+      const nextParams: Record<string, string> = {};
+
+      if (
+        typeof globalParams?.pontoId === "string" &&
+        globalParams.pontoId.trim()
+      ) {
+        nextParams.pontoId = globalParams.pontoId.trim();
+      }
+      if (
+        typeof globalParams?.pontoTitle === "string" &&
+        globalParams.pontoTitle.trim()
+      ) {
+        nextParams.pontoTitle = globalParams.pontoTitle.trim();
+      }
+      if (
+        typeof globalParams?.resumeUpload === "string" &&
+        globalParams.resumeUpload.trim()
+      ) {
+        nextParams.resumeUpload = globalParams.resumeUpload.trim();
+      }
+
+      router.replace({
+        pathname: redirectTo as any,
+        params: Object.keys(nextParams).length > 0 ? nextParams : undefined,
+      } as any);
+      return;
+    }
+
     router.replace("/(app)");
-  }, [isLoading, isReady, router, segments, user?.id]);
+  }, [globalParams, isLoading, isReady, router, segments, user?.id]);
 
   const effectiveScheme =
     themeMode === "system" ? systemColorScheme : themeMode;

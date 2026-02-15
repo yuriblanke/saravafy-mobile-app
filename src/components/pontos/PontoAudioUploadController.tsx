@@ -1,9 +1,7 @@
-import { supabase } from "@/lib/supabase";
 import {
-  finalizeAudioUploadAndCreateSubmission,
-  initPontoAudioUpload,
-  uploadToSignedUpload,
-} from "@/src/api/pontoAudio";
+  uploadAudioForExistingPonto,
+  type PontoExistingAudioUploadPhase,
+} from "@/src/services/pontoExistingAudioUpload";
 import { metroError, metroLog } from "@/src/utils/metroLog";
 import * as FileSystem from "expo-file-system";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -18,10 +16,10 @@ export type PontoAudioUploadInput = {
 
 export type PontoAudioUploadPhase =
   | "idle"
-  | "init"
-  | "upload"
-  | "post_upload"
-  | "done"
+  | "initLoading"
+  | "uploading"
+  | "completing"
+  | "success"
   | "error";
 
 export type PontoAudioUploadResult = {
@@ -83,7 +81,33 @@ export function PontoAudioUploadController({
 
   const inFlightRef = useRef<Promise<PontoAudioUploadResult> | null>(null);
 
-  const isUploading = phase !== "idle" && phase !== "done" && phase !== "error";
+  const isUploading =
+    phase === "initLoading" || phase === "uploading" || phase === "completing";
+
+  const mapServicePhaseToProgress = useCallback(
+    (servicePhase: PontoExistingAudioUploadPhase) => {
+      if (servicePhase === "initLoading") {
+        setPhase("initLoading");
+        setProgress(0.15);
+        return;
+      }
+      if (servicePhase === "uploading") {
+        setPhase("uploading");
+        setProgress(0.6);
+        return;
+      }
+      if (servicePhase === "completing") {
+        setPhase("completing");
+        setProgress(0.9);
+        return;
+      }
+      if (servicePhase === "success") {
+        setPhase("success");
+        setProgress(1);
+      }
+    },
+    [],
+  );
 
   const reset = useCallback(() => {
     inFlightRef.current = null;
@@ -114,13 +138,6 @@ export function PontoAudioUploadController({
           throw new Error("Não é possível iniciar o envio agora.");
         }
 
-        const { data: sessionData, error: sessionError } =
-          await supabase.auth.getSession();
-        if (sessionError) throw sessionError;
-        if (!sessionData?.session?.access_token) {
-          throw new Error("Você precisa estar logada para enviar áudio.");
-        }
-
         const pontoIdValue = String(pontoId ?? "").trim();
         if (!pontoIdValue) throw new Error("Ponto inválido.");
 
@@ -134,12 +151,18 @@ export function PontoAudioUploadController({
         if (!audio) throw new Error("Selecione um áudio.");
 
         const uri = String(audio.uri ?? "").trim();
-        const mimeType = String(audio.mimeType ?? "").trim();
+        const mimeType = String(audio.mimeType ?? "")
+          .trim()
+          .toLowerCase();
         if (!uri) throw new Error("Arquivo inválido (uri ausente).");
         if (!mimeType) throw new Error("Arquivo inválido (mimeType ausente).");
+        if (!mimeType.startsWith("audio/")) {
+          throw new Error(
+            "O arquivo selecionado não parece ser um áudio válido.",
+          );
+        }
 
-        setPhase("init");
-        setProgress(0.1);
+        mapServicePhaseToProgress("initLoading");
 
         const resolvedSizeBytes =
           typeof audio.sizeBytes === "number"
@@ -158,71 +181,24 @@ export function PontoAudioUploadController({
           throw new Error("Arquivo muito grande. Máximo: 50 MB.");
         }
 
-        const init = await initPontoAudioUpload({
+        const uploadRes = await uploadAudioForExistingPonto({
           pontoId: pontoIdValue,
           interpreterName: interpreter,
-          mimeType,
           interpreterConsent,
-        });
-
-        if (__DEV__) {
-          console.log("[PontoAudioUploadController] init completed", {
-            pontoId: pontoIdValue,
-            pontoAudioId: init.pontoAudioId,
-            interpreterConsent,
-          });
-        }
-
-        setPhase("upload");
-        setProgress(0.2);
-
-        metroLog("PontoAudioUpload", "uploadToSignedUpload start", {
-          bucket: init.bucket,
-          path: init.path,
-          pontoAudioId: init.pontoAudioId,
-        });
-
-        await uploadToSignedUpload({
-          bucket: init.bucket,
-          path: init.path,
-          signedUpload: init.signedUpload,
           fileUri: uri,
           mimeType,
-        });
-
-        setPhase("post_upload");
-        setProgress(0.85);
-
-        console.log("[audio] post-upload start", {
-          pontoId: pontoIdValue,
-          pontoAudioId: init.pontoAudioId,
-          bucket: init.bucket,
-          path: init.path,
-        });
-
-        const finalizeRes = await finalizeAudioUploadAndCreateSubmission({
-          pontoId: pontoIdValue,
-          pontoAudioId: init.pontoAudioId,
-          uploadToken: init.uploadToken,
           sizeBytes:
             typeof resolvedSizeBytes === "number" ? resolvedSizeBytes : 0,
-          durationMs: 0,
+          durationMs: null,
+          onPhaseChange: mapServicePhaseToProgress,
         });
 
-        if (__DEV__) {
-          console.log("[PontoAudioUploadController] finalize completed", {
-            pontoId: pontoIdValue,
-            pontoAudioId: init.pontoAudioId,
-            submissionId: finalizeRes.submissionId,
-          });
-        }
-
         const out: PontoAudioUploadResult = {
-          pontoAudioId: init.pontoAudioId,
-          submissionId: finalizeRes.submissionId,
+          pontoAudioId: uploadRes.pontoAudioId,
+          submissionId: uploadRes.submissionId,
         };
 
-        setPhase("done");
+        setPhase("success");
         setProgress(1);
         setResult(out);
         onDone?.(out);
@@ -231,7 +207,7 @@ export function PontoAudioUploadController({
       } catch (e) {
         const msg = e instanceof Error ? e.message : "Não foi possível enviar.";
         metroError("PontoAudioUpload", "failed", e, {
-          phase,
+          phase: "failed",
           pontoId,
           interpreterConsent,
           hasAudio: Boolean(audio),
@@ -246,7 +222,15 @@ export function PontoAudioUploadController({
 
     inFlightRef.current = promise;
     return promise;
-  }, [audio, canStart, interpreterConsent, interpreterName, onDone, pontoId]);
+  }, [
+    audio,
+    canStart,
+    interpreterConsent,
+    interpreterName,
+    mapServicePhaseToProgress,
+    onDone,
+    pontoId,
+  ]);
 
   const ctx = useMemo<PontoAudioUploadControllerRenderProps>(
     () => ({

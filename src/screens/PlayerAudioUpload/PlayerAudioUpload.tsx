@@ -8,6 +8,7 @@ import {
   type PontoAudioUploadControllerRenderProps,
 } from "@/src/components/pontos/PontoAudioUploadController";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { isAuthRequiredForUpload } from "@/src/services/pontoExistingAudioUpload";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
@@ -106,6 +107,7 @@ export default function PlayerAudioUpload() {
   const params = useLocalSearchParams<{
     pontoId?: string;
     pontoTitle?: string;
+    resumeUpload?: string;
   }>();
   const pontoId = typeof params.pontoId === "string" ? params.pontoId : "";
 
@@ -198,6 +200,7 @@ export default function PlayerAudioUpload() {
       {(ctx) => (
         <PlayerAudioUploadView
           ctx={ctx}
+          pontoId={pontoId}
           variant={variant}
           headerTitle={headerTitle}
           pontoTitle={pontoTitle}
@@ -224,6 +227,7 @@ export default function PlayerAudioUpload() {
 
 function PlayerAudioUploadView(props: {
   ctx: PontoAudioUploadControllerRenderProps;
+  pontoId: string;
   variant: "light" | "dark";
   headerTitle: string;
   pontoTitle: string | null;
@@ -250,6 +254,7 @@ function PlayerAudioUploadView(props: {
 
   const {
     ctx,
+    pontoId,
     variant,
     headerTitle,
     pontoTitle,
@@ -402,6 +407,22 @@ function PlayerAudioUploadView(props: {
       await ctx.start();
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Não foi possível enviar.";
+
+      if (isAuthRequiredForUpload(e)) {
+        onSetUploadError("Faça login para continuar o envio deste ponto.");
+        showToast("Faça login para continuar o envio deste ponto.");
+        router.push({
+          pathname: "/login" as any,
+          params: {
+            redirectTo: "/ponto-audio-upload",
+            pontoId,
+            pontoTitle: pontoTitle ?? "",
+            resumeUpload: "1",
+          },
+        } as any);
+        return;
+      }
+
       onSetUploadError(msg);
       showToast(msg);
     }
@@ -409,7 +430,10 @@ function PlayerAudioUploadView(props: {
     consentGranted,
     ctx,
     interpreterName,
+    pontoId,
+    pontoTitle,
     onSetUploadError,
+    router,
     selectedAudio,
     showToast,
     validateSelected,
