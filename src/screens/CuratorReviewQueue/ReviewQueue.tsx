@@ -1,5 +1,4 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { useToast } from "@/contexts/ToastContext";
 import { prefetchReviewPlaybackUrl } from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -7,11 +6,8 @@ import {
   resolveProfiles,
   type PublicProfile,
 } from "@/src/features/identity/resolveProfiles";
-import { useIsCurator } from "@/src/hooks/useIsCurator";
-import {
-  extractSubmissionContentFromPayload,
-  usePendingPontoSubmissions,
-} from "@/src/queries/pontoSubmissions";
+import { useCuratorPendingSubmissions } from "@/src/hooks/useCuratorPendingSubmissions";
+import { extractSubmissionContentFromPayload } from "@/src/queries/pontoSubmissions";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
@@ -45,7 +41,6 @@ function toKindLabel(kind: string | null | undefined) {
 
 export default function ReviewQueueScreen() {
   const router = useRouter();
-  const { showToast } = useToast();
   const { effectiveTheme } = usePreferences();
 
   const variant = effectiveTheme;
@@ -54,19 +49,8 @@ export default function ReviewQueueScreen() {
   const bgColor =
     variant === "light" ? colors.surfaceCardBgLight : colors.surfaceCardBg;
 
-  const { isCurator, isLoading: isCuratorLoading } = useIsCurator();
-
-  const submissionsQuery = usePendingPontoSubmissions({
-    enabled: !!isCurator && !isCuratorLoading,
-  });
-
-  useEffect(() => {
-    if (isCuratorLoading) return;
-    if (isCurator) return;
-
-    showToast("Apenas pessoas guardiãs do acervo acessam a fila de revisão.");
-    router.replace("/");
-  }, [isCurator, isCuratorLoading, router, showToast]);
+  const pending = useCuratorPendingSubmissions();
+  const submissionsQuery = pending.query;
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -121,7 +105,7 @@ export default function ReviewQueueScreen() {
     };
   }, [items]);
 
-  if (isCuratorLoading) {
+  if (pending.isLoading) {
     return (
       <SafeAreaView
         edges={["top", "bottom"]}
@@ -137,12 +121,39 @@ export default function ReviewQueueScreen() {
     );
   }
 
-  if (!isCurator) {
+  if (pending.isUnauthorized) {
     return (
       <SafeAreaView
         edges={["top", "bottom"]}
         style={[styles.safeArea, { backgroundColor: bgColor }]}
-      />
+      >
+        <View style={styles.center}>
+          <Text style={[styles.errorText, { color: colors.brass600 }]}>
+            Acesso não autorizado.
+          </Text>
+          <Text style={[styles.centerText, { color: textSecondary }]}>
+            Você precisa estar logada para acessar a fila de revisão.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (pending.isForbidden) {
+    return (
+      <SafeAreaView
+        edges={["top", "bottom"]}
+        style={[styles.safeArea, { backgroundColor: bgColor }]}
+      >
+        <View style={styles.center}>
+          <Text style={[styles.errorText, { color: colors.brass600 }]}>
+            Acesso negado.
+          </Text>
+          <Text style={[styles.centerText, { color: textSecondary }]}>
+            Apenas pessoas guardiãs do acervo acessam a fila de revisão.
+          </Text>
+        </View>
+      </SafeAreaView>
     );
   }
 

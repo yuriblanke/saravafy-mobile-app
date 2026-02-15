@@ -65,9 +65,10 @@ function extractSubmissionContent(payload: unknown): {
   lyrics: string;
   tags: string[];
 } {
-  const obj = payload && typeof payload === "object" && !Array.isArray(payload)
-    ? (payload as any)
-    : null;
+  const obj =
+    payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as any)
+      : null;
 
   const title = typeof obj?.title === "string" ? obj.title.trim() : "";
   const lyrics = typeof obj?.lyrics === "string" ? obj.lyrics.trim() : "";
@@ -86,7 +87,8 @@ export function parseTagsInput(value: string): string[] {
 export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
   metroLog("PontosSubmissions", "createPontoSubmission start", {
     titleLen: typeof input.title === "string" ? input.title.trim().length : 0,
-    lyricsLen: typeof input.lyrics === "string" ? input.lyrics.trim().length : 0,
+    lyricsLen:
+      typeof input.lyrics === "string" ? input.lyrics.trim().length : 0,
     tagsCount: Array.isArray(input.tags) ? input.tags.length : 0,
     hasAuthorName: Boolean(toNullIfEmpty(input.author_name)),
     hasInterpreterName: Boolean(toNullIfEmpty(input.interpreter_name)),
@@ -99,7 +101,9 @@ export async function createPontoSubmission(input: CreatePontoSubmissionInput) {
         ? input.author_consent_granted
         : null,
     has_audio_intent:
-      typeof input.has_audio_intent === "boolean" ? input.has_audio_intent : null,
+      typeof input.has_audio_intent === "boolean"
+        ? input.has_audio_intent
+        : null,
   });
 
   const { data: sessionData, error: sessionError } =
@@ -195,7 +199,8 @@ export async function submitPontoCorrection(input: SubmitPontoCorrectionInput) {
   metroLog("PontosSubmissions", "submitPontoCorrection start", {
     target_ponto_id: targetId,
     titleLen: typeof input.title === "string" ? input.title.trim().length : 0,
-    lyricsLen: typeof input.lyrics === "string" ? input.lyrics.trim().length : 0,
+    lyricsLen:
+      typeof input.lyrics === "string" ? input.lyrics.trim().length : 0,
     tagsCount: Array.isArray(input.tags) ? input.tags.length : 0,
     hasAuthorName: Boolean(toNullIfEmpty(input.author_name)),
     hasIssueDetails: Boolean(toNullIfEmpty(input.issue_details)),

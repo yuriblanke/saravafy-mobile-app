@@ -67,7 +67,8 @@ export async function uploadSubmissionAudio(params: {
   const submissionId = String(params.submissionId ?? "").trim();
   if (!submissionId) throw new Error("submissionId inválido.");
 
-  const uri = typeof params.file?.uri === "string" ? params.file.uri.trim() : "";
+  const uri =
+    typeof params.file?.uri === "string" ? params.file.uri.trim() : "";
   if (!uri) throw new Error("Arquivo inválido para upload.");
 
   const extFromName = normalizeExt(params.file?.name ?? "");

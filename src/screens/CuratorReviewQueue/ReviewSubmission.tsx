@@ -1,18 +1,16 @@
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import {
-  seekToSeconds,
-} from "@/src/audio/rntpService";
+import { seekToSeconds } from "@/src/audio/rntpService";
 import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { useSubmissionCuration } from "@/src/hooks/useSubmissionCuration";
 import { useSubmissionPlayback } from "@/src/hooks/useSubmissionPlayback";
 import {
   extractSubmissionContentFromPayload,
   usePontoSubmissionById,
-  type PendingPontoSubmission,
 } from "@/src/queries/pontoSubmissions";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
@@ -21,7 +19,7 @@ import {
   sanitizeOptionalText,
 } from "@/src/utils/sanitizeReviewSubmission";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -45,138 +43,6 @@ function getErrorMessage(error: unknown): string {
       ? String((error as any).message)
       : "";
   return message.trim() ? message.trim() : "Erro";
-}
-
-function safeJsonForLog(value: unknown, maxLen = 4000) {
-  try {
-    const s = JSON.stringify(value);
-    return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
-  } catch {
-    return "<unstringifiable>";
-  }
-}
-
-function serializeSupabaseErrorForLog(error: unknown) {
-  const e: any = error as any;
-  return {
-    message: typeof e?.message === "string" ? e.message : null,
-    details: typeof e?.details === "string" ? e.details : null,
-    hint: typeof e?.hint === "string" ? e.hint : null,
-    code: typeof e?.code === "string" ? e.code : null,
-    status: typeof e?.status === "number" ? e.status : null,
-    raw: safeJsonForLog(error),
-  };
-}
-
-function isRpcParamMismatch(error: unknown) {
-  const anyErr = error as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  return code === "PGRST202";
-}
-
-/**
- * Calls an RPC function with p_ prefixed parameters, falling back to non-prefixed
- * parameters if PGRST202 error occurs (parameter mismatch).
- */
-async function callRpcWithParamFallback(
-  functionName: string,
-  payloadWithPrefix: Record<string, any>,
-): Promise<any> {
-  const startedAt = Date.now();
-
-  // Try with p_ prefix first (new signature)
-  let res: any = await supabase.rpc(functionName, payloadWithPrefix);
-
-  if (__DEV__ && res?.error) {
-    console.error("[review-rpc] error:first-attempt", {
-      functionName,
-      ms: Date.now() - startedAt,
-      payloadKeys: Object.keys(payloadWithPrefix ?? {}),
-      error: serializeSupabaseErrorForLog(res.error),
-    });
-  }
-
-  // Fallback to old signature if param mismatch
-  if (res?.error && isRpcParamMismatch(res.error)) {
-    const fallbackPayload: Record<string, any> = {};
-    for (const [key, value] of Object.entries(payloadWithPrefix)) {
-      // Remove p_ prefix from parameter names
-      const newKey = key.startsWith("p_") ? key.substring(2) : key;
-      fallbackPayload[newKey] = value;
-    }
-
-    if (__DEV__) {
-      console.log("[review-rpc] retry:fallback-params", {
-        functionName,
-        firstAttemptKeys: Object.keys(payloadWithPrefix ?? {}),
-        fallbackKeys: Object.keys(fallbackPayload ?? {}),
-      });
-    }
-
-    res = await supabase.rpc(functionName, fallbackPayload);
-
-    if (__DEV__ && res?.error) {
-      console.error("[review-rpc] error:fallback-attempt", {
-        functionName,
-        ms: Date.now() - startedAt,
-        payloadKeys: Object.keys(fallbackPayload ?? {}),
-        error: serializeSupabaseErrorForLog(res.error),
-      });
-    }
-  }
-
-  return res;
-}
-
-function mapReviewErrorToFriendlyMessage(error: unknown): string {
-  const raw = getErrorMessage(error);
-  const lower = raw.toLowerCase();
-
-  const has = (token: string) => lower.includes(token);
-
-  if (has("not_curator"))
-    return "Apenas pessoas guardiãs do acervo podem revisar envios.";
-  if (has("submission_not_found")) return "Envio não encontrado.";
-  if (has("submission_not_pending")) return "Este envio já foi revisado.";
-  if (has("missing_title")) return "Informe um título antes de aprovar.";
-  if (has("missing_lyrics")) return "Informe a letra antes de aprovar.";
-  if (has("invalid_decision")) return "Ação inválida.";
-
-  const code =
-    error && typeof error === "object" && "code" in (error as any)
-      ? String((error as any).code)
-      : "";
-
-  if (code === "PGRST202") {
-    return "Servidor desatualizado para este fluxo. Atualize o app e tente novamente.";
-  }
-
-  if (has("invalid_activation") || has("cannot activate ponto_audio")) {
-    return "Não foi possível ativar o áudio deste envio. Tente novamente.";
-  }
-
-  if (
-    has("trg_enforce_audio_duration_on_approval") ||
-    (has("duration_ms") && has("ponto_audios")) ||
-    (has("duration") && has("audio") && has("approval"))
-  ) {
-    return "Não foi possível aprovar porque a duração do áudio não foi registrada.";
-  }
-
-  if (has("registrar a duração do áudio")) {
-    return raw;
-  }
-
-  // Guard-rail do banco: correction approved deve bater com target_ponto_id.
-  // Não expor nomes de constraints na UI.
-  if (
-    has("pontos_submissions_correction_approved_matches_target") ||
-    (has("approved_ponto_id") && has("target_ponto_id"))
-  ) {
-    return "Esta correção precisa ser aprovada pelo fluxo de correção. Atualize o app e tente novamente.";
-  }
-
-  return "Não foi possível concluir agora. Tente novamente.";
 }
 
 function toKindLabel(kind: string | null | undefined) {
@@ -235,30 +101,6 @@ function formatFromMime(mimeType: string | null | undefined) {
   const ext = slash >= 0 ? raw.slice(slash + 1) : raw;
   return ext ? ext.toUpperCase() : "";
 }
-
-type RpcPayload = {
-  p_submission_id: string;
-  p_decision: "approved" | "rejected";
-  p_review_note?: string | null;
-  p_title?: string | null;
-  p_lyrics?: string | null;
-  p_tags?: string[] | null;
-  p_artist?: string | null;
-  p_author_name?: string | null;
-  p_interpreter_name?: string | null;
-  p_has_author_consent?: boolean | null;
-  p_author_contact?: string | null;
-};
-
-type ApproveCorrectionRpcPayload = {
-  p_submission_id: string;
-  p_review_note?: string | null;
-};
-
-type RejectSubmissionRpcPayload = {
-  p_submission_id: string;
-  p_review_note?: string | null;
-};
 
 export default function ReviewSubmissionScreen() {
   const router = useRouter();
@@ -558,450 +400,82 @@ export default function ReviewSubmissionScreen() {
 
   const queryClient = useQueryClient();
 
-  const removeFromPendingList = (id: string) => {
-    queryClient.setQueryData(
-      queryKeys.pontosSubmissions.pending(),
-      (prev: PendingPontoSubmission[] | undefined) => {
-        const list = Array.isArray(prev) ? prev : [];
-        return list.filter((s) => s.id !== id);
-      },
-    );
-  };
+  const curation = useSubmissionCuration(submission ?? null);
+  const isMutatingAny = curation.isMutating;
 
-  const reviewNewMutation = useMutation({
-    mutationFn: async (payload: RpcPayload) => {
-      const res = await callRpcWithParamFallback(
-        "review_ponto_submission",
-        payload,
-      );
+  const isRejectNoteRequired = true;
 
-      if (res?.error) {
-        throw new Error(
-          typeof res.error?.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Erro ao revisar envio.",
-        );
-      }
-      return res?.data ?? null;
-    },
-  });
-
-  const approveCorrectionMutation = useMutation({
-    mutationFn: async (payload: ApproveCorrectionRpcPayload) => {
-      const res = await callRpcWithParamFallback(
-        "approve_ponto_correction_submission",
-        payload,
-      );
-
-      if (res?.error) {
-        throw new Error(
-          typeof res.error?.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Erro ao aprovar correção.",
-        );
-      }
-      return res?.data ?? null;
-    },
-  });
-
-  const rejectMutation = useMutation({
-    mutationFn: async (payload: RejectSubmissionRpcPayload) => {
-      const res = await callRpcWithParamFallback(
-        "reject_ponto_submission",
-        payload,
-      );
-
-      if (res?.error) {
-        throw new Error(
-          typeof res.error?.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Erro ao rejeitar envio.",
-        );
-      }
-      return res?.data ?? null;
-    },
-  });
-
-  const isMutating =
-    reviewNewMutation.isPending ||
-    approveCorrectionMutation.isPending ||
-    rejectMutation.isPending;
-
-  const approveAudioUploadMutation = useMutation({
-    mutationFn: async (vars: {
-      submissionId: string;
-      pontoAudioId: string;
-      durationMs: number;
-    }) => {
-      const sid = String(vars.submissionId ?? "").trim();
-      if (!sid) throw new Error("Envio inválido.");
-
-      const paid = String(vars.pontoAudioId ?? "").trim();
-      if (!paid) throw new Error("Áudio inválido.");
-
-      const durationMs =
-        typeof vars.durationMs === "number" && Number.isFinite(vars.durationMs)
-          ? Math.round(vars.durationMs)
-          : 0;
-
-      if (durationMs <= 0) {
-        throw new Error("Carregue o áudio para aprovar.");
-      }
-
-      console.log("[review-audio-upload] duration:persist:start", {
-        submissionId: sid,
-        pontoAudioId: paid,
-        duration_ms: durationMs,
-      });
-
-      const durRes = await supabase
-        .from("ponto_audios")
-        .update({ duration_ms: durationMs })
-        .eq("id", paid);
-
-      if (durRes.error) {
-        console.error("[review-audio-upload] duration:persist:error", {
-          submissionId: sid,
-          pontoAudioId: paid,
-          duration_ms: durationMs,
-          error: serializeSupabaseErrorForLog(durRes.error),
-        });
-        throw new Error("Não foi possível registrar a duração do áudio.");
-      }
-
-      console.log("[review-audio-upload] duration:persist:success", {
-        submissionId: sid,
-        pontoAudioId: paid,
-        duration_ms: durationMs,
-      });
-
-      console.log("[review-audio-upload] approve:start", {
-        submissionId: sid,
-      });
-
-      let res = await callRpcWithParamFallback(
-        "approve_audio_upload_submission",
-        {
-          p_submission_id: sid,
-        },
-      );
-
-      // Some backends validate activation against an *already approved* audio_upload
-      // submission. If so, approve via the canonical review RPC first.
-      if (res.error) {
-        const msg =
-          typeof (res.error as any)?.message === "string"
-            ? String((res.error as any).message)
-            : "";
-        const msgLower = msg.toLowerCase();
-
-        if (
-          msgLower.includes("invalid_activation") ||
-          msgLower.includes("cannot activate ponto_audio")
-        ) {
-          const fallback = await callRpcWithParamFallback(
-            "review_ponto_submission",
-            {
-              p_submission_id: sid,
-              p_decision: "approved",
-              p_review_note: null,
-            },
-          );
-
-          if (fallback?.error) {
-            throw new Error(
-              typeof fallback.error?.message === "string" &&
-                fallback.error.message.trim()
-                ? fallback.error.message
-                : "Erro ao aprovar envio.",
-            );
-          }
-
-          // Normalize return shape.
-          res = { data: fallback?.data ?? null, error: null } as any;
-        }
-      }
-
-      if (res.error) {
-        console.error("[review-audio-upload] approve:error", {
-          submissionId: sid,
-          kind: "audio_upload",
-          pontoId:
-            typeof submission?.ponto_id === "string"
-              ? submission.ponto_id
-              : null,
-          data: safeJsonForLog(res.data),
-          error: serializeSupabaseErrorForLog(res.error),
-        });
-        throw res.error;
-      }
-
-      console.log("[review-audio-upload] approve:success", {
-        submissionId: sid,
-        data: safeJsonForLog(res.data),
-      });
-
-      return res.data ?? null;
-    },
-  });
-
-  const rejectAudioUploadMutation = useMutation({
-    mutationFn: async (vars: { submissionId: string; reviewNote: string }) => {
-      const sid = String(vars.submissionId ?? "").trim();
-      const note = String(vars.reviewNote ?? "").trim();
-      if (!sid) throw new Error("Envio inválido.");
-      if (!note) throw new Error("Informe um motivo para rejeitar.");
-
-      console.log("[review-audio-upload] reject:start", {
-        submissionId: sid,
-      });
-
-      const res = await callRpcWithParamFallback(
-        "reject_audio_upload_submission",
-        {
-          p_submission_id: sid,
-          p_review_note: note,
-        },
-      );
-
-      if (res.error) {
-        console.error("[review-audio-upload] reject:error", {
-          submissionId: sid,
-          kind: "audio_upload",
-          pontoId:
-            typeof submission?.ponto_id === "string"
-              ? submission.ponto_id
-              : null,
-          data: safeJsonForLog(res.data),
-          error: serializeSupabaseErrorForLog(res.error),
-        });
-        throw res.error;
-      }
-
-      console.log("[review-audio-upload] reject:success", {
-        submissionId: sid,
-        data: safeJsonForLog(res.data),
-      });
-
-      return res.data ?? null;
-    },
-  });
-
-  const isMutatingAny =
-    isMutating ||
-    approveAudioUploadMutation.isPending ||
-    rejectAudioUploadMutation.isPending;
+  const isActionDisabled =
+    isMutatingAny || !curation.isPendingSubmission || !submissionId;
 
   const approve = async () => {
     setInlineError(null);
 
-    if (!submissionId) {
-      setInlineError("Envio inválido.");
+    if (isActionDisabled) {
+      const message = !curation.isPendingSubmission
+        ? "Essa submission já foi revisada."
+        : "Envio inválido.";
+      setInlineError(message);
+      showToast(message);
       return;
     }
 
-    const kind = typeof submission?.kind === "string" ? submission.kind : null;
-    const isCorrection =
-      typeof kind === "string" && kind.trim().toLowerCase() === "correction";
+    const result = await curation.approve({
+      reviewNote: sanitizeOptionalText(reviewNote),
+      draft: {
+        title,
+        lyrics,
+        tagsText,
+        authorName,
+        interpreterName,
+        artist: "",
+        authorContact: "",
+      },
+      audioDurationMs: audioDurationMillis,
+    });
 
-    const isAudioUploadKind =
-      typeof kind === "string" && kind.trim().toLowerCase() === "audio_upload";
-
-    if (isCorrection) {
-      const payload: ApproveCorrectionRpcPayload = {
-        p_submission_id: submissionId,
-        p_review_note: sanitizeOptionalText(reviewNote),
-      };
-
-      try {
-        await approveCorrectionMutation.mutateAsync(payload);
-
-        // Recarrega fila e evita deixar detalhes stale.
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.pontosSubmissions.pending(),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.pontosSubmissions.byId(submissionId),
-        });
-
-        // Força o Player a refletir a letra atualizada (invalidate amplo;
-        // não existe queryKey por id hoje).
-        const targetId =
-          typeof submission?.ponto_id === "string" ? submission.ponto_id : null;
-        if (targetId) {
-          queryClient.invalidateQueries({
-            queryKey: ["collections", "pontos"],
-          });
-          queryClient.invalidateQueries({ queryKey: ["pontos"] });
+    if (!result.ok) {
+      if (result.error === "Já foi revisado.") {
+        if (submissionId) {
+          queryClient.setQueryData(
+            queryKeys.pontosSubmissions.pending(),
+            (prev: Array<{ id: string }> | undefined) =>
+              (prev ?? []).filter((item) => item.id !== submissionId),
+          );
         }
-
-        showToast("Correção aprovada.");
-        router.back();
-      } catch (e) {
-        const friendly = mapReviewErrorToFriendlyMessage(e);
-        const raw = getErrorMessage(e);
-
-        // Não logar IDs externamente.
-        void raw;
-
-        // Não remover da fila em erro.
-        setInlineError(friendly);
-        showToast(friendly);
-      }
-
-      return;
-    }
-
-    if (isAudioUploadKind) {
-      try {
-        const durationMs = audioDurationMillis;
-        if (durationMs <= 0) {
-          const msg = "Carregue o áudio para aprovar.";
-          setInlineError(msg);
-          showToast(msg);
-          return;
-        }
-
-        if (!pontoAudioId) {
-          const msg = "Áudio inválido.";
-          setInlineError(msg);
-          showToast(msg);
-          return;
-        }
-
-        await approveAudioUploadMutation.mutateAsync({
-          submissionId,
-          pontoAudioId,
-          durationMs,
-        });
-
-        removeFromPendingList(submissionId);
-
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.pontosSubmissions.pending(),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.pontosSubmissions.byId(submissionId),
-        });
-
-        const pid =
-          typeof submission?.ponto_id === "string" ? submission.ponto_id : null;
-        if (pid) {
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.pontosSubmissions.approvedAudioByPontoId(pid),
-          });
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.pontoAudios.byPontoId(pid),
-          });
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.pontoAudios.hasAnyUploadedByPontoId(pid),
-          });
-        }
-
-        if (typeof pontoAudioId === "string" && pontoAudioId) {
-          queryClient.invalidateQueries({
-            queryKey: ["pontoAudios", "metaById", pontoAudioId],
-          });
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["pontos"] });
-
-        showToast("Áudio aprovado.");
-        router.back();
-      } catch (e) {
-        const friendly = mapReviewErrorToFriendlyMessage(e);
-        const raw = getErrorMessage(e);
-
-        if (raw.toLowerCase().includes("submission_not_pending")) {
-          removeFromPendingList(submissionId);
-          showToast("Já foi revisado.");
-          router.back();
-          return;
-        }
-
-        setInlineError(friendly);
-        showToast(friendly);
-      }
-
-      return;
-    }
-
-    const finalTitle = sanitizeOptionalText(title);
-    const finalLyrics = sanitizeOptionalText(lyrics);
-
-    const finalAuthorName = sanitizeOptionalText(authorName);
-    const finalInterpreterName = sanitizeOptionalText(interpreterName);
-
-    const isPublicDomain = submission?.ponto_is_public_domain !== false;
-    const authorConsentGranted = submission?.author_consent_granted === true;
-    const hasAudio = isAudioUpload || submission?.has_audio === true;
-    const interpreterConsentGranted =
-      submission?.interpreter_consent_granted === true;
-
-    if (!isPublicDomain && !authorConsentGranted) {
-      const msg =
-        "Não dá para aprovar: consentimento do autor não foi concedido.";
-      setInlineError(msg);
-      showToast(msg);
-      return;
-    }
-
-    if (hasAudio && !interpreterConsentGranted) {
-      const msg =
-        "Não dá para aprovar: consentimento do intérprete não foi concedido.";
-      setInlineError(msg);
-      showToast(msg);
-      return;
-    }
-
-    const payload: RpcPayload = {
-      p_submission_id: submissionId,
-      p_decision: "approved",
-      p_review_note: sanitizeOptionalText(reviewNote),
-      p_title: finalTitle,
-      p_lyrics: finalLyrics,
-      p_tags: normalizedTags,
-      p_author_name: finalAuthorName,
-      p_interpreter_name: finalInterpreterName,
-    };
-
-    try {
-      await reviewNewMutation.mutateAsync(payload);
-
-      removeFromPendingList(submissionId);
-      queryClient.invalidateQueries({ queryKey: ["pontos"] });
-
-      showToast("Envio aprovado.");
-      router.back();
-    } catch (e) {
-      const friendly = mapReviewErrorToFriendlyMessage(e);
-      const raw = getErrorMessage(e);
-
-      if (raw.toLowerCase().includes("submission_not_pending")) {
-        removeFromPendingList(submissionId);
         showToast("Já foi revisado.");
         router.back();
         return;
       }
-
-      setInlineError(friendly);
-      showToast(friendly);
+      setInlineError(result.error);
+      showToast(result.error);
+      return;
     }
+
+    if (kindNorm === "audio_upload") {
+      showToast("Áudio aprovado.");
+    } else if (kindNorm === "correction") {
+      showToast("Correção aprovada.");
+    } else {
+      showToast("Envio aprovado.");
+    }
+
+    router.back();
   };
 
   const reject = async () => {
     setInlineError(null);
 
-    if (!submissionId) {
-      setInlineError("Envio inválido.");
+    if (isActionDisabled) {
+      const message = !curation.isPendingSubmission
+        ? "Essa submission já foi revisada."
+        : "Envio inválido.";
+      setInlineError(message);
+      showToast(message);
       return;
     }
 
-    const kind = typeof submission?.kind === "string" ? submission.kind : null;
-    const isAudioUploadKind =
-      typeof kind === "string" && kind.trim().toLowerCase() === "audio_upload";
-
-    if (isAudioUploadKind) {
+    if (isRejectNoteRequired) {
       const note = String(reviewNote ?? "").trim();
       if (!note) {
         const msg = "Informe um motivo para rejeitar.";
@@ -1020,79 +494,36 @@ export default function ReviewSubmissionScreen() {
           text: "Rejeitar",
           style: "destructive",
           onPress: async () => {
-            try {
-              if (isAudioUploadKind) {
-                await rejectAudioUploadMutation.mutateAsync({
-                  submissionId,
-                  reviewNote: String(reviewNote ?? ""),
-                });
+            const result = await curation.reject({
+              reviewNote: sanitizeOptionalText(reviewNote),
+            });
 
-                removeFromPendingList(submissionId);
-                queryClient.invalidateQueries({
-                  queryKey: queryKeys.pontosSubmissions.pending(),
-                });
-                queryClient.invalidateQueries({
-                  queryKey: queryKeys.pontosSubmissions.byId(submissionId),
-                });
-
-                const pid =
-                  typeof submission?.ponto_id === "string"
-                    ? submission.ponto_id
-                    : null;
-                if (pid) {
-                  queryClient.invalidateQueries({
-                    queryKey:
-                      queryKeys.pontosSubmissions.approvedAudioByPontoId(pid),
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey: queryKeys.pontoAudios.byPontoId(pid),
-                  });
-                  queryClient.invalidateQueries({
-                    queryKey:
-                      queryKeys.pontoAudios.hasAnyUploadedByPontoId(pid),
-                  });
+            if (!result.ok) {
+              if (result.error === "Já foi revisado.") {
+                if (submissionId) {
+                  queryClient.setQueryData(
+                    queryKeys.pontosSubmissions.pending(),
+                    (prev: Array<{ id: string }> | undefined) =>
+                      (prev ?? []).filter((item) => item.id !== submissionId),
+                  );
                 }
-
-                if (typeof pontoAudioId === "string" && pontoAudioId) {
-                  queryClient.invalidateQueries({
-                    queryKey: ["pontoAudios", "metaById", pontoAudioId],
-                  });
-                }
-
-                queryClient.invalidateQueries({ queryKey: ["pontos"] });
-
-                showToast("Áudio rejeitado.");
-                router.back();
-                return;
-              }
-
-              const payload: RejectSubmissionRpcPayload = {
-                p_submission_id: submissionId,
-                p_review_note: sanitizeOptionalText(reviewNote),
-              };
-
-              await rejectMutation.mutateAsync(payload);
-
-              removeFromPendingList(submissionId);
-              showToast("Envio rejeitado.");
-              router.back();
-            } catch (e) {
-              const friendly = mapReviewErrorToFriendlyMessage(e);
-              const raw = getErrorMessage(e);
-
-              // Não logar IDs externamente.
-              void raw;
-
-              if (raw.toLowerCase().includes("submission_not_pending")) {
-                removeFromPendingList(submissionId);
                 showToast("Já foi revisado.");
                 router.back();
                 return;
               }
 
-              setInlineError(friendly);
-              showToast(friendly);
+              setInlineError(result.error);
+              showToast(result.error);
+              return;
             }
+
+            if (kindNorm === "audio_upload") {
+              showToast("Áudio rejeitado.");
+            } else {
+              showToast("Envio rejeitado.");
+            }
+
+            router.back();
           },
         },
       ],
@@ -1308,6 +739,12 @@ export default function ReviewSubmissionScreen() {
             </Text>
           ) : null}
 
+          {!curation.isPendingSubmission ? (
+            <Text style={[styles.inlineError, { color: textSecondary }]}>
+              Essa submission já foi revisada.
+            </Text>
+          ) : null}
+
           <Text style={[styles.label, { color: textSecondary }]}>Título</Text>
           <TextInput
             value={title}
@@ -1414,8 +851,8 @@ export default function ReviewSubmissionScreen() {
                         <Text
                           style={[styles.audioMetaText, { color: textPrimary }]}
                         >
-                          {(typeof pontoAudioMetaQuery.data
-                            .interpreter_name === "string" &&
+                          {(typeof pontoAudioMetaQuery.data.interpreter_name ===
+                            "string" &&
                           pontoAudioMetaQuery.data.interpreter_name.trim()
                             ? pontoAudioMetaQuery.data.interpreter_name.trim()
                             : "Interpretação não informada"
@@ -1587,13 +1024,13 @@ export default function ReviewSubmissionScreen() {
           <View style={styles.actionsRow}>
             <Pressable
               accessibilityRole="button"
-              disabled={isMutatingAny}
+              disabled={isActionDisabled}
               onPress={() => void reject()}
               style={({ pressed }) => [
                 styles.rejectBtn,
                 {
                   borderColor: colors.brass600,
-                  opacity: isMutatingAny ? 0.7 : 1,
+                  opacity: isActionDisabled ? 0.7 : 1,
                 },
                 pressed ? styles.actionPressed : null,
               ]}
@@ -1605,14 +1042,14 @@ export default function ReviewSubmissionScreen() {
 
             <Pressable
               accessibilityRole="button"
-              disabled={isMutatingAny}
+              disabled={isActionDisabled}
               onPress={() => void approve()}
               style={({ pressed }) => [
                 styles.approveBtn,
                 {
                   backgroundColor:
                     variant === "light" ? colors.forest700 : colors.forest300,
-                  opacity: isMutatingAny ? 0.7 : 1,
+                  opacity: isActionDisabled ? 0.7 : 1,
                 },
                 pressed ? styles.actionPressed : null,
               ]}
@@ -1626,7 +1063,7 @@ export default function ReviewSubmissionScreen() {
                   },
                 ]}
               >
-                {isMutatingAny ? "Enviando…" : "Aprovar"}
+                {isMutatingAny ? "Processando..." : "Aprovar"}
               </Text>
             </Pressable>
           </View>

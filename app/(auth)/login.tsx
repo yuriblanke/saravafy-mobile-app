@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { useAuthV2 } from "@/src/features/auth-v2";
 import { colors, spacing } from "@/src/theme";
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
@@ -11,6 +12,12 @@ import { useEffect } from "react";
 export default function LoginScreen() {
   const { signInWithGoogle, retryGoogleLogin, authInProgress, authError } =
     useAuth();
+  const {
+    signInWithGoogle: signInWithGoogleV2,
+    retryGoogleLogin: retryGoogleLoginV2,
+    authInProgress: authInProgressV2,
+    authError: authErrorV2,
+  } = useAuthV2();
   const { effectiveTheme } = usePreferences();
   const variant = effectiveTheme;
 
@@ -50,6 +57,24 @@ export default function LoginScreen() {
     }
   };
 
+  const handleLoginV2 = async () => {
+    console.log("Botão V2 pressionado - iniciando login...");
+    try {
+      await signInWithGoogleV2();
+      console.log("signInWithGoogleV2 executado");
+    } catch (error) {
+      console.error("Erro ao chamar signInWithGoogleV2:", error);
+    }
+  };
+
+  const handleRetryV2 = async () => {
+    try {
+      await retryGoogleLoginV2();
+    } catch (error) {
+      console.error("Erro ao tentar novamente login Google V2:", error);
+    }
+  };
+
   return (
     <SaravafyScreen theme={variant}>
       <View style={styles.container}>
@@ -71,6 +96,25 @@ export default function LoginScreen() {
         >
           <Text style={styles.primaryButtonText}>
             {authInProgress ? "Entrando…" : "Entrar com Google"}
+          </Text>
+        </Pressable>
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Entrar com Google 2.0 (teste)"
+          onPress={handleLoginV2}
+          disabled={authInProgressV2}
+          style={({ pressed }) => [
+            styles.primaryButton,
+            styles.secondaryGoogleButton,
+            pressed ? styles.primaryButtonPressed : null,
+            authInProgressV2 ? styles.primaryButtonDisabled : null,
+          ]}
+        >
+          <Text style={styles.secondaryGoogleButtonText}>
+            {authInProgressV2
+              ? "Entrando…"
+              : "Entrar com Google 2.0 (teste)"}
           </Text>
         </Pressable>
 
@@ -96,6 +140,32 @@ export default function LoginScreen() {
               ]}
             >
               <Text style={styles.retryButtonText}>Tentar novamente</Text>
+            </Pressable>
+          </View>
+        ) : null}
+
+        {authErrorV2 ? (
+          <View style={styles.errorWrap}>
+            <Text
+              style={[styles.errorText, { color: textSecondary }]}
+              numberOfLines={6}
+            >
+              {authErrorV2}
+            </Text>
+
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Tentar novamente login 2.0"
+              onPress={handleRetryV2}
+              disabled={authInProgressV2}
+              style={({ pressed }) => [
+                styles.retryButton,
+                { borderColor: colors.brass600 },
+                pressed ? styles.retryButtonPressed : null,
+                authInProgressV2 ? styles.primaryButtonDisabled : null,
+              ]}
+            >
+              <Text style={styles.retryButtonText}>Tentar novamente (2.0)</Text>
             </Pressable>
           </View>
         ) : null}
@@ -137,6 +207,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.brass600,
     paddingVertical: 12,
+    marginBottom: spacing.sm,
   },
   primaryButtonPressed: {
     opacity: 0.85,
@@ -146,6 +217,14 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: {
     color: colors.paper50,
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  secondaryGoogleButton: {
+    backgroundColor: "transparent",
+  },
+  secondaryGoogleButtonText: {
+    color: colors.brass600,
     fontSize: 14,
     fontWeight: "800",
   },

@@ -26,7 +26,9 @@ function coerceArtist(raw: unknown) {
   return a ? a : null;
 }
 
-export function useSubmissionPlayback(submission: SubmissionLike | null | undefined) {
+export function useSubmissionPlayback(
+  submission: SubmissionLike | null | undefined,
+) {
   const rntp = useRntpPlayback(250);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
 

@@ -8,12 +8,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import { useCallback } from "react";
 
-export function useSubmissionAudioUpload(submissionId: string | null | undefined) {
+export function useSubmissionAudioUpload(
+  submissionId: string | null | undefined,
+) {
   const queryClient = useQueryClient();
   const { showToast } = useToast();
 
   const mutation = useMutation({
-    mutationFn: async (vars: { submissionId: string; file: SubmissionAudioFile }) => {
+    mutationFn: async (vars: {
+      submissionId: string;
+      file: SubmissionAudioFile;
+    }) => {
       return uploadSubmissionAudio(vars);
     },
     onSuccess: async (_res, vars) => {
@@ -46,7 +51,9 @@ export function useSubmissionAudioUpload(submissionId: string | null | undefined
       if (res.canceled) return;
 
       const asset =
-        Array.isArray(res.assets) && res.assets.length > 0 ? res.assets[0] : null;
+        Array.isArray(res.assets) && res.assets.length > 0
+          ? res.assets[0]
+          : null;
       if (!asset?.uri) return;
 
       const mimeType =
@@ -58,7 +65,9 @@ export function useSubmissionAudioUpload(submissionId: string | null | undefined
       const file: SubmissionAudioFile = {
         uri: asset.uri,
         name:
-          typeof asset.name === "string" && asset.name.trim() ? asset.name : null,
+          typeof asset.name === "string" && asset.name.trim()
+            ? asset.name
+            : null,
         mimeType,
       };
 

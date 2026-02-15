@@ -1353,7 +1353,6 @@ export function PontoUpsertModal({
                     </Text>
                   </Pressable>
                 ) : null}
-
               </View>
             ) : null}
 
