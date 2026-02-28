@@ -85,7 +85,7 @@ export function CuratorInviteGate() {
   const { isCurator, refetch: refetchIsCurator } = useIsCurator();
 
   const [currentInvite, setCurrentInvite] = useState<CuratorInvite | null>(
-    null
+    null,
   );
   const currentInviteRef = useRef<CuratorInvite | null>(null);
   const [isBannerVisible, setIsBannerVisible] = useState(false);
@@ -181,7 +181,7 @@ export function CuratorInviteGate() {
         inFlightRef.current = null;
       }
     },
-    [isCurator, normalizedUserEmail, terreiroGateActive, userId]
+    [isCurator, normalizedUserEmail, terreiroGateActive, userId],
   );
 
   useEffect(() => {
@@ -355,14 +355,14 @@ export function CuratorInviteGate() {
         { event: "INSERT", schema: "public", table: "curator_invites" },
         (payload) => {
           handleRow(payload.new as any);
-        }
+        },
       )
       .on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table: "curator_invites" },
         (payload) => {
           handleRow(payload.new as any);
-        }
+        },
       )
       .subscribe();
 
@@ -621,7 +621,7 @@ export function CuratorInviteGate() {
 
               {isProcessing ? (
                 <View style={styles.processingRow}>
-                  <ActivityIndicator />
+                  <ActivityIndicator color={colors.brass600} />
                 </View>
               ) : null}
 

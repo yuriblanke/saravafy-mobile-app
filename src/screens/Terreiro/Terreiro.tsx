@@ -32,6 +32,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Share2 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -177,6 +178,28 @@ export default function Terreiro() {
   const collectionsQuery = useCollectionsByTerreiroQuery(terreiroId || null);
   const collections = collectionsQuery.data ?? [];
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        collectionsQuery.refetch(),
+        membershipQuery.reload ? membershipQuery.reload() : Promise.resolve(),
+      ]);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Terreiro] onRefresh unhandled", {
+          terreiroId,
+          error: e instanceof Error ? e.message : String(e),
+          raw: e,
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [collectionsQuery, isRefreshing, membershipQuery]);
+
   // Warm-cache: prefetch pontos das primeiras collections para evitar fetch+flash
   // ao abrir o detalhe.
   const prefetchedCollectionIdsRef = useRef<Set<string>>(new Set());
@@ -205,7 +228,7 @@ export default function Terreiro() {
     targets.forEach((collectionId) => {
       prefetchedCollectionIdsRef.current.add(collectionId);
       void queryClient.prefetchQuery(
-        getCollectionPontosQueryOptions(collectionId)
+        getCollectionPontosQueryOptions(collectionId),
       );
     });
   }, [collections, collectionsQuery.isSuccess, queryClient, terreiroId]);
@@ -232,7 +255,7 @@ export default function Terreiro() {
 
   const orderedCollections = applyTerreiroLibraryOrder(
     collections,
-    libraryOrderIds
+    libraryOrderIds,
   );
 
   useEffect(() => {
@@ -330,7 +353,7 @@ export default function Terreiro() {
       if (!terreiroId) return false;
       return ownerTerreiroId === terreiroId;
     },
-    [isAdminOrEditor, terreiroId]
+    [isAdminOrEditor, terreiroId],
   );
 
   const closeCollectionActions = () => {
@@ -353,7 +376,7 @@ export default function Terreiro() {
         throw new Error(
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Não foi possível excluir a coleção."
+            : "Não foi possível excluir a coleção.",
         );
       }
 
@@ -388,7 +411,7 @@ export default function Terreiro() {
       setQueriesDataSafe<TerreiroCollectionCard[]>(
         queryClient,
         { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-        (old) => removeById(old ?? [], collection.id)
+        (old) => removeById(old ?? [], collection.id),
       );
 
       return { snapshot };
@@ -405,7 +428,7 @@ export default function Terreiro() {
       showToast(
         err instanceof Error
           ? err.message
-          : "Não foi possível excluir a coleção."
+          : "Não foi possível excluir a coleção.",
       );
     },
     onSuccess: () => {
@@ -527,7 +550,7 @@ export default function Terreiro() {
       setQueriesDataSafe<TerreiroCollectionCard[]>(
         queryClient,
         { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-        (old) => [optimistic, ...(old ?? [])]
+        (old) => [optimistic, ...(old ?? [])],
       );
 
       return { snapshot, tempId: vars.tempId };
@@ -535,7 +558,7 @@ export default function Terreiro() {
     onError: (err, _vars, ctx) => {
       if (ctx?.snapshot) rollbackQueries(queryClient, ctx.snapshot);
       setNewCollectionError(
-        err instanceof Error ? err.message : "Erro ao criar coleção"
+        err instanceof Error ? err.message : "Erro ao criar coleção",
       );
     },
     onSuccess: (data, _vars, ctx) => {
@@ -554,7 +577,7 @@ export default function Terreiro() {
             visibility: data.visibility,
             owner_terreiro_id: data.owner_terreiro_id,
           });
-        }
+        },
       );
       setNewCollectionError("");
     },
@@ -566,7 +589,7 @@ export default function Terreiro() {
         setQueriesDataSafe<TerreiroCollectionCard[]>(
           queryClient,
           { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-          (old) => removeById(old ?? [], ctx.tempId)
+          (old) => removeById(old ?? [], ctx.tempId),
         );
       }
 
@@ -589,7 +612,7 @@ export default function Terreiro() {
         throw new Error(
           typeof res.error.message === "string"
             ? res.error.message
-            : "Erro ao atualizar título da coleção"
+            : "Erro ao atualizar título da coleção",
         );
       }
 
@@ -611,7 +634,7 @@ export default function Terreiro() {
       setQueriesDataSafe<TerreiroCollectionCard[]>(
         queryClient,
         { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-        (old) => patchById(old ?? [], vars.collectionId, { title: vars.title })
+        (old) => patchById(old ?? [], vars.collectionId, { title: vars.title }),
       );
 
       return { snapshot };
@@ -629,7 +652,7 @@ export default function Terreiro() {
         "Erro",
         err instanceof Error
           ? err.message
-          : "Não foi possível atualizar o título da coleção."
+          : "Não foi possível atualizar o título da coleção.",
       );
     },
     onSuccess: (data) => {
@@ -637,7 +660,7 @@ export default function Terreiro() {
       setQueriesDataSafe<TerreiroCollectionCard[]>(
         queryClient,
         { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-        (old) => patchById(old ?? [], data.id, { title: data.title })
+        (old) => patchById(old ?? [], data.id, { title: data.title }),
       );
     },
     onSettled: () => {
@@ -803,6 +826,8 @@ export default function Terreiro() {
           data={orderedCollections}
           keyExtractor={(it) => it.id}
           style={styles.list}
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
           contentContainerStyle={[
             styles.listContent,
             { paddingBottom: spacing.md },
@@ -836,11 +861,7 @@ export default function Terreiro() {
                         pressed ? styles.iconButtonPressed : null,
                       ]}
                     >
-                      <Ionicons
-                        name="share-outline"
-                        size={18}
-                        color={accentColor}
-                      />
+                      <Share2 size={18} color={accentColor} />
                     </Pressable>
                   </View>
                 </View>
@@ -978,6 +999,8 @@ export default function Terreiro() {
                   collectionId: item.id,
                   collectionTitle: name,
                   terreiroId: terreiroId || undefined,
+                  returnTo: "terreiro",
+                  returnTerreiroId: terreiroId || undefined,
                 },
               });
             };
@@ -1002,7 +1025,7 @@ export default function Terreiro() {
                           hitSlop={10}
                           onPress={() => {
                             openCollectionActions(
-                              item as TerreiroCollectionCard
+                              item as TerreiroCollectionCard,
                             );
                           }}
                           style={({ pressed }) => [

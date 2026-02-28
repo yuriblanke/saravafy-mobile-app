@@ -107,7 +107,7 @@ export async function addPontoToCollection(params: {
           // ignoreDuplicates existe no supabase-js v2.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ignoreDuplicates: true as any,
-        } as any
+        } as any,
       );
 
     if (!res.error) {
@@ -130,4 +130,29 @@ export async function addPontoToCollection(params: {
   }
 
   return { ok: false, error: "Erro ao adicionar ponto à coleção." };
+}
+
+export async function removePontoFromCollection(params: {
+  collectionId: string;
+  pontoId: string;
+}): Promise<{ ok: boolean; alreadyRemoved?: boolean; error?: string }> {
+  const { collectionId, pontoId } = params;
+
+  const res = await supabase
+    .from(TABLE)
+    .delete()
+    .eq("collection_id", collectionId)
+    .eq("ponto_id", pontoId);
+
+  if (res.error) {
+    const anyErr = res.error as any;
+    const message =
+      typeof anyErr?.message === "string" && anyErr.message.trim()
+        ? anyErr.message
+        : "Erro ao remover ponto da coleção.";
+    return { ok: false, error: message };
+  }
+
+  // Operação idempotente: se já não existe, tratamos como sucesso para UX.
+  return { ok: true };
 }

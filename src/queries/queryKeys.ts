@@ -44,6 +44,7 @@ export const queryKeys = {
     permissions: (userId: string) => ["me", "permissions", userId] as const,
   },
   pontos: {
+    lastWriteAt: () => ["pontos", "lastWriteAt"] as const,
     terreiro: (terreiroId: string) =>
       ["pontos", { scope: "terreiro", terreiroId }] as const,
     feed: (userId: string) => ["pontos", "feed", userId] as const,

@@ -687,6 +687,8 @@ export function PontoUpsertModal({
           : tagsValue,
       };
 
+      queryClient.setQueryData(queryKeys.pontos.lastWriteAt(), Date.now());
+
       if (mode === "edit" && attachedAudio) {
         // Upload de áudio para ponto existente foi movido para o fluxo dedicado.
         showToast("Envio de áudio agora é feito pela tela dedicada.");
@@ -1485,7 +1487,7 @@ export function PontoUpsertModal({
               >
                 {isBusy ? (
                   <View style={styles.primaryBtnRow}>
-                    <ActivityIndicator color={"#fff"} />
+                    <ActivityIndicator color={colors.paper50} />
                     <Text style={styles.primaryBtnText}>
                       {mode === "create"
                         ? "Enviando…"

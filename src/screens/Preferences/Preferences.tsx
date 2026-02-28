@@ -1,13 +1,23 @@
 ﻿import React, { useCallback, useState } from "react";
-import { Modal, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  Modal,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 
+import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { setNavCoverVisible, useNavCoverState } from "@/src/utils/navCover";
 import { navTrace } from "@/src/utils/navTrace";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { CurimbaSection } from "./components/CurimbaSection";
 import { LogoutSection } from "./components/LogoutSection";
@@ -18,13 +28,62 @@ import { TerreirosSection } from "./components/TerreirosSection";
 import { ThemeSection } from "./components/ThemeSection";
 
 export default function Preferences() {
+  const queryClient = useQueryClient();
   const insets = useGlobalSafeAreaInsets();
   const navCover = useNavCoverState();
+  const { user } = useAuth();
+  const userId = user?.id ?? null;
+  const normalizedUserEmail =
+    typeof (user as any)?.email === "string"
+      ? String((user as any).email)
+          .trim()
+          .toLowerCase()
+      : null;
   const {
     effectiveTheme,
     curimbaOnboardingDismissed,
     setCurimbaOnboardingDismissed,
   } = usePreferences();
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        userId
+          ? queryClient.invalidateQueries({
+              queryKey: queryKeys.preferences.terreiros(userId),
+            })
+          : Promise.resolve(),
+        normalizedUserEmail
+          ? queryClient.invalidateQueries({
+              queryKey:
+                queryKeys.terreiroInvites.pendingForInvitee(
+                  normalizedUserEmail,
+                ),
+            })
+          : Promise.resolve(),
+        userId
+          ? queryClient.invalidateQueries({
+              queryKey: queryKeys.globalRoles.isCurator(userId),
+            })
+          : Promise.resolve(),
+      ]);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Preferences] onRefresh unhandled", {
+          userId,
+          normalizedUserEmail,
+          error: e instanceof Error ? e.message : String(e),
+          raw: e,
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, normalizedUserEmail, queryClient, userId]);
 
   React.useEffect(() => {
     navTrace("Preferences UI mount");
@@ -97,11 +156,11 @@ export default function Preferences() {
       : 500;
 
   const [debugCoverVisible, setDebugCoverVisible] = useState(
-    __DEV__ ? coverEnabled : false
+    __DEV__ ? coverEnabled : false,
   );
   const [debugUnderlayPeek, setDebugUnderlayPeek] = useState(false);
   const [debugStampVisible, setDebugStampVisible] = useState(
-    __DEV__ ? stampEnabled : false
+    __DEV__ ? stampEnabled : false,
   );
   const [debugStampHeight, setDebugStampHeight] = useState<number>(() => {
     if (!__DEV__) return 0;
@@ -307,6 +366,14 @@ export default function Preferences() {
             paddingBottom: (insets.bottom ?? 0) + spacing.xl,
           },
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.brass600}
+            colors={[colors.brass600]}
+          />
+        }
       >
         <ProfileSection variant={variant} />
         <TerreirosSection

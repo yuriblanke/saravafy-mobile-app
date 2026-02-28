@@ -9,7 +9,7 @@ export type PontosSearchResult = {
   score: number | null;
 };
 
-export const PONTOS_SEARCH_MIN_CHARS = 4;
+export const PONTOS_SEARCH_MIN_CHARS = 3;
 export const PONTOS_SEARCH_DEBOUNCE_MS = 300;
 export const PONTOS_SEARCH_DEFAULT_LIMIT = 20;
 export const PONTOS_SEARCH_DEFAULT_OFFSET = 0;
@@ -37,7 +37,7 @@ export async function searchPontos({
     throw new Error(
       typeof error.message === "string" && error.message.trim()
         ? error.message
-        : "Erro ao buscar pontos."
+        : "Erro ao buscar pontos.",
     );
   }
 

@@ -140,8 +140,8 @@ export default function TerreiroMembersList() {
       r === "admin" || r === "curimba"
         ? "admins"
         : r === "member"
-        ? "members"
-        : "public";
+          ? "members"
+          : "public";
 
     setEffectiveTier((prev) => (prev === next ? prev : next));
   }, [
@@ -168,8 +168,8 @@ export default function TerreiroMembersList() {
     effectiveTier === "admins"
       ? "admin"
       : effectiveTier === "members"
-      ? "member"
-      : "public";
+        ? "member"
+        : "public";
 
   const canQueryMembersList = useMemo(() => {
     if (!terreiroId) return false;
@@ -196,7 +196,7 @@ export default function TerreiroMembersList() {
         effectiveTier,
         terreiroId,
         PAGE_SIZE,
-        offset
+        offset,
       );
     },
     getNextPageParam: (lastPage, allPages) => {
@@ -205,6 +205,26 @@ export default function TerreiroMembersList() {
       return undefined;
     },
   });
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await membersQuery.refetch();
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[TerreiroMembersList] onRefresh unhandled", {
+          terreiroId,
+          effectiveTier,
+          error: e instanceof Error ? e.message : String(e),
+          raw: e,
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, membersQuery]);
 
   useEffect(() => {
     if (!membersQuery.isError) return;
@@ -316,7 +336,7 @@ export default function TerreiroMembersList() {
         </View>
       );
     },
-    [router, variant]
+    [router, variant],
   );
 
   return (
@@ -358,7 +378,7 @@ export default function TerreiroMembersList() {
       <View style={[styles.content, { paddingTop: headerTotalHeight }]}>
         {membersQuery.isLoading && items.length === 0 ? (
           <View style={styles.center}>
-            <ActivityIndicator />
+            <ActivityIndicator color={colors.brass600} />
             <Text style={[styles.centerText, { color: textSecondary }]}>
               Carregando membros…
             </Text>
@@ -372,7 +392,7 @@ export default function TerreiroMembersList() {
               {String(
                 membersQuery.error instanceof Error
                   ? membersQuery.error.message
-                  : "Erro"
+                  : "Erro",
               )}
             </Text>
           </View>
@@ -389,6 +409,8 @@ export default function TerreiroMembersList() {
             renderItem={renderItem}
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
             initialNumToRender={20}
             maxToRenderPerBatch={20}
             windowSize={10}
@@ -405,7 +427,7 @@ export default function TerreiroMembersList() {
             ListFooterComponent={
               membersQuery.isFetchingNextPage ? (
                 <View style={styles.footer}>
-                  <ActivityIndicator />
+                  <ActivityIndicator color={colors.brass600} />
                 </View>
               ) : null
             }

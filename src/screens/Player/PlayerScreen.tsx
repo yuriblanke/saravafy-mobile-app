@@ -16,7 +16,9 @@ import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCusto
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Share2 } from "lucide-react-native";
 import React, {
   useCallback,
   useEffect,
@@ -26,8 +28,10 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   Image,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -76,10 +80,16 @@ export default function PlayerScreen() {
   const terreiroId =
     typeof params.terreiroId === "string" ? params.terreiroId : "";
 
-  const collectionId = String(params.collectionId ?? "");
+  const collectionIdParam = Array.isArray(params.collectionId)
+    ? params.collectionId[0]
+    : params.collectionId;
+  const collectionId = typeof collectionIdParam === "string" ? collectionIdParam.trim() : "";
   const returnTo = typeof params.returnTo === "string" ? params.returnTo : null;
+  const returnCollectionIdParam = Array.isArray(params.returnCollectionId)
+    ? params.returnCollectionId[0]
+    : params.returnCollectionId;
   const returnCollectionId =
-    typeof params.returnCollectionId === "string" ? params.returnCollectionId : "";
+    typeof returnCollectionIdParam === "string" ? returnCollectionIdParam : "";
   const returnQ = typeof params.returnQ === "string" ? params.returnQ : "";
 
   const handleBack = useCallback(() => {
@@ -94,8 +104,39 @@ export default function PlayerScreen() {
       return;
     }
 
+    if (returnTo === "collection" && returnCollectionId.trim()) {
+      router.replace({
+        pathname: "/collection/[id]" as any,
+        params: { id: returnCollectionId.trim() },
+      });
+      return;
+    }
+
+    // Importante: Player está em outro Stack group que Collection.
+    // Se abrimos a partir de uma collection, voltamos explicitamente pra ela.
+    if (source !== "all" && collectionId) {
+      router.replace({
+        pathname: "/collection/[id]" as any,
+        params: { id: collectionId },
+      });
+      return;
+    }
+
     router.back();
-  }, [returnCollectionId, returnQ, returnTo, router]);
+  }, [collectionId, returnCollectionId, returnQ, returnTo, router, source]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        handleBack();
+        return true;
+      });
+
+      return () => sub.remove();
+    }, [handleBack]),
+  );
   const initialPontoId =
     typeof params.initialPontoId === "string"
       ? params.initialPontoId
@@ -353,7 +394,7 @@ export default function PlayerScreen() {
             </Pressable>
           </View>
           <View style={styles.loadingCenter}>
-            <ActivityIndicator />
+            <ActivityIndicator color={colors.brass600} />
             <Text style={[styles.loadingText, { color: textSecondary }]}>
               Carregando…
             </Text>
@@ -476,7 +517,7 @@ export default function PlayerScreen() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={18} color={textPrimary} />
+              <Share2 size={18} color={textPrimary} />
             </Pressable>
 
             <Pressable

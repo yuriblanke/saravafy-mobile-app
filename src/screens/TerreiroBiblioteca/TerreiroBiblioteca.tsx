@@ -33,6 +33,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { Share2 } from "lucide-react-native";
 import React, {
   useCallback,
   useEffect,
@@ -1421,7 +1422,7 @@ export default function TerreiroBiblioteca() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={20} color={headerFgColor} />
+              <Share2 size={20} color={headerFgColor} />
             </Pressable>
           </Animated.View>
         </View>
@@ -1534,11 +1535,7 @@ export default function TerreiroBiblioteca() {
                     hitSlop={10}
                     style={styles.headerIconBtn}
                   >
-                    <Ionicons
-                      name="share-outline"
-                      size={20}
-                      color={textPrimary}
-                    />
+                    <Share2 size={20} color={textPrimary} />
                   </Pressable>
                 </Animated.View>
               </Animated.View>
@@ -1722,6 +1719,8 @@ export default function TerreiroBiblioteca() {
                         collectionId: item.id,
                         collectionTitle: name,
                         terreiroId: terreiroId || undefined,
+                        returnTo: "terreiro",
+                        returnTerreiroId: terreiroId || undefined,
                       },
                     });
                   };

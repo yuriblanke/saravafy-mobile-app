@@ -11,6 +11,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
+  ActivityIndicator,
   FlatList,
   Image,
   Linking,
@@ -411,7 +412,7 @@ export default function Terreiros() {
   const userId = user?.id ?? null;
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTerreiroId, setExpandedTerreiroId] = useState<string | null>(
-    null
+    null,
   );
 
   const toggleExpanded = useCallback((id: string) => {
@@ -421,7 +422,7 @@ export default function Terreiros() {
   const terreirosQuery = useTerreirosWithRoleQuery(userId);
   const terreiros = useMemo(
     () => (terreirosQuery.data ?? []) as TerreiroListItem[],
-    [terreirosQuery.data]
+    [terreirosQuery.data],
   );
   const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
   const error = terreirosQuery.isError
@@ -442,13 +443,31 @@ export default function Terreiros() {
       if (byMembers !== 0) return byMembers;
 
       const byName = normalize(a.name ?? "").localeCompare(
-        normalize(b.name ?? "")
+        normalize(b.name ?? ""),
       );
       if (byName !== 0) return byName;
 
       return String(a.id).localeCompare(String(b.id));
     });
   }, [terreiros, searchQuery]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await terreirosQuery.refetch();
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Terreiros] onRefresh unhandled", {
+          error: e instanceof Error ? e.message : String(e),
+          raw: e,
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [isRefreshing, terreirosQuery]);
 
   return (
     <View style={styles.screen}>
@@ -491,9 +510,12 @@ export default function Terreiros() {
 
         {isLoading ? (
           <View style={styles.paddedBlock}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
+            <View style={styles.loadingRow}>
+              <ActivityIndicator color={colors.brass600} />
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Carregando…
+              </Text>
+            </View>
           </View>
         ) : error ? (
           <View style={[styles.paddedBlock, styles.errorBlock]}>
@@ -527,6 +549,8 @@ export default function Terreiros() {
           <FlatList
             data={filteredTerreiros}
             keyExtractor={(item) => item.id}
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
             contentContainerStyle={[
               styles.listContent,
               { paddingBottom: spacing.md },
@@ -581,6 +605,12 @@ const styles = StyleSheet.create({
   },
   paddedBlock: {
     paddingHorizontal: spacing.lg,
+  },
+  loadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: spacing.sm,
   },
   sectionTitle: {
     fontSize: 12,

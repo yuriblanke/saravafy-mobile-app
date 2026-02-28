@@ -53,7 +53,7 @@ async function saveCollectionPontosDraft(params: {
       throw new Error(
         typeof delRes.error.message === "string" && delRes.error.message.trim()
           ? delRes.error.message
-          : "Não foi possível remover itens da coleção."
+          : "Não foi possível remover itens da coleção.",
       );
     }
   }
@@ -84,7 +84,7 @@ async function saveCollectionPontosDraft(params: {
       throw new Error(
         typeof up1.error.message === "string" && up1.error.message.trim()
           ? up1.error.message
-          : "Não foi possível reordenar a coleção."
+          : "Não foi possível reordenar a coleção.",
       );
     }
 
@@ -97,7 +97,7 @@ async function saveCollectionPontosDraft(params: {
       throw new Error(
         typeof up2.error.message === "string" && up2.error.message.trim()
           ? up2.error.message
-          : "Não foi possível reordenar a coleção."
+          : "Não foi possível reordenar a coleção.",
       );
     }
   }
@@ -112,19 +112,32 @@ export default function EditCollectionPointsScreen() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
-  const collectionId = String(params.id ?? "");
+  const collectionIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
+  const collectionId = String(collectionIdParam ?? "").trim();
   const draftKey = typeof params.draftKey === "string" ? params.draftKey : "";
 
+  const goBackToCollection = useCallback(() => {
+    if (collectionId) {
+      router.replace({
+        pathname: "/collection/[id]" as any,
+        params: { id: collectionId },
+      });
+      return;
+    }
+
+    router.back();
+  }, [collectionId, router]);
+
   const snapshotRef = useRef(
-    draftKey ? consumeCollectionEditDraft(draftKey) : null
+    draftKey ? consumeCollectionEditDraft(draftKey) : null,
   );
 
   useEffect(() => {
     if (snapshotRef.current) return;
 
     showToast("Abra a coleção antes de editar.");
-    router.back();
-  }, [router, showToast]);
+    goBackToCollection();
+  }, [goBackToCollection, showToast]);
 
   const items = useMemo(() => {
     const ordered = snapshotRef.current?.orderedItems ?? [];
@@ -197,7 +210,7 @@ export default function EditCollectionPointsScreen() {
         queryKey: ["terreiros", "collectionsByTerreiro"],
       });
     },
-    [collectionId, originalPontoIds, queryClient, user?.id]
+    [collectionId, originalPontoIds, queryClient, user?.id],
   );
 
   if (!snapshotRef.current) {
@@ -210,6 +223,7 @@ export default function EditCollectionPointsScreen() {
       title="Editar coleção"
       items={items}
       allowRemove={true}
+      onBack={goBackToCollection}
       onSave={onSave}
       successToast="Coleção atualizada."
       errorToastFallback="Não foi possível salvar a coleção."

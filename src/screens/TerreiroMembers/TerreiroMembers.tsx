@@ -24,6 +24,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -152,6 +153,30 @@ export default function TerreiroMembers() {
     Record<string, true>
   >({});
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        membershipQuery.reload ? membershipQuery.reload() : Promise.resolve(),
+        membersHook.reload ? membersHook.reload() : Promise.resolve(),
+        invitesHook.reload ? invitesHook.reload() : Promise.resolve(),
+        requestsHook.reload ? requestsHook.reload() : Promise.resolve(),
+      ]);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[TerreiroMembers] onRefresh unhandled", {
+          terreiroId,
+          error: e instanceof Error ? e.message : String(e),
+          raw: e,
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [invitesHook, isRefreshing, membersHook, membershipQuery, requestsHook]);
+
   // Member items (exclude admins and curimbas)
   const memberItems = useMemo<MemberItem[]>(() => {
     if (!membersHook.items) return [];
@@ -227,10 +252,10 @@ export default function TerreiroMembers() {
 
   // Actions
   const [memberMenuTarget, setMemberMenuTarget] = useState<MemberItem | null>(
-    null
+    null,
   );
   const [inviteMenuTarget, setInviteMenuTarget] = useState<InviteItem | null>(
-    null
+    null,
   );
 
   const [isInviteSheetOpen, setIsInviteSheetOpen] = useState(false);
@@ -275,14 +300,14 @@ export default function TerreiroMembers() {
     (member: MemberItem) => {
       void member;
     },
-    [removeMemberHook, membersHook, showToast]
+    [removeMemberHook, membersHook, showToast],
   );
 
   const handleCancelInvite = useCallback(
     (invite: InviteItem) => {
       void invite;
     },
-    [cancelInviteHook, invitesHook, showToast]
+    [cancelInviteHook, invitesHook, showToast],
   );
 
   const [confirmSheet, setConfirmSheet] = useState<null | {
@@ -322,7 +347,7 @@ export default function TerreiroMembers() {
         },
       });
     },
-    [membersHook, removeMemberHook, showToast]
+    [membersHook, removeMemberHook, showToast],
   );
 
   const openConfirmCancelInvite = useCallback(
@@ -348,7 +373,7 @@ export default function TerreiroMembers() {
         },
       });
     },
-    [cancelInviteHook, invitesHook, showToast]
+    [cancelInviteHook, invitesHook, showToast],
   );
 
   const handleResendInvite = useCallback(
@@ -360,7 +385,7 @@ export default function TerreiroMembers() {
         showToast(result.error || "Erro ao reenviar convite");
       }
     },
-    [resendInviteHook, showToast]
+    [resendInviteHook, showToast],
   );
 
   const handleCreateInvite = useCallback(async () => {
@@ -372,15 +397,15 @@ export default function TerreiroMembers() {
 
     const emailNorm = normalizeEmailLower(email);
     const dup = (invitesHook.pending ?? []).find(
-      (i) => normalizeEmailLower(i.email) === emailNorm
+      (i) => normalizeEmailLower(i.email) === emailNorm,
     );
     if (dup) {
       const roleLabel =
         dup.role === "admin"
           ? "administrador"
           : dup.role === "curimba"
-          ? "curimba"
-          : "membro";
+            ? "curimba"
+            : "membro";
 
       const hint =
         dup.role === "member"
@@ -388,7 +413,7 @@ export default function TerreiroMembers() {
           : "Vá em Gestão do terreiro e cancele.";
 
       setInviteError(
-        `Já existe um convite pendente para este e-mail (${roleLabel}). Para convidar como membro, cancele o convite pendente primeiro. ${hint}`
+        `Já existe um convite pendente para este e-mail (${roleLabel}). Para convidar como membro, cancele o convite pendente primeiro. ${hint}`,
       );
       return;
     }
@@ -433,12 +458,12 @@ export default function TerreiroMembers() {
           showToast(
             reviewMutation.friendlyError ||
               result.error ||
-              "Erro ao aprovar solicitação"
+              "Erro ao aprovar solicitação",
           );
         }
       } catch (e) {
         showToast(
-          e instanceof Error ? e.message : "Erro ao aprovar solicitação"
+          e instanceof Error ? e.message : "Erro ao aprovar solicitação",
         );
       } finally {
         setReviewingRequestIds((prev) => {
@@ -448,7 +473,7 @@ export default function TerreiroMembers() {
         });
       }
     },
-    [reviewMutation, reviewingRequestIds, showToast]
+    [reviewMutation, reviewingRequestIds, showToast],
   );
 
   const handleRejectRequest = useCallback(
@@ -463,12 +488,12 @@ export default function TerreiroMembers() {
           showToast(
             reviewMutation.friendlyError ||
               result.error ||
-              "Erro ao recusar solicitação"
+              "Erro ao recusar solicitação",
           );
         }
       } catch (e) {
         showToast(
-          e instanceof Error ? e.message : "Erro ao recusar solicitação"
+          e instanceof Error ? e.message : "Erro ao recusar solicitação",
         );
       } finally {
         setReviewingRequestIds((prev) => {
@@ -478,7 +503,7 @@ export default function TerreiroMembers() {
         });
       }
     },
-    [reviewMutation, reviewingRequestIds, showToast]
+    [reviewMutation, reviewingRequestIds, showToast],
   );
 
   const headerVisibleHeight = 52;
@@ -749,6 +774,14 @@ export default function TerreiroMembers() {
           styles.scrollContent,
           { paddingTop: headerTotalHeight + spacing.lg },
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.brass600}
+            colors={[colors.brass600]}
+          />
+        }
       >
         {/* Section 1: Members */}
         <View style={styles.section}>

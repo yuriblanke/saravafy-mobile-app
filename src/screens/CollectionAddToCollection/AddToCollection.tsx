@@ -2,8 +2,6 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
-import { SurfaceCard } from "@/src/components/SurfaceCard";
-import { TagChip } from "@/src/components/TagChip";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
 import {
@@ -30,7 +28,10 @@ import {
   View,
 } from "react-native";
 
-import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
+import {
+  addPontoToCollection,
+  removePontoFromCollection,
+} from "@/src/screens/Home/data/collections_pontos";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
 type ListPonto = {
@@ -40,6 +41,15 @@ type ListPonto = {
   lyrics: string;
   lyrics_preview_6?: string | null;
 };
+
+function joinTags(tags: string[], max = 3): string {
+  const list = Array.isArray(tags) ? tags.filter(Boolean) : [];
+  if (list.length === 0) return "";
+  const slice = list.slice(0, max);
+  const out = slice.join(" · ");
+  if (list.length > max) return `${out} · …`;
+  return out;
+}
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
@@ -55,10 +65,12 @@ function getErrorMessage(e: unknown): string {
 }
 
 function getLyricsPreview(lyrics: string, maxLines = 6) {
+  const repeatMarkerRe = /\(\s*[234]\s*x\s*\)/i;
   const lines = String(lyrics ?? "")
     .split("\n")
     .map((l) => l.trim())
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((l) => !repeatMarkerRe.test(l));
 
   const previewLines = lines.slice(0, maxLines);
   const preview = previewLines.join("\n");
@@ -69,7 +81,7 @@ function getLyricsPreview(lyrics: string, maxLines = 6) {
 function coerceStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter(
-      (v): v is string => typeof v === "string" && v.trim().length > 0
+      (v): v is string => typeof v === "string" && v.trim().length > 0,
     );
   }
   if (typeof value === "string") {
@@ -174,7 +186,12 @@ export default function AddToCollection() {
   const userId = user?.id ?? null;
 
   const collectionIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
-  const collectionId = String(collectionIdParam ?? "").trim();
+  const collectionIdLegacyParam = Array.isArray(params.collectionId)
+    ? params.collectionId[0]
+    : params.collectionId;
+  const collectionId = String(
+    collectionIdParam ?? collectionIdLegacyParam ?? "",
+  ).trim();
 
   const goBackToCollection = useCallback(() => {
     if (!collectionId) {
@@ -202,11 +219,11 @@ export default function AddToCollection() {
 
       const sub = BackHandler.addEventListener(
         "hardwareBackPress",
-        onHardwareBackPress
+        onHardwareBackPress,
       );
 
       return () => sub.remove();
-    }, [goBackToCollection])
+    }, [goBackToCollection]),
   );
 
   const baseBgColor = getSaravafyBaseColor(variant);
@@ -223,11 +240,13 @@ export default function AddToCollection() {
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
+  const selectedColor = textPrimary;
+
   const initialSearchQuery = typeof params.q === "string" ? params.q : "";
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const queryHasText = useMemo(
     () => Boolean(searchQuery.trim()),
-    [searchQuery]
+    [searchQuery],
   );
 
   const collectionQuery = useQuery({
@@ -248,7 +267,7 @@ export default function AddToCollection() {
         throw new Error(
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Erro ao carregar a coleção."
+            : "Erro ao carregar a coleção.",
         );
       }
 
@@ -279,7 +298,7 @@ export default function AddToCollection() {
   const alreadyInCollectionIds = useMemo(() => {
     const items = collectionPontosQuery.data ?? [];
     return new Set(
-      items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean)
+      items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean),
     );
   }, [collectionPontosQuery.data]);
 
@@ -294,7 +313,7 @@ export default function AddToCollection() {
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain"
+          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain",
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -333,8 +352,8 @@ export default function AddToCollection() {
               typeof row?.duration_seconds === "number"
                 ? row.duration_seconds
                 : row?.duration_seconds == null
-                ? null
-                : Number(row.duration_seconds),
+                  ? null
+                  : Number(row.duration_seconds),
             cover_url:
               typeof row?.cover_url === "string" ? row.cover_url : null,
             lyrics,
@@ -417,6 +436,7 @@ export default function AddToCollection() {
   const listData = shouldShowSearchResults ? searchedPontos : suggestions;
 
   const [addingIds, setAddingIds] = useState<string[]>([]);
+  const [removingIds, setRemovingIds] = useState<string[]>([]);
 
   const addMutation = useMutation({
     mutationFn: async (vars: { ponto: ListPonto }) => {
@@ -443,7 +463,7 @@ export default function AddToCollection() {
       const pontoId = vars.ponto.id;
 
       setAddingIds((prev) =>
-        prev.includes(pontoId) ? prev : [...prev, pontoId]
+        prev.includes(pontoId) ? prev : [...prev, pontoId],
       );
 
       const playerPonto = toPlayerPonto(vars.ponto);
@@ -486,13 +506,98 @@ export default function AddToCollection() {
       showToast(
         res.alreadyExists
           ? "Este ponto já estava na coleção"
-          : "Ponto adicionado à coleção"
+          : "Ponto adicionado à coleção",
       );
     },
     onSettled: (_data, _err, vars) => {
       const pontoId = vars?.ponto?.id;
       if (pontoId) {
         setAddingIds((prev) => prev.filter((id) => id !== pontoId));
+      }
+
+      if (collectionId) {
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.pontos(collectionId),
+        });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.collections.byId(collectionId),
+        });
+      }
+    },
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (vars: { ponto: ListPonto }) => {
+      if (!userId) {
+        throw new Error("Entre para remover pontos.");
+      }
+      if (!collectionId) {
+        throw new Error("Coleção inválida.");
+      }
+
+      const res = await removePontoFromCollection({
+        collectionId,
+        pontoId: vars.ponto.id,
+      });
+
+      if (!res.ok) {
+        throw new Error(res.error || "Erro ao remover ponto da coleção.");
+      }
+
+      return res;
+    },
+    onMutate: async (vars) => {
+      const pontoId = vars.ponto.id;
+
+      setRemovingIds((prev) =>
+        prev.includes(pontoId) ? prev : [...prev, pontoId],
+      );
+
+      const { didRemove } = removePontoFromCollectionPontosList(queryClient, {
+        collectionId,
+        pontoId,
+      });
+
+      if (didRemove) {
+        incrementCollectionPontosCountInTerreiroLists(queryClient, {
+          collectionId,
+          delta: -1,
+        });
+      }
+
+      return { pontoId, didRemove, ponto: vars.ponto };
+    },
+    onError: (e, _vars, ctx) => {
+      if (__DEV__) {
+        console.info("[AddToCollection] erro ao remover", {
+          message: getErrorMessage(e),
+          raw: e,
+        });
+      }
+
+      if (ctx?.didRemove && ctx.pontoId) {
+        const playerPonto = toPlayerPonto(ctx.ponto);
+        const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
+          collectionId,
+          ponto: playerPonto,
+        });
+        if (didInsert) {
+          incrementCollectionPontosCountInTerreiroLists(queryClient, {
+            collectionId,
+            delta: 1,
+          });
+        }
+      }
+
+      showToast(getErrorMessage(e));
+    },
+    onSuccess: () => {
+      showToast("Ponto removido da coleção");
+    },
+    onSettled: (_data, _err, vars) => {
+      const pontoId = vars?.ponto?.id;
+      if (pontoId) {
+        setRemovingIds((prev) => prev.filter((id) => id !== pontoId));
       }
 
       if (collectionId) {
@@ -538,7 +643,45 @@ export default function AddToCollection() {
       router,
       showToast,
       userId,
-    ]
+    ],
+  );
+
+  const onPressToggleSelected = useCallback(
+    async (ponto: ListPonto) => {
+      if (!collectionId) {
+        showToast("Coleção inválida.");
+        goBackToCollection();
+        return;
+      }
+
+      if (!userId) {
+        showToast("Entre para editar esta coleção.");
+        router.replace("/login");
+        return;
+      }
+
+      const isSelected = alreadyInCollectionIds.has(ponto.id);
+
+      try {
+        if (isSelected) {
+          await removeMutation.mutateAsync({ ponto });
+        } else {
+          await addMutation.mutateAsync({ ponto });
+        }
+      } catch {
+        // erro já tratado no onError
+      }
+    },
+    [
+      addMutation,
+      alreadyInCollectionIds,
+      collectionId,
+      goBackToCollection,
+      removeMutation,
+      router,
+      showToast,
+      userId,
+    ],
   );
 
   const Header = (
@@ -620,6 +763,15 @@ export default function AddToCollection() {
           </Pressable>
         ) : null}
       </View>
+
+      {!queryHasText ? (
+        <Text
+          style={[styles.searchHint, { color: textSecondary }]}
+          numberOfLines={2}
+        >
+          Sugestões — digite para buscar no acervo
+        </Text>
+      ) : null}
     </View>
   );
 
@@ -627,116 +779,122 @@ export default function AddToCollection() {
     ({ item }: { item: ListPonto }) => {
       const isAlready = alreadyInCollectionIds.has(item.id);
       const isAdding = addingIds.includes(item.id);
-      const disabled = isAlready || isAdding;
+      const isRemoving = removingIds.includes(item.id);
+      const disabled = isAdding || isRemoving;
+
+      const lyrics = String(item.lyrics ?? "").trim();
+      const subtitle = getLyricsPreview(
+        lyrics || String(item.lyrics_preview_6 ?? ""),
+        4,
+      );
+      const tagsText = joinTags(item.tags ?? [], 3);
 
       return (
-        <View style={styles.cardGap}>
+        <View style={[styles.row, { borderBottomColor: borderColor }]}>
           <Pressable
-            accessibilityRole="button"
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: isAlready, disabled }}
             accessibilityLabel={
               disabled
-                ? isAlready
-                  ? "Já está na coleção"
-                  : "Adicionando"
-                : "Adicionar ponto à coleção"
+                ? isAdding
+                  ? "Adicionando"
+                  : "Removendo"
+                : isAlready
+                  ? "Desselecionar"
+                  : "Selecionar"
             }
             onPress={() => {
               if (disabled) return;
-              void onPressAdd(item);
+              void onPressToggleSelected(item);
             }}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.circleBtn,
+              pressed && !disabled ? { opacity: 0.75 } : null,
+            ]}
           >
-            <SurfaceCard variant={variant} style={styles.cardContainer}>
-              <View style={styles.cardHeaderRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={
-                    disabled
-                      ? isAlready
-                        ? "Já adicionado"
-                        : "Adicionando"
-                      : "Adicionar"
-                  }
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    void onPressAdd(item);
-                  }}
-                  disabled={disabled}
-                  hitSlop={10}
-                  style={({ pressed }) => [
-                    styles.selectBtn,
-                    {
-                      borderColor,
-                      opacity: disabled ? 0.5 : pressed ? 0.75 : 1,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name={isAlready ? "checkmark" : "add"}
-                    size={18}
-                    color={textPrimary}
-                  />
-                </Pressable>
+            <View
+              style={[
+                styles.circleOuter,
+                {
+                  borderColor: isAlready ? selectedColor : borderColor,
+                  backgroundColor: isAlready ? selectedColor : "transparent",
+                  opacity: disabled ? 0.6 : 1,
+                },
+              ]}
+            >
+              {isAlready ? (
+                <Ionicons name="checkmark" size={14} color={baseBgColor} />
+              ) : null}
+            </View>
+          </Pressable>
 
-                <Text
-                  style={[styles.cardTitle, { color: textPrimary, flex: 1 }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {item.title}
-                </Text>
-
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={(e) => {
-                    e.stopPropagation();
-                    router.push({
-                      pathname: "/player",
-                      params: {
-                        source: "all",
-                        q: searchQuery,
-                        initialPontoId: item.id,
-                        returnTo: "collection-add",
-                        returnCollectionId: collectionId,
-                        returnQ: searchQuery,
-                      },
-                    });
-                  }}
-                  accessibilityLabel="Abrir preview no player"
-                  hitSlop={10}
-                  style={({ pressed }) => [
-                    styles.previewBtn,
-                    {
-                      borderColor,
-                      opacity: pressed ? 0.75 : 1,
-                    },
-                  ]}
-                >
-                  <Ionicons
-                    name="play-outline"
-                    size={18}
-                    color={textPrimary}
-                  />
-                </Pressable>
-              </View>
-
-              <View style={styles.tagsRow}>
-                {item.tags.map((tag) => (
-                  <TagChip
-                    key={`${item.id}-${tag}`}
-                    label={tag}
-                    variant={variant}
-                  />
-                ))}
-              </View>
-
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isAlready ? "Desselecionar ponto" : "Selecionar ponto"
+            }
+            onPress={() => {
+              if (disabled) return;
+              void onPressToggleSelected(item);
+            }}
+            style={({ pressed }) => [
+              styles.rowText,
+              pressed && !disabled ? { opacity: 0.75 } : null,
+            ]}
+          >
+            <Text
+              style={[styles.itemTitle, { color: textPrimary }]}
+              numberOfLines={1}
+            >
+              {(item.title ?? "").trim() || "Ponto"}
+            </Text>
+            {tagsText ? (
               <Text
-                style={[styles.cardPreview, { color: textSecondary }]}
-                numberOfLines={6}
-                ellipsizeMode="tail"
+                style={[styles.itemSubtitle, { color: textSecondary }]}
+                numberOfLines={1}
               >
-                {item.lyrics_preview_6 ?? getLyricsPreview(item.lyrics, 6)}
+                {tagsText}
               </Text>
-            </SurfaceCard>
+            ) : null}
+            {subtitle ? (
+              <Text
+                style={[styles.itemSubtitle, { color: textSecondary }]}
+                numberOfLines={4}
+              >
+                {subtitle}
+              </Text>
+            ) : null}
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Abrir preview no player"
+            onPress={() => {
+              router.push({
+                pathname: "/player",
+                params: {
+                  source: "all",
+                  q: searchQuery,
+                  initialPontoId: item.id,
+                  returnTo: "collection-add",
+                  returnCollectionId: collectionId,
+                  returnQ: searchQuery,
+                },
+              });
+            }}
+            hitSlop={10}
+            style={styles.rightBtn}
+          >
+            <Ionicons
+              name="play-outline"
+              size={20}
+              color={
+                variant === "light"
+                  ? colors.textMutedOnLight
+                  : colors.textMutedOnDark
+              }
+            />
           </Pressable>
         </View>
       );
@@ -744,14 +902,17 @@ export default function AddToCollection() {
     [
       addingIds,
       alreadyInCollectionIds,
+      baseBgColor,
       borderColor,
-      onPressAdd,
+      onPressToggleSelected,
       router,
+      removingIds,
       searchQuery,
+      selectedColor,
       textPrimary,
       textSecondary,
       variant,
-    ]
+    ],
   );
 
   const ListHeader = useMemo(() => {
@@ -868,6 +1029,13 @@ const styles = StyleSheet.create({
   searchInput: {
     fontSize: 14,
   },
+  searchHint: {
+    marginTop: spacing.sm,
+    paddingLeft: 30 + spacing.md,
+    fontSize: 12,
+    lineHeight: 16,
+    fontWeight: "600",
+  },
   clearButton: {
     position: "absolute",
     right: 10,
@@ -889,48 +1057,44 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  cardGap: {
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: spacing.lg,
-    paddingTop: spacing.md,
+    paddingVertical: spacing.md,
+    borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  cardContainer: {
-    padding: 14,
-  },
-  cardHeaderRow: {
-    flexDirection: "row",
+  circleBtn: {
+    width: 30,
     alignItems: "center",
-    justifyContent: "flex-start",
-    gap: spacing.sm,
-  },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  selectBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    borderWidth: 2,
     justifyContent: "center",
-    alignItems: "center",
+    marginRight: spacing.md,
   },
-  previewBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
+  circleOuter: {
+    width: 20,
+    height: 20,
+    borderRadius: 999,
     borderWidth: 2,
-    justifyContent: "center",
     alignItems: "center",
+    justifyContent: "center",
   },
-  tagsRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-    paddingTop: spacing.sm,
+  rowText: {
+    flex: 1,
+    minHeight: 48,
   },
-  cardPreview: {
-    paddingTop: spacing.sm,
-    fontSize: 13,
-    lineHeight: 18,
+  itemTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  itemSubtitle: {
+    marginTop: 2,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  rightBtn: {
+    width: 30,
+    alignItems: "center",
+    justifyContent: "center",
+    marginLeft: spacing.md,
   },
 });

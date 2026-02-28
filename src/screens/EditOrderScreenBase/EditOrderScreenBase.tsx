@@ -58,6 +58,8 @@ export type EditOrderScreenBaseProps = {
   onSave: (orderedIds: string[]) => Promise<void>;
   allowRemove: boolean;
 
+  onBack?: () => void;
+
   successToast?: string;
   errorToastFallback?: string;
 
@@ -74,6 +76,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     items,
     onSave,
     allowRemove,
+    onBack,
     successToast = "Atualizado.",
     errorToastFallback = "Não foi possível salvar.",
     discardConfirmTitle = "Descartar alterações?",
@@ -155,19 +158,28 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     return !arraysEqual(initialOrderedIds, draftOrderedIds);
   }, [draftOrderedIds, initialOrderedIds]);
 
+  const performBack = useCallback(() => {
+    if (onBack) {
+      onBack();
+      return;
+    }
+
+    router.back();
+  }, [onBack, router]);
+
   const handleBack = useCallback(() => {
     if (saving) return;
 
     if (!dirty) {
-      router.back();
+      performBack();
       return;
     }
 
     Alert.alert(discardConfirmTitle, discardConfirmMessage, [
       { text: "Continuar", style: "cancel" },
-      { text: "Descartar", style: "destructive", onPress: () => router.back() },
+      { text: "Descartar", style: "destructive", onPress: () => performBack() },
     ]);
-  }, [dirty, discardConfirmMessage, discardConfirmTitle, router, saving]);
+  }, [dirty, discardConfirmMessage, discardConfirmTitle, performBack, saving]);
 
   useEffect(() => {
     if (Platform.OS !== "android") return;
@@ -196,12 +208,12 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
         },
       ]);
     },
-    [allowRemove, removeConfirmMessage, removeConfirmTitle, saving]
+    [allowRemove, removeConfirmMessage, removeConfirmTitle, saving],
   );
 
   const save = useCallback(async () => {
     if (!dirty) {
-      router.back();
+      performBack();
       return;
     }
 
@@ -211,7 +223,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     try {
       await onSave(draftOrderedIds);
       showToast(successToast);
-      router.back();
+      performBack();
     } catch (e) {
       showToast(e instanceof Error ? e.message : errorToastFallback);
     } finally {
@@ -222,7 +234,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     draftOrderedIds,
     errorToastFallback,
     onSave,
-    router,
+    performBack,
     shouldBlockPress,
     showToast,
     successToast,
@@ -291,7 +303,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
         </View>
       );
     },
-    [allowRemove, borderColor, removeItem, textPrimary, textSecondary, variant]
+    [allowRemove, borderColor, removeItem, textPrimary, textSecondary, variant],
   );
 
   return (

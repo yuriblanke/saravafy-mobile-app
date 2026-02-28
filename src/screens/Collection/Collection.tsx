@@ -28,6 +28,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
+import { Share2 } from "lucide-react-native";
 import React, {
   useCallback,
   useEffect,
@@ -38,9 +39,12 @@ import React, {
 import {
   ActivityIndicator,
   Animated,
+  BackHandler,
   FlatList,
   Image,
+  Platform,
   Pressable,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -104,7 +108,7 @@ function isColumnMissingError(error: unknown, columnName: string) {
     typeof error === "object" &&
     "message" in error &&
     typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message ?? ""
+      ? ((error as { message: string }).message ?? "")
       : "";
 
   const m = msg.toLowerCase();
@@ -148,7 +152,7 @@ export default function Collection() {
     ? params.collectionId[0]
     : params.collectionId;
   const collectionId = String(
-    collectionIdFromParams ?? collectionIdFromLegacyParams ?? ""
+    collectionIdFromParams ?? collectionIdFromLegacyParams ?? "",
   );
   const titleFallback =
     (typeof params.collectionTitle === "string" &&
@@ -203,8 +207,19 @@ export default function Collection() {
   const terreiroIdFromParams = Array.isArray(params.terreiroId)
     ? params.terreiroId[0]
     : typeof params.terreiroId === "string"
-    ? params.terreiroId
-    : "";
+      ? params.terreiroId
+      : "";
+
+  const returnToParam = Array.isArray(params.returnTo)
+    ? params.returnTo[0]
+    : params.returnTo;
+  const returnTo = typeof returnToParam === "string" ? returnToParam : "";
+
+  const returnTerreiroIdParam = Array.isArray(params.returnTerreiroId)
+    ? params.returnTerreiroId[0]
+    : params.returnTerreiroId;
+  const returnTerreiroId =
+    typeof returnTerreiroIdParam === "string" ? returnTerreiroIdParam : "";
 
   const terreiroId =
     typeof collection?.owner_terreiro_id === "string"
@@ -215,20 +230,46 @@ export default function Collection() {
   const isMembersOnly = !!collection && visibility === "members";
 
   const goBackFromCollection = useCallback(() => {
-    if (terreiroId && terreiroId.trim()) {
+    const targetTerreiroId =
+      (returnTo === "terreiro" ? returnTerreiroId.trim() : "") ||
+      terreiroId.trim();
+
+    if (targetTerreiroId) {
       router.replace({
         pathname: "/terreiro" as any,
-        params: { terreiroId },
+        params: { terreiroId: targetTerreiroId },
       });
       return;
     }
 
     router.back();
-  }, [router, terreiroId]);
+  }, [router, returnTerreiroId, returnTo, terreiroId]);
+
+  const handleBackPress = useCallback(() => {
+    if (isNameDetailsOpen) {
+      setIsNameDetailsOpen(false);
+      return;
+    }
+
+    goBackFromCollection();
+  }, [goBackFromCollection, isNameDetailsOpen]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        handleBackPress();
+        return true;
+      });
+
+      return () => sub.remove();
+    }, [handleBackPress]),
+  );
 
   const membership = useTerreiroMembershipStatus(terreiroId);
   const createRequest = useCreateTerreiroMembershipRequest(
-    isMembersOnly ? terreiroId : ""
+    isMembersOnly ? terreiroId : "",
   );
 
   const myRole = membership.data.role;
@@ -283,7 +324,7 @@ export default function Collection() {
       // Se a collection for members-only e o usuário não for membro, isso será
       // desativado assim que a metadata carregar.
       allowCachedWhileDisabled: !collection || !isMembersOnly || isMember,
-    }
+    },
   );
 
   const pontoIds = useMemo(() => {
@@ -301,12 +342,12 @@ export default function Collection() {
   const canSeeMediumTags = !!terreiroId;
   const customTagsMapQuery = useTerreiroPontosCustomTagsMap(
     { terreiroId, pontoIds },
-    { enabled: canSeeMediumTags && pontoIds.length > 0 }
+    { enabled: canSeeMediumTags && pontoIds.length > 0 },
   );
   const customTagsMap = customTagsMapQuery.data ?? {};
 
   const [mediumTargetPontoId, setMediumTargetPontoId] = useState<string | null>(
-    null
+    null,
   );
 
   const [deleteTarget, setDeleteTarget] = useState<null | {
@@ -346,7 +387,7 @@ export default function Collection() {
           ? await supabase
               .from("collections")
               .select(
-                "id, title, owner_terreiro_id, owner_user_id, visibility, terreiros:owner_terreiro_id (title, cover_image_url)"
+                "id, title, owner_terreiro_id, owner_user_id, visibility, terreiros:owner_terreiro_id (title, cover_image_url)",
               )
               .eq("id", collectionId)
               .single()
@@ -413,8 +454,45 @@ export default function Collection() {
 
       reloadPontos();
       loadCollection();
-    }, [collectionId, loadCollection, reloadPontos])
+    }, [collectionId, loadCollection, reloadPontos]),
   );
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        loadCollection(),
+        membership.reload ? membership.reload() : Promise.resolve(),
+        shouldLoadPontos ? reloadPontos() : Promise.resolve(),
+        audioMetaQuery.refetch ? audioMetaQuery.refetch() : Promise.resolve(),
+        customTagsMapQuery.refetch
+          ? customTagsMapQuery.refetch()
+          : Promise.resolve(),
+      ]);
+    } catch (e) {
+      if (__DEV__) {
+        console.info("[Collection] onRefresh unhandled", {
+          collectionId,
+          error: getErrorMessage(e),
+          raw: e,
+        });
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [
+    audioMetaQuery,
+    customTagsMapQuery,
+    collectionId,
+    isRefreshing,
+    loadCollection,
+    membership,
+    reloadPontos,
+    shouldLoadPontos,
+  ]);
 
   const title =
     (typeof collection?.title === "string" && collection.title.trim()) ||
@@ -446,7 +524,7 @@ export default function Collection() {
     }
 
     const draftKey = `collection-edit:${collectionId}:${Date.now().toString(
-      36
+      36,
     )}:${Math.random().toString(36).slice(2)}`;
     putCollectionEditDraft({
       draftKey,
@@ -524,7 +602,7 @@ export default function Collection() {
         useNativeDriver: true,
       }).start();
     },
-    [headerTitleOpacity]
+    [headerTitleOpacity],
   );
 
   const titleShareOpacity = useMemo(() => {
@@ -545,7 +623,7 @@ export default function Collection() {
         useNativeDriver: true,
       }).start();
     },
-    [headerGradientOpacity]
+    [headerGradientOpacity],
   );
 
   const headerBackdropOpacity = useMemo(() => {
@@ -571,8 +649,8 @@ export default function Collection() {
     variant === "light"
       ? textPrimary
       : isHeaderTitleVisible
-      ? colors.paper50
-      : textPrimary;
+        ? colors.paper50
+        : textPrimary;
 
   const terreiroRowTopY = useMemo(() => {
     if (typeof titleBlockY !== "number" || typeof terreiroRowY !== "number") {
@@ -592,17 +670,17 @@ export default function Collection() {
     // já não estiver mais passando por trás do header.
     const topGradientNoLongerBehindHeader = Math.max(
       0,
-      topGradientHeight - headerTotalHeight
+      topGradientHeight - headerTotalHeight,
     );
 
     if (typeof actionsBottomY === "number" && actionsBottomY > 0) {
       const actionsBottomReachedHeader = Math.max(
         0,
-        actionsBottomY - headerTotalHeight
+        actionsBottomY - headerTotalHeight,
       );
       return Math.max(
         actionsBottomReachedHeader,
-        topGradientNoLongerBehindHeader
+        topGradientNoLongerBehindHeader,
       );
     }
     const base = typeof h1Height === "number" && h1Height > 0 ? h1Height : 44;
@@ -634,7 +712,7 @@ export default function Collection() {
       headerGradientThreshold,
       setHeaderGradientVisible,
       setHeaderTitleVisible,
-    ]
+    ],
   );
 
   const openNameDetails = useCallback(() => {
@@ -691,9 +769,9 @@ export default function Collection() {
           if (res2.error) {
             throw new Error(
               typeof res2.error.message === "string" &&
-              res2.error.message.trim()
+                res2.error.message.trim()
                 ? res2.error.message
-                : "Não foi possível salvar."
+                : "Não foi possível salvar.",
             );
           }
 
@@ -706,7 +784,7 @@ export default function Collection() {
                       ? res2.data.title
                       : nextTitle,
                 }
-              : prev
+              : prev,
           );
           showToast("Nome atualizado.");
           setIsNameDetailsOpen(false);
@@ -715,7 +793,7 @@ export default function Collection() {
             throw new Error(
               typeof res.error.message === "string" && res.error.message.trim()
                 ? res.error.message
-                : "Não foi possível salvar."
+                : "Não foi possível salvar.",
             );
           }
 
@@ -732,7 +810,7 @@ export default function Collection() {
                       ? res.data.description
                       : String(next.description ?? ""),
                 }
-              : prev
+              : prev,
           );
 
           showToast("Coleção atualizada.");
@@ -767,7 +845,7 @@ export default function Collection() {
       showToast,
       terreiroId,
       user?.id,
-    ]
+    ],
   );
 
   const deleteCollection = useCallback(async () => {
@@ -797,7 +875,7 @@ export default function Collection() {
         throw new Error(
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Não foi possível excluir a coleção."
+            : "Não foi possível excluir a coleção.",
         );
       }
 
@@ -892,7 +970,7 @@ export default function Collection() {
 
           <Pressable
             accessibilityRole="button"
-            onPress={goBackFromCollection}
+            onPress={handleBackPress}
             hitSlop={10}
             style={styles.headerIconBtn}
           >
@@ -927,7 +1005,7 @@ export default function Collection() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={18} color={headerFgColor} />
+              <Share2 size={18} color={headerFgColor} />
             </Pressable>
           </Animated.View>
         </View>
@@ -975,6 +1053,14 @@ export default function Collection() {
             { paddingTop: headerTotalHeight },
           ]}
           scrollEventThrottle={16}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.brass600}
+              colors={[colors.brass600]}
+            />
+          }
           onScroll={(e) => {
             onScroll(e.nativeEvent.contentOffset.y);
           }}
@@ -1029,11 +1115,7 @@ export default function Collection() {
                   hitSlop={10}
                   style={styles.headerIconBtn}
                 >
-                  <Ionicons
-                    name="share-outline"
-                    size={20}
-                    color={textPrimary}
-                  />
+                  <Share2 size={20} color={textPrimary} />
                 </Pressable>
               </Animated.View>
             </Animated.View>
@@ -1168,7 +1250,7 @@ export default function Collection() {
 
           {isLoading ? (
             <View style={styles.centerInScroll}>
-              <ActivityIndicator />
+              <ActivityIndicator color={colors.brass600} />
               <Text style={[styles.bodyText, { color: textSecondary }]}>
                 Carregando…
               </Text>
@@ -1360,14 +1442,14 @@ export default function Collection() {
                           showToast(
                             result.alreadyExisted
                               ? "Pedido já enviado (pendente)."
-                              : "Pedido enviado (pendente)."
+                              : "Pedido enviado (pendente).",
                           );
                           await membership.reload();
                           return;
                         }
 
                         showToast(
-                          "Não foi possível enviar o pedido agora. Tente novamente."
+                          "Não foi possível enviar o pedido agora. Tente novamente.",
                         );
                       }}
                       style={({ pressed }) => [
@@ -1474,6 +1556,8 @@ export default function Collection() {
                             pathname: "/player",
                             params: {
                               collectionId,
+                              returnTo: "collection",
+                              returnCollectionId: collectionId,
                               initialPontoId: item.ponto.id,
                               terreiroId: terreiroId || undefined,
                             },
@@ -1517,7 +1601,7 @@ export default function Collection() {
 
                           {(() => {
                             const mediumTags = canSeeMediumTags
-                              ? customTagsMap[item.ponto.id] ?? []
+                              ? (customTagsMap[item.ponto.id] ?? [])
                               : [];
                             const pointTags = Array.isArray(item.ponto.tags)
                               ? item.ponto.tags

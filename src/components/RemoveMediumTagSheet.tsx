@@ -115,7 +115,7 @@ export function RemoveMediumTagSheet(props: {
             ...prev,
             [pontoId]: existing.filter((t) => t.id !== tagId),
           };
-        }
+        },
       );
 
       setIsDeleting(false);
@@ -183,7 +183,7 @@ export function RemoveMediumTagSheet(props: {
             ]}
           >
             {isDeleting ? (
-              <ActivityIndicator />
+              <ActivityIndicator color={colors.brass600} />
             ) : (
               <Text style={styles.destructiveActionText}>Remover</Text>
             )}

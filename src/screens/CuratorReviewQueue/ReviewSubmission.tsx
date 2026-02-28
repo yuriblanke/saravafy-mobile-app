@@ -537,7 +537,7 @@ export default function ReviewSubmissionScreen() {
         style={[styles.safeArea, { backgroundColor: bgColor }]}
       >
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.brass600} />
           <Text style={[styles.centerText, { color: textSecondary }]}>
             Carregando…
           </Text>
@@ -836,7 +836,7 @@ export default function ReviewSubmissionScreen() {
                   {isAudioUpload ? (
                     pontoAudioMetaQuery.isLoading ? (
                       <View style={styles.audioLoadingRow}>
-                        <ActivityIndicator />
+                        <ActivityIndicator color={colors.brass600} />
                         <Text
                           style={[
                             styles.audioMetaText,

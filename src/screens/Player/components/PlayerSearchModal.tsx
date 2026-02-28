@@ -26,13 +26,8 @@ export function PlayerSearchModal(props: {
   const { visible, onClose, variant } = props;
 
   const [query, setQuery] = useState("");
-  const {
-    canSearch,
-    isLoading,
-    results,
-    error,
-    lastSearched,
-  } = usePontosSearch(query, { enabled: visible, limit: 20, offset: 0 });
+  const { canSearch, isLoading, results, error, lastSearched } =
+    usePontosSearch(query, { enabled: visible, limit: 20, offset: 0 });
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -103,7 +98,7 @@ export function PlayerSearchModal(props: {
               <View style={styles.stateWrap} />
             ) : isLoading ? (
               <View style={styles.stateWrap}>
-                <ActivityIndicator />
+                <ActivityIndicator color={colors.brass600} />
               </View>
             ) : error ? (
               <View style={styles.stateWrap}>

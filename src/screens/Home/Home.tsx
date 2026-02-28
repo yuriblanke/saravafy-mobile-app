@@ -171,13 +171,13 @@ export default function Home() {
       setQueriesDataSafe<EditableCollection[]>(
         queryClient,
         { queryKey: queryKeys.collections.accountable(userId) },
-        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now })
+        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now }),
       );
 
       patchQueriesByPrefix<EditableCollection[]>(
         queryClient,
         queryKeys.collections.editableByUserPrefix(userId),
-        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now })
+        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now }),
       );
 
       // Se existir cache do detalhe da collection, mantém consistente.
@@ -187,7 +187,7 @@ export default function Home() {
         (old: any) => {
           if (!old || typeof old !== "object") return old;
           return { ...old, updated_at: now };
-        }
+        },
       );
 
       let didInsertPonto = false;
@@ -223,7 +223,7 @@ export default function Home() {
               : "",
           tags: Array.isArray((pontoSnapshot as any).tags)
             ? ((pontoSnapshot as any).tags as any[]).filter(
-                (t) => typeof t === "string"
+                (t) => typeof t === "string",
               )
             : [],
         };
@@ -332,6 +332,7 @@ export default function Home() {
   const [pontos, setPontos] = useState<Ponto[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const {
     canSearch,
@@ -343,7 +344,7 @@ export default function Home() {
 
   const queryHasText = useMemo(
     () => Boolean(searchQuery.trim()),
-    [searchQuery]
+    [searchQuery],
   );
 
   type PontoListItem = Ponto & {
@@ -369,7 +370,7 @@ export default function Home() {
   const [visiblePontoIds, setVisiblePontoIds] = useState<string[]>([]);
   const viewabilityConfig = useMemo(
     () => ({ viewAreaCoveragePercentThreshold: 25 }),
-    []
+    [],
   );
   const onViewableItemsChanged = useRef(
     ({ viewableItems }: { viewableItems: Array<{ item: any }> }) => {
@@ -377,22 +378,26 @@ export default function Home() {
         .map((v) => String(v?.item?.id ?? ""))
         .filter(Boolean);
       setVisiblePontoIds(Array.from(new Set(ids)).slice(0, 60));
-    }
+    },
   );
 
   const latestAudioMetaQuery = useLatestPontoAudioMetaByPontoIds(
     visiblePontoIds,
     {
       enabled: true,
-    }
+    },
   );
   const latestAudioMetaByPontoId = latestAudioMetaQuery.data ?? {};
 
+  const PONTOS_REFRESH_STALE_MS = 10 * 60_000;
   const lastRefreshAtRef = useRef<number>(0);
 
   useEffect(() => {
     fetchAllPontos()
-      .then(setPontos)
+      .then((data) => {
+        setPontos(data);
+        lastRefreshAtRef.current = Date.now();
+      })
       .catch((e) => {
         if (__DEV__) {
           const msg = getErrorMessage(e);
@@ -406,22 +411,53 @@ export default function Home() {
       .finally(() => setIsLoading(false));
   }, []);
 
+  const onPullToRefresh = useCallback(() => {
+    if (isRefreshing) return;
+
+    setIsRefreshing(true);
+    fetchAllPontos()
+      .then((data) => {
+        setPontos(data);
+        lastRefreshAtRef.current = Date.now();
+      })
+      .catch(() => {
+        // Silencioso: mantém a lista atual se falhar.
+      })
+      .finally(() => setIsRefreshing(false));
+  }, [isRefreshing]);
+
   useFocusEffect(
     useCallback(() => {
       void refetchIsCurator();
 
-      // Mantém a lista consistente ao voltar de telas que podem criar/aprovar pontos
-      // (ex.: fila de revisão). Throttle simples para evitar refetch em excesso.
       const now = Date.now();
-      if (now - lastRefreshAtRef.current < 8_000) return;
-      lastRefreshAtRef.current = now;
+      const lastWriteAt = queryClient.getQueryData(
+        queryKeys.pontos.lastWriteAt(),
+      ) as number | undefined;
+      const hasLocalWrite =
+        typeof lastWriteAt === "number" &&
+        Number.isFinite(lastWriteAt) &&
+        lastWriteAt > lastRefreshAtRef.current;
+
+      // Regra:
+      // - Refetch no máximo a cada ~30min (melhor UX e menos custo)
+      // - MAS: se a própria app gravou/alterou pontos (ex.: curadoria aprova), refetch imediato.
+      if (
+        !hasLocalWrite &&
+        now - lastRefreshAtRef.current < PONTOS_REFRESH_STALE_MS
+      ) {
+        return;
+      }
 
       fetchAllPontos()
-        .then(setPontos)
+        .then((data) => {
+          setPontos(data);
+          lastRefreshAtRef.current = Date.now();
+        })
         .catch(() => {
           // Silencioso: não quebra a tela se falhar em background.
         });
-    }, [refetchIsCurator])
+    }, [PONTOS_REFRESH_STALE_MS, queryClient, refetchIsCurator]),
   );
 
   const editingInitialValues: PontoUpsertInitialValues | undefined =
@@ -447,7 +483,7 @@ export default function Home() {
   const editableCollectionsQuery = useEditableCollections(userId);
   const editableCollections = useMemo(
     () => editableCollectionsQuery.data ?? [],
-    [editableCollectionsQuery.data]
+    [editableCollectionsQuery.data],
   );
   const collectionsError = editableCollectionsQuery.isError
     ? getErrorMessage(editableCollectionsQuery.error)
@@ -456,7 +492,7 @@ export default function Home() {
   const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
   const myEditableTerreiros = useMemo(
     () => myEditableTerreirosQuery.data ?? [],
-    [myEditableTerreirosQuery.data]
+    [myEditableTerreirosQuery.data],
   );
 
   const collectionsFilterItems: SelectItem[] = useMemo(() => {
@@ -496,7 +532,7 @@ export default function Home() {
     if (collectionsFilter === "all") return editableCollections;
     if (collectionsFilter === "user") {
       return editableCollections.filter(
-        (c) => c.owner_user_id === userId && !c.owner_terreiro_id
+        (c) => c.owner_user_id === userId && !c.owner_terreiro_id,
       );
     }
     if (collectionsFilter.startsWith("terreiro:")) {
@@ -559,7 +595,7 @@ export default function Home() {
       editableCollectionsQuery.isFetching,
       rootPager,
       userId,
-    ]
+    ],
   );
 
   const getCollectionOwnerLabel = (c: EditableCollection) => {
@@ -654,14 +690,14 @@ export default function Home() {
       patchQueriesByPrefix<EditableCollection[]>(
         queryClient,
         queryKeys.collections.editableByUserPrefix(userId),
-        (old) => upsertById(old ?? [], optimistic, { prepend: true })
+        (old) => upsertById(old ?? [], optimistic, { prepend: true }),
       );
 
       // AccountableCollections pode existir em outros lugares; manter consistente.
       setQueriesDataSafe<EditableCollection[]>(
         queryClient,
         { queryKey: queryKeys.collections.accountable(userId) },
-        (old) => upsertById(old ?? [], optimistic, { prepend: true })
+        (old) => upsertById(old ?? [], optimistic, { prepend: true }),
       );
 
       return { snapshot, tempId };
@@ -691,7 +727,7 @@ export default function Home() {
           const list = Array.isArray(old) ? old : [];
           const replaced = replaceId(list, tempId, realId);
           return upsertById(replaced, finalItem, { prepend: true });
-        }
+        },
       );
       setQueriesDataSafe<EditableCollection[]>(
         queryClient,
@@ -700,7 +736,7 @@ export default function Home() {
           const list = Array.isArray(old) ? old : [];
           const replaced = replaceId(list, tempId, realId);
           return upsertById(replaced, finalItem, { prepend: true });
-        }
+        },
       );
     },
     onSettled: (_data, _err, _vars, ctx) => {
@@ -711,12 +747,12 @@ export default function Home() {
         patchQueriesByPrefix<EditableCollection[]>(
           queryClient,
           queryKeys.collections.editableByUserPrefix(userId),
-          (old) => removeById(old ?? [], ctx.tempId)
+          (old) => removeById(old ?? [], ctx.tempId),
         );
         setQueriesDataSafe<EditableCollection[]>(
           queryClient,
           { queryKey: queryKeys.collections.accountable(userId) },
-          (old) => removeById(old ?? [], ctx.tempId)
+          (old) => removeById(old ?? [], ctx.tempId),
         );
       }
 
@@ -863,7 +899,7 @@ export default function Home() {
             <View
               style={{ paddingHorizontal: spacing.lg, paddingTop: spacing.lg }}
             >
-              <ActivityIndicator />
+              <ActivityIndicator color={colors.brass600} />
             </View>
           ) : searchedPontos.length === 0 && lastSearched ? (
             <View style={{ paddingHorizontal: spacing.lg }}>
@@ -1065,7 +1101,10 @@ export default function Home() {
                 setLoadError(null);
                 setIsLoading(true);
                 fetchAllPontos()
-                  .then(setPontos)
+                  .then((data) => {
+                    setPontos(data);
+                    lastRefreshAtRef.current = Date.now();
+                  })
                   .catch((e) => {
                     if (__DEV__) {
                       console.info("[Pontos] erro ao carregar", {
@@ -1075,7 +1114,7 @@ export default function Home() {
                     setLoadError(
                       __DEV__ && e instanceof Error && e.message
                         ? e.message
-                        : "Erro ao carregar pontos."
+                        : "Erro ao carregar pontos.",
                     );
                   })
                   .finally(() => setIsLoading(false));
@@ -1106,6 +1145,8 @@ export default function Home() {
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
             extraData={variant}
+            refreshing={isRefreshing}
+            onRefresh={onPullToRefresh}
             viewabilityConfig={viewabilityConfig}
             onViewableItemsChanged={onViewableItemsChanged.current}
             renderItem={({ item }) => (
@@ -1467,7 +1508,7 @@ export default function Home() {
                               if (__DEV__) {
                                 console.info(
                                   "[AddToCollection] unexpected error",
-                                  e
+                                  e,
                                 );
                               }
                               return;
@@ -1662,7 +1703,7 @@ export default function Home() {
         onSubmitted={() => {
           Alert.alert(
             "Enviado para curadoria",
-            "Seu ponto foi enviado e será validado pelos curadores do Saravafy. Quando aprovado, ele entrará para a biblioteca do app."
+            "Seu ponto foi enviado e será validado pelos curadores do Saravafy. Quando aprovado, ele entrará para a biblioteca do app.",
           );
         }}
       />
@@ -1691,13 +1732,16 @@ export default function Home() {
                     is_public_domain:
                       typeof (updated as any).is_public_domain === "boolean"
                         ? (updated as any).is_public_domain
-                        : (p as any).is_public_domain ?? null,
+                        : ((p as any).is_public_domain ?? null),
                     lyrics: updated.lyrics,
                     tags: updated.tags,
                   }
-                : p
-            )
+                : p,
+            ),
           );
+
+          // Já estamos consistentes com o banco após salvar a edição.
+          lastRefreshAtRef.current = Date.now();
         }}
       />
     </View>

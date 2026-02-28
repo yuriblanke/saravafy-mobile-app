@@ -1,6 +1,8 @@
 import "react-native-reanimated";
 
 import FontAwesome from "@expo/vector-icons/FontAwesome";
+import Ionicons from "@expo/vector-icons/Ionicons";
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import {
   DarkTheme,
   DefaultTheme,
@@ -104,6 +106,8 @@ export default function RootLayout() {
   const [loaded, error] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
     ...FontAwesome.font,
+    ...Ionicons.font,
+    ...MaterialCommunityIcons.font,
   });
 
   // Warm remote config in background once per app boot.

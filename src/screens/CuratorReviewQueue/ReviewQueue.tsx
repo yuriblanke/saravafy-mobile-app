@@ -112,7 +112,7 @@ export default function ReviewQueueScreen() {
         style={[styles.safeArea, { backgroundColor: bgColor }]}
       >
         <View style={styles.center}>
-          <ActivityIndicator />
+          <ActivityIndicator color={colors.brass600} />
           <Text style={[styles.centerText, { color: textSecondary }]}>
             Carregando…
           </Text>
@@ -174,7 +174,7 @@ export default function ReviewQueueScreen() {
 
         {submissionsQuery.isLoading ? (
           <View style={styles.center}>
-            <ActivityIndicator />
+            <ActivityIndicator color={colors.brass600} />
             <Text style={[styles.centerText, { color: textSecondary }]}>
               Carregando envios…
             </Text>

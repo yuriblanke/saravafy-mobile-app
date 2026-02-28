@@ -79,7 +79,7 @@ function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
 
 async function rpcTerreiroInvite(
   fnName: "accept_terreiro_invite" | "reject_terreiro_invite",
-  inviteId: string
+  inviteId: string,
 ) {
   // Prefer `invite_id` (new signature) but fall back to `p_invite_id`.
   // PostgREST requires the argument names to match the function signature.
@@ -164,8 +164,8 @@ function toDebugFromUnknown(params: {
     error instanceof Error
       ? error.message
       : typeof asAny?.message === "string"
-      ? asAny.message
-      : "";
+        ? asAny.message
+        : "";
 
   const code = typeof asAny?.code === "string" ? asAny.code : undefined;
   const details =
@@ -211,7 +211,7 @@ export function InviteGate() {
 
   const [pendingInvites, setPendingInvites] = useState<TerreiroInvite[]>([]);
   const [currentInvite, setCurrentInvite] = useState<TerreiroInvite | null>(
-    null
+    null,
   );
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -249,9 +249,8 @@ export function InviteGate() {
     }
 
     try {
-      snoozeMapRef.current = await loadTerreiroInviteSnoozeMap(
-        normalizedUserEmail
-      );
+      snoozeMapRef.current =
+        await loadTerreiroInviteSnoozeMap(normalizedUserEmail);
     } catch {
       snoozeMapRef.current = {};
     } finally {
@@ -298,7 +297,7 @@ export function InviteGate() {
       await reloadSnoozeMap();
 
       const filtered = pendingInvitesRef.current.filter(
-        (i) => !shouldHideFromGate(i.id)
+        (i) => !shouldHideFromGate(i.id),
       );
 
       if (filtered.length !== pendingInvitesRef.current.length) {
@@ -381,7 +380,7 @@ export function InviteGate() {
             if (!rlsRecursionNotifiedRef.current) {
               rlsRecursionNotifiedRef.current = true;
               showToast(
-                "Convites indisponíveis no momento. Tente novamente mais tarde."
+                "Convites indisponíveis no momento. Tente novamente mais tarde.",
               );
             }
 
@@ -404,9 +403,9 @@ export function InviteGate() {
               typeof terreiroObj?.title === "string" && terreiroObj.title.trim()
                 ? terreiroObj.title.trim()
                 : typeof terreiroObj?.name === "string" &&
-                  terreiroObj.name.trim()
-                ? terreiroObj.name.trim()
-                : null;
+                    terreiroObj.name.trim()
+                  ? terreiroObj.name.trim()
+                  : null;
 
             if (__DEV__ && !terreiroTitle) {
               console.info("[InviteGate] missing terreiro title on invite", {
@@ -462,7 +461,7 @@ export function InviteGate() {
       shouldHideFromGate,
       showToast,
       userId,
-    ]
+    ],
   );
 
   const ensureModalForQueue = useCallback((queue: TerreiroInvite[]) => {
@@ -528,7 +527,7 @@ export function InviteGate() {
 
       ensureModalForQueue(queue);
     },
-    [ensureModalForQueue, isAppReady, isNavReady, segmentsKey]
+    [ensureModalForQueue, isAppReady, isNavReady, segmentsKey],
   );
 
   useEffect(() => {
@@ -563,7 +562,7 @@ export function InviteGate() {
       setPendingInvites(next);
       syncQueueToUi(next, "resolve_local");
     },
-    [syncQueueToUi]
+    [syncQueueToUi],
   );
 
   const openGateNow = useCallback(async () => {
@@ -677,12 +676,12 @@ export function InviteGate() {
             setPendingInvites((prev) => {
               if (prev.some((i) => i.id === nextInvite.id)) return prev;
               const merged = [...prev, nextInvite].sort((a, b) =>
-                a.created_at.localeCompare(b.created_at)
+                a.created_at.localeCompare(b.created_at),
               );
               return merged;
             });
           }
-        }
+        },
       )
       .subscribe();
 
@@ -722,7 +721,7 @@ export function InviteGate() {
       // RLS estrito: aceitar precisa ser via RPC SECURITY DEFINER.
       const rpc = await rpcTerreiroInvite(
         "accept_terreiro_invite",
-        currentInvite.id
+        currentInvite.id,
       );
 
       if (__DEV__) {
@@ -812,7 +811,7 @@ export function InviteGate() {
         showToast("Convite aceito.");
       } else {
         showToast(
-          "Convite aceito, mas não foi possível atualizar permissões agora. Tente novamente em instantes."
+          "Convite aceito, mas não foi possível atualizar permissões agora. Tente novamente em instantes.",
         );
       }
 
@@ -837,8 +836,8 @@ export function InviteGate() {
         e instanceof Error
           ? e.message
           : typeof (e as any)?.message === "string"
-          ? (e as any).message
-          : String(e);
+            ? (e as any).message
+            : String(e);
 
       if (__DEV__) {
         console.error("[InviteGate] accept error details", {
@@ -897,7 +896,7 @@ export function InviteGate() {
       // CHECK status=('pending'|'accepted'|'rejected') e activated_consistency.
       const rpc = await rpcTerreiroInvite(
         "reject_terreiro_invite",
-        currentInvite.id
+        currentInvite.id,
       );
 
       if (__DEV__) {
@@ -977,8 +976,8 @@ export function InviteGate() {
         e instanceof Error
           ? e.message
           : typeof (e as any)?.message === "string"
-          ? (e as any).message
-          : String(e);
+            ? (e as any).message
+            : String(e);
 
       if (__DEV__) {
         console.error("[InviteGate] reject error details", {
@@ -1069,7 +1068,7 @@ export function InviteGate() {
       showToast(TERREIRO_INVITE_DECIDE_LATER_TOAST);
 
       const nextQueue = pendingInvitesRef.current.filter(
-        (i) => i.id !== inviteId
+        (i) => i.id !== inviteId,
       );
       pendingInvitesRef.current = nextQueue;
       setPendingInvites(nextQueue);
@@ -1193,7 +1192,7 @@ export function InviteGate() {
 
               {isProcessing ? (
                 <View style={styles.processingRow}>
-                  <ActivityIndicator />
+                  <ActivityIndicator color={colors.brass600} />
                 </View>
               ) : null}
 

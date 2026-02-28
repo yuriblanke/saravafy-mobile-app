@@ -194,6 +194,10 @@ export function useSubmissionCuration(
     onSuccess: async (_data, action) => {
       if (!submission?.id) return;
 
+      if (action.mode === "approve") {
+        queryClient.setQueryData(queryKeys.pontos.lastWriteAt(), Date.now());
+      }
+
       const nextStatus = action.mode === "approve" ? "approved" : "rejected";
       const note = sanitizeOptionalText(action.reviewNote);
       const reviewedAt = new Date().toISOString();

@@ -61,14 +61,14 @@ export function CollectionNameDetailsSheet({
 
   const [title, setTitle] = useState(initialTitle);
   const [description, setDescription] = useState(
-    typeof initialDescription === "string" ? initialDescription : ""
+    typeof initialDescription === "string" ? initialDescription : "",
   );
 
   useEffect(() => {
     if (!visible) return;
     setTitle(initialTitle);
     setDescription(
-      typeof initialDescription === "string" ? initialDescription : ""
+      typeof initialDescription === "string" ? initialDescription : "",
     );
     requestAnimationFrame(() => {
       nameRef.current?.focus();
@@ -232,7 +232,7 @@ export function CollectionNameDetailsSheet({
             </Text>
             {isDeleting ? (
               <View style={{ marginLeft: "auto" }}>
-                <ActivityIndicator />
+                <ActivityIndicator color={colors.brass600} />
               </View>
             ) : null}
           </Pressable>
