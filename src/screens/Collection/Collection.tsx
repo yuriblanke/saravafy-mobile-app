@@ -1525,7 +1525,9 @@ export default function Collection() {
 
                             const hasAnyTags =
                               mediumTags.length > 0 || pointTags.length > 0;
-                            if (!hasAnyTags) return null;
+                            const shouldRenderTagsRow =
+                              hasAnyTags || (canEditCustomTags && !!terreiroId);
+                            if (!shouldRenderTagsRow) return null;
 
                             return (
                               <View style={styles.tagsWrap}>

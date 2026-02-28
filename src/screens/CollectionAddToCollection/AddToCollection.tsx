@@ -223,7 +223,8 @@ export default function AddToCollection() {
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
-  const [searchQuery, setSearchQuery] = useState("");
+  const initialSearchQuery = typeof params.q === "string" ? params.q : "";
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
   const queryHasText = useMemo(
     () => Boolean(searchQuery.trim()),
     [searchQuery]
@@ -632,27 +633,20 @@ export default function AddToCollection() {
         <View style={styles.cardGap}>
           <Pressable
             accessibilityRole="button"
+            accessibilityLabel={
+              disabled
+                ? isAlready
+                  ? "Já está na coleção"
+                  : "Adicionando"
+                : "Adicionar ponto à coleção"
+            }
             onPress={() => {
-              router.push({
-                pathname: "/player",
-                params: {
-                  source: "all",
-                  q: searchQuery,
-                  initialPontoId: item.id,
-                },
-              });
+              if (disabled) return;
+              void onPressAdd(item);
             }}
           >
             <SurfaceCard variant={variant} style={styles.cardContainer}>
               <View style={styles.cardHeaderRow}>
-                <Text
-                  style={[styles.cardTitle, { color: textPrimary, flex: 1 }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
-                >
-                  {item.title}
-                </Text>
-
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel={
@@ -669,7 +663,7 @@ export default function AddToCollection() {
                   disabled={disabled}
                   hitSlop={10}
                   style={({ pressed }) => [
-                    styles.addBtn,
+                    styles.selectBtn,
                     {
                       borderColor,
                       opacity: disabled ? 0.5 : pressed ? 0.75 : 1,
@@ -678,6 +672,47 @@ export default function AddToCollection() {
                 >
                   <Ionicons
                     name={isAlready ? "checkmark" : "add"}
+                    size={18}
+                    color={textPrimary}
+                  />
+                </Pressable>
+
+                <Text
+                  style={[styles.cardTitle, { color: textPrimary, flex: 1 }]}
+                  numberOfLines={2}
+                  ellipsizeMode="tail"
+                >
+                  {item.title}
+                </Text>
+
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    router.push({
+                      pathname: "/player",
+                      params: {
+                        source: "all",
+                        q: searchQuery,
+                        initialPontoId: item.id,
+                        returnTo: "collection-add",
+                        returnCollectionId: collectionId,
+                        returnQ: searchQuery,
+                      },
+                    });
+                  }}
+                  accessibilityLabel="Abrir preview no player"
+                  hitSlop={10}
+                  style={({ pressed }) => [
+                    styles.previewBtn,
+                    {
+                      borderColor,
+                      opacity: pressed ? 0.75 : 1,
+                    },
+                  ]}
+                >
+                  <Ionicons
+                    name="play-outline"
                     size={18}
                     color={textPrimary}
                   />
@@ -864,14 +899,22 @@ const styles = StyleSheet.create({
   cardHeaderRow: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "flex-start",
     gap: spacing.sm,
   },
   cardTitle: {
     fontSize: 16,
     fontWeight: "600",
   },
-  addBtn: {
+  selectBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    borderWidth: 2,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  previewBtn: {
     width: 36,
     height: 36,
     borderRadius: 10,

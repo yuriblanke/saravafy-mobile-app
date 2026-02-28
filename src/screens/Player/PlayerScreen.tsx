@@ -77,6 +77,25 @@ export default function PlayerScreen() {
     typeof params.terreiroId === "string" ? params.terreiroId : "";
 
   const collectionId = String(params.collectionId ?? "");
+  const returnTo = typeof params.returnTo === "string" ? params.returnTo : null;
+  const returnCollectionId =
+    typeof params.returnCollectionId === "string" ? params.returnCollectionId : "";
+  const returnQ = typeof params.returnQ === "string" ? params.returnQ : "";
+
+  const handleBack = useCallback(() => {
+    if (returnTo === "collection-add" && returnCollectionId.trim()) {
+      router.replace({
+        pathname: "/collection/[id]/add" as any,
+        params: {
+          id: returnCollectionId.trim(),
+          q: returnQ,
+        },
+      });
+      return;
+    }
+
+    router.back();
+  }, [returnCollectionId, returnQ, returnTo, router]);
   const initialPontoId =
     typeof params.initialPontoId === "string"
       ? params.initialPontoId
@@ -326,7 +345,7 @@ export default function PlayerScreen() {
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -351,7 +370,7 @@ export default function PlayerScreen() {
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -391,7 +410,7 @@ export default function PlayerScreen() {
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={handleBack}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -414,7 +433,7 @@ export default function PlayerScreen() {
         <View style={styles.header}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
+            onPress={handleBack}
             hitSlop={10}
             style={styles.headerIconBtn}
           >
