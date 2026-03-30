@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
@@ -172,24 +173,14 @@ export default function AddToCollection() {
 
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const insets = useGlobalSafeAreaInsets();
 
   const collectionIdParam = Array.isArray(params.id) ? params.id[0] : params.id;
   const collectionId = String(collectionIdParam ?? "").trim();
 
   const goBackToCollection = useCallback(() => {
-    if (!collectionId) {
-      router.back();
-      return;
-    }
-
-    // Importante: esta tela está em outro Stack group que a tela de Collection.
-    // `router.back()` pode voltar para uma rota sem params; navegamos
-    // explicitamente para garantir que o id exista.
-    router.replace({
-      pathname: "/collection/[id]" as any,
-      params: { id: collectionId },
-    });
-  }, [collectionId, router]);
+    router.back();
+  }, [router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -544,7 +535,7 @@ export default function AddToCollection() {
   );
 
   const Header = (
-    <View style={[styles.header, { borderColor }]}>
+    <View style={[styles.header, { borderColor, paddingTop: spacing.md + insets.top }]}>
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voltar"

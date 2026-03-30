@@ -1,6 +1,7 @@
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -90,6 +91,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
   const { shouldBlockPress } = useGestureBlock();
   const { showToast } = useToast();
   const { effectiveTheme } = usePreferences();
+  const insets = useGlobalSafeAreaInsets();
 
   const DraggableFlatListImpl = useMemo(() => tryGetDraggableFlatList(), []);
   const isDraggableAvailable = Boolean(DraggableFlatListImpl);
@@ -306,7 +308,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
 
   return (
     <View style={styles.screen}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: spacing.md + insets.top }]}>
         <Pressable
           accessibilityRole="button"
           onPress={handleBack}

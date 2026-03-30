@@ -211,12 +211,7 @@ export default function EditCollectionPointsScreen() {
       items={items}
       allowRemove={true}
       onSave={onSave}
-      onSaveSuccess={() =>
-        router.replace({
-          pathname: "/collection/[id]" as any,
-          params: { id: collectionId },
-        })
-      }
+      onSaveSuccess={() => router.back()}
       successToast="Coleção atualizada."
       errorToastFallback="Não foi possível salvar a coleção."
       discardConfirmTitle="Descartar alterações?"

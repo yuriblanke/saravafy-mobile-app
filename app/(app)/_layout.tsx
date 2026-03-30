@@ -12,7 +12,7 @@ import { SaravafyLayoutMetricsProvider } from "@/src/contexts/SaravafyLayoutMetr
 import { useRealtimeTerreiroScope } from "@/src/hooks/useRealtimeTerreiroScope";
 import { useMyTerreiroIdsQuery } from "@/src/queries/me";
 import { LoadingStatePreferences } from "@/src/screens/Preferences/LoadingStatePreferences";
-import { colors } from "@/src/theme";
+import { colors, getSaravafyBaseColor } from "@/src/theme";
 import { navTrace } from "@/src/utils/navTrace";
 import {
   Stack,
@@ -229,6 +229,43 @@ export default function AppLayout() {
 
                   {/* Deep links / utilitários */}
                   <Stack.Screen name="l/[tipo]/[id]" />
+
+                  {/* Telas fullscreen de coleção e terreiro — mesma Stack para router.back() funcionar */}
+                  <Stack.Screen
+                    name="collection/[id]"
+                    options={{
+                      animation: "fade",
+                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="collection/[id]/edit"
+                    options={{
+                      animation: "fade",
+                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="collection/[id]/add"
+                    options={{
+                      animation: "fade",
+                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="terreiro"
+                    options={{
+                      animation: "fade",
+                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                    }}
+                  />
+                  <Stack.Screen
+                    name="terreiro-collections/[terreiroId]/edit"
+                    options={{
+                      animation: "fade",
+                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                    }}
+                  />
 
                   {/* Full screens administrativas */}
                   <Stack.Screen
