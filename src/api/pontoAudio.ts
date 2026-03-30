@@ -6,6 +6,8 @@ export type InitUploadResponse = {
   upload_token: string;
   bucket: "ponto-audios";
   path: string;
+  ponto_id: string;
+  ponto_versao_id: string;
   expires_in?: number;
   mime_type?: string | null;
   signed_upload: {
@@ -607,20 +609,20 @@ export async function callFunctionPublic<T>(
 }
 
 export async function initPontoAudioUpload(params: {
-  pontoId: string;
+  pontoVersaoId: string;
   interpreterName: string;
   mimeType: string;
   interpreterConsent: boolean;
 }) {
   const payload = {
-    ponto_id: params.pontoId,
+    ponto_versao_id: params.pontoVersaoId,
     interpreter_name: params.interpreterName,
     mime_type: params.mimeType,
     interpreter_consent: params.interpreterConsent,
   };
 
   console.log("[audio] init start", {
-    pontoId: params.pontoId,
+    pontoVersaoId: params.pontoVersaoId,
     mimeType: params.mimeType,
   });
 
@@ -637,11 +639,15 @@ export async function initPontoAudioUpload(params: {
 
   console.log("[audio] init ok", {
     ponto_audio_id: data.ponto_audio_id,
+    ponto_id: data.ponto_id,
+    ponto_versao_id: data.ponto_versao_id,
     signedUploadUrl: safeSignedUrlSummary(data?.signed_upload?.signedUrl),
   });
 
   return {
     pontoAudioId: data.ponto_audio_id,
+    pontoId: data.ponto_id,
+    pontoVersaoId: data.ponto_versao_id,
     uploadToken: data.upload_token,
     bucket: data.bucket,
     path: data.path,
@@ -1080,6 +1086,7 @@ async function getPontoAudioPlaybackUrlInternal(
   mode: "public" | "review",
   body:
     | { kind: "approved"; ponto_id: string }
+    | { kind: "approved"; ponto_versao_id: string }
     | { kind: "submission"; submission_id: string },
 ) {
   const name = "ponto-audio-playback-url";
@@ -1233,10 +1240,18 @@ async function getPontoAudioPlaybackUrlInternal(
   };
 }
 
-export async function getPontoAudioPlaybackUrlPublic(pontoId: string) {
+export async function getPontoAudioPlaybackUrlPublic(params: {
+  pontoId?: string;
+  pontoVersaoId?: string;
+}) {
+  if (!params.pontoId && !params.pontoVersaoId) {
+    throw new Error("pontoId ou pontoVersaoId é obrigatório.");
+  }
   return getPontoAudioPlaybackUrlInternal("public", {
     kind: "approved",
-    ponto_id: pontoId,
+    ...(params.pontoVersaoId
+      ? { ponto_versao_id: params.pontoVersaoId }
+      : { ponto_id: params.pontoId! }),
   });
 }
 

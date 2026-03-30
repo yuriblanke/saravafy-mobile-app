@@ -47,13 +47,15 @@ export async function searchPontos({
       const tags = Array.isArray(r.tags)
         ? r.tags.filter((t: unknown) => typeof t === "string")
         : [];
+      // search_pontos RPC returns lyrics_preview_6 (not lyrics)
+      const lyrics_preview_6 =
+        r.lyrics_preview_6 == null ? null : String(r.lyrics_preview_6);
       return {
         id: String(r.id ?? ""),
         title: String(r.title ?? ""),
         tags,
-        lyrics: String(r.lyrics ?? ""),
-        lyrics_preview_6:
-          r.lyrics_preview_6 == null ? null : String(r.lyrics_preview_6),
+        lyrics: String(r.lyrics_preview_6 ?? r.lyrics ?? ""),
+        lyrics_preview_6,
         score: typeof r.score === "number" ? r.score : null,
       } satisfies PontosSearchResult;
     })

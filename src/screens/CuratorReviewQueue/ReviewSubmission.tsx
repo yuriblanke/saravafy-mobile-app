@@ -185,9 +185,11 @@ function mapReviewErrorToFriendlyMessage(error: unknown): string {
 
 function toKindLabel(kind: string | null | undefined) {
   const k = typeof kind === "string" ? kind.trim().toLowerCase() : "";
+  if (k === "new") return "Novo";
   if (k === "correction") return "Correção";
   if (k === "problem") return "Problema";
   if (k === "audio_upload") return "Áudio";
+  if (k === "variation") return "Variação";
   return "Envio";
 }
 
@@ -447,20 +449,28 @@ export default function ReviewSubmissionScreen() {
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, author_name, tags, is_public_domain, duration_seconds",
+          "id, title, author_name, tags, is_public_domain, ponto_versoes!inner(lyrics, is_canonical)",
         )
         .eq("id", pontoId)
         .eq("is_active", true)
+        .eq("ponto_versoes.is_canonical", true)
         .maybeSingle();
 
       if (res.error) throw res.error;
       if (!res.data) return null;
 
       const row: any = res.data;
+      const versoes = Array.isArray(row.ponto_versoes)
+        ? row.ponto_versoes
+        : row.ponto_versoes
+          ? [row.ponto_versoes]
+          : [];
+      const versao = versoes[0];
+
       return {
         id: String(row.id ?? ""),
         title: typeof row.title === "string" ? row.title : "",
-        lyrics: typeof row.lyrics === "string" ? row.lyrics : "",
+        lyrics: typeof versao?.lyrics === "string" ? versao.lyrics : "",
         author_name:
           typeof row.author_name === "string" ? row.author_name : null,
         tags: Array.isArray(row.tags)
@@ -475,10 +485,7 @@ export default function ReviewSubmissionScreen() {
           typeof row.is_public_domain === "boolean"
             ? row.is_public_domain
             : null,
-        duration_seconds:
-          typeof row.duration_seconds === "number"
-            ? row.duration_seconds
-            : null,
+        duration_seconds: null,
       } satisfies PontoRow;
     },
     placeholderData: (prev) => prev,
@@ -830,6 +837,9 @@ export default function ReviewSubmissionScreen() {
     const isCorrection =
       typeof kind === "string" && kind.trim().toLowerCase() === "correction";
 
+    const isVariationKind =
+      typeof kind === "string" && kind.trim().toLowerCase() === "variation";
+
     const isAudioUploadKind =
       typeof kind === "string" && kind.trim().toLowerCase() === "audio_upload";
 
@@ -871,6 +881,62 @@ export default function ReviewSubmissionScreen() {
         void raw;
 
         // Não remover da fila em erro.
+        setInlineError(friendly);
+        showToast(friendly);
+      }
+
+      return;
+    }
+
+    if (isVariationKind) {
+      const finalTitle = sanitizeOptionalText(title);
+      const finalLyrics = sanitizeOptionalText(lyrics);
+      const finalAuthorName = sanitizeOptionalText(authorName);
+
+      const payload = {
+        p_submission_id: submissionId,
+        p_decision: "approved" as const,
+        p_review_note: sanitizeOptionalText(reviewNote),
+        p_title: finalTitle,
+        p_lyrics: finalLyrics,
+        p_tags: normalizedTags,
+        p_author_name: finalAuthorName,
+      };
+
+      try {
+        const res = await callRpcWithParamFallback(
+          "approve_variation_submission",
+          payload,
+        );
+
+        if (res?.error) {
+          throw new Error(
+            typeof res.error?.message === "string" && res.error.message.trim()
+              ? res.error.message
+              : "Erro ao aprovar variação.",
+          );
+        }
+
+        removeFromPendingList(submissionId);
+        queryClient.invalidateQueries({ queryKey: ["pontos"] });
+        queryClient.invalidateQueries({
+          queryKey: queryKeys.pontosSubmissions.pending(),
+        });
+
+        showToast("Variação aprovada.");
+        router.back();
+      } catch (e) {
+        const friendly = mapReviewErrorToFriendlyMessage(e);
+        const raw = getErrorMessage(e);
+        void raw;
+
+        if (raw.toLowerCase().includes("submission_not_pending")) {
+          removeFromPendingList(submissionId);
+          showToast("Já foi revisado.");
+          router.back();
+          return;
+        }
+
         setInlineError(friendly);
         showToast(friendly);
       }

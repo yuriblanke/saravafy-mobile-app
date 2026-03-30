@@ -128,7 +128,7 @@ async function resolveUrl(req: PlaybackRequest) {
   if (req.kind === "approved") {
     const id = String(req.pontoId ?? "").trim();
     if (!id) throw new Error("pontoId inválido.");
-    const res = await getPontoAudioPlaybackUrlPublic(id);
+    const res = await getPontoAudioPlaybackUrlPublic({ pontoId: id });
     if (!res?.url) throw new Error("URL de áudio inválida.");
     return res.url;
   }

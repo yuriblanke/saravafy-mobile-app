@@ -111,10 +111,11 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain",
+          "id, title, tags, duration_seconds, cover_url, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
         )
         .eq("is_active", true)
         .eq("restricted", false)
+        .eq("ponto_versoes.is_canonical", true)
         .order("title", { ascending: true });
 
       if (res.error) {
@@ -136,7 +137,19 @@ export function useCollectionPlayerData(
 
           const title =
             (typeof row.title === "string" && row.title.trim()) || "Ponto";
-          const lyrics = (typeof row.lyrics === "string" && row.lyrics) || "";
+
+          // lyrics come from the canonical ponto_versao (joined above)
+          const versoes = Array.isArray(row.ponto_versoes)
+            ? row.ponto_versoes
+            : row.ponto_versoes
+              ? [row.ponto_versoes]
+              : [];
+          const versao = versoes[0];
+          const lyrics = (typeof versao?.lyrics === "string" && versao.lyrics) || "";
+          const lyrics_preview_6 =
+            typeof versao?.lyrics_preview_6 === "string"
+              ? versao.lyrics_preview_6
+              : null;
 
           const p: PlayerPonto = {
             id: String(row.id ?? ""),
@@ -154,10 +167,7 @@ export function useCollectionPlayerData(
                 : null,
             cover_url: typeof row.cover_url === "string" ? row.cover_url : null,
             lyrics,
-            lyrics_preview_6:
-              typeof row.lyrics_preview_6 === "string"
-                ? row.lyrics_preview_6
-                : null,
+            lyrics_preview_6,
             tags: coerceTags(row.tags),
           };
 

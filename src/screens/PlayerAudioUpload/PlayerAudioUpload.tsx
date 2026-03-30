@@ -76,9 +76,12 @@ export default function PlayerAudioUpload() {
   const router = useRouter();
   const params = useLocalSearchParams<{
     pontoId?: string;
+    pontoVersaoId?: string;
     pontoTitle?: string;
   }>();
   const pontoId = typeof params.pontoId === "string" ? params.pontoId : "";
+  const pontoVersaoId =
+    typeof params.pontoVersaoId === "string" ? params.pontoVersaoId : "";
 
   const { showToast } = useToast();
   const { effectiveTheme } = usePreferences();
@@ -108,10 +111,10 @@ export default function PlayerAudioUpload() {
   const [isDone, setIsDone] = useState(false);
 
   useEffect(() => {
-    if (pontoId) return;
+    if (pontoId || pontoVersaoId) return;
     showToast("Ponto inválido para envio de áudio.");
     router.back();
-  }, [pontoId, router, showToast]);
+  }, [pontoId, pontoVersaoId, router, showToast]);
 
   const headerTitle = "Enviar áudio";
 
@@ -146,7 +149,8 @@ export default function PlayerAudioUpload() {
 
   return (
     <PontoAudioUploadController
-      pontoId={pontoId}
+      pontoId={pontoId || undefined}
+      pontoVersaoId={pontoVersaoId || undefined}
       interpreterName={interpreterName}
       audio={audioInput}
       interpreterConsent={consentGranted}

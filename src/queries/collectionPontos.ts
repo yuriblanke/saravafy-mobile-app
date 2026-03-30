@@ -51,9 +51,10 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      "position, pontos:ponto_id (id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain)",
+      "position, ponto_versao_id, pontos:ponto_id (id, title, tags, duration_seconds, cover_url, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6, title, is_canonical))",
     )
     .eq("collection_id", collectionId)
+    .eq("pontos.ponto_versoes.is_canonical", true)
     .order("position", { ascending: true });
 
   if (res.error) {
@@ -75,9 +76,18 @@ export async function fetchCollectionPontosItems(
       const ponto = row?.pontos;
       if (!ponto || typeof ponto !== "object") return null;
 
+      // Get lyrics from the canonical ponto_versoes join
+      const versoes = Array.isArray(ponto.ponto_versoes)
+        ? ponto.ponto_versoes
+        : ponto.ponto_versoes
+          ? [ponto.ponto_versoes]
+          : [];
+      const canonicalVersao = versoes.find((v: any) => v.is_canonical === true) ?? versoes[0];
+
       const title =
         (typeof ponto.title === "string" && ponto.title.trim()) || "Ponto";
-      const lyrics = (typeof ponto.lyrics === "string" && ponto.lyrics) || "";
+      const lyrics =
+        (typeof canonicalVersao?.lyrics === "string" && canonicalVersao.lyrics) || "";
 
       const mapped: PlayerPonto = {
         id: String(ponto.id ?? ""),
@@ -98,8 +108,8 @@ export async function fetchCollectionPontosItems(
         cover_url: typeof ponto.cover_url === "string" ? ponto.cover_url : null,
         lyrics,
         lyrics_preview_6:
-          typeof (ponto as any).lyrics_preview_6 === "string"
-            ? (ponto as any).lyrics_preview_6
+          typeof canonicalVersao?.lyrics_preview_6 === "string"
+            ? canonicalVersao.lyrics_preview_6
             : null,
         tags: coerceTags(ponto.tags),
       };

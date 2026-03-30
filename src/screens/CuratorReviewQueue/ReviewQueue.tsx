@@ -38,8 +38,11 @@ function formatDateLabel(value: string | null | undefined) {
 
 function toKindLabel(kind: string | null | undefined) {
   const k = typeof kind === "string" ? kind.trim().toLowerCase() : "";
+  if (k === "new") return "Novo";
   if (k === "correction") return "Correção";
   if (k === "problem") return "Problema";
+  if (k === "audio_upload") return "Áudio";
+  if (k === "variation") return "Variação";
   return "Envio";
 }
 

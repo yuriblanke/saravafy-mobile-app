@@ -39,7 +39,10 @@ export type PontoAudioUploadControllerRenderProps = {
 };
 
 type Props = {
-  pontoId: string;
+  /** ID da versão canônica ou específica do ponto. Passa diretamente para initPontoAudioUpload. */
+  pontoVersaoId?: string;
+  /** ID do ponto (legado). Se apenas pontoId for fornecido, a versão canônica é buscada antes do upload. */
+  pontoId?: string;
   interpreterName: string;
   audio: PontoAudioUploadInput | null;
 
@@ -68,6 +71,7 @@ async function getFileSizeBytes(uri: string): Promise<number | null> {
 
 export function PontoAudioUploadController({
   pontoId,
+  pontoVersaoId,
   interpreterName,
   audio,
   interpreterConsent,
@@ -111,9 +115,6 @@ export function PontoAudioUploadController({
           throw new Error("Você precisa estar logada para enviar áudio.");
         }
 
-        const pontoIdValue = String(pontoId ?? "").trim();
-        if (!pontoIdValue) throw new Error("Ponto inválido.");
-
         const interpreter = String(interpreterName ?? "").trim();
         if (!interpreter) throw new Error("Preencha o nome do intérprete.");
 
@@ -143,8 +144,28 @@ export function PontoAudioUploadController({
           throw new Error("Arquivo muito grande. Máximo: 50 MB.");
         }
 
+        // Resolve ponto_versao_id: use directly if provided, otherwise fetch
+        // the canonical version for the given pontoId.
+        let resolvedPontoVersaoId = String(pontoVersaoId ?? "").trim();
+        if (!resolvedPontoVersaoId) {
+          const pontoIdValue = String(pontoId ?? "").trim();
+          if (!pontoIdValue) throw new Error("Ponto inválido.");
+
+          const versaoRes = await supabase
+            .from("ponto_versoes")
+            .select("id")
+            .eq("ponto_id", pontoIdValue)
+            .eq("is_canonical", true)
+            .single();
+
+          if (versaoRes.error || !versaoRes.data) {
+            throw new Error("Versão canônica não encontrada.");
+          }
+          resolvedPontoVersaoId = String(versaoRes.data.id);
+        }
+
         const init = await initPontoAudioUpload({
-          pontoId: pontoIdValue,
+          pontoVersaoId: resolvedPontoVersaoId,
           interpreterName: interpreter,
           mimeType,
           interpreterConsent,
@@ -152,7 +173,8 @@ export function PontoAudioUploadController({
 
         if (__DEV__) {
           console.log("[PontoAudioUploadController] init completed", {
-            pontoId: pontoIdValue,
+            pontoVersaoId: resolvedPontoVersaoId,
+            pontoId: init.pontoId,
             pontoAudioId: init.pontoAudioId,
             interpreterConsent,
           });
@@ -173,14 +195,15 @@ export function PontoAudioUploadController({
         setProgress(0.85);
 
         console.log("[audio] post-upload start", {
-          pontoId: pontoIdValue,
+          pontoId: init.pontoId,
+          pontoVersaoId: resolvedPontoVersaoId,
           pontoAudioId: init.pontoAudioId,
           bucket: init.bucket,
           path: init.path,
         });
 
         const finalizeRes = await finalizeAudioUploadAndCreateSubmission({
-          pontoId: pontoIdValue,
+          pontoId: init.pontoId,
           pontoAudioId: init.pontoAudioId,
           uploadToken: init.uploadToken,
           sizeBytes:
@@ -190,7 +213,8 @@ export function PontoAudioUploadController({
 
         if (__DEV__) {
           console.log("[PontoAudioUploadController] finalize completed", {
-            pontoId: pontoIdValue,
+            pontoId: init.pontoId,
+            pontoVersaoId: resolvedPontoVersaoId,
             pontoAudioId: init.pontoAudioId,
             submissionId: finalizeRes.submissionId,
           });
@@ -218,7 +242,7 @@ export function PontoAudioUploadController({
 
     inFlightRef.current = promise;
     return promise;
-  }, [audio, canStart, interpreterConsent, interpreterName, onDone, pontoId]);
+  }, [audio, canStart, interpreterConsent, interpreterName, onDone, pontoId, pontoVersaoId]);
 
   const ctx = useMemo<PontoAudioUploadControllerRenderProps>(
     () => ({

@@ -32,10 +32,11 @@ export async function fetchAllPontos(): Promise<Ponto[]> {
   const { data, error } = await supabase
     .from(PONTOS_TABLE)
     .select(
-      "id, title, lyrics, tags, lyrics_preview_6, author_name, is_public_domain"
+      "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)"
     )
     .eq("is_active", true)
     .eq("restricted", false)
+    .eq("ponto_versoes.is_canonical", true)
     .order("title", { ascending: true });
 
   if (error) {
@@ -50,15 +51,25 @@ export async function fetchAllPontos(): Promise<Ponto[]> {
 
     throw new Error(extra ? `${message} (${extra})` : message);
   }
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    title: row.title,
-    tags: coerceTags(row.tags),
-    lyrics: row.lyrics,
-    lyrics_preview_6:
-      row.lyrics_preview_6 == null ? null : String(row.lyrics_preview_6),
-    author_name: typeof row.author_name === "string" ? row.author_name : null,
-    is_public_domain:
-      typeof row.is_public_domain === "boolean" ? row.is_public_domain : null,
-  }));
+  return (data ?? []).map((row: any) => {
+    const versoes = Array.isArray(row.ponto_versoes)
+      ? row.ponto_versoes
+      : row.ponto_versoes
+        ? [row.ponto_versoes]
+        : [];
+    const versao = versoes[0];
+    return {
+      id: row.id,
+      title: row.title,
+      tags: coerceTags(row.tags),
+      lyrics: typeof versao?.lyrics === "string" ? versao.lyrics : "",
+      lyrics_preview_6:
+        versao?.lyrics_preview_6 == null
+          ? null
+          : String(versao.lyrics_preview_6),
+      author_name: typeof row.author_name === "string" ? row.author_name : null,
+      is_public_domain:
+        typeof row.is_public_domain === "boolean" ? row.is_public_domain : null,
+    };
+  });
 }
