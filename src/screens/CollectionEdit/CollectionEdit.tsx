@@ -2,17 +2,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
-  incrementCollectionPontosCountInTerreiroLists,
-  setCollectionPontosList,
+    incrementCollectionPontosCountInTerreiroLists,
+    setCollectionPontosList,
 } from "@/src/queries/collectionsCache";
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
-  consumeCollectionEditDraft,
-  markCollectionPontosDirty,
+    consumeCollectionEditDraft,
+    markCollectionPontosDirty,
 } from "@/src/screens/CollectionEdit/draftStore";
 import {
-  EditOrderScreenBase,
-  type EditOrderItem,
+    EditOrderScreenBase,
+    type EditOrderItem,
 } from "@/src/screens/EditOrderScreenBase/EditOrderScreenBase";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -53,7 +53,7 @@ async function saveCollectionPontosDraft(params: {
       throw new Error(
         typeof delRes.error.message === "string" && delRes.error.message.trim()
           ? delRes.error.message
-          : "Não foi possível remover itens da coleção."
+          : "Não foi possível remover itens da coleção.",
       );
     }
   }
@@ -84,7 +84,7 @@ async function saveCollectionPontosDraft(params: {
       throw new Error(
         typeof up1.error.message === "string" && up1.error.message.trim()
           ? up1.error.message
-          : "Não foi possível reordenar a coleção."
+          : "Não foi possível reordenar a coleção.",
       );
     }
 
@@ -97,7 +97,7 @@ async function saveCollectionPontosDraft(params: {
       throw new Error(
         typeof up2.error.message === "string" && up2.error.message.trim()
           ? up2.error.message
-          : "Não foi possível reordenar a coleção."
+          : "Não foi possível reordenar a coleção.",
       );
     }
   }
@@ -116,7 +116,7 @@ export default function EditCollectionPointsScreen() {
   const draftKey = typeof params.draftKey === "string" ? params.draftKey : "";
 
   const snapshotRef = useRef(
-    draftKey ? consumeCollectionEditDraft(draftKey) : null
+    draftKey ? consumeCollectionEditDraft(draftKey) : null,
   );
 
   useEffect(() => {
@@ -197,7 +197,7 @@ export default function EditCollectionPointsScreen() {
         queryKey: ["terreiros", "collectionsByTerreiro"],
       });
     },
-    [collectionId, originalPontoIds, queryClient, user?.id]
+    [collectionId, originalPontoIds, queryClient, user?.id],
   );
 
   if (!snapshotRef.current) {
@@ -211,6 +211,12 @@ export default function EditCollectionPointsScreen() {
       items={items}
       allowRemove={true}
       onSave={onSave}
+      onSaveSuccess={() =>
+        router.replace({
+          pathname: "/collection/[id]" as any,
+          params: { id: collectionId },
+        })
+      }
       successToast="Coleção atualizada."
       errorToastFallback="Não foi possível salvar a coleção."
       discardConfirmTitle="Descartar alterações?"

@@ -4,8 +4,8 @@ import { BottomSheet } from "@/src/components/BottomSheet";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
 import {
-  PontoAudioUploadController,
-  type PontoAudioUploadControllerRenderProps,
+    PontoAudioUploadController,
+    type PontoAudioUploadControllerRenderProps,
 } from "@/src/components/pontos/PontoAudioUploadController";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
@@ -15,16 +15,16 @@ import * as DocumentPicker from "expo-document-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  BackHandler,
-  Image,
-  Linking,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    BackHandler,
+    Image,
+    Linking,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;

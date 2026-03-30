@@ -5,20 +5,21 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  Alert,
-  BackHandler,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
+    Alert,
+    BackHandler,
+    InteractionManager,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 
 export type EditOrderItem = {
@@ -56,6 +57,7 @@ export type EditOrderScreenBaseProps = {
   title: string;
   items: EditOrderItem[];
   onSave: (orderedIds: string[]) => Promise<void>;
+  onSaveSuccess?: () => void;
   allowRemove: boolean;
 
   successToast?: string;
@@ -73,6 +75,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     title,
     items,
     onSave,
+    onSaveSuccess,
     allowRemove,
     successToast = "Atualizado.",
     errorToastFallback = "Não foi possível salvar.",
@@ -196,12 +199,12 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
         },
       ]);
     },
-    [allowRemove, removeConfirmMessage, removeConfirmTitle, saving]
+    [allowRemove, removeConfirmMessage, removeConfirmTitle, saving],
   );
 
   const save = useCallback(async () => {
     if (!dirty) {
-      router.back();
+      InteractionManager.runAfterInteractions(() => router.back());
       return;
     }
 
@@ -211,7 +214,13 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     try {
       await onSave(draftOrderedIds);
       showToast(successToast);
-      router.back();
+      InteractionManager.runAfterInteractions(() => {
+        if (onSaveSuccess) {
+          onSaveSuccess();
+        } else {
+          router.back();
+        }
+      });
     } catch (e) {
       showToast(e instanceof Error ? e.message : errorToastFallback);
     } finally {
@@ -222,6 +231,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
     draftOrderedIds,
     errorToastFallback,
     onSave,
+    onSaveSuccess,
     router,
     shouldBlockPress,
     showToast,
@@ -291,7 +301,7 @@ export function EditOrderScreenBase(props: EditOrderScreenBaseProps) {
         </View>
       );
     },
-    [allowRemove, borderColor, removeItem, textPrimary, textSecondary, variant]
+    [allowRemove, borderColor, removeItem, textPrimary, textSecondary, variant],
   );
 
   return (

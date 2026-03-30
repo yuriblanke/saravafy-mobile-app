@@ -7,9 +7,9 @@ import { TagChip } from "@/src/components/TagChip";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
 import {
-  incrementCollectionPontosCountInTerreiroLists,
-  removePontoFromCollectionPontosList,
-  upsertPontoInCollectionPontosList,
+    incrementCollectionPontosCountInTerreiroLists,
+    removePontoFromCollectionPontosList,
+    upsertPontoInCollectionPontosList,
 } from "@/src/queries/collectionsCache";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
@@ -20,14 +20,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-  BackHandler,
-  FlatList,
-  Platform,
-  Pressable,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    BackHandler,
+    FlatList,
+    Platform,
+    Pressable,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
@@ -69,7 +69,7 @@ function getLyricsPreview(lyrics: string, maxLines = 6) {
 function coerceStringArray(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter(
-      (v): v is string => typeof v === "string" && v.trim().length > 0
+      (v): v is string => typeof v === "string" && v.trim().length > 0,
     );
   }
   if (typeof value === "string") {
@@ -202,11 +202,11 @@ export default function AddToCollection() {
 
       const sub = BackHandler.addEventListener(
         "hardwareBackPress",
-        onHardwareBackPress
+        onHardwareBackPress,
       );
 
       return () => sub.remove();
-    }, [goBackToCollection])
+    }, [goBackToCollection]),
   );
 
   const baseBgColor = getSaravafyBaseColor(variant);
@@ -226,7 +226,7 @@ export default function AddToCollection() {
   const [searchQuery, setSearchQuery] = useState("");
   const queryHasText = useMemo(
     () => Boolean(searchQuery.trim()),
-    [searchQuery]
+    [searchQuery],
   );
 
   const collectionQuery = useQuery({
@@ -247,7 +247,7 @@ export default function AddToCollection() {
         throw new Error(
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
-            : "Erro ao carregar a coleção."
+            : "Erro ao carregar a coleção.",
         );
       }
 
@@ -278,7 +278,7 @@ export default function AddToCollection() {
   const alreadyInCollectionIds = useMemo(() => {
     const items = collectionPontosQuery.data ?? [];
     return new Set(
-      items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean)
+      items.map((it) => String(it?.ponto?.id ?? "")).filter(Boolean),
     );
   }, [collectionPontosQuery.data]);
 
@@ -293,10 +293,11 @@ export default function AddToCollection() {
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, lyrics, lyrics_preview_6, tags, duration_seconds, cover_url, author_name, is_public_domain"
+          "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
         )
         .eq("is_active", true)
         .eq("restricted", false)
+        .eq("ponto_versoes.is_canonical", true)
         .order("title", { ascending: true });
 
       if (res.error) {
@@ -316,7 +317,15 @@ export default function AddToCollection() {
 
           const title =
             (typeof row?.title === "string" && row.title.trim()) || "Ponto";
-          const lyrics = typeof row?.lyrics === "string" ? row.lyrics : "";
+
+          const versoes = Array.isArray(row?.ponto_versoes)
+            ? row.ponto_versoes
+            : row?.ponto_versoes
+              ? [row.ponto_versoes]
+              : [];
+          const versao = versoes[0];
+          const lyrics =
+            typeof versao?.lyrics === "string" ? versao.lyrics : "";
 
           return {
             id,
@@ -328,18 +337,12 @@ export default function AddToCollection() {
               typeof row?.is_public_domain === "boolean"
                 ? row.is_public_domain
                 : null,
-            duration_seconds:
-              typeof row?.duration_seconds === "number"
-                ? row.duration_seconds
-                : row?.duration_seconds == null
-                ? null
-                : Number(row.duration_seconds),
-            cover_url:
-              typeof row?.cover_url === "string" ? row.cover_url : null,
+            duration_seconds: null,
+            cover_url: null,
             lyrics,
             lyrics_preview_6:
-              typeof row?.lyrics_preview_6 === "string"
-                ? row.lyrics_preview_6
+              typeof versao?.lyrics_preview_6 === "string"
+                ? versao.lyrics_preview_6
                 : null,
             tags: coerceStringArray(row?.tags),
           } satisfies PlayerPonto;
@@ -442,7 +445,7 @@ export default function AddToCollection() {
       const pontoId = vars.ponto.id;
 
       setAddingIds((prev) =>
-        prev.includes(pontoId) ? prev : [...prev, pontoId]
+        prev.includes(pontoId) ? prev : [...prev, pontoId],
       );
 
       const playerPonto = toPlayerPonto(vars.ponto);
@@ -485,7 +488,7 @@ export default function AddToCollection() {
       showToast(
         res.alreadyExists
           ? "Este ponto já estava na coleção"
-          : "Ponto adicionado à coleção"
+          : "Ponto adicionado à coleção",
       );
     },
     onSettled: (_data, _err, vars) => {
@@ -537,7 +540,7 @@ export default function AddToCollection() {
       router,
       showToast,
       userId,
-    ]
+    ],
   );
 
   const Header = (
@@ -716,7 +719,7 @@ export default function AddToCollection() {
       textPrimary,
       textSecondary,
       variant,
-    ]
+    ],
   );
 
   const ListHeader = useMemo(() => {

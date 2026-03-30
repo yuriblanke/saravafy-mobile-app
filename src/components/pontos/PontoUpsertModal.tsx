@@ -1,35 +1,35 @@
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  ActivityIndicator,
-  Image,
-  Linking,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Image,
+    Linking,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 import { useToast } from "@/contexts/ToastContext";
 import {
-  createPontoSubmission,
-  submitPontoCorrection,
+    createPontoSubmission,
+    submitPontoCorrection,
 } from "@/lib/pontosSubmissions";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import {
-  PontoAudioUploadController,
-  type PontoAudioUploadControllerRenderProps,
+    PontoAudioUploadController,
+    type PontoAudioUploadControllerRenderProps,
 } from "@/src/components/pontos/PontoAudioUploadController";
 import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { Separator } from "@/src/components/Separator";
@@ -676,11 +676,10 @@ export function PontoUpsertModal({
           title: title.trim(),
           author_name: authorNameValue,
           is_public_domain: isPublicDomainValue,
-          lyrics: lyrics.trim(),
           tags,
         })
         .eq("id", pontoId)
-        .select("id, title, author_name, is_public_domain, lyrics, tags")
+        .select("id, title, author_name, is_public_domain, tags")
         .single();
 
       if (res.error) {
@@ -688,6 +687,21 @@ export function PontoUpsertModal({
           typeof res.error.message === "string" && res.error.message.trim()
             ? res.error.message
             : "Erro ao salvar alterações.",
+        );
+      }
+
+      const versaoRes = await supabase
+        .from("ponto_versoes")
+        .update({ lyrics: lyrics.trim() })
+        .eq("ponto_id", pontoId)
+        .eq("is_canonical", true);
+
+      if (versaoRes.error) {
+        throw new Error(
+          typeof versaoRes.error.message === "string" &&
+            versaoRes.error.message.trim()
+            ? versaoRes.error.message
+            : "Erro ao salvar a letra.",
         );
       }
 
@@ -703,7 +717,7 @@ export function PontoUpsertModal({
           typeof row.is_public_domain === "boolean"
             ? row.is_public_domain
             : isPublicDomainValue,
-        lyrics: typeof row.lyrics === "string" ? row.lyrics : lyrics.trim(),
+        lyrics: lyrics.trim(),
         tags: Array.isArray(row.tags)
           ? row.tags.filter((v: any) => typeof v === "string")
           : tagsValue,

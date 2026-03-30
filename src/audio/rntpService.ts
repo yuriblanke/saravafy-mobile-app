@@ -1,14 +1,14 @@
 import {
-  getPontoAudioPlaybackUrlPublic,
-  getPontoAudioPlaybackUrlReviewBySubmission,
+    getPontoAudioPlaybackUrlPublic,
+    getPontoAudioPlaybackUrlReviewBySubmission,
 } from "@/src/api/pontoAudio";
 import { useEffect, useSyncExternalStore } from "react";
 import TrackPlayer, {
-  Event,
-  State,
-  usePlaybackState,
-  useProgress,
-  type Track,
+    Event,
+    State,
+    usePlaybackState,
+    useProgress,
+    type Track,
 } from "react-native-track-player";
 
 import { ensureTrackPlayerReady, resetAndStop } from "./trackPlayer";

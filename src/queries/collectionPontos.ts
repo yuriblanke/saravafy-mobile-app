@@ -1,14 +1,14 @@
 import { supabase } from "@/lib/supabase";
 import {
-  useQuery,
-  type QueryKey,
-  type UseQueryOptions,
+    useQuery,
+    type QueryKey,
+    type UseQueryOptions,
 } from "@tanstack/react-query";
 
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
-  type CollectionPlayerItem,
-  type PlayerPonto,
+    type CollectionPlayerItem,
+    type PlayerPonto,
 } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
 function coerceTags(value: unknown): string[] {
@@ -51,7 +51,7 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      "position, ponto_versao_id, pontos:ponto_id (id, title, tags, duration_seconds, cover_url, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6, title, is_canonical))",
+      "position, ponto_versao_id, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6, title, is_canonical))",
     )
     .eq("collection_id", collectionId)
     .eq("pontos.ponto_versoes.is_canonical", true)
@@ -82,12 +82,15 @@ export async function fetchCollectionPontosItems(
         : ponto.ponto_versoes
           ? [ponto.ponto_versoes]
           : [];
-      const canonicalVersao = versoes.find((v: any) => v.is_canonical === true) ?? versoes[0];
+      const canonicalVersao =
+        versoes.find((v: any) => v.is_canonical === true) ?? versoes[0];
 
       const title =
         (typeof ponto.title === "string" && ponto.title.trim()) || "Ponto";
       const lyrics =
-        (typeof canonicalVersao?.lyrics === "string" && canonicalVersao.lyrics) || "";
+        (typeof canonicalVersao?.lyrics === "string" &&
+          canonicalVersao.lyrics) ||
+        "";
 
       const mapped: PlayerPonto = {
         id: String(ponto.id ?? ""),
@@ -101,11 +104,8 @@ export async function fetchCollectionPontosItems(
           typeof (ponto as any).is_public_domain === "boolean"
             ? (ponto as any).is_public_domain
             : null,
-        duration_seconds:
-          typeof ponto.duration_seconds === "number"
-            ? ponto.duration_seconds
-            : null,
-        cover_url: typeof ponto.cover_url === "string" ? ponto.cover_url : null,
+        duration_seconds: null,
+        cover_url: null,
         lyrics,
         lyrics_preview_6:
           typeof canonicalVersao?.lyrics_preview_6 === "string"

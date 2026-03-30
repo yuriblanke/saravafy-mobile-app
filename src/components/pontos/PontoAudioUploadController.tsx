@@ -1,8 +1,8 @@
 import { supabase } from "@/lib/supabase";
 import {
-  finalizeAudioUploadAndCreateSubmission,
-  initPontoAudioUpload,
-  uploadToSignedUpload,
+    finalizeAudioUploadAndCreateSubmission,
+    initPontoAudioUpload,
+    uploadToSignedUpload,
 } from "@/src/api/pontoAudio";
 import * as FileSystem from "expo-file-system";
 import React, { useCallback, useMemo, useRef, useState } from "react";
@@ -242,7 +242,15 @@ export function PontoAudioUploadController({
 
     inFlightRef.current = promise;
     return promise;
-  }, [audio, canStart, interpreterConsent, interpreterName, onDone, pontoId, pontoVersaoId]);
+  }, [
+    audio,
+    canStart,
+    interpreterConsent,
+    interpreterName,
+    onDone,
+    pontoId,
+    pontoVersaoId,
+  ]);
 
   const ctx = useMemo<PontoAudioUploadControllerRenderProps>(
     () => ({

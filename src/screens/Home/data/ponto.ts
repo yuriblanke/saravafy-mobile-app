@@ -32,7 +32,7 @@ export async function fetchAllPontos(): Promise<Ponto[]> {
   const { data, error } = await supabase
     .from(PONTOS_TABLE)
     .select(
-      "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)"
+      "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
     )
     .eq("is_active", true)
     .eq("restricted", false)

@@ -37,7 +37,7 @@ export async function searchPontos({
     throw new Error(
       typeof error.message === "string" && error.message.trim()
         ? error.message
-        : "Erro ao buscar pontos."
+        : "Erro ao buscar pontos.",
     );
   }
 

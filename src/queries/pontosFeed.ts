@@ -34,9 +34,10 @@ export async function fetchHomeFeedPontos(params: {
 
   const { data, error } = await supabase
     .from("pontos")
-    .select("id, title, lyrics, tags")
+    .select("id, title, tags, ponto_versoes!inner(lyrics)")
     .eq("is_active", true)
     .eq("restricted", false)
+    .eq("ponto_versoes.is_canonical", true)
     .order("title", { ascending: true })
     .limit(limit);
 
@@ -49,12 +50,20 @@ export async function fetchHomeFeedPontos(params: {
     throw new Error(message);
   }
 
-  return (data ?? []).map((row: any) => ({
-    id: row.id,
-    title: row.title,
-    tags: coerceTags(row.tags),
-    lyrics: row.lyrics,
-  }));
+  return (data ?? []).map((row: any) => {
+    const versoes = Array.isArray(row.ponto_versoes)
+      ? row.ponto_versoes
+      : row.ponto_versoes
+        ? [row.ponto_versoes]
+        : [];
+    const versao = versoes[0];
+    return {
+      id: row.id,
+      title: row.title,
+      tags: coerceTags(row.tags),
+      lyrics: typeof versao?.lyrics === "string" ? versao.lyrics : "",
+    };
+  });
 }
 
 export function useHomeFeedPontos(userId: string | null, limit = 10) {
@@ -73,7 +82,7 @@ export function useHomeFeedPontos(userId: string | null, limit = 10) {
 
 export async function prefetchHomeFeedPontos(
   queryClient: ReturnType<typeof useQueryClient>,
-  params: { userId: string; limit: number }
+  params: { userId: string; limit: number },
 ): Promise<void> {
   const { userId, limit } = params;
   if (!userId) return;

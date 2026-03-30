@@ -3,8 +3,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
 import {
-  getCollectionPontosQueryOptions,
-  useCollectionPontosQuery,
+    getCollectionPontosQueryOptions,
+    useCollectionPontosQuery,
 } from "@/src/queries/collectionPontos";
 
 export type PlayerPonto = {
@@ -111,7 +111,7 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, tags, duration_seconds, cover_url, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
+          "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -145,7 +145,8 @@ export function useCollectionPlayerData(
               ? [row.ponto_versoes]
               : [];
           const versao = versoes[0];
-          const lyrics = (typeof versao?.lyrics === "string" && versao.lyrics) || "";
+          const lyrics =
+            (typeof versao?.lyrics === "string" && versao.lyrics) || "";
           const lyrics_preview_6 =
             typeof versao?.lyrics_preview_6 === "string"
               ? versao.lyrics_preview_6
@@ -161,11 +162,8 @@ export function useCollectionPlayerData(
               typeof row.is_public_domain === "boolean"
                 ? row.is_public_domain
                 : null,
-            duration_seconds:
-              typeof row.duration_seconds === "number"
-                ? row.duration_seconds
-                : null,
-            cover_url: typeof row.cover_url === "string" ? row.cover_url : null,
+            duration_seconds: null,
+            cover_url: null,
             lyrics,
             lyrics_preview_6,
             tags: coerceTags(row.tags),

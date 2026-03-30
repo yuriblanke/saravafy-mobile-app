@@ -4,24 +4,24 @@ import { prefetchReviewPlaybackUrl } from "@/src/api/pontoAudio";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import {
-  resolveProfiles,
-  type PublicProfile,
+    resolveProfiles,
+    type PublicProfile,
 } from "@/src/features/identity/resolveProfiles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import {
-  extractSubmissionContentFromPayload,
-  usePendingPontoSubmissions,
+    extractSubmissionContentFromPayload,
+    usePendingPontoSubmissions,
 } from "@/src/queries/pontoSubmissions";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  ActivityIndicator,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    ActivityIndicator,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 

@@ -2,42 +2,42 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import {
-  ensureLoaded,
-  getCurrentSubmissionId,
-  loadAndPlay,
-  seekToSeconds,
-  togglePlayPause,
-  useRntpPlayback,
+    ensureLoaded,
+    getCurrentSubmissionId,
+    loadAndPlay,
+    seekToSeconds,
+    togglePlayPause,
+    useRntpPlayback,
 } from "@/src/audio/rntpService";
 import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import {
-  extractSubmissionContentFromPayload,
-  usePontoSubmissionById,
-  type PendingPontoSubmission,
+    extractSubmissionContentFromPayload,
+    usePontoSubmissionById,
+    type PendingPontoSubmission,
 } from "@/src/queries/pontoSubmissions";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import {
-  normalizeTagsFromText,
-  sanitizeOptionalText,
+    normalizeTagsFromText,
+    sanitizeOptionalText,
 } from "@/src/utils/sanitizeReviewSubmission";
 import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    ActivityIndicator,
+    Alert,
+    Image,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -604,7 +604,7 @@ export default function ReviewSubmissionScreen() {
   const reviewNewMutation = useMutation({
     mutationFn: async (payload: RpcPayload) => {
       const res = await callRpcWithParamFallback(
-        "review_ponto_submission",
+        "approve_ponto_submission",
         payload,
       );
 
@@ -733,7 +733,7 @@ export default function ReviewSubmissionScreen() {
           msgLower.includes("cannot activate ponto_audio")
         ) {
           const fallback = await callRpcWithParamFallback(
-            "review_ponto_submission",
+            "approve_ponto_submission",
             {
               p_submission_id: sid,
               p_decision: "approved",
