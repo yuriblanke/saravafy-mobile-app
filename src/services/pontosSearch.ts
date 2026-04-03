@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
+import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
 
 export type PontosSearchResult = {
   id: string;
@@ -7,6 +9,8 @@ export type PontosSearchResult = {
   lyrics: string;
   lyrics_preview_6: string | null;
   score: number | null;
+  entidadeNome: string | null;
+  orixaNome: string | null;
 };
 
 export const PONTOS_SEARCH_MIN_CHARS = 4;
@@ -42,7 +46,7 @@ export async function searchPontos({
   }
 
   const rows = Array.isArray(data) ? (data as any[]) : [];
-  return rows
+  const base = rows
     .map((r) => {
       const tags = Array.isArray(r.tags)
         ? r.tags.filter((t: unknown) => typeof t === "string")
@@ -57,7 +61,46 @@ export async function searchPontos({
         lyrics: String(r.lyrics_preview_6 ?? r.lyrics ?? ""),
         lyrics_preview_6,
         score: typeof r.score === "number" ? r.score : null,
+        entidadeNome: null as string | null,
+        orixaNome: null as string | null,
       } satisfies PontosSearchResult;
     })
     .filter((r) => Boolean(r.id));
+
+  return enrichPontosSearchWithEntidades(base);
+}
+
+async function enrichPontosSearchWithEntidades(
+  results: PontosSearchResult[],
+): Promise<PontosSearchResult[]> {
+  const ids = results.map((r) => r.id).filter(Boolean);
+  if (ids.length === 0) return results;
+
+  const { data, error } = await supabase
+    .from("pontos")
+    .select(`id, ${PONTOS_ENTIDADE_ORIXA_EMBED}`)
+    .in("id", ids);
+
+  if (error || !Array.isArray(data)) return results;
+
+  const byId = new Map<
+    string,
+    { entidadeNome: string | null; orixaNome: string | null }
+  >();
+  for (const row of data as any[]) {
+    const chip = parseEntidadeChipFieldsFromPontoRow(row);
+    byId.set(String(row.id ?? ""), {
+      entidadeNome: chip.entidadeNome,
+      orixaNome: chip.orixaNome,
+    });
+  }
+
+  return results.map((r) => {
+    const extra = byId.get(r.id);
+    return {
+      ...r,
+      entidadeNome: extra?.entidadeNome ?? null,
+      orixaNome: extra?.orixaNome ?? null,
+    };
+  });
 }

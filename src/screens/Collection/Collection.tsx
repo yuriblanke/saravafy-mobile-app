@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
@@ -1519,13 +1520,15 @@ export default function Collection() {
                             const mediumTags = canSeeMediumTags
                               ? customTagsMap[item.ponto.id] ?? []
                               : [];
-                            const pointTags = Array.isArray(item.ponto.tags)
-                              ? item.ponto.tags
-                              : [];
+                            const entidadeNome = item.ponto.entidadeNome ?? null;
+                            const orixaNome = item.ponto.orixaNome ?? null;
 
-                            const hasAnyTags =
-                              mediumTags.length > 0 || pointTags.length > 0;
-                            if (!hasAnyTags) return null;
+                            const hasChipRow =
+                              (canEditCustomTags && !!terreiroId) ||
+                              mediumTags.length > 0 ||
+                              !!entidadeNome ||
+                              !!orixaNome;
+                            if (!hasChipRow) return null;
 
                             return (
                               <View style={styles.tagsWrap}>
@@ -1575,13 +1578,11 @@ export default function Collection() {
                                     />
                                   </Pressable>
                                 ))}
-                                {pointTags.map((t) => (
-                                  <TagChip
-                                    key={`ponto-${item.ponto.id}-${t}`}
-                                    label={t}
-                                    variant={variant}
-                                  />
-                                ))}
+                                <PontoEntidadeOrixaChips
+                                  variant={variant}
+                                  entidadeNome={entidadeNome}
+                                  orixaNome={orixaNome}
+                                />
                               </View>
                             );
                           })()}

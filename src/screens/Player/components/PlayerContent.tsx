@@ -1,3 +1,4 @@
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
 import type { TerreiroPontoMediumTag } from "@/src/queries/terreiroPontoCustomTags";
@@ -40,8 +41,13 @@ export function PlayerContent(props: {
       : colors.textSecondaryOnDark;
 
   const resolvedMediumTags = Array.isArray(mediumTags) ? mediumTags : [];
-  const pointTags = Array.isArray(ponto.tags) ? ponto.tags : [];
-  const hasAnyTags = resolvedMediumTags.length > 0 || pointTags.length > 0;
+  const entidadeNome = ponto.entidadeNome ?? null;
+  const orixaNome = ponto.orixaNome ?? null;
+  const hasChipRow =
+    !!canAddMediumTag ||
+    resolvedMediumTags.length > 0 ||
+    !!entidadeNome ||
+    !!orixaNome;
 
   const versoes = ponto.versoes ?? [];
   const displayTitle =
@@ -120,7 +126,7 @@ export function PlayerContent(props: {
         </Text>
       )}
 
-      {hasAnyTags ? (
+      {hasChipRow ? (
         <View style={styles.tagsWrap}>
           {canAddMediumTag ? (
             <TagPlusChip
@@ -151,17 +157,13 @@ export function PlayerContent(props: {
               />
             </Pressable>
           ))}
-          {pointTags.map((t) => (
-            <TagChip
-              key={`ponto-${ponto.id}-${t}`}
-              label={t}
-              variant={variant}
-            />
-          ))}
+          <PontoEntidadeOrixaChips
+            variant={variant}
+            entidadeNome={entidadeNome}
+            orixaNome={orixaNome}
+          />
         </View>
-      ) : (
-        <Text style={[styles.noTags, { color: textSecondary }]}>Sem tags</Text>
-      )}
+      ) : null}
 
       <LyricsScroll
         lyrics={lyricsBody}
@@ -214,9 +216,5 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: spacing.xs,
     paddingTop: spacing.sm,
-  },
-  noTags: {
-    paddingTop: spacing.sm,
-    fontSize: 12,
   },
 });

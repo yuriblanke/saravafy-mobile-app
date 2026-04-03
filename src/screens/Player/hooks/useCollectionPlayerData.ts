@@ -6,6 +6,8 @@ import {
     getCollectionPontosQueryOptions,
     useCollectionPontosQuery,
 } from "@/src/queries/collectionPontos";
+import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
+import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
 import {
     fetchActivePontoVersoesByPontoIds,
     type PontoVersaoPlayerRow,
@@ -24,6 +26,9 @@ export type PlayerPonto = {
   lyrics: string;
   lyrics_preview_6?: string | null;
   tags: string[];
+  entidade_id: string | null;
+  entidadeNome: string | null;
+  orixaNome: string | null;
   /** Versões ativas ordenadas por `versao_num` (vazio até carregar). */
   versoes: PontoVersaoPlayerRow[];
 };
@@ -62,7 +67,16 @@ function matchesQuery(ponto: PlayerPonto, query: string) {
   for (const v of versoes) {
     if (normalize(v.lyrics).includes(q)) return true;
   }
-  return ponto.tags.some((t) => normalize(t).includes(q));
+  if (
+    ponto.entidadeNome &&
+    normalize(ponto.entidadeNome).includes(q)
+  ) {
+    return true;
+  }
+  if (ponto.orixaNome && normalize(ponto.orixaNome).includes(q)) {
+    return true;
+  }
+  return false;
 }
 
 function coerceTags(value: unknown): string[] {
@@ -123,7 +137,7 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
+          `id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics, lyrics_preview_6)`,
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -162,6 +176,8 @@ export function useCollectionPlayerData(
             ? versao.lyrics_preview_6
             : null;
 
+        const chip = parseEntidadeChipFieldsFromPontoRow(row);
+
         const p: PlayerPonto = {
           id: String(row.id ?? ""),
           title,
@@ -177,6 +193,9 @@ export function useCollectionPlayerData(
           lyrics,
           lyrics_preview_6,
           tags: coerceTags(row.tags),
+          entidade_id: chip.entidade_id,
+          entidadeNome: chip.entidadeNome,
+          orixaNome: chip.orixaNome,
           versoes: [],
         };
 

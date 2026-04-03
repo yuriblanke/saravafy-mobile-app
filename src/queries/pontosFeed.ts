@@ -1,6 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
+import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
+import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
+
 import { queryKeys } from "./queryKeys";
 
 export type FeedPonto = {
@@ -8,6 +11,8 @@ export type FeedPonto = {
   title: string;
   tags: string[];
   lyrics: string;
+  entidadeNome: string | null;
+  orixaNome: string | null;
 };
 
 function coerceTags(value: unknown): string[] {
@@ -34,7 +39,9 @@ export async function fetchHomeFeedPontos(params: {
 
   const { data, error } = await supabase
     .from("pontos")
-    .select("id, title, tags, ponto_versoes!inner(lyrics)")
+    .select(
+      `id, title, tags, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics)`,
+    )
     .eq("is_active", true)
     .eq("restricted", false)
     .eq("ponto_versoes.is_canonical", true)
@@ -57,11 +64,14 @@ export async function fetchHomeFeedPontos(params: {
         ? [row.ponto_versoes]
         : [];
     const versao = versoes[0];
+    const chip = parseEntidadeChipFieldsFromPontoRow(row);
     return {
       id: row.id,
       title: row.title,
       tags: coerceTags(row.tags),
       lyrics: typeof versao?.lyrics === "string" ? versao.lyrics : "",
+      entidadeNome: chip.entidadeNome,
+      orixaNome: chip.orixaNome,
     };
   });
 }

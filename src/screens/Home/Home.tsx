@@ -11,8 +11,8 @@ import {
 } from "@/src/components/pontos/PontoUpsertModal";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import { TagChip } from "@/src/components/TagChip";
 import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
@@ -92,7 +92,16 @@ export function matchesQuery(point: Ponto, query: string) {
   if (!q) return true;
   if (normalize(point.title).includes(q)) return true;
   if (normalize(point.lyrics).includes(q)) return true;
-  return point.tags.some((t: string) => normalize(t).includes(q));
+  if (
+    point.entidadeNome &&
+    normalize(point.entidadeNome).includes(q)
+  ) {
+    return true;
+  }
+  if (point.orixaNome && normalize(point.orixaNome).includes(q)) {
+    return true;
+  }
+  return false;
 }
 
 export function getLyricsPreview(lyrics: string, maxLines = 6) {
@@ -221,6 +230,9 @@ export default function Home() {
               )
             : [],
           versoes: [],
+          entidade_id: null,
+          entidadeNome: null,
+          orixaNome: null,
         };
 
         const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
@@ -356,6 +368,9 @@ export default function Home() {
         lyrics_preview_6: r.lyrics_preview_6,
         author_name: null,
         is_public_domain: null,
+        entidade_id: null,
+        entidadeNome: r.entidadeNome ?? null,
+        orixaNome: r.orixaNome ?? null,
         score: r.score,
       } satisfies PontoListItem;
     });
@@ -1030,11 +1045,15 @@ export default function Home() {
                         );
                       })()}
 
-                      <View style={styles.tagsRow}>
-                        {item.tags.map((tag) => (
-                          <TagChip key={tag} label={tag} variant={variant} />
-                        ))}
-                      </View>
+                      {item.entidadeNome || item.orixaNome ? (
+                        <View style={styles.tagsRow}>
+                          <PontoEntidadeOrixaChips
+                            variant={variant}
+                            entidadeNome={item.entidadeNome}
+                            orixaNome={item.orixaNome}
+                          />
+                        </View>
+                      ) : null}
                       <Text
                         style={[styles.cardPreview, { color: textSecondary }]}
                         numberOfLines={6}
@@ -1257,11 +1276,15 @@ export default function Home() {
                       );
                     })()}
 
-                    <View style={styles.tagsRow}>
-                      {item.tags.map((tag) => (
-                        <TagChip key={tag} label={tag} variant={variant} />
-                      ))}
-                    </View>
+                    {item.entidadeNome || item.orixaNome ? (
+                      <View style={styles.tagsRow}>
+                        <PontoEntidadeOrixaChips
+                          variant={variant}
+                          entidadeNome={item.entidadeNome}
+                          orixaNome={item.orixaNome}
+                        />
+                      </View>
+                    ) : null}
                     <Text
                       style={[styles.cardPreview, { color: textSecondary }]}
                       numberOfLines={6}

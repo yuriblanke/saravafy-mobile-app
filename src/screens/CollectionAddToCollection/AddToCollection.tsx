@@ -2,8 +2,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import { TagChip } from "@/src/components/TagChip";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
@@ -31,8 +31,10 @@ import {
     View,
 } from "react-native";
 
-import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
+import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
+import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
 import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
+import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
 type ListPonto = {
@@ -41,6 +43,8 @@ type ListPonto = {
   tags: string[];
   lyrics: string;
   lyrics_preview_6?: string | null;
+  entidadeNome: string | null;
+  orixaNome: string | null;
 };
 
 function getErrorMessage(e: unknown): string {
@@ -151,6 +155,9 @@ function toPlayerPonto(p: ListPonto): PlayerPonto {
     cover_url: null,
     lyrics: p.lyrics,
     tags: Array.isArray(p.tags) ? p.tags : [],
+    entidade_id: null,
+    entidadeNome: p.entidadeNome ?? null,
+    orixaNome: p.orixaNome ?? null,
     versoes: [],
   };
 }
@@ -161,6 +168,9 @@ function toListPonto(p: PlayerPonto): ListPonto {
     title: p.title,
     lyrics: p.lyrics,
     tags: Array.isArray(p.tags) ? p.tags : [],
+    lyrics_preview_6: p.lyrics_preview_6 ?? null,
+    entidadeNome: p.entidadeNome ?? null,
+    orixaNome: p.orixaNome ?? null,
   };
 }
 
@@ -286,7 +296,7 @@ export default function AddToCollection() {
       const res = await supabase
         .from("pontos")
         .select(
-          "id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6)",
+          `id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics, lyrics_preview_6)`,
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -319,6 +329,8 @@ export default function AddToCollection() {
         const lyrics =
           typeof versao?.lyrics === "string" ? versao.lyrics : "";
 
+        const chip = parseEntidadeChipFieldsFromPontoRow(row);
+
         return {
           id,
           title,
@@ -337,6 +349,9 @@ export default function AddToCollection() {
               ? versao.lyrics_preview_6
               : null,
           tags: coerceStringArray(row?.tags),
+          entidade_id: chip.entidade_id,
+          entidadeNome: chip.entidadeNome,
+          orixaNome: chip.orixaNome,
           versoes: [],
         } satisfies PlayerPonto;
       });
@@ -384,10 +399,14 @@ export default function AddToCollection() {
 
     const scored = all
       .map((p) => {
-        const pTags = (p.tags ?? []).map((t) => normalizeTag(t));
+        const blob = [p.entidadeNome, p.orixaNome]
+          .filter(Boolean)
+          .join(" ");
+        const pNorm = normalizeTag(blob);
         let score = 0;
         for (const wanted of tagNorms) {
-          if (pTags.some((pt) => pt.includes(wanted) || wanted.includes(pt))) {
+          if (!wanted) continue;
+          if (pNorm.includes(wanted) || wanted.includes(pNorm)) {
             score += 1;
           }
         }
@@ -427,6 +446,9 @@ export default function AddToCollection() {
             : [],
           lyrics: String(r?.lyrics ?? ""),
           lyrics_preview_6: r?.lyrics_preview_6 ?? null,
+          entidadeNome:
+            typeof r?.entidadeNome === "string" ? r.entidadeNome : null,
+          orixaNome: typeof r?.orixaNome === "string" ? r.orixaNome : null,
         } satisfies ListPonto;
       })
       .filter(Boolean) as ListPonto[];
@@ -710,15 +732,15 @@ export default function AddToCollection() {
                 </Pressable>
               </View>
 
-              <View style={styles.tagsRow}>
-                {item.tags.map((tag) => (
-                  <TagChip
-                    key={`${item.id}-${tag}`}
-                    label={tag}
+              {item.entidadeNome || item.orixaNome ? (
+                <View style={styles.tagsRow}>
+                  <PontoEntidadeOrixaChips
                     variant={variant}
+                    entidadeNome={item.entidadeNome}
+                    orixaNome={item.orixaNome}
                   />
-                ))}
-              </View>
+                </View>
+              ) : null}
 
               <Text
                 style={[styles.cardPreview, { color: textSecondary }]}

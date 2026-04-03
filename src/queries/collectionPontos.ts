@@ -5,7 +5,9 @@ import {
     type UseQueryOptions,
 } from "@tanstack/react-query";
 
+import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
 import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
 import {
     type CollectionPlayerItem,
@@ -52,7 +54,7 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      "position, ponto_versao_id, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ponto_versoes!inner(lyrics, lyrics_preview_6, title, is_canonical))",
+      `position, ponto_versao_id, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics, lyrics_preview_6, title, is_canonical))`,
     )
     .eq("collection_id", collectionId)
     .eq("pontos.ponto_versoes.is_canonical", true)
@@ -91,6 +93,8 @@ export async function fetchCollectionPontosItems(
         canonicalVersaoJoin.lyrics) ||
       "";
 
+    const chip = parseEntidadeChipFieldsFromPontoRow(ponto);
+
     const mapped: PlayerPonto = {
       id: String(ponto.id ?? ""),
       title,
@@ -111,6 +115,9 @@ export async function fetchCollectionPontosItems(
           ? canonicalVersaoJoin.lyrics_preview_6
           : null,
       tags: coerceTags(ponto.tags),
+      entidade_id: chip.entidade_id,
+      entidadeNome: chip.entidadeNome,
+      orixaNome: chip.orixaNome,
       versoes: [],
     };
 

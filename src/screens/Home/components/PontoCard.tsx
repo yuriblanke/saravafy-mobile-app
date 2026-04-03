@@ -3,16 +3,21 @@ import { View as RNView, StyleSheet } from "react-native";
 
 import { Text, useThemeColor } from "@/components/Themed";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { TagChip } from "@/src/components/TagChip";
-import { isMediumTag } from "@/src/utils/mergeTags";
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 
 type Props = {
   title: string;
-  tags: string[];
   lyricsPreview: string;
+  entidadeNome: string | null;
+  orixaNome: string | null;
 };
 
-function PontoCardImpl({ title, tags, lyricsPreview }: Props) {
+function PontoCardImpl({
+  title,
+  lyricsPreview,
+  entidadeNome,
+  orixaNome,
+}: Props) {
   const { effectiveTheme } = usePreferences();
   const variant: "light" | "dark" = effectiveTheme;
 
@@ -27,17 +32,15 @@ function PontoCardImpl({ title, tags, lyricsPreview }: Props) {
     >
       <Text style={[styles.title, { color: text }]}>{title}</Text>
 
-      <RNView style={styles.tagsRow}>
-        {tags.map((tag) => (
-          <TagChip
-            key={tag}
-            label={tag}
+      {entidadeNome || orixaNome ? (
+        <RNView style={styles.tagsRow}>
+          <PontoEntidadeOrixaChips
             variant={variant}
-            tone={isMediumTag(tag) ? "medium" : "default"}
-            kind="ponto"
+            entidadeNome={entidadeNome}
+            orixaNome={orixaNome}
           />
-        ))}
-      </RNView>
+        </RNView>
+      ) : null}
 
       <Text
         style={[styles.lyricsPreview, { color: mutedText }]}

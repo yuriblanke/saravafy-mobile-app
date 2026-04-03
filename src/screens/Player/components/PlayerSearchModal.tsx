@@ -1,5 +1,5 @@
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import { TagChip } from "@/src/components/TagChip";
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import type { PontosSearchResult } from "@/src/services/pontosSearch";
 import { colors, spacing } from "@/src/theme";
@@ -133,15 +133,13 @@ export function PlayerSearchModal(props: {
                           {item.title}
                         </Text>
 
-                        {item.tags.length > 0 ? (
+                        {item.entidadeNome || item.orixaNome ? (
                           <View style={styles.tagsWrap}>
-                            {item.tags.map((t) => (
-                              <TagChip
-                                key={`${item.id}-${t}`}
-                                label={t}
-                                variant={variant}
-                              />
-                            ))}
+                            <PontoEntidadeOrixaChips
+                              variant={variant}
+                              entidadeNome={item.entidadeNome}
+                              orixaNome={item.orixaNome}
+                            />
                           </View>
                         ) : null}
 
