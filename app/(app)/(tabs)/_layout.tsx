@@ -80,6 +80,12 @@ export default function AppTabsLayout() {
 
   const swipeEnabled = !(rootPager?.isBottomSheetOpen ?? false);
 
+  // Suspend the tabs header (rendering null) when the user is not in the tabs
+  // (e.g., on /preferences, /terreiro-members, /access-manager, /terreiro-editor, etc.)
+  // so its "Pontos"/"Terreiros" tab buttons — which call router.replace when !isInTabs —
+  // cannot fire while a non-tabs screen is on top of the (app) Stack.
+  const isInTabs = (segments as string[]).includes("(tabs)");
+
   const tabBar = useCallback((props: any) => {
     // Captura a navigation do *TopTabs* (não a do Stack pai).
     tabsNavigationRef.current = props?.navigation ?? null;
@@ -109,7 +115,7 @@ export default function AppTabsLayout() {
 
   return (
     <View style={styles.container}>
-      <TabsHeaderWithPreferences />
+      <TabsHeaderWithPreferences suspended={!isInTabs} />
 
       <TopTabs
         screenOptions={{

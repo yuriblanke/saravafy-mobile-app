@@ -45,6 +45,7 @@ import { PlayerSearchModal } from "./components/PlayerSearchModal";
 import {
   useCollectionPlayerData,
   type CollectionPlayerItem,
+  type PlayerPonto,
 } from "./hooks/useCollectionPlayerData";
 
 const LYRICS_FONT_MIN = 14;
@@ -150,6 +151,22 @@ export default function PlayerScreen() {
     null,
   );
 
+  const [versaoIdByPontoId, setVersaoIdByPontoId] = useState<
+    Record<string, string>
+  >({});
+
+  const resolveVersaoForPonto = useCallback((ponto: PlayerPonto) => {
+    const versoes = ponto.versoes ?? [];
+    if (versoes.length === 0) return null;
+    const canonical = versoes.find((v) => v.is_canonical) ?? versoes[0];
+    const sel = versaoIdByPontoId[ponto.id];
+    if (sel) {
+      const found = versoes.find((v) => v.id === sel);
+      if (found) return found;
+    }
+    return canonical ?? null;
+  }, [versaoIdByPontoId]);
+
   const [deleteTarget, setDeleteTarget] = useState<null | {
     pontoId: string;
     tagId: string;
@@ -196,10 +213,23 @@ export default function PlayerScreen() {
   }, [items.length, initialIndex]);
 
   const activePonto = items[activeIndex]?.ponto ?? null;
+  const activeVersao = activePonto
+    ? resolveVersaoForPonto(activePonto)
+    : null;
+  const activeDisplayTitle = activePonto
+    ? activeVersao?.title != null &&
+      typeof activeVersao.title === "string" &&
+      activeVersao.title.trim()
+      ? activeVersao.title.trim()
+      : activePonto.title
+    : "";
 
   const approvedAudioSubmissionQuery = useApprovedPontoAudioSubmission(
     activePonto?.id,
-    { enabled: !!activePonto?.id },
+    {
+      enabled: !!activePonto?.id,
+      pontoVersaoId: activeVersao?.id ?? null,
+    },
   );
 
   const approvedPontoAudioId =
@@ -227,10 +257,10 @@ export default function PlayerScreen() {
           typeof (activePonto as any).is_public_domain === "boolean"
             ? (activePonto as any).is_public_domain
             : null,
-        lyrics: activePonto.lyrics,
+        lyrics: activeVersao?.lyrics ?? activePonto.lyrics,
         tags: activePonto.tags,
       };
-    }, [activePonto]);
+    }, [activePonto, activeVersao?.lyrics]);
 
   const openCorrection = useCallback(async () => {
     if (!activePonto?.id || !editingInitialValues?.id) {
@@ -258,13 +288,10 @@ export default function PlayerScreen() {
       pathname: "/ponto-audio-upload" as any,
       params: {
         pontoId: activePonto.id,
-        pontoTitle:
-          typeof (activePonto as any)?.title === "string"
-            ? (activePonto as any).title
-            : "",
+        pontoTitle: activeDisplayTitle || activePonto.title || "",
       },
     } as any);
-  }, [activePonto, router, showToast]);
+  }, [activePonto, activeDisplayTitle, router, showToast]);
 
   const handleShare = useCallback(async () => {
     if (!activePonto?.id) {
@@ -274,7 +301,7 @@ export default function PlayerScreen() {
 
     const message = buildShareMessageForPonto({
       pontoId: activePonto.id,
-      pontoTitle: activePonto.title ?? "Ponto",
+      pontoTitle: activeDisplayTitle || activePonto.title || "Ponto",
     });
 
     try {
@@ -286,7 +313,7 @@ export default function PlayerScreen() {
         });
       }
     }
-  }, [activePonto?.id, activePonto?.title, showToast]);
+  }, [activePonto?.id, activePonto?.title, activeDisplayTitle, showToast]);
 
   const onDecreaseFont = useCallback(() => {
     setLyricsFontSize((prev) => Math.max(LYRICS_FONT_MIN, prev - 2));
@@ -533,6 +560,21 @@ export default function PlayerScreen() {
               <View style={{ width }}>
                 <PlayerContent
                   ponto={item.ponto}
+                  versaoAtual={resolveVersaoForPonto(item.ponto)}
+                  onStepVersao={(delta) => {
+                    const list = item.ponto.versoes ?? [];
+                    if (list.length <= 1) return;
+                    const cur = resolveVersaoForPonto(item.ponto);
+                    if (!cur) return;
+                    const idx = list.findIndex((x) => x.id === cur.id);
+                    const next = list[idx + delta];
+                    if (next) {
+                      setVersaoIdByPontoId((s) => ({
+                        ...s,
+                        [item.ponto.id]: next.id,
+                      }));
+                    }
+                  }}
                   variant={variant}
                   lyricsFontSize={lyricsFontSize}
                   mediumTags={
@@ -567,6 +609,8 @@ export default function PlayerScreen() {
 
         <AudioPlayerFooter
           ponto={activePonto}
+          displayTitle={activeDisplayTitle}
+          pontoVersaoId={activeVersao?.id ?? null}
           variant={variant}
           curimbaEnabled={curimbaEnabled}
           audioState={audioState}

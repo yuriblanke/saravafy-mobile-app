@@ -4,8 +4,8 @@ import { GestureGateProvider } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import {
-  TabControllerProvider,
-  useTabController,
+    TabControllerProvider,
+    useTabController,
 } from "@/contexts/TabControllerContext";
 import { SaravafyBackgroundLayers } from "@/src/components/SaravafyBackgroundLayers";
 import { SaravafyLayoutMetricsProvider } from "@/src/contexts/SaravafyLayoutMetricsContext";
@@ -15,18 +15,18 @@ import { LoadingStatePreferences } from "@/src/screens/Preferences/LoadingStateP
 import { colors, getSaravafyBaseColor } from "@/src/theme";
 import { navTrace } from "@/src/utils/navTrace";
 import {
-  Stack,
-  useGlobalSearchParams,
-  usePathname,
-  useSegments,
+    Stack,
+    useGlobalSearchParams,
+    usePathname,
+    useSegments,
 } from "expo-router";
 import React, { useMemo } from "react";
 import {
-  BackHandler,
-  Platform,
-  StatusBar,
-  StyleSheet,
-  View,
+    BackHandler,
+    Platform,
+    StatusBar,
+    StyleSheet,
+    View,
 } from "react-native";
 
 function AndroidBackBehavior() {
@@ -143,32 +143,6 @@ export default function AppLayout() {
     myUserId,
   });
 
-  const isHeaderSuspended = useMemo(() => {
-    // Mantém o componente montado para preservar o estado das Preferências,
-    // mas suspende a UI (header + sheets) em telas full-screen/imersivas.
-    const leaf = segments[segments.length - 1];
-    return (
-      leaf === "player" ||
-      leaf === "edit" ||
-      leaf === "preferences" ||
-      leaf === "terreiro-members" ||
-      leaf === "terreiro-members-list" ||
-      leaf === "terreiro-member-profile" ||
-      leaf === "access-manager" ||
-      leaf === "terreiro-editor" ||
-      segments.includes("review-submissions") ||
-      // Player continua imersivo.
-      (typeof pathname === "string" &&
-        (pathname.startsWith("/player") ||
-          pathname.startsWith("/preferences") ||
-          pathname.startsWith("/terreiro-members") ||
-          pathname.startsWith("/terreiro-members-list") ||
-          pathname.startsWith("/terreiro-member-profile") ||
-          pathname.startsWith("/access-manager") ||
-          pathname.startsWith("/review-submissions")))
-    );
-  }, [pathname, segments]);
-
   return (
     <View style={styles.root}>
       <StatusBar
@@ -235,35 +209,45 @@ export default function AppLayout() {
                     name="collection/[id]"
                     options={{
                       animation: "fade",
-                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                      contentStyle: {
+                        backgroundColor: getSaravafyBaseColor(effectiveTheme),
+                      },
                     }}
                   />
                   <Stack.Screen
                     name="collection/[id]/edit"
                     options={{
                       animation: "fade",
-                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                      contentStyle: {
+                        backgroundColor: getSaravafyBaseColor(effectiveTheme),
+                      },
                     }}
                   />
                   <Stack.Screen
                     name="collection/[id]/add"
                     options={{
                       animation: "fade",
-                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                      contentStyle: {
+                        backgroundColor: getSaravafyBaseColor(effectiveTheme),
+                      },
                     }}
                   />
                   <Stack.Screen
                     name="terreiro"
                     options={{
                       animation: "fade",
-                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                      contentStyle: {
+                        backgroundColor: getSaravafyBaseColor(effectiveTheme),
+                      },
                     }}
                   />
                   <Stack.Screen
                     name="terreiro-collections/[terreiroId]/edit"
                     options={{
                       animation: "fade",
-                      contentStyle: { backgroundColor: getSaravafyBaseColor(effectiveTheme) },
+                      contentStyle: {
+                        backgroundColor: getSaravafyBaseColor(effectiveTheme),
+                      },
                     }}
                   />
 

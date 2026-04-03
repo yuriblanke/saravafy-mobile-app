@@ -16,6 +16,8 @@ import { ensureTrackPlayerReady, resetAndStop } from "./trackPlayer";
 export type ApprovedPlaybackRequest = {
   kind: "approved";
   pontoId: string;
+  /** Quando definido, resolve o áudio por `ponto_versao_id` (prioritário sobre `pontoId`). */
+  pontoVersaoId?: string;
   title: string;
   artist?: string | null;
   /** Seconds (RNTP expects seconds). */
@@ -103,7 +105,7 @@ function coerceDurationSeconds(raw: unknown) {
 
 function getTrackId(req: PlaybackRequest) {
   return req.kind === "approved"
-    ? `approved:${String(req.pontoId)}`
+    ? `approved:${String(req.pontoVersaoId ?? req.pontoId)}`
     : `submission:${String(req.submissionId)}`;
 }
 
@@ -126,6 +128,12 @@ function buildTrack(req: PlaybackRequest, url: string): Track {
 
 async function resolveUrl(req: PlaybackRequest) {
   if (req.kind === "approved") {
+    const pv = String(req.pontoVersaoId ?? "").trim();
+    if (pv) {
+      const res = await getPontoAudioPlaybackUrlPublic({ pontoVersaoId: pv });
+      if (!res?.url) throw new Error("URL de áudio inválida.");
+      return res.url;
+    }
     const id = String(req.pontoId ?? "").trim();
     if (!id) throw new Error("pontoId inválido.");
     const res = await getPontoAudioPlaybackUrlPublic({ pontoId: id });
@@ -308,6 +316,18 @@ export function getCurrentPontoId() {
   return snapshot.current?.kind === "approved" ? snapshot.current.id : null;
 }
 
+/** Compara o pedido com o playback “approved” atual (inclui `pontoVersaoId` quando usado). */
+export function isCurrentApprovedPlayback(req: {
+  pontoId: string;
+  pontoVersaoId?: string | null;
+}): boolean {
+  if (!currentRequest || currentRequest.kind !== "approved") return false;
+  if (currentRequest.pontoId !== req.pontoId) return false;
+  const a = String(currentRequest.pontoVersaoId ?? "").trim();
+  const b = String(req.pontoVersaoId ?? "").trim();
+  return a === b;
+}
+
 export function getCurrentSubmissionId() {
   return snapshot.current?.kind === "submission" ? snapshot.current.id : null;
 }
@@ -319,7 +339,10 @@ export async function ensureLoaded(req: PlaybackRequest) {
 
   const key: CurrentPlaybackKey =
     req.kind === "approved"
-      ? { kind: "approved", id: String(req.pontoId ?? "").trim() }
+      ? {
+          kind: "approved",
+          id: String(req.pontoVersaoId ?? req.pontoId ?? "").trim(),
+        }
       : { kind: "submission", id: String(req.submissionId ?? "").trim() };
 
   setSnapshot({ current: key });

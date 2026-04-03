@@ -1,10 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { supabase } from "@/lib/supabase";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { TagChip } from "@/src/components/TagChip";
+import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
 import {
@@ -32,6 +32,7 @@ import {
 } from "react-native";
 
 import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
+import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
 type ListPonto = {
@@ -150,6 +151,7 @@ function toPlayerPonto(p: ListPonto): PlayerPonto {
     cover_url: null,
     lyrics: p.lyrics,
     tags: Array.isArray(p.tags) ? p.tags : [],
+    versoes: [],
   };
 }
 
@@ -301,44 +303,69 @@ export default function AddToCollection() {
       }
 
       const rows = (res.data ?? []) as any[];
-      const mapped: PlayerPonto[] = rows
-        .map((row) => {
-          const id = String(row?.id ?? "").trim();
-          if (!id) return null;
+      const draft: (PlayerPonto | null)[] = rows.map((row) => {
+        const id = String(row?.id ?? "").trim();
+        if (!id) return null;
 
-          const title =
-            (typeof row?.title === "string" && row.title.trim()) || "Ponto";
+        const title =
+          (typeof row?.title === "string" && row.title.trim()) || "Ponto";
 
-          const versoes = Array.isArray(row?.ponto_versoes)
-            ? row.ponto_versoes
-            : row?.ponto_versoes
-              ? [row.ponto_versoes]
-              : [];
-          const versao = versoes[0];
-          const lyrics =
-            typeof versao?.lyrics === "string" ? versao.lyrics : "";
+        const versoesJoin = Array.isArray(row?.ponto_versoes)
+          ? row.ponto_versoes
+          : row?.ponto_versoes
+            ? [row.ponto_versoes]
+            : [];
+        const versao = versoesJoin[0];
+        const lyrics =
+          typeof versao?.lyrics === "string" ? versao.lyrics : "";
+
+        return {
+          id,
+          title,
+          artist: null,
+          author_name:
+            typeof row?.author_name === "string" ? row.author_name : null,
+          is_public_domain:
+            typeof row?.is_public_domain === "boolean"
+              ? row.is_public_domain
+              : null,
+          duration_seconds: null,
+          cover_url: null,
+          lyrics,
+          lyrics_preview_6:
+            typeof versao?.lyrics_preview_6 === "string"
+              ? versao.lyrics_preview_6
+              : null,
+          tags: coerceStringArray(row?.tags),
+          versoes: [],
+        } satisfies PlayerPonto;
+      });
+
+      const ids = draft
+        .filter(Boolean)
+        .map((p) => p!.id)
+        .filter(Boolean);
+      const versoesMap = await fetchActivePontoVersoesByPontoIds(ids);
+
+      const mapped: PlayerPonto[] = draft
+        .filter(Boolean)
+        .map((p) => {
+          const versoes = versoesMap.get(p!.id) ?? [];
+          const canonical =
+            versoes.find((v) => v.is_canonical) ?? versoes[0] ?? null;
+          const lyrics = canonical?.lyrics ?? p!.lyrics;
+          const lyrics_preview_6 =
+            typeof canonical?.lyrics_preview_6 === "string"
+              ? canonical.lyrics_preview_6
+              : p!.lyrics_preview_6;
 
           return {
-            id,
-            title,
-            artist: null,
-            author_name:
-              typeof row?.author_name === "string" ? row.author_name : null,
-            is_public_domain:
-              typeof row?.is_public_domain === "boolean"
-                ? row.is_public_domain
-                : null,
-            duration_seconds: null,
-            cover_url: null,
+            ...p!,
             lyrics,
-            lyrics_preview_6:
-              typeof versao?.lyrics_preview_6 === "string"
-                ? versao.lyrics_preview_6
-                : null,
-            tags: coerceStringArray(row?.tags),
-          } satisfies PlayerPonto;
-        })
-        .filter(Boolean) as PlayerPonto[];
+            lyrics_preview_6,
+            versoes,
+          };
+        });
 
       return mapped;
     },
@@ -535,7 +562,12 @@ export default function AddToCollection() {
   );
 
   const Header = (
-    <View style={[styles.header, { borderColor, paddingTop: spacing.md + insets.top }]}>
+    <View
+      style={[
+        styles.header,
+        { borderColor, paddingTop: spacing.md + insets.top },
+      ]}
+    >
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Voltar"

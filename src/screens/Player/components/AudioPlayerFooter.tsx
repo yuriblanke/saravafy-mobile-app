@@ -3,7 +3,7 @@ import {
   tryPersistPontoAudioDurationMs,
 } from "@/src/api/pontoAudio";
 import {
-  getCurrentPontoId,
+  isCurrentApprovedPlayback,
   loadAndPlay,
   pause as rntpPause,
   seekToSeconds,
@@ -28,6 +28,10 @@ export type PlayerAudioState =
 
 export function AudioPlayerFooter(props: {
   ponto: PlayerPonto | null;
+  /** Título exibido (COALESCE versão, ponto)). */
+  displayTitle?: string | null;
+  /** Versão cuja faixa deve tocar; define URL de playback. */
+  pontoVersaoId?: string | null;
   variant: "light" | "dark";
   curimbaEnabled?: boolean;
   audioState: PlayerAudioState;
@@ -36,6 +40,14 @@ export function AudioPlayerFooter(props: {
   onOpenAudioInReviewModal: () => void;
 }) {
   const { ponto, variant } = props;
+  const displayTitle =
+    typeof props.displayTitle === "string" && props.displayTitle.trim()
+      ? props.displayTitle.trim()
+      : null;
+  const pontoVersaoId =
+    typeof props.pontoVersaoId === "string" && props.pontoVersaoId.trim()
+      ? props.pontoVersaoId.trim()
+      : null;
   const curimbaEnabled = props.curimbaEnabled === true;
   const audioState = props.audioState;
   const approvedPontoAudioId = props.approvedPontoAudioId;
@@ -132,20 +144,27 @@ export function AudioPlayerFooter(props: {
     if (lastAutoplayForIdRef.current === approvedPontoAudioId) return;
     lastAutoplayForIdRef.current = approvedPontoAudioId;
 
+    const trackTitle =
+      (displayTitle && displayTitle.trim()) ||
+      (typeof ponto?.title === "string" && ponto.title.trim()
+        ? ponto.title.trim()
+        : "") ||
+      "Ponto";
+
     void loadAndPlay({
       kind: "approved",
       pontoId: ponto.id,
-      title:
-        typeof ponto?.title === "string" && ponto.title.trim()
-          ? ponto.title
-          : "Ponto",
+      ...(pontoVersaoId ? { pontoVersaoId } : {}),
+      title: trackTitle,
     });
   }, [
     approvedPontoAudioId,
     audioState,
     curimbaEnabled,
+    displayTitle,
     ponto?.id,
     ponto?.title,
+    pontoVersaoId,
   ]);
 
   const uiDurationMs = useMemo(() => {
@@ -274,7 +293,8 @@ export function AudioPlayerFooter(props: {
             style={[styles.title, { color: textPrimary }]}
             numberOfLines={1}
           >
-            {ponto?.title ?? ""}
+            {(displayTitle && displayTitle.trim()) ||
+              (typeof ponto?.title === "string" ? ponto.title : "")}
           </Text>
           {metaLine ? (
             <Text
@@ -330,18 +350,28 @@ export function AudioPlayerFooter(props: {
               }
 
               // If the current track is the same, resume; otherwise load+play.
-              if (getCurrentPontoId() === ponto.id) {
+              if (
+                isCurrentApprovedPlayback({
+                  pontoId: ponto.id,
+                  pontoVersaoId,
+                })
+              ) {
                 await togglePlayPause();
                 return;
               }
 
+              const manualTitle =
+                (displayTitle && displayTitle.trim()) ||
+                (typeof ponto?.title === "string" && ponto.title.trim()
+                  ? ponto.title.trim()
+                  : "") ||
+                "Ponto";
+
               await loadAndPlay({
                 kind: "approved",
                 pontoId: ponto.id,
-                title:
-                  typeof ponto?.title === "string" && ponto.title.trim()
-                    ? ponto.title
-                    : "Ponto",
+                ...(pontoVersaoId ? { pontoVersaoId } : {}),
+                title: manualTitle,
               });
             } catch (e) {
               const msg =

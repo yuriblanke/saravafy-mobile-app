@@ -6,6 +6,7 @@ import {
 } from "@tanstack/react-query";
 
 import { queryKeys } from "@/src/queries/queryKeys";
+import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
 import {
     type CollectionPlayerItem,
     type PlayerPonto,
@@ -71,58 +72,85 @@ export async function fetchCollectionPontosItems(
 
   const rows = (res.data ?? []) as any[];
 
-  const next: CollectionPlayerItem[] = rows
-    .map((row) => {
-      const ponto = row?.pontos;
-      if (!ponto || typeof ponto !== "object") return null;
+  const draftItems: (CollectionPlayerItem | null)[] = rows.map((row) => {
+    const ponto = row?.pontos;
+    if (!ponto || typeof ponto !== "object") return null;
 
-      // Get lyrics from the canonical ponto_versoes join
-      const versoes = Array.isArray(ponto.ponto_versoes)
-        ? ponto.ponto_versoes
-        : ponto.ponto_versoes
-          ? [ponto.ponto_versoes]
-          : [];
-      const canonicalVersao =
-        versoes.find((v: any) => v.is_canonical === true) ?? versoes[0];
+    const versoesJoin = Array.isArray(ponto.ponto_versoes)
+      ? ponto.ponto_versoes
+      : ponto.ponto_versoes
+        ? [ponto.ponto_versoes]
+        : [];
+    const canonicalVersaoJoin =
+      versoesJoin.find((v: any) => v.is_canonical === true) ?? versoesJoin[0];
 
-      const title =
-        (typeof ponto.title === "string" && ponto.title.trim()) || "Ponto";
-      const lyrics =
-        (typeof canonicalVersao?.lyrics === "string" &&
-          canonicalVersao.lyrics) ||
-        "";
+    const title =
+      (typeof ponto.title === "string" && ponto.title.trim()) || "Ponto";
+    const lyrics =
+      (typeof canonicalVersaoJoin?.lyrics === "string" &&
+        canonicalVersaoJoin.lyrics) ||
+      "";
 
-      const mapped: PlayerPonto = {
-        id: String(ponto.id ?? ""),
-        title,
-        artist: null,
-        author_name:
-          typeof (ponto as any).author_name === "string"
-            ? (ponto as any).author_name
-            : null,
-        is_public_domain:
-          typeof (ponto as any).is_public_domain === "boolean"
-            ? (ponto as any).is_public_domain
-            : null,
-        duration_seconds: null,
-        cover_url: null,
-        lyrics,
-        lyrics_preview_6:
-          typeof canonicalVersao?.lyrics_preview_6 === "string"
-            ? canonicalVersao.lyrics_preview_6
-            : null,
-        tags: coerceTags(ponto.tags),
+    const mapped: PlayerPonto = {
+      id: String(ponto.id ?? ""),
+      title,
+      artist: null,
+      author_name:
+        typeof (ponto as any).author_name === "string"
+          ? (ponto as any).author_name
+          : null,
+      is_public_domain:
+        typeof (ponto as any).is_public_domain === "boolean"
+          ? (ponto as any).is_public_domain
+          : null,
+      duration_seconds: null,
+      cover_url: null,
+      lyrics,
+      lyrics_preview_6:
+        typeof canonicalVersaoJoin?.lyrics_preview_6 === "string"
+          ? canonicalVersaoJoin.lyrics_preview_6
+          : null,
+      tags: coerceTags(ponto.tags),
+      versoes: [],
+    };
+
+    const position =
+      typeof row.position === "number" ? row.position : Number(row.position);
+
+    if (!mapped.id) return null;
+    if (!Number.isFinite(position)) return null;
+
+    return { position, ponto: mapped };
+  });
+
+  const pontoIds = draftItems
+    .filter(Boolean)
+    .map((it) => it!.ponto.id)
+    .filter(Boolean);
+  const versoesMap = await fetchActivePontoVersoesByPontoIds(pontoIds);
+
+  const next: CollectionPlayerItem[] = draftItems
+    .filter(Boolean)
+    .map((it) => {
+      const versoes = versoesMap.get(it!.ponto.id) ?? [];
+      const canonical =
+        versoes.find((v) => v.is_canonical) ?? versoes[0] ?? null;
+      const lyrics = canonical?.lyrics ?? it!.ponto.lyrics;
+      const lyrics_preview_6 =
+        typeof canonical?.lyrics_preview_6 === "string"
+          ? canonical.lyrics_preview_6
+          : it!.ponto.lyrics_preview_6;
+
+      return {
+        position: it!.position,
+        ponto: {
+          ...it!.ponto,
+          lyrics,
+          lyrics_preview_6,
+          versoes,
+        },
       };
-
-      const position =
-        typeof row.position === "number" ? row.position : Number(row.position);
-
-      if (!mapped.id) return null;
-      if (!Number.isFinite(position)) return null;
-
-      return { position, ponto: mapped };
-    })
-    .filter(Boolean) as CollectionPlayerItem[];
+    });
 
   return next;
 }

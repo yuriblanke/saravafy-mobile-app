@@ -247,12 +247,70 @@ export type ApprovedAudioSubmissionResult = {
 
 export async function fetchApprovedPontoAudioSubmission(
   pontoId: string,
+  pontoVersaoId?: string | null,
 ): Promise<ApprovedAudioSubmissionResult> {
   if (!pontoId) {
     return {
       approvedPontoAudioId: null,
       approvedInterpreterName: null,
       hasPendingAudioSubmission: false,
+    };
+  }
+
+  const versaoKey =
+    typeof pontoVersaoId === "string" ? pontoVersaoId.trim() : "";
+
+  if (versaoKey) {
+    const audioRes = await supabase
+      .from("ponto_audios")
+      .select("id, interpreter_name")
+      .eq("ponto_versao_id", versaoKey)
+      .eq("is_active", true)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (audioRes.error) {
+      throw new Error(
+        toErrorMessage(audioRes.error, "Erro ao carregar áudio do ponto."),
+      );
+    }
+
+    let approvedPontoAudioId: string | null = null;
+    let approvedInterpreterName: string | null = null;
+
+    if (audioRes.data && typeof (audioRes.data as any).id === "string") {
+      const row = audioRes.data as any;
+      approvedPontoAudioId = String(row.id);
+      approvedInterpreterName =
+        typeof row.interpreter_name === "string" && row.interpreter_name.trim()
+          ? row.interpreter_name.trim()
+          : null;
+    }
+
+    const pendRes = await supabase
+      .from("pontos_submissions")
+      .select("id")
+      .eq("ponto_id", pontoId)
+      .eq("kind", "audio_upload")
+      .eq("status", "pending")
+      .eq("ponto_versao_id", versaoKey)
+      .limit(1);
+
+    if (pendRes.error) {
+      throw new Error(
+        toErrorMessage(pendRes.error, "Erro ao carregar submissões de áudio."),
+      );
+    }
+
+    const hasPendingAudioSubmission = ((pendRes.data ?? []) as any[]).some(
+      (r) => typeof r?.id === "string",
+    );
+
+    return {
+      approvedPontoAudioId,
+      approvedInterpreterName,
+      hasPendingAudioSubmission,
     };
   }
 
@@ -306,14 +364,23 @@ export async function fetchApprovedPontoAudioSubmission(
 
 export function useApprovedPontoAudioSubmission(
   pontoId: string | null | undefined,
-  options?: { enabled?: boolean },
+  options?: { enabled?: boolean; pontoVersaoId?: string | null },
 ) {
   const enabled = (options?.enabled ?? true) && !!pontoId;
+  const pontoVersaoId = options?.pontoVersaoId;
+  const versaoKey =
+    typeof pontoVersaoId === "string" ? pontoVersaoId.trim() : "";
 
   return useQuery({
-    queryKey: pontoId
-      ? queryKeys.pontosSubmissions.approvedAudioByPontoId(pontoId)
-      : [],
+    queryKey:
+      pontoId && versaoKey
+        ? queryKeys.pontosSubmissions.approvedAudioByPontoAndVersao(
+            pontoId,
+            versaoKey,
+          )
+        : pontoId
+          ? queryKeys.pontosSubmissions.approvedAudioByPontoId(pontoId)
+          : [],
     enabled,
     staleTime: 30_000,
     gcTime: 5 * 60_000,
@@ -325,7 +392,7 @@ export function useApprovedPontoAudioSubmission(
           hasPendingAudioSubmission: false,
         };
       }
-      return fetchApprovedPontoAudioSubmission(pontoId);
+      return fetchApprovedPontoAudioSubmission(pontoId, versaoKey || null);
     },
     placeholderData: (prev) => prev,
   });

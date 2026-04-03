@@ -220,6 +220,7 @@ export default function Home() {
                 (t) => typeof t === "string",
               )
             : [],
+          versoes: [],
         };
 
         const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {

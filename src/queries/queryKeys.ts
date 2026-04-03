@@ -111,6 +111,13 @@ export const queryKeys = {
       ["pontosSubmissions", "byId", submissionId] as const,
     approvedAudioByPontoId: (pontoId: string) =>
       ["pontosSubmissions", "approvedAudio", pontoId] as const,
+    approvedAudioByPontoAndVersao: (pontoId: string, pontoVersaoId: string) =>
+      [
+        "pontosSubmissions",
+        "approvedAudio",
+        pontoId,
+        pontoVersaoId,
+      ] as const,
   },
   pontoAudios: {
     byPontoId: (pontoId: string) =>

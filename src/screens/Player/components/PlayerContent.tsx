@@ -4,13 +4,15 @@ import type { TerreiroPontoMediumTag } from "@/src/queries/terreiroPontoCustomTa
 import { colors, spacing } from "@/src/theme";
 import React from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { PlayerPonto } from "../hooks/useCollectionPlayerData";
+import type { PlayerPonto, PlayerPontoVersao } from "../hooks/useCollectionPlayerData";
 import { LyricsScroll } from "./LyricsScroll";
 
 export function PlayerContent(props: {
   ponto: PlayerPonto;
   variant: "light" | "dark";
   lyricsFontSize: number;
+  versaoAtual: PlayerPontoVersao | null;
+  onStepVersao: (delta: -1 | 1) => void;
   mediumTags?: readonly TerreiroPontoMediumTag[];
   canAddMediumTag?: boolean;
   onPressAddMediumTag?: () => void;
@@ -21,6 +23,8 @@ export function PlayerContent(props: {
     ponto,
     variant,
     lyricsFontSize,
+    versaoAtual,
+    onStepVersao,
     mediumTags,
     canAddMediumTag,
     onPressAddMediumTag,
@@ -39,11 +43,82 @@ export function PlayerContent(props: {
   const pointTags = Array.isArray(ponto.tags) ? ponto.tags : [];
   const hasAnyTags = resolvedMediumTags.length > 0 || pointTags.length > 0;
 
+  const versoes = ponto.versoes ?? [];
+  const displayTitle =
+    versaoAtual &&
+    typeof versaoAtual.title === "string" &&
+    versaoAtual.title.trim()
+      ? versaoAtual.title.trim()
+      : ponto.title;
+
+  const lyricsBody =
+    (versaoAtual && typeof versaoAtual.lyrics === "string"
+      ? versaoAtual.lyrics
+      : null) ?? ponto.lyrics;
+
+  const showVersionSelector = versoes.length > 1 && !!versaoAtual;
+  const atFirst = showVersionSelector && versaoAtual!.versao_num <= 1;
+  const atLast =
+    showVersionSelector &&
+    versaoAtual!.versao_num >=
+      versoes[versoes.length - 1]?.versao_num;
+
   return (
     <View style={styles.page}>
-      <Text style={[styles.title, { color: textPrimary }]} numberOfLines={2}>
-        {ponto.title}
-      </Text>
+      {showVersionSelector ? (
+        <>
+          <View style={styles.versionRow}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Versão anterior"
+              disabled={atFirst}
+              onPress={() => onStepVersao(-1)}
+              style={styles.versionChevronHit}
+            >
+              <Text
+                style={[
+                  styles.versionChevron,
+                  { color: textPrimary, opacity: atFirst ? 0.3 : 1 },
+                ]}
+              >
+                ‹
+              </Text>
+            </Pressable>
+            <Text
+              style={[styles.title, styles.versionTitleCenter, { color: textPrimary }]}
+              numberOfLines={2}
+            >
+              {displayTitle}
+            </Text>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Próxima versão"
+              disabled={atLast}
+              onPress={() => onStepVersao(1)}
+              style={styles.versionChevronHit}
+            >
+              <Text
+                style={[
+                  styles.versionChevron,
+                  { color: textPrimary, opacity: atLast ? 0.3 : 1 },
+                ]}
+              >
+                ›
+              </Text>
+            </Pressable>
+          </View>
+          <Text
+            style={[styles.versionSubtitle, { color: textSecondary }]}
+            accessibilityRole="text"
+          >
+            Versão {versaoAtual!.versao_num} de {versoes.length}
+          </Text>
+        </>
+      ) : (
+        <Text style={[styles.title, { color: textPrimary }]} numberOfLines={2}>
+          {displayTitle}
+        </Text>
+      )}
 
       {hasAnyTags ? (
         <View style={styles.tagsWrap}>
@@ -89,7 +164,7 @@ export function PlayerContent(props: {
       )}
 
       <LyricsScroll
-        lyrics={ponto.lyrics}
+        lyrics={lyricsBody}
         fontSize={lyricsFontSize}
         variant={variant}
       />
@@ -107,6 +182,32 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "800",
     lineHeight: 22,
+  },
+  versionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  versionTitleCenter: {
+    flex: 1,
+    textAlign: "center",
+  },
+  versionChevronHit: {
+    minWidth: 36,
+    minHeight: 36,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  versionChevron: {
+    fontSize: 22,
+    fontWeight: "900",
+    lineHeight: 24,
+  },
+  versionSubtitle: {
+    marginTop: spacing.xs,
+    fontSize: 12,
+    fontWeight: "700",
+    textAlign: "center",
   },
   tagsWrap: {
     flexDirection: "row",

@@ -6,6 +6,12 @@ import {
     getCollectionPontosQueryOptions,
     useCollectionPontosQuery,
 } from "@/src/queries/collectionPontos";
+import {
+    fetchActivePontoVersoesByPontoIds,
+    type PontoVersaoPlayerRow,
+} from "@/src/queries/pontoVersoes";
+
+export type PlayerPontoVersao = PontoVersaoPlayerRow;
 
 export type PlayerPonto = {
   id: string;
@@ -18,6 +24,8 @@ export type PlayerPonto = {
   lyrics: string;
   lyrics_preview_6?: string | null;
   tags: string[];
+  /** Versões ativas ordenadas por `versao_num` (vazio até carregar). */
+  versoes: PontoVersaoPlayerRow[];
 };
 
 export type CollectionPlayerItem = {
@@ -50,6 +58,10 @@ function matchesQuery(ponto: PlayerPonto, query: string) {
   if (!q) return true;
   if (normalize(ponto.title).includes(q)) return true;
   if (normalize(ponto.lyrics).includes(q)) return true;
+  const versoes = Array.isArray(ponto.versoes) ? ponto.versoes : [];
+  for (const v of versoes) {
+    if (normalize(v.lyrics).includes(q)) return true;
+  }
   return ponto.tags.some((t) => normalize(t).includes(q));
 }
 
@@ -131,48 +143,72 @@ export function useCollectionPlayerData(
       }
 
       const rows = (res.data ?? []) as any[];
-      const mapped: PlayerPonto[] = rows
-        .map((row) => {
-          if (!row || typeof row !== "object") return null;
+      const draft: (PlayerPonto | null)[] = rows.map((row) => {
+        if (!row || typeof row !== "object") return null;
 
-          const title =
-            (typeof row.title === "string" && row.title.trim()) || "Ponto";
+        const title =
+          (typeof row.title === "string" && row.title.trim()) || "Ponto";
 
-          // lyrics come from the canonical ponto_versao (joined above)
-          const versoes = Array.isArray(row.ponto_versoes)
-            ? row.ponto_versoes
-            : row.ponto_versoes
-              ? [row.ponto_versoes]
-              : [];
-          const versao = versoes[0];
-          const lyrics =
-            (typeof versao?.lyrics === "string" && versao.lyrics) || "";
+        const versoesJoin = Array.isArray(row.ponto_versoes)
+          ? row.ponto_versoes
+          : row.ponto_versoes
+            ? [row.ponto_versoes]
+            : [];
+        const versao = versoesJoin[0];
+        const lyrics =
+          (typeof versao?.lyrics === "string" && versao.lyrics) || "";
+        const lyrics_preview_6 =
+          typeof versao?.lyrics_preview_6 === "string"
+            ? versao.lyrics_preview_6
+            : null;
+
+        const p: PlayerPonto = {
+          id: String(row.id ?? ""),
+          title,
+          artist: null,
+          author_name:
+            typeof row.author_name === "string" ? row.author_name : null,
+          is_public_domain:
+            typeof row.is_public_domain === "boolean"
+              ? row.is_public_domain
+              : null,
+          duration_seconds: null,
+          cover_url: null,
+          lyrics,
+          lyrics_preview_6,
+          tags: coerceTags(row.tags),
+          versoes: [],
+        };
+
+        if (!p.id) return null;
+        return p;
+      });
+
+      const ids = draft
+        .filter(Boolean)
+        .map((p) => p!.id)
+        .filter(Boolean);
+      const versoesMap = await fetchActivePontoVersoesByPontoIds(ids);
+
+      const mapped: PlayerPonto[] = draft
+        .filter(Boolean)
+        .map((p) => {
+          const versoes = versoesMap.get(p!.id) ?? [];
+          const canonical =
+            versoes.find((v) => v.is_canonical) ?? versoes[0] ?? null;
+          const lyrics = canonical?.lyrics ?? p!.lyrics;
           const lyrics_preview_6 =
-            typeof versao?.lyrics_preview_6 === "string"
-              ? versao.lyrics_preview_6
-              : null;
+            typeof canonical?.lyrics_preview_6 === "string"
+              ? canonical.lyrics_preview_6
+              : p!.lyrics_preview_6;
 
-          const p: PlayerPonto = {
-            id: String(row.id ?? ""),
-            title,
-            artist: null,
-            author_name:
-              typeof row.author_name === "string" ? row.author_name : null,
-            is_public_domain:
-              typeof row.is_public_domain === "boolean"
-                ? row.is_public_domain
-                : null,
-            duration_seconds: null,
-            cover_url: null,
+          return {
+            ...p!,
             lyrics,
             lyrics_preview_6,
-            tags: coerceTags(row.tags),
+            versoes,
           };
-
-          if (!p.id) return null;
-          return p;
-        })
-        .filter(Boolean) as PlayerPonto[];
+        });
 
       return mapped;
     },
@@ -249,6 +285,13 @@ export function useCollectionPlayerData(
                       : ((it.ponto as any).is_public_domain ?? null),
                   lyrics: updated.lyrics,
                   tags: updated.tags,
+                  versoes: Array.isArray(it.ponto.versoes)
+                    ? it.ponto.versoes.map((v) =>
+                        v.is_canonical
+                          ? { ...v, lyrics: updated.lyrics }
+                          : v,
+                      )
+                    : it.ponto.versoes,
                 },
               }
             : it,
@@ -282,6 +325,11 @@ export function useCollectionPlayerData(
                     : ((p as any).is_public_domain ?? null),
                 lyrics: updated.lyrics,
                 tags: updated.tags,
+                versoes: Array.isArray(p.versoes)
+                  ? p.versoes.map((v) =>
+                      v.is_canonical ? { ...v, lyrics: updated.lyrics } : v,
+                    )
+                  : p.versoes,
               }
             : p,
         );
