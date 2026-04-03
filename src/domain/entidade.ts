@@ -1,11 +1,11 @@
 /**
  * Entidades canônicas e encadeamento orixá (self-FK em `entidades.orixá_id`).
- * Nomes de coluna no DB seguem o schema; no JS usamos chaves sem acento onde necessário.
+ * `nome` pode ser null (linha/orixá genérico sem entidade nomeada).
  */
 
 export type EntidadeSimples = {
   id: string;
-  nome: string;
+  nome: string | null;
   linha: string;
   /** Reflete `entidades.orixá_id` no banco. */
   orixa_id: string | null;
@@ -18,12 +18,78 @@ export type EntidadeComOrixa = EntidadeSimples & {
 
 export type PontoEntidadeChipFields = {
   entidade_id: string | null;
+  /** Label do chip de entidade (já resolvido; ver `resolveEntidadeLabel`). */
   entidadeNome: string | null;
+  /** Chip secundário de orixá: apenas quando a entidade tem `nome` e orixá vinculado. */
   orixaNome: string | null;
 };
 
+function readNome(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  return t ? t : null;
+}
+
+function readLinha(v: unknown): string {
+  if (typeof v === "string") return v;
+  if (v == null) return "";
+  return String(v);
+}
+
+function readOrixaIdFromRow(raw: Record<string, unknown>): string | null {
+  const v =
+    raw["orixá_id"] ?? raw.orixa_id ?? raw["orixa_id"] ?? raw.orixá_id;
+  if (typeof v === "string" && v.trim()) return v.trim();
+  return null;
+}
+
+export function resolveEntidadeLabel(entidade: EntidadeComOrixa): string {
+  const nome = readNome(entidade.nome);
+  if (nome) return nome;
+  const ox = readNome(entidade.orixas?.nome ?? null);
+  if (ox) {
+    return `${readLinha(entidade.linha)} de ${ox}`;
+  }
+  return readLinha(entidade.linha);
+}
+
+function buildEntidadeComOrixaFromEmbed(
+  e: Record<string, unknown>,
+): EntidadeComOrixa | null {
+  const id = typeof e.id === "string" && e.id.trim() ? e.id.trim() : "";
+  if (!id) return null;
+
+  const nome = readNome(e.nome);
+  const linha = readLinha(e.linha);
+
+  const orixaEmbed = e.orixa ?? e.orixas ?? e.orixa_entidade;
+  const orixaRow = Array.isArray(orixaEmbed) ? orixaEmbed[0] : orixaEmbed;
+
+  let orixas: EntidadeSimples | null = null;
+  if (orixaRow && typeof orixaRow === "object") {
+    const ox = orixaRow as Record<string, unknown>;
+    const oId =
+      typeof ox.id === "string" && ox.id.trim() ? ox.id.trim() : "";
+    orixas = {
+      id: oId,
+      nome: readNome(ox.nome),
+      linha: readLinha(ox.linha),
+      orixa_id: null,
+    };
+  }
+
+  return {
+    id,
+    nome,
+    linha,
+    orixa_id: readOrixaIdFromRow(e),
+    orixas,
+  };
+}
+
 /**
- * Extrai nomes para chips a partir de uma linha `pontos` com embed `entidades` (+ orixá).
+ * Extrai labels para chips a partir de uma linha `pontos` com embed `entidades` (+ orixá).
  */
 export function parseEntidadeChipFieldsFromPontoRow(
   row: unknown,
@@ -45,19 +111,22 @@ export function parseEntidadeChipFieldsFromPontoRow(
     return { entidade_id, entidadeNome: null, orixaNome: null };
   }
 
-  const e = entRow as Record<string, unknown>;
-  const entidadeNome =
-    typeof e.nome === "string" && e.nome.trim() ? e.nome.trim() : null;
+  const ent = buildEntidadeComOrixaFromEmbed(
+    entRow as Record<string, unknown>,
+  );
+  if (!ent) {
+    return { entidade_id, entidadeNome: null, orixaNome: null };
+  }
 
-  const orixaEmbed = e.orixa ?? e.orixas ?? e.orixa_entidade;
-  const orixaRow = Array.isArray(orixaEmbed) ? orixaEmbed[0] : orixaEmbed;
+  const resolvedLabel = resolveEntidadeLabel(ent);
+  const entidadeNome = resolvedLabel.trim() ? resolvedLabel.trim() : null;
+
+  const rawNome = readNome(ent.nome);
+  const nestedOrixaNome = readNome(ent.orixas?.nome ?? null);
 
   let orixaNome: string | null = null;
-  if (orixaRow && typeof orixaRow === "object") {
-    const ox = orixaRow as Record<string, unknown>;
-    if (typeof ox.nome === "string" && ox.nome.trim()) {
-      orixaNome = ox.nome.trim();
-    }
+  if (rawNome && nestedOrixaNome) {
+    orixaNome = nestedOrixaNome;
   }
 
   return {

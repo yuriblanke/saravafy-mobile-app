@@ -5,13 +5,13 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useRootPager } from "@/contexts/RootPagerContext";
 import { useToast } from "@/contexts/ToastContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import {
     PontoUpsertModal,
     type PontoUpsertInitialValues,
 } from "@/src/components/pontos/PontoUpsertModal";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
-import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import { useIsCurator } from "@/src/hooks/useIsCurator";

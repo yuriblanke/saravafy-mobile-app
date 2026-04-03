@@ -6,9 +6,9 @@ import {
 } from "@tanstack/react-query";
 
 import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
-import { queryKeys } from "@/src/queries/queryKeys";
 import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
 import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
+import { queryKeys } from "@/src/queries/queryKeys";
 import {
     type CollectionPlayerItem,
     type PlayerPonto,

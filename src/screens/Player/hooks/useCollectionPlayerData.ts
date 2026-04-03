@@ -2,11 +2,11 @@ import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
 
+import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
 import {
     getCollectionPontosQueryOptions,
     useCollectionPontosQuery,
 } from "@/src/queries/collectionPontos";
-import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
 import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
 import {
     fetchActivePontoVersoesByPontoIds,
