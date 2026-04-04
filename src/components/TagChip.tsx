@@ -1,10 +1,63 @@
 import React from "react";
-import { StyleSheet, Text, View, type ViewProps } from "react-native";
+import {
+    Platform,
+    StyleSheet,
+    Text,
+    View,
+    type TextStyle,
+    type ViewProps,
+} from "react-native";
 
 import { colors, spacing } from "@/src/theme";
 
 export const TAG_CHIP_HEIGHT = 26;
 export const TAG_CHIP_RADIUS = 6;
+
+/**
+ * Cores, bordo e fundo do TagChip `kind="ponto"` (primário / secundário).
+ * Reutilizável em `Text` aninhado (letras), onde o contorno deve coincidir com o chip.
+ */
+export function getPontoTagChipChrome(
+  variant: "light" | "dark",
+  appearance: "primary" | "secondary",
+): Pick<TextStyle, "backgroundColor" | "borderColor" | "borderWidth" | "color"> {
+  const isLight = variant === "light";
+  const baseBg = isLight ? colors.paper100 : colors.earth700;
+  const baseBorder = isLight ? colors.inputBorderLight : colors.inputBorderDark;
+  const baseText = isLight
+    ? colors.textPrimaryOnLight
+    : colors.textPrimaryOnDark;
+  const accent = isLight ? colors.brass500 : colors.brass600;
+
+  const transparentBgOnly = isLight && appearance === "primary";
+
+  const backgroundColor =
+    transparentBgOnly
+      ? "transparent"
+      : appearance === "primary"
+        ? baseBg
+        : "transparent";
+
+  const borderColor = appearance === "primary" ? baseBorder : accent;
+
+  const color = appearance === "primary" ? baseText : accent;
+
+  let borderWidth = transparentBgOnly
+    ? 2
+    : appearance === "primary"
+      ? StyleSheet.hairlineWidth
+      : 2;
+
+  // `Text` aninhado: hairline por vezes não desenha no Android; mantém alinhado ao chip real.
+  if (
+    Platform.OS === "android" &&
+    borderWidth === StyleSheet.hairlineWidth
+  ) {
+    borderWidth = 1;
+  }
+
+  return { backgroundColor, borderColor, borderWidth, color };
+}
 
 type Props = ViewProps & {
   label: string;
@@ -69,6 +122,12 @@ export function TagChip({
       ? medium
       : accent;
 
+  const borderWidthChip = transparentBgOnly
+    ? 2
+    : resolvedAppearance === "primary"
+      ? StyleSheet.hairlineWidth
+      : 2;
+
   if (__DEV__) {
     const debugEnabled = !!(globalThis as any)
       .__SARAVAFY_DEBUG_TAGCHIP_COLORS__;
@@ -100,11 +159,8 @@ export function TagChip({
         {
           backgroundColor: bg,
           borderColor,
-          borderWidth: transparentBgOnly
-            ? 2
-            : resolvedAppearance === "primary"
-            ? StyleSheet.hairlineWidth
-            : 2,
+          borderWidth: borderWidthChip,
+          borderStyle: "solid",
         },
         style,
       ]}

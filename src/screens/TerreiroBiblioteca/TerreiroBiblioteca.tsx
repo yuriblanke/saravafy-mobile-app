@@ -4,6 +4,7 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { Share2Icon } from "@/src/components/icons/Share2Icon";
 import { JoinTerreiroButton } from "@/src/components/JoinTerreiroButton";
 import { Separator } from "@/src/components/Separator";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -96,21 +97,6 @@ function hexToRgba(input: string, alpha: number) {
 
   const a = Math.max(0, Math.min(1, alpha));
   return `rgba(${r},${g},${b},${a})`;
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
 }
 
 function isColumnMissingError(error: unknown, columnName: string) {
@@ -1421,7 +1407,7 @@ export default function TerreiroBiblioteca() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={20} color={headerFgColor} />
+              <Share2Icon size={20} color={headerFgColor} />
             </Pressable>
           </Animated.View>
         </View>
@@ -1534,11 +1520,7 @@ export default function TerreiroBiblioteca() {
                     hitSlop={10}
                     style={styles.headerIconBtn}
                   >
-                    <Ionicons
-                      name="share-outline"
-                      size={20}
-                      color={textPrimary}
-                    />
+                    <Share2Icon size={20} color={textPrimary} />
                   </Pressable>
                 </Animated.View>
               </Animated.View>

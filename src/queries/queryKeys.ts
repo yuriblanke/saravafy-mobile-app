@@ -94,6 +94,10 @@ export const queryKeys = {
     pontos: (collectionId: string) =>
       ["collections", "pontos", collectionId] as const,
   },
+  entidades: {
+    /** Catálogo global (`entidades.is_active`) para pickers. */
+    catalog: () => ["entidades", "catalog"] as const,
+  },
   globalRoles: {
     isCurator: (userId: string) => ["globalRoles", "curator", userId] as const,
   },

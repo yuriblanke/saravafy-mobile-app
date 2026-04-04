@@ -5,8 +5,16 @@ import {
     type UseQueryOptions,
 } from "@tanstack/react-query";
 
-import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
-import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
+import {
+    buildEntidadeComOrixaFromEmbed,
+    parseEntidadeChipFieldsFromPontoRow,
+    resolveEntidadeLabel,
+} from "@/src/domain/entidade";
+import { resolveLyricsWithCollectionEntidade } from "@/src/domain/entidadePlaceholder";
+import {
+    COLLECTIONS_PONTOS_ENTIDADE_EMBED,
+    PONTOS_ENTIDADE_ORIXA_EMBED,
+} from "@/src/queries/pontoEntidadeSelect";
 import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
@@ -54,10 +62,9 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      `position, ponto_versao_id, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics, lyrics_preview_6, title, is_canonical))`,
+      `position, ponto_versao_id, entidade_id, entidade_texto, entidade_orixa_id, ${COLLECTIONS_PONTOS_ENTIDADE_EMBED}, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED})`,
     )
     .eq("collection_id", collectionId)
-    .eq("pontos.ponto_versoes.is_canonical", true)
     .order("position", { ascending: true });
 
   if (res.error) {
@@ -74,26 +81,45 @@ export async function fetchCollectionPontosItems(
 
   const rows = (res.data ?? []) as any[];
 
-  const draftItems: (CollectionPlayerItem | null)[] = rows.map((row) => {
+  type DraftCpRow = {
+    position: number;
+    ponto: PlayerPonto;
+    pontoVersaoId: string | null;
+    entidadeTexto: string | null;
+    entidadeLabelFromId: string | null;
+  };
+
+  const draftItems: (DraftCpRow | null)[] = rows.map((row) => {
     const ponto = row?.pontos;
     if (!ponto || typeof ponto !== "object") return null;
 
-    const versoesJoin = Array.isArray(ponto.ponto_versoes)
-      ? ponto.ponto_versoes
-      : ponto.ponto_versoes
-        ? [ponto.ponto_versoes]
-        : [];
-    const canonicalVersaoJoin =
-      versoesJoin.find((v: any) => v.is_canonical === true) ?? versoesJoin[0];
-
     const title =
       (typeof ponto.title === "string" && ponto.title.trim()) || "Ponto";
-    const lyrics =
-      (typeof canonicalVersaoJoin?.lyrics === "string" &&
-        canonicalVersaoJoin.lyrics) ||
-      "";
 
     const chip = parseEntidadeChipFieldsFromPontoRow(ponto);
+
+    const entEmbed = (row as any)?.entidades;
+    const entRow = Array.isArray(entEmbed) ? entEmbed[0] : entEmbed;
+    let entidadeLabelFromId: string | null = null;
+    if (entRow && typeof entRow === "object") {
+      const ent = buildEntidadeComOrixaFromEmbed(
+        entRow as Record<string, unknown>,
+      );
+      if (ent) {
+        const lab = resolveEntidadeLabel(ent).trim();
+        entidadeLabelFromId = lab || null;
+      }
+    }
+
+    const pontoVersaoIdRaw = (row as any)?.ponto_versao_id;
+    const pontoVersaoId =
+      typeof pontoVersaoIdRaw === "string" && pontoVersaoIdRaw.trim()
+        ? pontoVersaoIdRaw.trim()
+        : null;
+    const entidadeTexto =
+      typeof (row as any)?.entidade_texto === "string"
+        ? (row as any).entidade_texto
+        : null;
 
     const mapped: PlayerPonto = {
       id: String(ponto.id ?? ""),
@@ -109,16 +135,18 @@ export async function fetchCollectionPontosItems(
           : null,
       duration_seconds: null,
       cover_url: null,
-      lyrics,
-      lyrics_preview_6:
-        typeof canonicalVersaoJoin?.lyrics_preview_6 === "string"
-          ? canonicalVersaoJoin.lyrics_preview_6
-          : null,
+      lyrics: "",
+      lyrics_preview_6: null,
       tags: coerceTags(ponto.tags),
       entidade_id: chip.entidade_id,
       entidadeNome: chip.entidadeNome,
       orixaNome: chip.orixaNome,
       versoes: [],
+      collectionPinnedVersaoId: pontoVersaoId,
+      collectionEntidadeResolve: {
+        entidadeTexto,
+        entidadeLabelFromId,
+      },
     };
 
     const position =
@@ -127,7 +155,13 @@ export async function fetchCollectionPontosItems(
     if (!mapped.id) return null;
     if (!Number.isFinite(position)) return null;
 
-    return { position, ponto: mapped };
+    return {
+      position,
+      ponto: mapped,
+      pontoVersaoId,
+      entidadeTexto,
+      entidadeLabelFromId,
+    };
   });
 
   const pontoIds = draftItems
@@ -137,21 +171,38 @@ export async function fetchCollectionPontosItems(
   const versoesMap = await fetchActivePontoVersoesByPontoIds(pontoIds);
 
   const next: CollectionPlayerItem[] = draftItems
-    .filter(Boolean)
-    .map((it) => {
-      const versoes = versoesMap.get(it!.ponto.id) ?? [];
+    .filter((it): it is DraftCpRow => it != null)
+    .map((draft) => {
+      const versoes = versoesMap.get(draft.ponto.id) ?? [];
+      const pinned = draft.pontoVersaoId
+        ? versoes.find((v) => v.id === draft.pontoVersaoId)
+        : null;
       const canonical =
         versoes.find((v) => v.is_canonical) ?? versoes[0] ?? null;
-      const lyrics = canonical?.lyrics ?? it!.ponto.lyrics;
-      const lyrics_preview_6 =
-        typeof canonical?.lyrics_preview_6 === "string"
-          ? canonical.lyrics_preview_6
-          : it!.ponto.lyrics_preview_6;
+      const versao = pinned ?? canonical;
+      const rawLyrics = versao?.lyrics ?? "";
+      const rawPreview6 =
+        typeof versao?.lyrics_preview_6 === "string"
+          ? versao.lyrics_preview_6
+          : null;
+
+      const lyrics = resolveLyricsWithCollectionEntidade({
+        rawLyrics,
+        entidadeTexto: draft.entidadeTexto,
+        entidadeLabelFromId: draft.entidadeLabelFromId,
+      });
+      const lyrics_preview_6 = rawPreview6
+        ? resolveLyricsWithCollectionEntidade({
+            rawLyrics: rawPreview6,
+            entidadeTexto: draft.entidadeTexto,
+            entidadeLabelFromId: draft.entidadeLabelFromId,
+          })
+        : null;
 
       return {
-        position: it!.position,
+        position: draft.position,
         ponto: {
-          ...it!.ponto,
+          ...draft.ponto,
           lyrics,
           lyrics_preview_6,
           versoes,

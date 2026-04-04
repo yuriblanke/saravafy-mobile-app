@@ -1,18 +1,18 @@
 import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
 } from "react";
 import {
-  Animated,
-  PanResponder,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  useWindowDimensions,
-  View,
+    Animated,
+    PanResponder,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    useWindowDimensions,
+    View,
 } from "react-native";
 
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
@@ -52,6 +52,12 @@ type Props = {
    * Useful for sheets that rely on static layout + filler spacing.
    */
   scrollEnabled?: boolean;
+  /**
+   * When false, children are not wrapped in ScrollView (plain View).
+   * Use when children include a FlatList / other VirtualizedList — nesting
+   * them inside ScrollView triggers RN dev warnings and broken windowing.
+   */
+  wrapInScrollView?: boolean;
   /**
    * Controls ScrollView bounce behavior.
    * Defaults to true to keep the current UX.
@@ -105,6 +111,7 @@ export function BottomSheet({
   scrollEnabled = true,
   bounces = true,
   snapPoints,
+  wrapInScrollView = true,
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
   const rootPager = useRootPagerOptional();
@@ -417,24 +424,27 @@ export function BottomSheet({
         <View
           {...(contentPanResponder ? contentPanResponder.panHandlers : null)}
         >
-          <ScrollView
-            style={styles.scroll}
-            contentContainerStyle={styles.scrollContent}
-            showsVerticalScrollIndicator={false}
-            scrollEnabled={scrollEnabled}
-            scrollEventThrottle={16}
-            onScrollBeginDrag={() => {
-              dismissAllTooltips();
-            }}
-            onScroll={(e) => {
-              const nextY = e.nativeEvent.contentOffset?.y ?? 0;
-              scrollYRef.current = nextY > 0 ? nextY : 0;
-            }}
-            // Permite scroll bouncing no topo para melhor UX
-            bounces={bounces}
-          >
-            {children}
-          </ScrollView>
+          {wrapInScrollView ? (
+            <ScrollView
+              style={styles.scroll}
+              contentContainerStyle={styles.scrollContent}
+              showsVerticalScrollIndicator={false}
+              scrollEnabled={scrollEnabled}
+              scrollEventThrottle={16}
+              onScrollBeginDrag={() => {
+                dismissAllTooltips();
+              }}
+              onScroll={(e) => {
+                const nextY = e.nativeEvent.contentOffset?.y ?? 0;
+                scrollYRef.current = nextY > 0 ? nextY : 0;
+              }}
+              bounces={bounces}
+            >
+              {children}
+            </ScrollView>
+          ) : (
+            <View style={styles.scrollContent}>{children}</View>
+          )}
         </View>
       </Animated.View>
     </View>

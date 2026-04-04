@@ -1,10 +1,28 @@
 import { supabase } from "@/lib/supabase";
 
+/** Escolha de entidade para `[entidade]` na letra (só nesta linha da coleção). */
+export type CollectionPontoEntidadeInput =
+  | {
+      kind: "registered";
+      entidadeId: string;
+      /** `collections_pontos.entidade_orixa_id` quando aplicável. */
+      entidadeOrixaId?: string | null;
+    }
+  | {
+      kind: "custom";
+      texto: string;
+    };
+
 export type CollectionPonto = {
   collection_id: string;
   ponto_id: string;
   position: number;
   added_by: string;
+  /** Versão do ponto a fixar na coleção (quando suportado pelo schema). */
+  ponto_versao_id?: string | null;
+  entidade_id?: string | null;
+  entidade_texto?: string | null;
+  entidade_orixa_id?: string | null;
 };
 
 const TABLE = "collections_pontos";
@@ -80,8 +98,39 @@ export async function addPontoToCollection(params: {
   collectionId: string;
   pontoId: string;
   addedBy: string;
+  /** Quando omitido, o banco pode aplicar default/trigger (ex.: canônica). */
+  pontoVersaoId?: string | null;
+  /** Substituição de `[entidade]` só nesta entrada da coleção. */
+  entidade?: CollectionPontoEntidadeInput | null;
 }): Promise<{ ok: boolean; alreadyExists?: boolean; error?: string }> {
-  const { collectionId, pontoId, addedBy } = params;
+  const { collectionId, pontoId, addedBy, pontoVersaoId, entidade } = params;
+
+  const pv =
+    typeof pontoVersaoId === "string" && pontoVersaoId.trim()
+      ? pontoVersaoId.trim()
+      : null;
+
+  const entidadePayload: Partial<CollectionPonto> = {};
+  if (entidade?.kind === "registered") {
+    const eid =
+      typeof entidade.entidadeId === "string" && entidade.entidadeId.trim()
+        ? entidade.entidadeId.trim()
+        : "";
+    if (eid) {
+      entidadePayload.entidade_id = eid;
+      const ox =
+        typeof entidade.entidadeOrixaId === "string" &&
+        entidade.entidadeOrixaId.trim()
+          ? entidade.entidadeOrixaId.trim()
+          : null;
+      if (ox) entidadePayload.entidade_orixa_id = ox;
+    }
+  } else if (entidade?.kind === "custom") {
+    const t = String(entidade.texto ?? "").trim();
+    if (t) {
+      entidadePayload.entidade_texto = t;
+    }
+  }
 
   // Pode haver corrida com outras inserções por causa do UNIQUE(collection_id, position).
   // Fazemos poucas tentativas: re-calcula max(position) e tenta inserir.
@@ -93,6 +142,8 @@ export async function addPontoToCollection(params: {
       ponto_id: pontoId,
       position,
       added_by: addedBy,
+      ...(pv ? { ponto_versao_id: pv } : {}),
+      ...entidadePayload,
     };
 
     // Preferência: operação idempotente por (collection_id, ponto_id).
@@ -130,4 +181,55 @@ export async function addPontoToCollection(params: {
   }
 
   return { ok: false, error: "Erro ao adicionar ponto à coleção." };
+}
+
+export async function updateCollectionPontoEntidade(params: {
+  collectionId: string;
+  pontoId: string;
+  entidade: CollectionPontoEntidadeInput | null;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { collectionId, pontoId, entidade } = params;
+  if (!collectionId || !pontoId) {
+    return { ok: false, error: "Coleção ou ponto inválido." };
+  }
+
+  const payload: Record<string, string | null> = {
+    entidade_id: null,
+    entidade_texto: null,
+    entidade_orixa_id: null,
+  };
+
+  if (entidade?.kind === "registered") {
+    const eid =
+      typeof entidade.entidadeId === "string" && entidade.entidadeId.trim()
+        ? entidade.entidadeId.trim()
+        : "";
+    if (!eid) {
+      return { ok: false, error: "Entidade inválida." };
+    }
+    payload.entidade_id = eid;
+    const ox =
+      typeof entidade.entidadeOrixaId === "string" &&
+      entidade.entidadeOrixaId.trim()
+        ? entidade.entidadeOrixaId.trim()
+        : null;
+    payload.entidade_orixa_id = ox;
+  } else if (entidade?.kind === "custom") {
+    const t = String(entidade.texto ?? "").trim();
+    if (!t) {
+      return { ok: false, error: "Texto da entidade em falta." };
+    }
+    payload.entidade_texto = t;
+  }
+
+  const res = await supabase
+    .from(TABLE)
+    .update(payload)
+    .eq("collection_id", collectionId)
+    .eq("ponto_id", pontoId);
+
+  if (res.error) {
+    return { ok: false, error: getSupabaseErrorMessage(res.error) };
+  }
+  return { ok: true };
 }

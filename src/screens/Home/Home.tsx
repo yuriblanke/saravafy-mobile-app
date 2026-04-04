@@ -13,10 +13,21 @@ import {
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import {
+    applyEntidadePlaceholder,
+    lyricsHasEntidadePlaceholder,
+} from "@/src/domain/entidadePlaceholder";
 import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
-import { colors, spacing } from "@/src/theme";
+import {
+    resolveDefaultPontoVersaoId,
+    toPlayerPonto,
+    type ListPonto,
+} from "@/src/screens/CollectionAddToCollection/addToCollectionModel";
+import { HomeAddToCollectionWizard } from "@/src/screens/Home/components/HomeAddToCollectionWizard";
+import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
+import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -33,14 +44,19 @@ import {
     Alert,
     FlatList,
     Image,
+    Modal,
     Pressable,
     StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { createCollection } from "./data/collections";
-import { addPontoToCollection } from "./data/collections_pontos";
+import {
+    addPontoToCollection,
+    type CollectionPontoEntidadeInput,
+} from "./data/collections_pontos";
 import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
 
@@ -132,6 +148,7 @@ export default function Home() {
   const queryClient = useQueryClient();
   const rootPager = useRootPager();
   const { shouldBlockPress } = useGestureBlock();
+  const insets = useSafeAreaInsets();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
 
@@ -150,8 +167,18 @@ export default function Home() {
       pontoId: string;
       addedBy: string;
       pontoSnapshot?: Ponto | null;
+      pontoVersaoId?: string | null;
+      entidade?: CollectionPontoEntidadeInput | null;
+      entidadeResolvedLabel?: string | null;
+      listPonto?: ListPonto | null;
     }) => {
-      const res = await addPontoToCollection(vars);
+      const res = await addPontoToCollection({
+        collectionId: vars.collectionId,
+        pontoId: vars.pontoId,
+        addedBy: vars.addedBy,
+        pontoVersaoId: vars.pontoVersaoId ?? undefined,
+        entidade: vars.entidade ?? null,
+      });
       if (!res.ok) {
         throw new Error(res.error || "Erro ao adicionar ponto à coleção.");
       }
@@ -203,37 +230,98 @@ export default function Home() {
       let didIncrementCount = false;
 
       if (shouldPatchPontosList && pontoSnapshot) {
-        const mappedPonto = {
-          id: String(pontoSnapshot.id ?? ""),
-          title:
-            (typeof (pontoSnapshot as any).title === "string" &&
-              (pontoSnapshot as any).title.trim()) ||
-            "Ponto",
-          artist: null,
-          author_name:
-            typeof (pontoSnapshot as any).author_name === "string"
-              ? (pontoSnapshot as any).author_name
-              : null,
-          is_public_domain:
-            typeof (pontoSnapshot as any).is_public_domain === "boolean"
-              ? (pontoSnapshot as any).is_public_domain
-              : null,
-          duration_seconds: null,
-          cover_url: null,
-          lyrics:
-            typeof (pontoSnapshot as any).lyrics === "string"
-              ? (pontoSnapshot as any).lyrics
-              : "",
-          tags: Array.isArray((pontoSnapshot as any).tags)
-            ? ((pontoSnapshot as any).tags as any[]).filter(
-                (t) => typeof t === "string",
-              )
-            : [],
-          versoes: [],
-          entidade_id: null,
-          entidadeNome: null,
-          orixaNome: null,
-        };
+        const listPonto = vars.listPonto;
+        let mappedPonto: PlayerPonto;
+
+        if (
+          listPonto &&
+          Array.isArray(listPonto.versoes) &&
+          listPonto.versoes.length > 0
+        ) {
+          const explicit =
+            typeof vars.pontoVersaoId === "string" && vars.pontoVersaoId.trim()
+              ? vars.pontoVersaoId.trim()
+              : null;
+          const vid =
+            explicit ?? resolveDefaultPontoVersaoId(listPonto.versoes);
+          const v = vid
+            ? listPonto.versoes.find((x) => x.id === vid) ?? null
+            : null;
+          const base = toPlayerPonto(listPonto);
+          const label =
+            typeof vars.entidadeResolvedLabel === "string"
+              ? vars.entidadeResolvedLabel.trim()
+              : "";
+          let lyrics = v?.lyrics ?? base.lyrics;
+          let lyrics_preview_6 =
+            typeof v?.lyrics_preview_6 === "string"
+              ? v.lyrics_preview_6
+              : base.lyrics_preview_6;
+          if (label && v && lyricsHasEntidadePlaceholder(lyrics)) {
+            lyrics = applyEntidadePlaceholder(lyrics, label);
+            if (typeof lyrics_preview_6 === "string") {
+              lyrics_preview_6 = applyEntidadePlaceholder(
+                lyrics_preview_6,
+                label,
+              );
+            }
+          }
+          const collectionEntidadeResolve =
+            vars.entidade?.kind === "custom"
+              ? {
+                  entidadeTexto: vars.entidade.texto.trim(),
+                  entidadeLabelFromId: null as string | null,
+                }
+              : vars.entidade?.kind === "registered"
+                ? {
+                    entidadeTexto: null as string | null,
+                    entidadeLabelFromId: label || null,
+                  }
+                : null;
+          mappedPonto = {
+            ...(v
+              ? {
+                  ...base,
+                  lyrics,
+                  lyrics_preview_6,
+                }
+              : base),
+            collectionPinnedVersaoId: vid ?? null,
+            collectionEntidadeResolve,
+          };
+        } else {
+          mappedPonto = {
+            id: String(pontoSnapshot.id ?? ""),
+            title:
+              (typeof (pontoSnapshot as any).title === "string" &&
+                (pontoSnapshot as any).title.trim()) ||
+              "Ponto",
+            artist: null,
+            author_name:
+              typeof (pontoSnapshot as any).author_name === "string"
+                ? (pontoSnapshot as any).author_name
+                : null,
+            is_public_domain:
+              typeof (pontoSnapshot as any).is_public_domain === "boolean"
+                ? (pontoSnapshot as any).is_public_domain
+                : null,
+            duration_seconds: null,
+            cover_url: null,
+            lyrics:
+              typeof (pontoSnapshot as any).lyrics === "string"
+                ? (pontoSnapshot as any).lyrics
+                : "",
+            tags: Array.isArray((pontoSnapshot as any).tags)
+              ? ((pontoSnapshot as any).tags as any[]).filter(
+                  (t) => typeof t === "string",
+                )
+              : [],
+            versoes: [],
+            entidade_id: null,
+            entidadeNome: null,
+            orixaNome: null,
+          };
+        }
 
         const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
           collectionId: vars.collectionId,
@@ -1300,246 +1388,153 @@ export default function Home() {
         )}
       </View>
 
-      {/* Modal de adicionar à coleção */}
-      <BottomSheet
+      {/* Fluxo adicionar à coleção: tela cheia (versões + coleção) */}
+      <Modal
         visible={addModalVisible}
-        onClose={closeAddToCollectionSheet}
-        variant={variant}
-        snapPoints={["75%"]}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeAddToCollectionSheet}
       >
-        <View style={{ paddingBottom: 16 }}>
-          <View style={styles.sheetHeaderRow}>
-            <Text style={[styles.sheetTitle, { color: textPrimary }]}>
-              Adicionar à coleção
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={closeAddToCollectionSheet}
-              hitSlop={10}
-              style={styles.sheetCloseBtn}
-            >
-              <Text style={[styles.sheetCloseText, { color: textPrimary }]}>
-                ×
-              </Text>
-            </Pressable>
-          </View>
-
-          {collectionsError ? (
-            <View style={{ gap: spacing.sm }}>
-              <Text style={[styles.bodyText, { color: colors.brass600 }]}>
-                {collectionsError}
-              </Text>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  void editableCollectionsQuery.queries.editableTerreiroIds.refetch();
-                  void editableCollectionsQuery.queries.collections.refetch();
-                }}
-                style={[
-                  styles.retryBtn,
-                  variant === "light"
-                    ? styles.retryBtnLight
-                    : styles.retryBtnDark,
-                ]}
-              >
-                <Text style={[styles.retryText, { color: textPrimary }]}>
-                  Tentar novamente
-                </Text>
-              </Pressable>
-            </View>
-          ) : (
-            <>
-              <View style={styles.sheetActionsRow}>
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Filtrar coleções"
-                  onPress={() => setIsCollectionsFilterModalOpen(true)}
-                  disabled={
-                    editableCollectionsQuery.isFetching &&
-                    editableCollections.length === 0
-                  }
-                  hitSlop={10}
-                  style={({ pressed }) => [
-                    styles.filterBtn,
-                    pressed ? styles.filterBtnPressed : null,
-                    editableCollectionsQuery.isFetching &&
-                    editableCollections.length === 0
-                      ? styles.btnDisabled
-                      : null,
-                  ]}
-                >
-                  <Ionicons
-                    name="funnel-outline"
-                    size={16}
-                    color={textSecondary}
-                  />
-                  <Text
-                    style={[
-                      styles.filterBtnText,
-                      { color: textPrimary, flexShrink: 1, minWidth: 0 },
+        <View
+          style={[
+            styles.addToCollectionModalRoot,
+            {
+              backgroundColor: getSaravafyBaseColor(variant),
+              paddingTop: insets.top,
+              paddingBottom: insets.bottom,
+            },
+          ]}
+        >
+          <View style={styles.addToCollectionModalInner}>
+            <HomeAddToCollectionWizard
+              visible={addModalVisible}
+              onClose={closeAddToCollectionSheet}
+              ponto={selectedPonto}
+              userId={userId}
+              variant={variant}
+              textPrimary={textPrimary}
+              textSecondary={textSecondary}
+              textMuted={textMuted}
+              borderColor={
+                variant === "light"
+                  ? colors.surfaceCardBorderLight
+                  : colors.surfaceCardBorder
+              }
+              collectionsError={collectionsError}
+              visibleCollections={visibleEditableCollections}
+              totalEditableCollectionsCount={editableCollections.length}
+              collectionsLoading={
+                editableCollectionsQuery.isFetching &&
+                editableCollections.length === 0
+              }
+              getCollectionOwnerLabel={getCollectionOwnerLabel}
+              isAdding={isAdding}
+              isCreatingCollection={isCreatingCollection}
+              addError={addError}
+              addSuccess={addSuccess}
+              onRetryLoadCollections={() => {
+                void editableCollectionsQuery.queries.editableTerreiroIds.refetch();
+                void editableCollectionsQuery.queries.collections.refetch();
+              }}
+              colecaoToolbar={
+                <View style={styles.sheetActionsRow}>
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Filtrar coleções"
+                    onPress={() => setIsCollectionsFilterModalOpen(true)}
+                    disabled={
+                      editableCollectionsQuery.isFetching &&
+                      editableCollections.length === 0
+                    }
+                    hitSlop={10}
+                    style={({ pressed }) => [
+                      styles.filterBtn,
+                      pressed ? styles.filterBtnPressed : null,
+                      editableCollectionsQuery.isFetching &&
+                      editableCollections.length === 0
+                        ? styles.btnDisabled
+                        : null,
                     ]}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
                   >
-                    {collectionsFilterLabel}
-                  </Text>
-                  <Ionicons
-                    name="chevron-down"
-                    size={16}
-                    color={textSecondary}
-                  />
-                </Pressable>
-
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={openCreateCollection}
-                  disabled={
-                    isCreatingCollection ||
-                    (editableCollectionsQuery.isFetching &&
-                      editableCollections.length === 0)
-                  }
-                  style={({ pressed }) => [
-                    styles.newCollectionCta,
-                    pressed ? styles.newCollectionCtaPressed : null,
-                    isCreatingCollection ? styles.btnDisabled : null,
-                  ]}
-                >
-                  <Text style={styles.newCollectionCtaText}>
-                    + Nova coleção
-                  </Text>
-                </Pressable>
-              </View>
-
-              {editableCollectionsQuery.isFetching &&
-              editableCollections.length === 0 ? (
-                <View style={styles.emptyBlock}>
-                  <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                    Carregando coleções…
-                  </Text>
-                </View>
-              ) : editableCollections.length === 0 ? (
-                <View style={styles.emptyBlock}>
-                  <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                    Você ainda não tem permissão…
-                  </Text>
-                  <Text style={[styles.emptyText, { color: textSecondary }]}>
-                    Você ainda não tem permissão para adicionar pontos em
-                    coleções. Peça acesso a uma coleção ou a um terreiro.
-                  </Text>
-                </View>
-              ) : visibleEditableCollections.length === 0 ? (
-                <View style={styles.emptyBlock}>
-                  <Text style={[styles.emptyTitle, { color: textPrimary }]}>
-                    Nenhuma coleção nesse filtro.
-                  </Text>
-                </View>
-              ) : (
-                <>
-                  {isAdding ? (
-                    <Text style={[styles.bodyText, { color: textSecondary }]}>
-                      Adicionando…
-                    </Text>
-                  ) : addSuccess ? (
+                    <Ionicons
+                      name="funnel-outline"
+                      size={16}
+                      color={textSecondary}
+                    />
                     <Text
-                      style={[styles.bodyText, { color: colors.forest500 }]}
+                      style={[
+                        styles.filterBtnText,
+                        { color: textPrimary, flexShrink: 1, minWidth: 0 },
+                      ]}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
                     >
-                      Ponto adicionado à coleção
+                      {collectionsFilterLabel}
                     </Text>
-                  ) : addError ? (
-                    <Text style={[styles.bodyText, { color: colors.brass600 }]}>
-                      {addError}
+                    <Ionicons
+                      name="chevron-down"
+                      size={16}
+                      color={textSecondary}
+                    />
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={openCreateCollection}
+                    disabled={
+                      isCreatingCollection ||
+                      (editableCollectionsQuery.isFetching &&
+                        editableCollections.length === 0)
+                    }
+                    style={({ pressed }) => [
+                      styles.newCollectionCta,
+                      pressed ? styles.newCollectionCtaPressed : null,
+                      isCreatingCollection ? styles.btnDisabled : null,
+                    ]}
+                  >
+                    <Text style={styles.newCollectionCtaText}>
+                      + Nova coleção
                     </Text>
-                  ) : (
-                    <Text style={[styles.bodyText, { color: textSecondary }]}>
-                      Selecione uma coleção para adicionar o ponto.
-                    </Text>
-                  )}
+                  </Pressable>
+                </View>
+              }
+              onCommit={async (payload) => {
+                if (!userId) return;
 
-                  <View style={styles.sheetList}>
-                    {visibleEditableCollections.map((c) => {
-                      const title = (c.title ?? "").trim() || "Coleção";
-                      // SEMPRE mostra o label do terreiro quando aplicável
-                      const ownerLabel = getCollectionOwnerLabel(c);
+                setIsAdding(true);
+                setAddError(null);
+                setAddSuccess(false);
 
-                      return (
-                        <Pressable
-                          key={c.id}
-                          accessibilityRole="button"
-                          disabled={isAdding || isCreatingCollection}
-                          onPress={async () => {
-                            if (!userId || !selectedPonto) return;
-
-                            setIsAdding(true);
-                            setAddError(null);
-                            setAddSuccess(false);
-
-                            try {
-                              await addToCollectionMutation.mutateAsync({
-                                collectionId: c.id,
-                                pontoId: selectedPonto.id,
-                                addedBy: userId,
-                                pontoSnapshot: selectedPonto,
-                              });
-                            } catch (e) {
-                              setIsAdding(false);
-                              if (__DEV__) {
-                                console.info(
-                                  "[AddToCollection] unexpected error",
-                                  e,
-                                );
-                              }
-                              return;
-                            }
-
-                            setIsAdding(false);
-
-                            setAddSuccess(true);
-                            showToast("Ponto adicionado à coleção");
-                            setAddModalVisible(false);
-                          }}
-                          style={({ pressed }) => [
-                            styles.collectionRow,
-                            {
-                              borderColor:
-                                variant === "light"
-                                  ? colors.surfaceCardBorderLight
-                                  : colors.surfaceCardBorder,
-                            },
-                            pressed && styles.collectionRowPressed,
-                          ]}
-                        >
-                          <View style={{ flex: 1, minWidth: 0 }}>
-                            <Text
-                              style={[
-                                styles.collectionTitle,
-                                { color: textPrimary },
-                              ]}
-                              numberOfLines={1}
-                            >
-                              {title}
-                            </Text>
-                            {ownerLabel ? (
-                              <Text
-                                style={[
-                                  styles.collectionOwner,
-                                  { color: textSecondary },
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {ownerLabel}
-                              </Text>
-                            ) : null}
-                          </View>
-                        </Pressable>
-                      );
-                    })}
-                  </View>
-                </>
-              )}
-            </>
-          )}
+                try {
+                  const res = await addToCollectionMutation.mutateAsync({
+                    collectionId: payload.collectionId,
+                    pontoId: payload.pontoId,
+                    addedBy: userId,
+                    pontoSnapshot: payload.homePontoSnapshot,
+                    pontoVersaoId: payload.pontoVersaoId,
+                    entidade: payload.entidade,
+                    entidadeResolvedLabel: payload.entidadeResolvedLabel,
+                    listPonto: payload.listPonto,
+                  });
+                  setIsAdding(false);
+                  setAddSuccess(true);
+                  showToast(
+                    res.alreadyExists
+                      ? "Este ponto já estava na coleção"
+                      : "Ponto adicionado à coleção",
+                  );
+                  setAddModalVisible(false);
+                } catch (e) {
+                  setIsAdding(false);
+                  if (__DEV__) {
+                    console.info("[AddToCollection] unexpected error", e);
+                  }
+                }
+              }}
+            />
+          </View>
         </View>
-      </BottomSheet>
+      </Modal>
 
       <SelectModal
         title="Filtrar coleções"
@@ -1726,6 +1721,14 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     // Não definir backgroundColor aqui para deixar o layout controlar o fundo
+  },
+  addToCollectionModalRoot: {
+    flex: 1,
+  },
+  addToCollectionModalInner: {
+    flex: 1,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
   },
   container: {
     flex: 1,

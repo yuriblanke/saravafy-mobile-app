@@ -68,6 +68,11 @@ const config: ExpoConfig = {
 
   scheme: "saravafy",
   userInterfaceStyle: "automatic",
+  /**
+   * Reanimated 4 + react-native-worklets exigem New Architecture no Android.
+   * Track player: patch em `patches/` — `MusicModule` não pode usar `= scope.launch` em `@ReactMethod`
+   * (retorna `Job` e rebenta o interop TurboModule).
+   */
   newArchEnabled: true,
 
   icon: "./assets/images/app-icon.png",

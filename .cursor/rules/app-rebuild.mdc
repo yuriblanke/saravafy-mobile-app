@@ -1,0 +1,5 @@
+---
+alwaysApply: true
+---
+
+Avise o usuário caso alguma alteração precise de rebuild do app

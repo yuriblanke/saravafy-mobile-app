@@ -1,5 +1,5 @@
 /**
- * Entidades canônicas e encadeamento orixá (self-FK em `entidades.orixá_id`).
+ * Entidades canônicas e encadeamento orixá (self-FK em `entidades.orixa_id`).
  * `nome` pode ser null (linha/orixá genérico sem entidade nomeada).
  */
 
@@ -7,12 +7,12 @@ export type EntidadeSimples = {
   id: string;
   nome: string | null;
   linha: string;
-  /** Reflete `entidades.orixá_id` no banco. */
+  /** Reflete `entidades.orixa_id` no banco. */
   orixa_id: string | null;
 };
 
 export type EntidadeComOrixa = EntidadeSimples & {
-  /** Entidade referenciada por `orixá_id` (outra linha em `entidades`). */
+  /** Entidade referenciada por `orixa_id` (outra linha em `entidades`). */
   orixas: EntidadeSimples | null;
 };
 
@@ -38,8 +38,7 @@ function readLinha(v: unknown): string {
 }
 
 function readOrixaIdFromRow(raw: Record<string, unknown>): string | null {
-  const v =
-    raw["orixá_id"] ?? raw.orixa_id ?? raw["orixa_id"] ?? raw.orixá_id;
+  const v = raw.orixa_id ?? raw["orixa_id"];
   if (typeof v === "string" && v.trim()) return v.trim();
   return null;
 }
@@ -54,7 +53,7 @@ export function resolveEntidadeLabel(entidade: EntidadeComOrixa): string {
   return readLinha(entidade.linha);
 }
 
-function buildEntidadeComOrixaFromEmbed(
+export function buildEntidadeComOrixaFromEmbed(
   e: Record<string, unknown>,
 ): EntidadeComOrixa | null {
   const id = typeof e.id === "string" && e.id.trim() ? e.id.trim() : "";

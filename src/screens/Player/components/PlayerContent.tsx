@@ -1,6 +1,10 @@
 import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { TagChip } from "@/src/components/TagChip";
 import { TagPlusChip } from "@/src/components/TagPlusChip";
+import {
+    lyricsHasEntidadePlaceholder,
+    resolveLyricsWithCollectionEntidade,
+} from "@/src/domain/entidadePlaceholder";
 import type { TerreiroPontoMediumTag } from "@/src/queries/terreiroPontoCustomTags";
 import { colors, spacing } from "@/src/theme";
 import React from "react";
@@ -19,6 +23,11 @@ export function PlayerContent(props: {
   onPressAddMediumTag?: () => void;
   canDeleteMediumTag?: boolean;
   onLongPressMediumTag?: (tag: TerreiroPontoMediumTag) => void;
+  /** Player a partir de uma coleção: mostra chip da entidade escolhida para a entrada. */
+  inCollection?: boolean;
+  onPressCollectionEntidadeMarker?: () => void;
+  /** Fora da coleção, quando a letra tem o marcador: só informação. */
+  onPressEntidadeMarkerInfo?: () => void;
 }) {
   const {
     ponto,
@@ -31,6 +40,9 @@ export function PlayerContent(props: {
     onPressAddMediumTag,
     canDeleteMediumTag,
     onLongPressMediumTag,
+    inCollection = false,
+    onPressCollectionEntidadeMarker,
+    onPressEntidadeMarkerInfo,
   } = props;
 
   const textPrimary =
@@ -43,6 +55,16 @@ export function PlayerContent(props: {
   const resolvedMediumTags = Array.isArray(mediumTags) ? mediumTags : [];
   const entidadeNome = ponto.entidadeNome ?? null;
   const orixaNome = ponto.orixaNome ?? null;
+
+  const rawLyrics =
+    (versaoAtual && typeof versaoAtual.lyrics === "string"
+      ? versaoAtual.lyrics
+      : null) ?? ponto.lyrics;
+  const hasEntidadeMarkerInLyrics = lyricsHasEntidadePlaceholder(
+    rawLyrics ?? "",
+  );
+  const cr = ponto.collectionEntidadeResolve;
+
   const hasChipRow =
     !!canAddMediumTag ||
     resolvedMediumTags.length > 0 ||
@@ -57,10 +79,15 @@ export function PlayerContent(props: {
       ? versaoAtual.title.trim()
       : ponto.title;
 
-  const lyricsBody =
-    (versaoAtual && typeof versaoAtual.lyrics === "string"
-      ? versaoAtual.lyrics
-      : null) ?? ponto.lyrics;
+  /** Texto simples quando não há `[entidade]` na versão atual (substituição já feita ou letra sem marcador). */
+  const lyricsBodyPlain =
+    cr != null
+      ? resolveLyricsWithCollectionEntidade({
+          rawLyrics: rawLyrics ?? "",
+          entidadeTexto: cr.entidadeTexto,
+          entidadeLabelFromId: cr.entidadeLabelFromId,
+        })
+      : (rawLyrics ?? ponto.lyrics);
 
   const showVersionSelector = versoes.length > 1 && !!versaoAtual;
   const atFirst = showVersionSelector && versaoAtual!.versao_num <= 1;
@@ -73,7 +100,17 @@ export function PlayerContent(props: {
     <View style={styles.page}>
       {showVersionSelector ? (
         <>
-          <View style={styles.versionRow}>
+          <Text
+            style={[styles.title, styles.titleCentered, { color: textPrimary }]}
+            numberOfLines={2}
+          >
+            {displayTitle}
+          </Text>
+          <View
+            style={styles.versionMetaRow}
+            accessibilityRole="text"
+            accessibilityLabel={`Versão ${versaoAtual!.versao_num} de ${versoes.length}. Use os botões para alterar a versão deste ponto.`}
+          >
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Versão anterior"
@@ -84,17 +121,17 @@ export function PlayerContent(props: {
               <Text
                 style={[
                   styles.versionChevron,
-                  { color: textPrimary, opacity: atFirst ? 0.3 : 1 },
+                  { color: textSecondary, opacity: atFirst ? 0.3 : 1 },
                 ]}
               >
                 ‹
               </Text>
             </Pressable>
             <Text
-              style={[styles.title, styles.versionTitleCenter, { color: textPrimary }]}
-              numberOfLines={2}
+              style={[styles.versionSubtitle, { color: textSecondary }]}
+              numberOfLines={1}
             >
-              {displayTitle}
+              Versão {versaoAtual!.versao_num} de {versoes.length}
             </Text>
             <Pressable
               accessibilityRole="button"
@@ -106,19 +143,13 @@ export function PlayerContent(props: {
               <Text
                 style={[
                   styles.versionChevron,
-                  { color: textPrimary, opacity: atLast ? 0.3 : 1 },
+                  { color: textSecondary, opacity: atLast ? 0.3 : 1 },
                 ]}
               >
                 ›
               </Text>
             </Pressable>
           </View>
-          <Text
-            style={[styles.versionSubtitle, { color: textSecondary }]}
-            accessibilityRole="text"
-          >
-            Versão {versaoAtual!.versao_num} de {versoes.length}
-          </Text>
         </>
       ) : (
         <Text style={[styles.title, { color: textPrimary }]} numberOfLines={2}>
@@ -166,9 +197,20 @@ export function PlayerContent(props: {
       ) : null}
 
       <LyricsScroll
-        lyrics={lyricsBody}
+        lyrics={hasEntidadeMarkerInLyrics ? "" : lyricsBodyPlain}
         fontSize={lyricsFontSize}
         variant={variant}
+        entidadeInline={
+          hasEntidadeMarkerInLyrics
+            ? {
+                rawLyrics: rawLyrics ?? "",
+                collectionEntidadeResolve: cr ?? null,
+                inCollection,
+                onPressCollection: onPressCollectionEntidadeMarker,
+                onPressInfo: onPressEntidadeMarkerInfo,
+              }
+            : null
+        }
       />
     </View>
   );
@@ -185,14 +227,17 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     lineHeight: 22,
   },
-  versionRow: {
+  titleCentered: {
+    textAlign: "center",
+  },
+  /** ‹ › ao lado de “Versão n de N” (não do título), para ler como troca de versão do mesmo ponto. */
+  versionMetaRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: spacing.sm,
-  },
-  versionTitleCenter: {
-    flex: 1,
-    textAlign: "center",
+    justifyContent: "center",
+    marginTop: spacing.xs,
+    gap: spacing.xs,
+    flexWrap: "wrap",
   },
   versionChevronHit: {
     minWidth: 36,
@@ -206,10 +251,8 @@ const styles = StyleSheet.create({
     lineHeight: 24,
   },
   versionSubtitle: {
-    marginTop: spacing.xs,
     fontSize: 12,
     fontWeight: "700",
-    textAlign: "center",
   },
   tagsWrap: {
     flexDirection: "row",

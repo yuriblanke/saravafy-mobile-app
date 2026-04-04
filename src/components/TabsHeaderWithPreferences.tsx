@@ -9,29 +9,29 @@ import { Badge } from "@/src/components/Badge";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
 import {
-  PreferencesPageItem,
-  PreferencesRadioGroup,
-  PreferencesSection,
-  PreferencesSwitchItem,
-  type PreferencesRadioOption,
+    PreferencesPageItem,
+    PreferencesRadioGroup,
+    PreferencesSection,
+    PreferencesSwitchItem,
+    type PreferencesRadioOption,
 } from "@/src/components/preferences";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import {
-  formatTerreiroMemberKindLabel,
-  formatTerreiroRoleLabel,
+    formatTerreiroMemberKindLabel,
+    formatTerreiroRoleLabel,
 } from "@/src/domain/terreiroRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import {
-  usePreferencesTerreirosQuery,
-  type MyTerreiroRole,
-  type MyTerreiroWithRole,
+    usePreferencesTerreirosQuery,
+    type MyTerreiroRole,
+    type MyTerreiroWithRole,
 } from "@/src/queries/me";
 import {
-  usePendingTerreiroInvitesForInviteeQuery,
-  type PendingTerreiroInvite,
+    usePendingTerreiroInvitesForInviteeQuery,
+    type PendingTerreiroInvite,
 } from "@/src/queries/pendingTerreiroInvites";
 import { usePreferencesTerreirosRealtime } from "@/src/queries/preferencesTerreirosRealtime";
 import { queryKeys } from "@/src/queries/queryKeys";
@@ -45,16 +45,16 @@ import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Alert,
-  Image,
-  LayoutChangeEvent,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    Image,
+    LayoutChangeEvent,
+    Modal,
+    Pressable,
+    StyleSheet,
+    Switch,
+    Text,
+    TextInput,
+    View,
 } from "react-native";
 
 function getInitials(value: string | undefined) {
@@ -294,11 +294,15 @@ export function TabsHeaderWithPreferences(
     let currentTab: TabKey = "pontos";
 
     if (
+      typeof pathname === "string" &&
+      (pathname === "/player" || pathname.startsWith("/player"))
+    ) {
+      // Player fica fora das tabs: mantém a última aba real (ex.: Pontos ao abrir da Home).
+      currentTab = lastTabInTabsRef.current;
+    } else if (
       segments.includes("(terreiros)") ||
       (typeof pathname === "string" &&
-        (pathname.startsWith("/terreiro") ||
-          pathname.startsWith("/collection") ||
-          pathname.startsWith("/player")))
+        (pathname.startsWith("/terreiro") || pathname.startsWith("/collection")))
     ) {
       currentTab = "terreiros";
     } else if (segments.includes("(pontos)")) {

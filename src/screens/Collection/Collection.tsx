@@ -3,6 +3,7 @@ import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabControllerOptional } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
+import { Share2Icon } from "@/src/components/icons/Share2Icon";
 import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -11,15 +12,15 @@ import { TagPlusChip } from "@/src/components/TagPlusChip";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import {
-    useCreateTerreiroMembershipRequest,
-    useTerreiroMembershipStatus,
+  useCreateTerreiroMembershipRequest,
+  useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { CollectionNameDetailsSheet } from "@/src/screens/Collection/CollectionNameDetailsSheet";
 import {
-    consumeCollectionPontosDirty,
-    putCollectionEditDraft,
+  consumeCollectionPontosDirty,
+  putCollectionEditDraft,
 } from "@/src/screens/CollectionEdit/draftStore";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
@@ -30,23 +31,23 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import React, {
-    useCallback,
-    useEffect,
-    useMemo,
-    useRef,
-    useState,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
 } from "react";
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Image,
-    Pressable,
-    ScrollView,
-    Share,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 type CollectionRow = {
@@ -928,7 +929,7 @@ export default function Collection() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={18} color={headerFgColor} />
+              <Share2Icon size={18} color={headerFgColor} />
             </Pressable>
           </Animated.View>
         </View>
@@ -1030,11 +1031,7 @@ export default function Collection() {
                   hitSlop={10}
                   style={styles.headerIconBtn}
                 >
-                  <Ionicons
-                    name="share-outline"
-                    size={20}
-                    color={textPrimary}
-                  />
+                  <Share2Icon size={20} color={textPrimary} />
                 </Pressable>
               </Animated.View>
             </Animated.View>

@@ -2,15 +2,16 @@ import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { EntidadePlaceholderSheet } from "@/src/components/collections/EntidadePlaceholderSheet";
 import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
 import {
-    incrementCollectionPontosCountInTerreiroLists,
-    removePontoFromCollectionPontosList,
-    upsertPontoInCollectionPontosList,
+  incrementCollectionPontosCountInTerreiroLists,
+  removePontoFromCollectionPontosList,
+  upsertPontoInCollectionPontosList,
 } from "@/src/queries/collectionsCache";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
@@ -21,71 +22,46 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useMemo, useState } from "react";
 import {
-    BackHandler,
-    FlatList,
-    Platform,
-    Pressable,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  BackHandler,
+  FlatList,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 
 import { parseEntidadeChipFieldsFromPontoRow } from "@/src/domain/entidade";
+import {
+  applyEntidadePlaceholder,
+  lyricsHasEntidadePlaceholder,
+} from "@/src/domain/entidadePlaceholder";
+import { useEntidadesCatalogQuery } from "@/src/queries/entidadesCatalog";
 import { PONTOS_ENTIDADE_ORIXA_EMBED } from "@/src/queries/pontoEntidadeSelect";
-import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
-import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
+import {
+  fetchActivePontoVersoesByPontoIds,
+  type PontoVersaoPlayerRow,
+} from "@/src/queries/pontoVersoes";
+import {
+  addPontoToCollection,
+  type CollectionPontoEntidadeInput,
+} from "@/src/screens/Home/data/collections_pontos";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
-type ListPonto = {
-  id: string;
-  title: string;
-  tags: string[];
-  lyrics: string;
-  lyrics_preview_6?: string | null;
-  entidadeNome: string | null;
-  orixaNome: string | null;
-};
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-  return String(e);
-}
-
-function getLyricsPreview(lyrics: string, maxLines = 6) {
-  const lines = String(lyrics ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const previewLines = lines.slice(0, maxLines);
-  const preview = previewLines.join("\n");
-  if (lines.length > maxLines) return `${preview}\n…`;
-  return preview;
-}
-
-function coerceStringArray(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter(
-      (v): v is string => typeof v === "string" && v.trim().length > 0,
-    );
-  }
-  if (typeof value === "string") {
-    return value
-      .split(/[,|]/g)
-      .map((t) => t.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
+import {
+  coerceStringArray,
+  getErrorMessage,
+  getLyricsPreview,
+  resolveDefaultPontoVersaoId,
+  toListPonto,
+  toPlayerPonto,
+  versaoCardTitle,
+  type ListPonto,
+} from "./addToCollectionModel";
 
 function extractSuggestionTagsFromTitle(title: string): string[] {
   const raw = String(title ?? "").trim();
@@ -144,34 +120,6 @@ function extractSuggestionTagsFromTitle(title: string): string[] {
   }
 
   return out;
-}
-
-function toPlayerPonto(p: ListPonto): PlayerPonto {
-  return {
-    id: p.id,
-    title: p.title,
-    artist: null,
-    duration_seconds: null,
-    cover_url: null,
-    lyrics: p.lyrics,
-    tags: Array.isArray(p.tags) ? p.tags : [],
-    entidade_id: null,
-    entidadeNome: p.entidadeNome ?? null,
-    orixaNome: p.orixaNome ?? null,
-    versoes: [],
-  };
-}
-
-function toListPonto(p: PlayerPonto): ListPonto {
-  return {
-    id: p.id,
-    title: p.title,
-    lyrics: p.lyrics,
-    tags: Array.isArray(p.tags) ? p.tags : [],
-    lyrics_preview_6: p.lyrics_preview_6 ?? null,
-    entidadeNome: p.entidadeNome ?? null,
-    orixaNome: p.orixaNome ?? null,
-  };
 }
 
 export default function AddToCollection() {
@@ -449,19 +397,81 @@ export default function AddToCollection() {
           entidadeNome:
             typeof r?.entidadeNome === "string" ? r.entidadeNome : null,
           orixaNome: typeof r?.orixaNome === "string" ? r.orixaNome : null,
+          versoes: [] as PontoVersaoPlayerRow[],
         } satisfies ListPonto;
       })
       .filter(Boolean) as ListPonto[];
   }, [searchResults]);
 
-  const shouldShowSearchStates = queryHasText;
   const shouldShowSearchResults = queryHasText && canSearch;
-  const listData = shouldShowSearchResults ? searchedPontos : suggestions;
+
+  const searchPontoIdsForFetch = useMemo(
+    () => Array.from(new Set(searchedPontos.map((p) => p.id).filter(Boolean))),
+    [searchedPontos],
+  );
+
+  const searchVersoesQuery = useQuery({
+    queryKey: [
+      "pontos",
+      "versoesBatch",
+      "addToCollectionSearch",
+      searchPontoIdsForFetch.join("|"),
+    ] as const,
+    queryFn: () => fetchActivePontoVersoesByPontoIds(searchPontoIdsForFetch),
+    enabled: shouldShowSearchResults && searchPontoIdsForFetch.length > 0,
+    staleTime: 60_000,
+  });
+
+  const listData = useMemo(() => {
+    if (!shouldShowSearchResults) {
+      return suggestions;
+    }
+    const map = searchVersoesQuery.data;
+    if (!map) {
+      return searchedPontos.map((p) => ({
+        ...p,
+        versoes: [] as PontoVersaoPlayerRow[],
+      }));
+    }
+    return searchedPontos.map((p) => ({
+      ...p,
+      versoes: map.get(p.id) ?? [],
+    }));
+  }, [
+    shouldShowSearchResults,
+    suggestions,
+    searchedPontos,
+    searchVersoesQuery.data,
+  ]);
+
+  const searchVersoesStillLoading =
+    shouldShowSearchResults &&
+    searchPontoIdsForFetch.length > 0 &&
+    searchVersoesQuery.isLoading;
 
   const [addingIds, setAddingIds] = useState<string[]>([]);
+  const [versionSheetCtx, setVersionSheetCtx] = useState<{
+    ponto: ListPonto;
+    /** Versão selecionada no carrossel ao abrir o sheet (realce). */
+    highlightVersaoId: string | null;
+  } | null>(null);
+  const [entidadePickerCtx, setEntidadePickerCtx] = useState<{
+    ponto: ListPonto;
+    pontoVersaoId: string;
+  } | null>(null);
+
+  const entidadesCatalogQuery = useEntidadesCatalogQuery({
+    enabled: !!entidadePickerCtx,
+  });
 
   const addMutation = useMutation({
-    mutationFn: async (vars: { ponto: ListPonto }) => {
+    mutationFn: async (vars: {
+      ponto: ListPonto;
+      pontoVersaoId?: string | null;
+      entidade?: CollectionPontoEntidadeInput | null;
+      /** Label já resolvido para otimista / substituição de `[entidade]`. */
+      entidadeResolvedLabel?: string | null;
+    }) => {
       if (!userId) {
         throw new Error("Entre para adicionar pontos.");
       }
@@ -469,10 +479,18 @@ export default function AddToCollection() {
         throw new Error("Coleção inválida.");
       }
 
+      const explicit =
+        typeof vars.pontoVersaoId === "string" && vars.pontoVersaoId.trim()
+          ? vars.pontoVersaoId.trim()
+          : null;
+      const vid = explicit ?? resolveDefaultPontoVersaoId(vars.ponto.versoes);
+
       const res = await addPontoToCollection({
         collectionId,
         pontoId: vars.ponto.id,
         addedBy: userId,
+        pontoVersaoId: vid,
+        entidade: vars.entidade ?? null,
       });
 
       if (!res.ok) {
@@ -488,7 +506,53 @@ export default function AddToCollection() {
         prev.includes(pontoId) ? prev : [...prev, pontoId],
       );
 
-      const playerPonto = toPlayerPonto(vars.ponto);
+      const explicit =
+        typeof vars.pontoVersaoId === "string" && vars.pontoVersaoId.trim()
+          ? vars.pontoVersaoId.trim()
+          : null;
+      const vid = explicit ?? resolveDefaultPontoVersaoId(vars.ponto.versoes);
+      const v = vid
+        ? vars.ponto.versoes.find((x) => x.id === vid) ?? null
+        : null;
+      const base = toPlayerPonto(vars.ponto);
+      const label =
+        typeof vars.entidadeResolvedLabel === "string"
+          ? vars.entidadeResolvedLabel.trim()
+          : "";
+      let lyrics = v?.lyrics ?? base.lyrics;
+      let lyrics_preview_6 =
+        typeof v?.lyrics_preview_6 === "string"
+          ? v.lyrics_preview_6
+          : base.lyrics_preview_6;
+      if (label && v && lyricsHasEntidadePlaceholder(lyrics)) {
+        lyrics = applyEntidadePlaceholder(lyrics, label);
+        if (typeof lyrics_preview_6 === "string") {
+          lyrics_preview_6 = applyEntidadePlaceholder(lyrics_preview_6, label);
+        }
+      }
+      const collectionEntidadeResolve =
+        vars.entidade?.kind === "custom"
+          ? {
+              entidadeTexto: vars.entidade.texto.trim(),
+              entidadeLabelFromId: null as string | null,
+            }
+          : vars.entidade?.kind === "registered"
+            ? {
+                entidadeTexto: null as string | null,
+                entidadeLabelFromId: label || null,
+              }
+            : null;
+      const playerPonto = {
+        ...(v
+          ? {
+              ...base,
+              lyrics,
+              lyrics_preview_6,
+            }
+          : base),
+        collectionPinnedVersaoId: vid ?? null,
+        collectionEntidadeResolve,
+      };
       const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
         collectionId,
         ponto: playerPonto,
@@ -567,8 +631,40 @@ export default function AddToCollection() {
         return;
       }
 
+      if (searchVersoesStillLoading) {
+        showToast("Carregando versões…");
+        return;
+      }
+
+      if (ponto.versoes.length > 1) {
+        setVersionSheetCtx({
+          ponto,
+          highlightVersaoId: resolveDefaultPontoVersaoId(ponto.versoes),
+        });
+        return;
+      }
+
+      const defaultId = resolveDefaultPontoVersaoId(ponto.versoes);
+      const versaoSingle =
+        defaultId != null
+          ? ponto.versoes.find((x) => x.id === defaultId) ?? null
+          : null;
+      if (
+        versaoSingle &&
+        lyricsHasEntidadePlaceholder(versaoSingle.lyrics)
+      ) {
+        setEntidadePickerCtx({
+          ponto,
+          pontoVersaoId: defaultId!,
+        });
+        return;
+      }
+
       try {
-        await addMutation.mutateAsync({ ponto });
+        await addMutation.mutateAsync({
+          ponto,
+          pontoVersaoId: defaultId,
+        });
       } catch {
         // erro já tratado no onError
       }
@@ -577,10 +673,59 @@ export default function AddToCollection() {
       addMutation,
       alreadyInCollectionIds,
       collectionId,
+      goBackToCollection,
       router,
+      searchVersoesStillLoading,
       showToast,
       userId,
     ],
+  );
+
+  const closeVersionPicker = useCallback(() => {
+    setVersionSheetCtx(null);
+  }, []);
+
+  const onPickVersaoFromSheet = useCallback(
+    async (versaoId: string, ponto: ListPonto) => {
+      setVersionSheetCtx(null);
+      const v = ponto.versoes.find((x) => x.id === versaoId);
+      if (v && lyricsHasEntidadePlaceholder(v.lyrics)) {
+        setEntidadePickerCtx({
+          ponto,
+          pontoVersaoId: versaoId,
+        });
+        return;
+      }
+      try {
+        await addMutation.mutateAsync({
+          ponto,
+          pontoVersaoId: versaoId,
+        });
+      } catch {
+        // erro já tratado no onError
+      }
+    },
+    [addMutation],
+  );
+
+  const onConfirmEntidadePlaceholder = useCallback(
+    (choice: CollectionPontoEntidadeInput) => {
+      const ctx = entidadePickerCtx;
+      if (!ctx) return;
+      setEntidadePickerCtx(null);
+      const label =
+        choice.kind === "custom"
+          ? choice.texto.trim()
+          : entidadesCatalogQuery.data?.find((o) => o.id === choice.entidadeId)
+              ?.label ?? "";
+      void addMutation.mutateAsync({
+        ponto: ctx.ponto,
+        pontoVersaoId: ctx.pontoVersaoId,
+        entidade: choice,
+        entidadeResolvedLabel: label,
+      });
+    },
+    [addMutation, entidadePickerCtx, entidadesCatalogQuery.data],
   );
 
   const Header = (
@@ -673,8 +818,23 @@ export default function AddToCollection() {
   const renderItem = useCallback(
     ({ item }: { item: ListPonto }) => {
       const isAlready = alreadyInCollectionIds.has(item.id);
-      const isAdding = addingIds.includes(item.id);
-      const disabled = isAlready || isAdding;
+      const isAddingRow = addingIds.includes(item.id);
+      const addBlockedByVersoesLoad = searchVersoesStillLoading;
+      const disabled = isAlready || isAddingRow || addBlockedByVersoesLoad;
+      const defaultVid = resolveDefaultPontoVersaoId(item.versoes);
+      const defaultVersao = defaultVid
+        ? item.versoes.find((x) => x.id === defaultVid) ?? null
+        : null;
+      const previewLyrics =
+        defaultVersao != null
+          ? defaultVersao.lyrics_preview_6 ??
+            getLyricsPreview(defaultVersao.lyrics, 6)
+          : item.lyrics_preview_6 ?? getLyricsPreview(item.lyrics, 6);
+      const nVersoes = item.versoes.length;
+      const versaoHint =
+        nVersoes > 1
+          ? `${nVersoes} versões — toque em + para escolher`
+          : null;
 
       return (
         <View style={styles.cardGap}>
@@ -687,19 +847,37 @@ export default function AddToCollection() {
                   source: "all",
                   q: searchQuery,
                   initialPontoId: item.id,
+                  /** Player usa isto para voltar ao fluxo “adicionar à coleção”, não só `router.back()`. */
+                  addFlowCollectionId: collectionId,
                 },
               });
             }}
           >
             <SurfaceCard variant={variant} style={styles.cardContainer}>
               <View style={styles.cardHeaderRow}>
-                <Text
-                  style={[styles.cardTitle, { color: textPrimary, flex: 1 }]}
-                  numberOfLines={2}
-                  ellipsizeMode="tail"
+                <View
+                  style={{
+                    flex: 1,
+                    marginRight: spacing.sm,
+                    minWidth: 0,
+                  }}
                 >
-                  {item.title}
-                </Text>
+                  <Text
+                    style={[styles.cardTitle, { color: textPrimary }]}
+                    numberOfLines={2}
+                    ellipsizeMode="tail"
+                  >
+                    {item.title}
+                  </Text>
+                  {versaoHint ? (
+                    <Text
+                      style={[styles.versaoListHint, { color: textSecondary }]}
+                      numberOfLines={1}
+                    >
+                      {versaoHint}
+                    </Text>
+                  ) : null}
+                </View>
 
                 <Pressable
                   accessibilityRole="button"
@@ -707,7 +885,11 @@ export default function AddToCollection() {
                     disabled
                       ? isAlready
                         ? "Já adicionado"
-                        : "Adicionando"
+                        : isAddingRow
+                          ? "Adicionando"
+                          : addBlockedByVersoesLoad
+                            ? "Carregando versões"
+                            : "Adicionar"
                       : "Adicionar"
                   }
                   onPress={(e) => {
@@ -724,11 +906,15 @@ export default function AddToCollection() {
                     },
                   ]}
                 >
-                  <Ionicons
-                    name={isAlready ? "checkmark" : "add"}
-                    size={18}
-                    color={textPrimary}
-                  />
+                  {isAddingRow || addBlockedByVersoesLoad ? (
+                    <ActivityIndicator size="small" color={textPrimary} />
+                  ) : (
+                    <Ionicons
+                      name={isAlready ? "checkmark" : "add"}
+                      size={18}
+                      color={textPrimary}
+                    />
+                  )}
                 </Pressable>
               </View>
 
@@ -747,7 +933,7 @@ export default function AddToCollection() {
                 numberOfLines={6}
                 ellipsizeMode="tail"
               >
-                {item.lyrics_preview_6 ?? getLyricsPreview(item.lyrics, 6)}
+                {previewLyrics}
               </Text>
             </SurfaceCard>
           </Pressable>
@@ -758,9 +944,11 @@ export default function AddToCollection() {
       addingIds,
       alreadyInCollectionIds,
       borderColor,
+      collectionId,
       onPressAdd,
       router,
       searchQuery,
+      searchVersoesStillLoading,
       textPrimary,
       textSecondary,
       variant,
@@ -829,6 +1017,138 @@ export default function AddToCollection() {
         keyboardShouldPersistTaps="handled"
         ListHeaderComponent={ListHeader}
         renderItem={renderItem}
+      />
+
+      <Modal
+        visible={!!versionSheetCtx}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={closeVersionPicker}
+      >
+        {versionSheetCtx ? (
+          <View
+            style={[
+              styles.versionPickerRoot,
+              {
+                backgroundColor: baseBgColor,
+                paddingTop: insets.top,
+                paddingBottom: insets.bottom,
+              },
+            ]}
+          >
+            <View style={styles.versionPickerHeader}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Voltar"
+                onPress={closeVersionPicker}
+                hitSlop={10}
+                style={styles.versionPickerBackBtn}
+              >
+                <Ionicons name="chevron-back" size={22} color={textPrimary} />
+              </Pressable>
+              <View style={styles.versionPickerHeaderTitles}>
+                <Text
+                  style={[styles.sheetTitle, { color: textPrimary }]}
+                  numberOfLines={2}
+                >
+                  Escolher versão para a coleção
+                </Text>
+                <Text
+                  style={[styles.sheetSubtitle, { color: textSecondary }]}
+                  numberOfLines={2}
+                >
+                  {versionSheetCtx.ponto.title}
+                </Text>
+              </View>
+            </View>
+
+            <ScrollView
+              style={styles.versionPickerScroll}
+              contentContainerStyle={styles.versionPickerScrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator
+            >
+              {versionSheetCtx.ponto.versoes.map((v) => {
+                const sheetPonto = versionSheetCtx.ponto;
+                const rowTitle = versaoCardTitle(v, sheetPonto.title);
+                const lyricsBody =
+                  typeof v.lyrics === "string" && v.lyrics.length > 0
+                    ? v.lyrics
+                    : "—";
+                const highlighted =
+                  versionSheetCtx.highlightVersaoId != null &&
+                  versionSheetCtx.highlightVersaoId === v.id;
+                return (
+                  <Pressable
+                    key={v.id}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Adicionar versão: ${rowTitle}`}
+                    onPress={() => void onPickVersaoFromSheet(v.id, sheetPonto)}
+                    disabled={addingIds.includes(sheetPonto.id)}
+                    style={({ pressed }) => [
+                      styles.versaoSheetRow,
+                      {
+                        borderColor: highlighted ? textPrimary : borderColor,
+                        borderWidth: highlighted ? 2 : StyleSheet.hairlineWidth,
+                        opacity: pressed ? 0.92 : 1,
+                      },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.versaoSheetRowTitle,
+                          { color: textPrimary },
+                        ]}
+                        numberOfLines={2}
+                      >
+                        {rowTitle}
+                        {v.is_canonical ? (
+                          <Text style={{ color: textMuted, fontWeight: "600" }}>
+                            {" "}
+                            · canônica
+                          </Text>
+                        ) : null}
+                      </Text>
+                      <Text
+                        style={[styles.versaoSheetMeta, { color: textSecondary }]}
+                      >
+                        Versão {v.versao_num} de {sheetPonto.versoes.length}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.versaoSheetLyricsFull,
+                          { color: textSecondary },
+                        ]}
+                      >
+                        {lyricsBody}
+                      </Text>
+                    </View>
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={22}
+                      color={textPrimary}
+                    />
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </View>
+        ) : null}
+      </Modal>
+
+      <EntidadePlaceholderSheet
+        visible={!!entidadePickerCtx}
+        variant={variant}
+        onClose={() => setEntidadePickerCtx(null)}
+        options={entidadesCatalogQuery.data ?? []}
+        optionsLoading={entidadesCatalogQuery.isLoading}
+        optionsError={
+          entidadesCatalogQuery.error
+            ? getErrorMessage(entidadesCatalogQuery.error)
+            : null
+        }
+        onConfirm={onConfirmEntidadePlaceholder}
       />
     </View>
   );
@@ -919,6 +1239,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
+  versaoListHint: {
+    fontSize: 11,
+    fontWeight: "700",
+    marginTop: 4,
+  },
   addBtn: {
     width: 36,
     height: 36,
@@ -937,5 +1262,64 @@ const styles = StyleSheet.create({
     paddingTop: spacing.sm,
     fontSize: 13,
     lineHeight: 18,
+  },
+  sheetTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+  },
+  sheetSubtitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginTop: 4,
+  },
+  versionPickerRoot: {
+    flex: 1,
+  },
+  versionPickerHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: spacing.md,
+    paddingBottom: spacing.sm,
+  },
+  versionPickerBackBtn: {
+    width: 40,
+    height: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: spacing.xs,
+  },
+  versionPickerHeaderTitles: {
+    flex: 1,
+    minWidth: 0,
+  },
+  versionPickerScroll: {
+    flex: 1,
+  },
+  versionPickerScrollContent: {
+    paddingHorizontal: spacing.lg,
+    paddingBottom: spacing.xl,
+  },
+  versaoSheetRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginBottom: spacing.sm,
+    gap: spacing.sm,
+  },
+  versaoSheetRowTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  versaoSheetMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  versaoSheetLyricsFull: {
+    marginTop: spacing.sm,
+    fontSize: 13,
+    lineHeight: 20,
   },
 });

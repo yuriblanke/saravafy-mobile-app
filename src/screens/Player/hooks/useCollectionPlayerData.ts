@@ -31,6 +31,18 @@ export type PlayerPonto = {
   orixaNome: string | null;
   /** Versões ativas ordenadas por `versao_num` (vazio até carregar). */
   versoes: PontoVersaoPlayerRow[];
+  /**
+   * Só no contexto coleção: `collections_pontos.ponto_versao_id` — versão inicial
+   * ao abrir o player (antes de o usuário mudar com as setas).
+   */
+  collectionPinnedVersaoId?: string | null;
+  /**
+   * Só no contexto coleção: substitui `[entidade]` em **qualquer** versão exibida.
+   */
+  collectionEntidadeResolve?: {
+    entidadeTexto: string | null;
+    entidadeLabelFromId: string | null;
+  } | null;
 };
 
 export type CollectionPlayerItem = {

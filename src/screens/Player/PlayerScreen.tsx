@@ -1,22 +1,35 @@
+import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { useRootPager } from "@/contexts/RootPagerContext";
+import { useTabController } from "@/contexts/TabControllerContext";
 import { useToast } from "@/contexts/ToastContext";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { EntidadePlaceholderSheet } from "@/src/components/collections/EntidadePlaceholderSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
-import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { Share2Icon } from "@/src/components/icons/Share2Icon";
 import {
   PontoUpsertModal,
   type PontoUpsertInitialValues,
 } from "@/src/components/pontos/PontoUpsertModal";
+import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
+import { SaravafyScreen } from "@/src/components/SaravafyScreen";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { useEntidadesCatalogQuery } from "@/src/queries/entidadesCatalog";
 import { useApprovedPontoAudioSubmission } from "@/src/queries/pontoSubmissions";
+import { queryKeys } from "@/src/queries/queryKeys";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
+import {
+  updateCollectionPontoEntidade,
+  type CollectionPontoEntidadeInput,
+} from "@/src/screens/Home/data/collections_pontos";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForPonto } from "@/src/utils/shareContent";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native";
+import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
   useCallback,
@@ -27,8 +40,10 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
+  BackHandler,
   FlatList,
   Image,
+  Platform,
   Pressable,
   Share,
   StyleSheet,
@@ -40,6 +55,7 @@ import {
   AudioPlayerFooter,
   type PlayerAudioState,
 } from "./components/AudioPlayerFooter";
+import { LibraryPlayerAddToCollectionModal } from "./components/LibraryPlayerAddToCollectionModal";
 import { PlayerContent } from "./components/PlayerContent";
 import { PlayerSearchModal } from "./components/PlayerSearchModal";
 import {
@@ -63,9 +79,21 @@ function parseIntSafe(value: unknown): number | null {
   return i;
 }
 
+function readRouteStringParam(value: unknown): string {
+  if (typeof value === "string") return value.trim();
+  if (Array.isArray(value) && typeof value[0] === "string") {
+    return value[0].trim();
+  }
+  return "";
+}
+
 export default function PlayerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const tabController = useTabController();
+  const rootPager = useRootPager();
 
   const { showToast } = useToast();
 
@@ -79,6 +107,8 @@ export default function PlayerScreen() {
     typeof params.terreiroId === "string" ? params.terreiroId : "";
 
   const collectionId = String(params.collectionId ?? "");
+  /** Aberto a partir de “Adicionar à coleção”: o stack nem sempre inclui essa rota; o back é explícito. */
+  const addFlowCollectionId = readRouteStringParam(params.addFlowCollectionId);
   const initialPontoId =
     typeof params.initialPontoId === "string"
       ? params.initialPontoId
@@ -113,9 +143,67 @@ export default function PlayerScreen() {
       ? colors.surfaceCardBorderLight
       : colors.surfaceCardBorder;
 
+  const isLibraryPlayer = source === "all";
+
+  const handlePlayerNavigateBack = useCallback(() => {
+    if (addFlowCollectionId) {
+      router.replace({
+        pathname: "/collection/[id]/add",
+        params: { id: addFlowCollectionId },
+      } as any);
+      return;
+    }
+    // Biblioteca (Pontos): alinha aba/pager e só dá pop se existir histórico (senão replace evita GO_BACK órfão).
+    if (isLibraryPlayer) {
+      tabController.goToTab("pontos");
+      rootPager.setActiveKey("pontos");
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(app)/(tabs)/(pontos)" as any);
+      }
+      return;
+    }
+    if (router.canGoBack()) {
+      router.back();
+      return;
+    }
+    if (collectionId) {
+      router.replace({
+        pathname: "/collection/[id]",
+        params: { id: collectionId },
+      } as any);
+      return;
+    }
+    tabController.goToTab("pontos");
+    rootPager.setActiveKey("pontos");
+    router.replace("/(app)/(tabs)/(pontos)" as any);
+  }, [
+    addFlowCollectionId,
+    collectionId,
+    isLibraryPlayer,
+    router,
+    rootPager,
+    tabController,
+  ]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (Platform.OS !== "android") return;
+      const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+        handlePlayerNavigateBack();
+        return true;
+      });
+      return () => sub.remove();
+    }, [handlePlayerNavigateBack]),
+  );
+  const inCollectionPlayer = !isLibraryPlayer && !!collectionId;
+
   const { items, isLoading, error, isEmpty, reload, patchPontoById } =
     useCollectionPlayerData(
-      source === "all" ? { mode: "all", query: searchQuery } : { collectionId },
+      isLibraryPlayer
+        ? { mode: "all", query: searchQuery }
+        : { collectionId },
     );
 
   const membership = useTerreiroMembershipStatus(terreiroId);
@@ -141,6 +229,8 @@ export default function PlayerScreen() {
   const [lyricsFontSize, setLyricsFontSize] = useState(20);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [libraryAddToCollectionOpen, setLibraryAddToCollectionOpen] =
+    useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -155,17 +245,79 @@ export default function PlayerScreen() {
     Record<string, string>
   >({});
 
+  const [entidadeMarkerInfoOpen, setEntidadeMarkerInfoOpen] = useState(false);
+  const [entidadeEditCtx, setEntidadeEditCtx] = useState<{
+    pontoId: string;
+    initialCustomText: string | null;
+  } | null>(null);
+
+  const entidadesCatalogForEdit = useEntidadesCatalogQuery({
+    enabled: !!entidadeEditCtx,
+  });
+
   const resolveVersaoForPonto = useCallback((ponto: PlayerPonto) => {
     const versoes = ponto.versoes ?? [];
     if (versoes.length === 0) return null;
     const canonical = versoes.find((v) => v.is_canonical) ?? versoes[0];
+
     const sel = versaoIdByPontoId[ponto.id];
     if (sel) {
       const found = versoes.find((v) => v.id === sel);
       if (found) return found;
     }
+
+    const pinnedId = ponto.collectionPinnedVersaoId;
+    if (typeof pinnedId === "string" && pinnedId.trim()) {
+      const found = versoes.find((v) => v.id === pinnedId.trim());
+      if (found) return found;
+    }
+
     return canonical ?? null;
   }, [versaoIdByPontoId]);
+
+  const openEntidadeEditForPonto = useCallback(
+    (ponto: PlayerPonto) => {
+      if (!user?.id) {
+        showToast("Entre na conta para alterar a entidade nesta coleção.");
+        router.push("/login");
+        return;
+      }
+      const cr = ponto.collectionEntidadeResolve;
+      const initialCustomText =
+        typeof cr?.entidadeTexto === "string" && cr.entidadeTexto.trim()
+          ? cr.entidadeTexto.trim()
+          : null;
+      setEntidadeEditCtx({
+        pontoId: ponto.id,
+        initialCustomText,
+      });
+    },
+    [router, showToast, user?.id],
+  );
+
+  const onConfirmEntidadeEdit = useCallback(
+    async (choice: CollectionPontoEntidadeInput) => {
+      if (!entidadeEditCtx || !collectionId) {
+        setEntidadeEditCtx(null);
+        return;
+      }
+      const res = await updateCollectionPontoEntidade({
+        collectionId,
+        pontoId: entidadeEditCtx.pontoId,
+        entidade: choice,
+      });
+      if (!res.ok) {
+        showToast(res.error ?? "Não foi possível atualizar a entidade.");
+        return;
+      }
+      setEntidadeEditCtx(null);
+      showToast("Entidade desta entrada atualizada.");
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.collections.pontos(collectionId),
+      });
+    },
+    [collectionId, entidadeEditCtx, queryClient, showToast],
+  );
 
   const [deleteTarget, setDeleteTarget] = useState<null | {
     pontoId: string;
@@ -351,7 +503,7 @@ export default function PlayerScreen() {
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={handlePlayerNavigateBack}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -376,7 +528,7 @@ export default function PlayerScreen() {
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={handlePlayerNavigateBack}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -416,7 +568,7 @@ export default function PlayerScreen() {
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              onPress={() => router.back()}
+              onPress={handlePlayerNavigateBack}
               hitSlop={10}
               style={styles.headerIconBtn}
             >
@@ -439,7 +591,7 @@ export default function PlayerScreen() {
         <View style={styles.header}>
           <Pressable
             accessibilityRole="button"
-            onPress={() => router.back()}
+            onPress={handlePlayerNavigateBack}
             hitSlop={10}
             style={styles.headerIconBtn}
           >
@@ -456,6 +608,18 @@ export default function PlayerScreen() {
                 style={styles.headerIconBtn}
               >
                 <Ionicons name="pencil" size={18} color={textPrimary} />
+              </Pressable>
+            ) : null}
+
+            {isLibraryPlayer && user?.id && activePonto ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Adicionar à coleção"
+                onPress={() => setLibraryAddToCollectionOpen(true)}
+                hitSlop={10}
+                style={styles.headerIconBtn}
+              >
+                <Ionicons name="add" size={20} color={textPrimary} />
               </Pressable>
             ) : null}
 
@@ -482,7 +646,7 @@ export default function PlayerScreen() {
               hitSlop={10}
               style={styles.headerIconBtn}
             >
-              <Ionicons name="share-outline" size={18} color={textPrimary} />
+              <Share2Icon size={18} color={textPrimary} />
             </Pressable>
 
             <Pressable
@@ -577,6 +741,13 @@ export default function PlayerScreen() {
                   }}
                   variant={variant}
                   lyricsFontSize={lyricsFontSize}
+                  inCollection={inCollectionPlayer}
+                  onPressCollectionEntidadeMarker={() =>
+                    openEntidadeEditForPonto(item.ponto)
+                  }
+                  onPressEntidadeMarkerInfo={() =>
+                    setEntidadeMarkerInfoOpen(true)
+                  }
                   mediumTags={
                     canSeeMediumTags ? (customTagsMap[item.ponto.id] ?? []) : []
                   }
@@ -625,6 +796,17 @@ export default function PlayerScreen() {
           onClose={() => setIsSearchOpen(false)}
         />
 
+        {isLibraryPlayer && user?.id && activePonto ? (
+          <LibraryPlayerAddToCollectionModal
+            visible={libraryAddToCollectionOpen}
+            onClose={() => setLibraryAddToCollectionOpen(false)}
+            playerPonto={activePonto}
+            activeVersao={activeVersao}
+            userId={user.id}
+            variant={variant}
+          />
+        ) : null}
+
         <AddMediumTagSheet
           visible={!!mediumTargetPontoId}
           variant={variant}
@@ -642,6 +824,57 @@ export default function PlayerScreen() {
           tagId={deleteTarget?.tagId ?? ""}
           tagLabel={deleteTarget?.tagLabel ?? ""}
           onClose={() => setDeleteTarget(null)}
+        />
+
+        <BottomSheet
+          visible={entidadeMarkerInfoOpen}
+          onClose={() => setEntidadeMarkerInfoOpen(false)}
+          variant={variant}
+          snapPoints={["52%"]}
+          bounces={false}
+        >
+          <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.lg }}>
+            <Text style={[styles.simpleModalTitle, { color: textPrimary }]}>
+              Entidade na letra
+            </Text>
+            <Text
+              style={[
+                styles.simpleModalBody,
+                { color: textSecondary, marginTop: spacing.md, lineHeight: 22 },
+              ]}
+            >
+              Algumas letras reservam um lugar para o nome da entidade (o texto
+              mostra isso como um marcador).
+            </Text>
+            <Text
+              style={[
+                styles.simpleModalBody,
+                { color: textSecondary, marginTop: spacing.md, lineHeight: 22 },
+              ]}
+            >
+              Quando você adiciona um destes pontos a uma coleção, pode escolher o
+              nome que quer que apareça naquela coleção.
+            </Text>
+          </View>
+        </BottomSheet>
+
+        <EntidadePlaceholderSheet
+          visible={!!entidadeEditCtx}
+          variant={variant}
+          onClose={() => setEntidadeEditCtx(null)}
+          options={entidadesCatalogForEdit.data ?? []}
+          optionsLoading={entidadesCatalogForEdit.isLoading}
+          optionsError={
+            entidadesCatalogForEdit.error
+              ? entidadesCatalogForEdit.error instanceof Error
+                ? entidadesCatalogForEdit.error.message
+                : String(entidadesCatalogForEdit.error)
+              : null
+          }
+          onConfirm={(choice) => void onConfirmEntidadeEdit(choice)}
+          titleText="Entidade nesta coleção"
+          subtitleText="O nome que você escolher substitui o marcador só nesta entrada da coleção. Você pode usar uma entidade do cadastro ou escrever manualmente."
+          initialCustomText={entidadeEditCtx?.initialCustomText ?? null}
         />
 
         <CurimbaExplainerBottomSheet
