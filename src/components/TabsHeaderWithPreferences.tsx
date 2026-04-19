@@ -16,6 +16,7 @@ import {
     type PreferencesRadioOption,
 } from "@/src/components/preferences";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { usePreferencesOverlay } from "@/src/contexts/PreferencesOverlayContext";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import {
@@ -183,6 +184,7 @@ export function TabsHeaderWithPreferences(
   const queryClient = useQueryClient();
   const tabController = useTabController();
   const { user } = useAuth();
+  const { openLoginSheet } = useLoginPrompt();
   const { effectiveTheme } = usePreferences();
   const insets = useGlobalSafeAreaInsets();
 
@@ -471,6 +473,26 @@ export function TabsHeaderWithPreferences(
       </View>
 
       <View style={styles.headerIdentity}>
+        {!user ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Entrar"
+            onPress={() => openLoginSheet()}
+            hitSlop={10}
+            style={({ pressed }) => [
+              styles.loginButton,
+              pressed ? styles.loginButtonPressed : null,
+            ]}
+          >
+            <Ionicons
+              name="log-in-outline"
+              size={16}
+              color={colors.paper50}
+              style={styles.loginButtonIcon}
+            />
+            <Text style={styles.loginButtonText}>Entrar</Text>
+          </Pressable>
+        ) : (
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Abrir preferências"
@@ -599,6 +621,7 @@ export function TabsHeaderWithPreferences(
             <Ionicons name="chevron-down" size={14} color={textMuted} />
           </View>
         </Pressable>
+        )}
       </View>
     </View>
   );
@@ -1580,31 +1603,6 @@ export function PreferencesOverlaySheets(
                 <View style={styles.invitePrimaryRow}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Aceitar convite"
-                    disabled={
-                      inviteProcessingKey ===
-                      `curator:${pendingCuratorInvite.id}`
-                    }
-                    onPress={() =>
-                      void acceptCuratorInvite(pendingCuratorInvite.id)
-                    }
-                    style={({ pressed }) => [
-                      styles.invitePrimaryBtn,
-                      { borderColor: colors.brass600, flex: 1 },
-                      pressed ? styles.inviteBtnPressed : null,
-                      inviteProcessingKey ===
-                      `curator:${pendingCuratorInvite.id}`
-                        ? styles.inviteBtnDisabled
-                        : null,
-                    ]}
-                  >
-                    <Text style={styles.invitePrimaryBtnText}>
-                      Aceitar convite
-                    </Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
                     accessibilityLabel="Recusar convite"
                     disabled={
                       inviteProcessingKey ===
@@ -1631,6 +1629,31 @@ export function PreferencesOverlaySheets(
                       numberOfLines={1}
                     >
                       Recusar convite
+                    </Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Aceitar convite"
+                    disabled={
+                      inviteProcessingKey ===
+                      `curator:${pendingCuratorInvite.id}`
+                    }
+                    onPress={() =>
+                      void acceptCuratorInvite(pendingCuratorInvite.id)
+                    }
+                    style={({ pressed }) => [
+                      styles.invitePrimaryBtn,
+                      { borderColor: colors.brass600, flex: 1 },
+                      pressed ? styles.inviteBtnPressed : null,
+                      inviteProcessingKey ===
+                      `curator:${pendingCuratorInvite.id}`
+                        ? styles.inviteBtnDisabled
+                        : null,
+                    ]}
+                  >
+                    <Text style={styles.invitePrimaryBtnText}>
+                      Aceitar convite
                     </Text>
                   </Pressable>
                 </View>
@@ -2570,6 +2593,27 @@ const styles = StyleSheet.create({
   headerIdentity: {
     alignItems: "center",
     justifyContent: "center",
+  },
+  loginButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brass600,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 6,
+  },
+  loginButtonPressed: {
+    opacity: 0.85,
+  },
+  loginButtonIcon: {
+    marginLeft: -2,
+  },
+  loginButtonText: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "800",
   },
   avatarTrigger: {
     alignItems: "center",

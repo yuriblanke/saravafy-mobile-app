@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { isOffline } from "@/src/offline/networkCheck";
+import { listPackages, getPackage } from "@/src/offline/terreiroPackage";
 import {
     useQuery,
     type QueryKey,
@@ -52,11 +54,33 @@ function getErrorMessage(e: unknown): string {
   return String(e);
 }
 
+async function tryOfflineFallback(
+  collectionId: string
+): Promise<CollectionPlayerItem[] | null> {
+  try {
+    const metas = await listPackages();
+    for (const meta of metas) {
+      const pkg = await getPackage(meta.terreiroId);
+      if (!pkg) continue;
+      const items = pkg.collectionPontos[collectionId];
+      if (items) return items;
+    }
+  } catch {
+    /* best effort */
+  }
+  return null;
+}
+
 export async function fetchCollectionPontosItems(
   collectionId: string,
 ): Promise<CollectionPlayerItem[]> {
   if (!collectionId) {
     throw new Error("Collection inválida.");
+  }
+
+  if (await isOffline()) {
+    const offline = await tryOfflineFallback(collectionId);
+    if (offline) return offline;
   }
 
   const res = await supabase

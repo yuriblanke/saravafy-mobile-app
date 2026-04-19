@@ -1,7 +1,9 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
+import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import {
   type TerreiroListItem,
   useTerreirosWithRoleQuery,
@@ -409,6 +411,7 @@ export default function Terreiros() {
 
   const { user } = useAuth();
   const userId = user?.id ?? null;
+  const { requireAuth } = useLoginPrompt();
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedTerreiroId, setExpandedTerreiroId] = useState<string | null>(
     null
@@ -425,7 +428,7 @@ export default function Terreiros() {
   );
   const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
   const error = terreirosQuery.isError
-    ? "Erro ao carregar os terreiros."
+    ? "Ops, seu app parece estar desatualizado."
     : null;
 
   const filteredTerreiros = useMemo(() => {
@@ -454,6 +457,33 @@ export default function Terreiros() {
     <View style={styles.screen}>
       <View style={styles.container}>
         {/* Título removido conforme solicitado */}
+        <View style={styles.submitRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cadastrar terreiro"
+            onPress={() => {
+              requireAuth(
+                () =>
+                  router.push({
+                    pathname: "/terreiro-editor" as any,
+                    params: { mode: "create" },
+                  }),
+                { reason: "Para cadastrar um terreiro, entre com sua conta." }
+              );
+            }}
+            style={({ pressed }) => [
+              styles.submitButton,
+              pressed ? styles.submitButtonPressed : null,
+            ]}
+            hitSlop={10}
+          >
+            <View style={styles.submitButtonInner}>
+              <Ionicons name="add" size={14} color={colors.brass600} />
+              <Text style={styles.submitButtonText}>Cadastrar terreiro</Text>
+            </View>
+          </Pressable>
+        </View>
+
         <View style={styles.searchWrap}>
           <View
             style={[
@@ -516,6 +546,7 @@ export default function Terreiros() {
                 Tentar novamente
               </Text>
             </Pressable>
+            <DownloadUpdateButton />
           </View>
         ) : filteredTerreiros.length === 0 ? (
           <View style={styles.paddedBlock}>
@@ -577,7 +608,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingTop: spacing.md,
+    padding: 0,
   },
   paddedBlock: {
     paddingHorizontal: spacing.lg,
@@ -591,10 +622,34 @@ const styles = StyleSheet.create({
   sectionGapSmall: {
     height: spacing.sm,
   },
+  submitRow: {
+    paddingHorizontal: spacing.lg,
+    paddingTop: 0,
+    paddingBottom: spacing.xs,
+  },
   searchWrap: {
     paddingTop: spacing.sm,
     paddingBottom: spacing.md,
     paddingHorizontal: spacing.lg,
+  },
+  submitButton: {
+    alignSelf: "flex-end",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    backgroundColor: "transparent",
+  },
+  submitButtonInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  submitButtonPressed: {
+    opacity: 0.9,
+  },
+  submitButtonText: {
+    color: colors.brass600,
+    fontSize: 13,
+    fontWeight: "900",
   },
   searchInputWrap: {
     position: "relative",

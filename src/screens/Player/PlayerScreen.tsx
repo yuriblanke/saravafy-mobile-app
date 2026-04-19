@@ -5,6 +5,8 @@ import { useRootPager } from "@/contexts/RootPagerContext";
 import { useTabController } from "@/contexts/TabControllerContext";
 import { useToast } from "@/contexts/ToastContext";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
+import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { EntidadePlaceholderSheet } from "@/src/components/collections/EntidadePlaceholderSheet";
 import { CurimbaExplainerBottomSheet } from "@/src/components/CurimbaExplainerBottomSheet";
@@ -92,6 +94,7 @@ export default function PlayerScreen() {
   const params = useLocalSearchParams();
   const queryClient = useQueryClient();
   const { user } = useAuth();
+  const { requireAuth } = useLoginPrompt();
   const tabController = useTabController();
   const rootPager = useRootPager();
 
@@ -277,22 +280,25 @@ export default function PlayerScreen() {
 
   const openEntidadeEditForPonto = useCallback(
     (ponto: PlayerPonto) => {
-      if (!user?.id) {
-        showToast("Entre na conta para alterar a entidade nesta coleção.");
-        router.push("/login");
-        return;
-      }
-      const cr = ponto.collectionEntidadeResolve;
-      const initialCustomText =
-        typeof cr?.entidadeTexto === "string" && cr.entidadeTexto.trim()
-          ? cr.entidadeTexto.trim()
-          : null;
-      setEntidadeEditCtx({
-        pontoId: ponto.id,
-        initialCustomText,
-      });
+      requireAuth(
+        () => {
+          const cr = ponto.collectionEntidadeResolve;
+          const initialCustomText =
+            typeof cr?.entidadeTexto === "string" && cr.entidadeTexto.trim()
+              ? cr.entidadeTexto.trim()
+              : null;
+          setEntidadeEditCtx({
+            pontoId: ponto.id,
+            initialCustomText,
+          });
+        },
+        {
+          reason:
+            "Para alterar a entidade desta coleção, entre com sua conta.",
+        },
+      );
     },
-    [router, showToast, user?.id],
+    [requireAuth],
   );
 
   const onConfirmEntidadeEdit = useCallback(
@@ -432,18 +438,23 @@ export default function PlayerScreen() {
       return;
     }
 
-    setIsReportOpen(false);
-    setIsNoAudioOpen(false);
-    setIsAudioInReviewOpen(false);
+    requireAuth(
+      () => {
+        setIsReportOpen(false);
+        setIsNoAudioOpen(false);
+        setIsAudioInReviewOpen(false);
 
-    router.push({
-      pathname: "/ponto-audio-upload" as any,
-      params: {
-        pontoId: activePonto.id,
-        pontoTitle: activeDisplayTitle || activePonto.title || "",
+        router.push({
+          pathname: "/ponto-audio-upload" as any,
+          params: {
+            pontoId: activePonto.id,
+            pontoTitle: activeDisplayTitle || activePonto.title || "",
+          },
+        } as any);
       },
-    } as any);
-  }, [activePonto, activeDisplayTitle, router, showToast]);
+      { reason: "Para enviar o áudio deste ponto, entre com sua conta." },
+    );
+  }, [activePonto, activeDisplayTitle, requireAuth, router, showToast]);
 
   const handleShare = useCallback(async () => {
     if (!activePonto?.id) {
@@ -555,6 +566,7 @@ export default function PlayerScreen() {
                 Tentar novamente
               </Text>
             </Pressable>
+            <DownloadUpdateButton />
           </View>
         </View>
       </SaravafyScreen>
@@ -611,11 +623,16 @@ export default function PlayerScreen() {
               </Pressable>
             ) : null}
 
-            {isLibraryPlayer && user?.id && activePonto ? (
+            {isLibraryPlayer && activePonto ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Adicionar à coleção"
-                onPress={() => setLibraryAddToCollectionOpen(true)}
+                onPress={() =>
+                  requireAuth(() => setLibraryAddToCollectionOpen(true), {
+                    reason:
+                      "Para adicionar pontos a uma coleção, entre com sua conta.",
+                  })
+                }
                 hitSlop={10}
                 style={styles.headerIconBtn}
               >

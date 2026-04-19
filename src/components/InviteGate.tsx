@@ -1228,21 +1228,6 @@ export function InviteGate() {
                 <View style={styles.modalPrimaryRow}>
                   <Pressable
                     accessibilityRole="button"
-                    accessibilityLabel="Aceitar convite"
-                    disabled={isProcessing}
-                    onPress={acceptInvite}
-                    style={({ pressed }) => [
-                      styles.primaryBtn,
-                      styles.modalPrimaryBtn,
-                      pressed ? styles.btnPressed : null,
-                      isProcessing ? styles.btnDisabled : null,
-                    ]}
-                  >
-                    <Text style={styles.primaryBtnText}>Aceitar</Text>
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
                     accessibilityLabel="Recusar convite"
                     disabled={isProcessing}
                     onPress={rejectInvite}
@@ -1259,6 +1244,21 @@ export function InviteGate() {
                     >
                       Recusar
                     </Text>
+                  </Pressable>
+
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Aceitar convite"
+                    disabled={isProcessing}
+                    onPress={acceptInvite}
+                    style={({ pressed }) => [
+                      styles.primaryBtn,
+                      styles.modalPrimaryBtn,
+                      pressed ? styles.btnPressed : null,
+                      isProcessing ? styles.btnDisabled : null,
+                    ]}
+                  >
+                    <Text style={styles.primaryBtnText}>Aceitar</Text>
                   </Pressable>
                 </View>
 

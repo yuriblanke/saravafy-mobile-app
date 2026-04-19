@@ -3,6 +3,8 @@ import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabControllerOptional } from "@/contexts/TabControllerContext";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
+import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { Share2Icon } from "@/src/components/icons/Share2Icon";
 import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { RemoveMediumTagSheet } from "@/src/components/RemoveMediumTagSheet";
@@ -136,6 +138,7 @@ export default function Collection() {
   const queryClient = useQueryClient();
 
   const { user } = useAuth();
+  const { openLoginSheet } = useLoginPrompt();
 
   const { showToast } = require("@/contexts/ToastContext").useToast();
 
@@ -1195,6 +1198,7 @@ export default function Collection() {
                   Tentar novamente
                 </Text>
               </Pressable>
+              <DownloadUpdateButton />
             </View>
           ) : pontosEmpty ? (
             <SurfaceCard variant={variant} style={styles.emptyCard}>
@@ -1284,7 +1288,12 @@ export default function Collection() {
                   {!isLoggedIn ? (
                     <Pressable
                       accessibilityRole="button"
-                      onPress={() => router.replace("/login")}
+                      onPress={() =>
+                        openLoginSheet({
+                          reason:
+                            "Para acessar esta coleção, entre com sua conta.",
+                        })
+                      }
                       style={({ pressed }) => [
                         styles.gatePrimaryBtn,
                         pressed ? styles.gateBtnPressed : null,
@@ -1339,7 +1348,10 @@ export default function Collection() {
                       }
                       onPress={async () => {
                         if (!user?.id) {
-                          router.replace("/login");
+                          openLoginSheet({
+                            reason:
+                              "Para se tornar membro do terreiro, entre com sua conta.",
+                          });
                           return;
                         }
 

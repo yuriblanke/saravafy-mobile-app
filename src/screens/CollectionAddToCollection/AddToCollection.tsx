@@ -6,6 +6,7 @@ import { EntidadePlaceholderSheet } from "@/src/components/collections/EntidadeP
 import { PontoEntidadeOrixaChips } from "@/src/components/pontos/PontoEntidadeOrixaChips";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
 import {
@@ -132,6 +133,7 @@ export default function AddToCollection() {
   const variant: "light" | "dark" = effectiveTheme;
 
   const { user } = useAuth();
+  const { openLoginSheet } = useLoginPrompt();
   const userId = user?.id ?? null;
   const insets = useGlobalSafeAreaInsets();
 
@@ -621,8 +623,9 @@ export default function AddToCollection() {
       }
 
       if (!userId) {
-        showToast("Entre para adicionar pontos.");
-        router.replace("/login");
+        openLoginSheet({
+          reason: "Para adicionar pontos a uma coleção, entre com sua conta.",
+        });
         return;
       }
 

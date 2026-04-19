@@ -1,12 +1,11 @@
-import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
 import { colors } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
 import { Pressable, StyleSheet, Text } from "react-native";
 
 type JoinTerreiroButtonProps = {
@@ -18,19 +17,13 @@ export function JoinTerreiroButton({
   terreiroId,
   variant,
 }: JoinTerreiroButtonProps) {
-  const { user } = useAuth();
-  const router = useRouter();
+  const { requireAuth } = useLoginPrompt();
   const { showToast } = useToast();
 
   const membership = useTerreiroMembershipStatus(terreiroId);
   const createRequest = useCreateTerreiroMembershipRequest(terreiroId);
 
-  const handlePress = async () => {
-    if (!user?.id) {
-      router.replace("/login" as any);
-      return;
-    }
-
+  const performJoin = async () => {
     if (!terreiroId) {
       showToast("Não foi possível identificar o terreiro.");
       return;
@@ -53,6 +46,12 @@ export function JoinTerreiroButton({
     }
 
     showToast("Não foi possível enviar o pedido agora. Tente novamente.");
+  };
+
+  const handlePress = () => {
+    requireAuth(() => void performJoin(), {
+      reason: "Para se tornar membro do terreiro, entre com sua conta.",
+    });
   };
 
   return (

@@ -11,6 +11,7 @@ import { navTrace } from "@/src/utils/navTrace";
 
 import { CurimbaSection } from "./components/CurimbaSection";
 import { LogoutSection } from "./components/LogoutSection";
+import { OfflineDownloadsSection } from "./components/OfflineDownloadsSection";
 import { PreferencesHeader } from "./components/PreferencesHeader";
 import { ProfileSection } from "./components/ProfileSection";
 import { TerreiroActionsSheet } from "./components/TerreiroActionsSheet";
@@ -313,6 +314,7 @@ export default function Preferences() {
           variant={variant}
           onOpenActions={openTerreiroActions}
         />
+        <OfflineDownloadsSection variant={variant} />
         <ThemeSection variant={variant} />
         <CurimbaSection
           variant={variant}

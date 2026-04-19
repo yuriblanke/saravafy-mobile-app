@@ -52,6 +52,8 @@ import {
     View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { createCollection } from "./data/collections";
 import {
     addPontoToCollection,
@@ -137,6 +139,7 @@ export default function Home() {
   // Adapta o padrão de tema igual Terreiros
   const { effectiveTheme } = usePreferences();
   const { user } = useAuth();
+  const { requireAuth } = useLoginPrompt();
   const userId = user?.id ?? null;
 
   const { showToast } = useToast();
@@ -499,7 +502,7 @@ export default function Home() {
             raw: e,
           });
         }
-        setLoadError(__DEV__ ? getErrorMessage(e) : "Erro ao carregar pontos.");
+        setLoadError(__DEV__ ? getErrorMessage(e) : "Ops, seu app parece estar desatualizado.");
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -884,7 +887,15 @@ export default function Home() {
   if (loadError) {
     return (
       <View style={styles.loadingWrap}>
-        <Text style={{ color: colors.brass600 }}>{loadError}</Text>
+        <Text
+          style={[
+            styles.bodyText,
+            { color: textSecondary, textAlign: "center", marginBottom: spacing.md },
+          ]}
+        >
+          {loadError}
+        </Text>
+        <DownloadUpdateButton />
       </View>
     );
   }
@@ -897,11 +908,9 @@ export default function Home() {
             accessibilityRole="button"
             accessibilityLabel="Enviar ponto"
             onPress={() => {
-              if (!user) {
-                router.replace("/login");
-                return;
-              }
-              setSubmitModalVisible(true);
+              requireAuth(() => setSubmitModalVisible(true), {
+                reason: "Para enviar um ponto, entre com sua conta.",
+              });
             }}
             style={({ pressed }) => [
               styles.submitButton,
@@ -1061,31 +1070,32 @@ export default function Home() {
                             </Pressable>
                           ) : null}
 
-                          {user ? (
-                            <Pressable
-                              accessibilityRole="button"
-                              accessibilityLabel="Adicionar à coleção"
-                              style={styles.addToCollectionBtn}
-                              hitSlop={10}
-                              onPress={(e) => {
-                                // Evita abrir o player quando a intenção é adicionar
-                                // à coleção.
-                                e.stopPropagation();
+                          <Pressable
+                            accessibilityRole="button"
+                            accessibilityLabel="Adicionar à coleção"
+                            style={styles.addToCollectionBtn}
+                            hitSlop={10}
+                            onPress={(e) => {
+                              // Evita abrir o player quando a intenção é adicionar
+                              // à coleção.
+                              e.stopPropagation();
 
-                                openAddToCollectionSheet(item);
-                              }}
-                            >
-                              <Ionicons
-                                name="add"
-                                size={18}
-                                color={
-                                  variant === "light"
-                                    ? colors.brass500
-                                    : colors.brass600
-                                }
-                              />
-                            </Pressable>
-                          ) : null}
+                              requireAuth(() => openAddToCollectionSheet(item), {
+                                reason:
+                                  "Para adicionar pontos a uma coleção, entre com sua conta.",
+                              });
+                            }}
+                          >
+                            <Ionicons
+                              name="add"
+                              size={18}
+                              color={
+                                variant === "light"
+                                  ? colors.brass500
+                                  : colors.brass600
+                              }
+                            />
+                          </Pressable>
                         </View>
                       </View>
 
@@ -1177,7 +1187,7 @@ export default function Home() {
                     setLoadError(
                       __DEV__ && e instanceof Error && e.message
                         ? e.message
-                        : "Erro ao carregar pontos.",
+                        : "Ops, seu app parece estar desatualizado.",
                     );
                   })
                   .finally(() => setIsLoading(false));
@@ -1193,6 +1203,7 @@ export default function Home() {
                 Tentar novamente
               </Text>
             </Pressable>
+            <DownloadUpdateButton />
           </View>
         ) : listData.length === 0 ? (
           <View style={{ paddingHorizontal: spacing.lg }}>
@@ -1292,31 +1303,32 @@ export default function Home() {
                           </Pressable>
                         ) : null}
 
-                        {user ? (
-                          <Pressable
-                            accessibilityRole="button"
-                            accessibilityLabel="Adicionar à coleção"
-                            style={styles.addToCollectionBtn}
-                            hitSlop={10}
-                            onPress={(e) => {
-                              // Evita abrir o player quando a intenção é adicionar
-                              // à coleção.
-                              e.stopPropagation();
+                        <Pressable
+                          accessibilityRole="button"
+                          accessibilityLabel="Adicionar à coleção"
+                          style={styles.addToCollectionBtn}
+                          hitSlop={10}
+                          onPress={(e) => {
+                            // Evita abrir o player quando a intenção é adicionar
+                            // à coleção.
+                            e.stopPropagation();
 
-                              openAddToCollectionSheet(item);
-                            }}
-                          >
-                            <Ionicons
-                              name="add"
-                              size={18}
-                              color={
-                                variant === "light"
-                                  ? colors.brass500
-                                  : colors.brass600
-                              }
-                            />
-                          </Pressable>
-                        ) : null}
+                            requireAuth(() => openAddToCollectionSheet(item), {
+                              reason:
+                                "Para adicionar pontos a uma coleção, entre com sua conta.",
+                            });
+                          }}
+                        >
+                          <Ionicons
+                            name="add"
+                            size={18}
+                            color={
+                              variant === "light"
+                                ? colors.brass500
+                                : colors.brass600
+                            }
+                          />
+                        </Pressable>
                       </View>
                     </View>
 

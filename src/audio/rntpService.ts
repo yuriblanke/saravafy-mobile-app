@@ -2,6 +2,7 @@ import {
     getPontoAudioPlaybackUrlPublic,
     getPontoAudioPlaybackUrlReviewBySubmission,
 } from "@/src/api/pontoAudio";
+import { resolveLocalAudioForPonto } from "@/src/offline/audioCache";
 import { useEffect, useSyncExternalStore } from "react";
 import TrackPlayer, {
     Event,
@@ -128,13 +129,24 @@ function buildTrack(req: PlaybackRequest, url: string): Track {
 
 async function resolveUrl(req: PlaybackRequest) {
   if (req.kind === "approved") {
+    const id = String(req.pontoId ?? "").trim();
+
+    // Tentar áudio offline primeiro
+    if (id) {
+      try {
+        const local = await resolveLocalAudioForPonto(id);
+        if (local) return local.uri;
+      } catch {
+        /* fall through to online */
+      }
+    }
+
     const pv = String(req.pontoVersaoId ?? "").trim();
     if (pv) {
       const res = await getPontoAudioPlaybackUrlPublic({ pontoVersaoId: pv });
       if (!res?.url) throw new Error("URL de áudio inválida.");
       return res.url;
     }
-    const id = String(req.pontoId ?? "").trim();
     if (!id) throw new Error("pontoId inválido.");
     const res = await getPontoAudioPlaybackUrlPublic({ pontoId: id });
     if (!res?.url) throw new Error("URL de áudio inválida.");

@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { isOffline } from "@/src/offline/networkCheck";
+import { getPackage } from "@/src/offline/terreiroPackage";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 
@@ -47,6 +49,11 @@ export async function fetchCollectionsByTerreiro(
   terreiroId: string
 ): Promise<TerreiroCollectionCard[]> {
   if (!terreiroId) return [] as TerreiroCollectionCard[];
+
+  if (await isOffline()) {
+    const pkg = await getPackage(terreiroId);
+    if (pkg) return pkg.collections;
+  }
 
   const baseSelect = [
     "id",

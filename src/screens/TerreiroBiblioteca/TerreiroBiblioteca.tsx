@@ -4,6 +4,13 @@ import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
+import { TerreiroOfflineSheet } from "@/src/components/TerreiroOfflineSheet";
+import { useNetwork } from "@/src/contexts/NetworkContext";
+import {
+  getPackage,
+  syncTerreiroPackage,
+} from "@/src/offline/terreiroPackage";
 import { Share2Icon } from "@/src/components/icons/Share2Icon";
 import { JoinTerreiroButton } from "@/src/components/JoinTerreiroButton";
 import { Separator } from "@/src/components/Separator";
@@ -367,6 +374,28 @@ export default function TerreiroBiblioteca() {
   const headerTitleOpacity = useRef(new Animated.Value(0)).current;
   const headerTitleVisibleRef = useRef(false);
   const [isHeaderTitleVisible, setIsHeaderTitleVisible] = useState(false);
+  const [offlineSheetOpen, setOfflineSheetOpen] = useState(false);
+  const { isConnected } = useNetwork();
+
+  // Background sync: se o terreiro tem pacote local e estamos online,
+  // atualiza silenciosamente em background quando a tela abre.
+  useEffect(() => {
+    if (!terreiroId || !isConnected) return;
+    let cancelled = false;
+    void (async () => {
+      const pkg = await getPackage(terreiroId);
+      if (!pkg || cancelled) return;
+      try {
+        await syncTerreiroPackage(terreiroId);
+      } catch {
+        /* best effort */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [terreiroId, isConnected]);
+
   const headerGradientOpacity = useRef(new Animated.Value(0)).current;
   const headerGradientVisibleRef = useRef(false);
 
@@ -573,6 +602,9 @@ export default function TerreiroBiblioteca() {
       .then(setLibraryOrder)
       .catch(() => setLibraryOrder([]));
   }, [terreiroId]);
+
+  const collectionsIsLoading = collectionsQuery.isLoading;
+  const collectionsIsError = collectionsQuery.isError;
 
   const orderedCollections = useMemo(() => {
     const arr = Array.isArray(collectionsQuery.data)
@@ -1395,9 +1427,22 @@ export default function TerreiroBiblioteca() {
           </Animated.View>
 
           <Animated.View
-            style={{ opacity: headerTitleOpacity }}
+            style={[styles.headerRightGroup, { opacity: headerTitleOpacity }]}
             pointerEvents={isHeaderTitleVisible ? "auto" : "none"}
           >
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Salvar para offline"
+              onPress={() => setOfflineSheetOpen(true)}
+              hitSlop={10}
+              style={styles.headerIconBtn}
+            >
+              <Ionicons
+                name="download-outline"
+                size={20}
+                color={headerFgColor}
+              />
+            </Pressable>
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Compartilhar"
@@ -1511,6 +1556,19 @@ export default function TerreiroBiblioteca() {
                   ]}
                   pointerEvents={isHeaderTitleVisible ? "none" : "auto"}
                 >
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel="Salvar para offline"
+                    onPress={() => setOfflineSheetOpen(true)}
+                    hitSlop={10}
+                    style={styles.headerIconBtn}
+                  >
+                    <Ionicons
+                      name="download-outline"
+                      size={20}
+                      color={textPrimary}
+                    />
+                  </Pressable>
                   <Pressable
                     accessibilityRole="button"
                     accessibilityLabel="Compartilhar"
@@ -1645,17 +1703,18 @@ export default function TerreiroBiblioteca() {
             />
 
             <View style={styles.cardsBlock}>
-              {collectionsQuery.isLoading ? (
+              {collectionsIsLoading ? (
                 <View style={styles.paddedBlock}>
                   <Text style={[styles.bodyText, { color: textSecondary }]}>
                     Carregando…
                   </Text>
                 </View>
-              ) : collectionsQuery.isError ? (
+              ) : collectionsIsError ? (
                 <View style={styles.paddedBlock}>
                   <Text style={[styles.bodyText, { color: textSecondary }]}>
                     Erro ao carregar as coleções.
                   </Text>
+                  <DownloadUpdateButton />
                 </View>
               ) : orderedCollections.length === 0 ? (
                 <View style={styles.paddedBlock}>
@@ -1762,6 +1821,14 @@ export default function TerreiroBiblioteca() {
           </Reanimated.View>
         </Reanimated.ScrollView>
       </View>
+
+      <TerreiroOfflineSheet
+        visible={offlineSheetOpen}
+        onClose={() => setOfflineSheetOpen(false)}
+        terreiroId={terreiroId}
+        terreiroName={terreiroName}
+        variant={variant}
+      />
     </View>
   );
 }
@@ -1785,6 +1852,11 @@ const styles = StyleSheet.create({
   },
   headerGradientWrap: {
     ...StyleSheet.absoluteFillObject,
+  },
+  headerRightGroup: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
   },
   headerIconBtn: {
     width: 40,
@@ -1856,6 +1928,9 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
   },
   titleShareWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
     marginTop: 2,
   },
   countText: {

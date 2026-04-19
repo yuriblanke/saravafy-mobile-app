@@ -1,4 +1,6 @@
 import { supabase } from "@/lib/supabase";
+import { isOffline } from "@/src/offline/networkCheck";
+import { listPackages } from "@/src/offline/terreiroPackage";
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 
@@ -81,9 +83,28 @@ function isColumnMissingError(error: unknown, columnName: string) {
   );
 }
 
+async function offlineTerreirosFallback(): Promise<TerreiroListItem[]> {
+  try {
+    const metas = await listPackages();
+    return metas.map((m) => ({
+      id: m.terreiroId,
+      name: m.terreiroName,
+      role: undefined,
+      membersCount: 0,
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function fetchTerreirosWithRole(
-  userId: string
+  userId: string | null
 ): Promise<TerreiroListItem[]> {
+  if (await isOffline()) {
+    const fallback = await offlineTerreirosFallback();
+    if (fallback.length > 0) return fallback;
+  }
+
   const selectWithCover =
     "id, title, about, lines_of_work, cover_image_url, terreiro_members(role, user_id)";
   const selectWithoutCover =
@@ -92,6 +113,52 @@ export async function fetchTerreirosWithRole(
   const selectWithCoverNoMembers =
     "id, title, about, lines_of_work, cover_image_url";
   const selectWithoutCoverNoMembers = "id, title, about, lines_of_work";
+
+  // Usuários anônimos não têm role e podem não ter acesso a terreiro_members via
+  // RLS — busca direto sem o join para evitar erro.
+  if (!userId) {
+    let res: any = await supabase
+      .from("terreiros")
+      .select(selectWithCoverNoMembers)
+      .order("title", { ascending: true });
+
+    if (res.error && isColumnMissingError(res.error, "cover_image_url")) {
+      res = await supabase
+        .from("terreiros")
+        .select(selectWithoutCoverNoMembers)
+        .order("title", { ascending: true });
+    }
+
+    if (res.error) {
+      throw new Error(res.error.message ?? "Erro ao carregar terreiros");
+    }
+
+    const rows = (res.data ?? []) as any[];
+    return rows
+      .map((t: any): TerreiroListItem | null => {
+        const id = typeof t?.id === "string" ? t.id : "";
+        if (!id) return null;
+        return {
+          id,
+          name: typeof t?.title === "string" ? t.title : "Terreiro",
+          role: undefined,
+          membersCount: 0,
+          about:
+            typeof t?.about === "string" && t.about.trim()
+              ? t.about.trim()
+              : undefined,
+          linesOfWork:
+            typeof t?.lines_of_work === "string" && t.lines_of_work.trim()
+              ? t.lines_of_work.trim()
+              : undefined,
+          coverImageUrl:
+            typeof t?.cover_image_url === "string" && t.cover_image_url.trim()
+              ? t.cover_image_url.trim()
+              : undefined,
+        };
+      })
+      .filter((x): x is TerreiroListItem => x !== null);
+  }
 
   let res: any = await supabase
     .from("terreiros")
@@ -265,14 +332,10 @@ export async function fetchTerreirosWithRole(
 
 export function useTerreirosWithRoleQuery(userId: string | null) {
   return useQuery({
-    queryKey: userId ? queryKeys.terreiros.withRole(userId) : [],
-    enabled: !!userId,
+    queryKey: queryKeys.terreiros.withRole(userId ?? "anonymous"),
     staleTime: 30_000,
     gcTime: 30 * 60_000,
-    queryFn: async () => {
-      if (!userId) return [] as TerreiroListItem[];
-      return fetchTerreirosWithRole(userId);
-    },
+    queryFn: () => fetchTerreirosWithRole(userId),
     placeholderData: (prev) => prev,
   });
 }

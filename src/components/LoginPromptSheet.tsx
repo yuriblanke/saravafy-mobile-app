@@ -1,19 +1,16 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
-import { SaravafyScreen } from "@/src/components/SaravafyScreen";
+import { BottomSheet } from "@/src/components/BottomSheet";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { colors, spacing } from "@/src/theme";
-import { useRouter } from "expo-router";
 import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 
-import { supabase } from "@/lib/supabase";
-import { useEffect } from "react";
-
-export default function LoginScreen() {
+export function LoginPromptSheet() {
+  const { isOpen, reason, closeLoginSheet } = useLoginPrompt();
   const { signInWithGoogle, retryGoogleLogin, authInProgress, authError } =
     useAuth();
   const { effectiveTheme } = usePreferences();
-  const router = useRouter();
   const variant = effectiveTheme;
 
   const textPrimary =
@@ -28,17 +25,9 @@ export default function LoginScreen() {
       ? require("@/assets/images/saravafy-logo-full-light.png")
       : require("@/assets/images/saravafy-logo-full-dark.png");
 
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      console.log("SESSION ATUAL:", data.session);
-    });
-  }, []);
-
   const handleLogin = async () => {
-    console.log("Botão pressionado - iniciando login...");
     try {
       await signInWithGoogle();
-      console.log("signInWithGoogle executado");
     } catch (error) {
       console.error("Erro ao chamar signInWithGoogle:", error);
     }
@@ -53,12 +42,28 @@ export default function LoginScreen() {
   };
 
   return (
-    <SaravafyScreen theme={variant}>
+    <BottomSheet
+      visible={isOpen}
+      onClose={closeLoginSheet}
+      variant={variant}
+      closeOnBackdropPress
+    >
       <View style={styles.container}>
         <Image source={logoSource} style={styles.logo} resizeMode="contain" />
-        <Text style={[styles.subtitle, { color: textSecondary }]}>
-          Deixa o ponto te guiar
+
+        <Text style={[styles.title, { color: textPrimary }]}>
+          Entre para continuar
         </Text>
+
+        {reason ? (
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            {reason}
+          </Text>
+        ) : (
+          <Text style={[styles.subtitle, { color: textSecondary }]}>
+            Precisamos saber quem é você para continuar.
+          </Text>
+        )}
 
         <Pressable
           accessibilityRole="button"
@@ -76,21 +81,6 @@ export default function LoginScreen() {
           </Text>
         </Pressable>
 
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Entrar sem login"
-          onPress={() => router.replace("/(app)/(tabs)/(pontos)")}
-          disabled={authInProgress}
-          style={({ pressed }) => [
-            styles.skipLink,
-            pressed ? styles.skipLinkPressed : null,
-          ]}
-        >
-          <Text style={[styles.skipLinkText, { color: textSecondary }]}>
-            Entrar sem login
-          </Text>
-        </Pressable>
-
         {authError ? (
           <View style={styles.errorWrap}>
             <Text
@@ -99,7 +89,6 @@ export default function LoginScreen() {
             >
               {authError}
             </Text>
-
             <Pressable
               accessibilityRole="button"
               accessibilityLabel="Tentar novamente"
@@ -116,33 +105,51 @@ export default function LoginScreen() {
             </Pressable>
           </View>
         ) : null}
+
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Agora não"
+          onPress={closeLoginSheet}
+          disabled={authInProgress}
+          style={({ pressed }) => [
+            styles.skipLink,
+            pressed ? styles.skipLinkPressed : null,
+          ]}
+        >
+          <Text style={[styles.skipLinkText, { color: textSecondary }]}>
+            Agora não
+          </Text>
+        </Pressable>
       </View>
-    </SaravafyScreen>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: spacing.xl,
+    paddingTop: spacing.md,
+    paddingBottom: spacing.lg,
   },
   logo: {
     width: "100%",
-    maxWidth: 320,
-    height: 84,
-    marginBottom: spacing.xl,
+    maxWidth: 200,
+    height: 56,
+    marginBottom: spacing.md,
   },
   title: {
-    fontSize: 22,
+    fontSize: 18,
     fontWeight: "800",
     marginBottom: 6,
+    textAlign: "center",
   },
   subtitle: {
-    fontSize: 14,
-    fontWeight: "600",
-    marginBottom: spacing.xl,
+    fontSize: 13,
+    fontWeight: "500",
+    marginBottom: spacing.lg,
+    textAlign: "center",
+    lineHeight: 18,
   },
   primaryButton: {
     minHeight: 44,
@@ -151,8 +158,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: colors.brass600,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.brass600,
     paddingVertical: 12,
   },
   primaryButtonPressed: {
@@ -166,7 +171,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
   },
-
   errorWrap: {
     marginTop: spacing.md,
     alignSelf: "stretch",

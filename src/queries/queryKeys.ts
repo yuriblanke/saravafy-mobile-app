@@ -123,6 +123,11 @@ export const queryKeys = {
         pontoVersaoId,
       ] as const,
   },
+  offline: {
+    terreiroPackage: (terreiroId: string) =>
+      ["offline", "terreiroPackage", terreiroId] as const,
+    allPackages: () => ["offline", "allPackages"] as const,
+  },
   pontoAudios: {
     byPontoId: (pontoId: string) =>
       ["pontoAudios", "byPontoId", pontoId] as const,

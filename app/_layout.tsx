@@ -24,6 +24,10 @@ import { RootPagerProvider } from "@/contexts/RootPagerContext";
 import { ToastProvider } from "@/contexts/ToastContext";
 import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
 import { InviteGate } from "@/src/components/InviteGate";
+import { LoginPromptSheet } from "@/src/components/LoginPromptSheet";
+import { OfflineBanner } from "@/src/components/OfflineBanner";
+import { LoginPromptProvider } from "@/src/contexts/LoginPromptContext";
+import { NetworkProvider } from "@/src/contexts/NetworkContext";
 import { GlobalOverlaysHost } from "@/src/components/overlays/GlobalOverlaysHost";
 import TerreirosRealtimeSync from "@/src/components/TerreirosRealtimeSync";
 import { warmRemoteConfig } from "@/src/config/remoteConfig";
@@ -121,23 +125,29 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <PreferencesProvider>
-              <GlobalSafeAreaInsetsProvider>
-                <PreferencesOverlayProvider>
-                  <RootPagerProvider>
-                    <ToastProvider>
-                      <CuratorModeProvider>
-                        <InviteGatesProvider>
-                          <RootLayoutNav />
-                          <TerreirosRealtimeSync />
-                          <InviteGate />
-                          <CuratorInviteGate />
-                          <GlobalOverlaysHost />
-                        </InviteGatesProvider>
-                      </CuratorModeProvider>
-                    </ToastProvider>
-                  </RootPagerProvider>
-                </PreferencesOverlayProvider>
-              </GlobalSafeAreaInsetsProvider>
+              <NetworkProvider>
+                <GlobalSafeAreaInsetsProvider>
+                  <PreferencesOverlayProvider>
+                    <RootPagerProvider>
+                      <ToastProvider>
+                        <CuratorModeProvider>
+                          <InviteGatesProvider>
+                            <LoginPromptProvider>
+                              <RootLayoutNav />
+                              <TerreirosRealtimeSync />
+                              <InviteGate />
+                              <CuratorInviteGate />
+                              <GlobalOverlaysHost />
+                              <LoginPromptSheet />
+                              <OfflineBanner />
+                            </LoginPromptProvider>
+                          </InviteGatesProvider>
+                        </CuratorModeProvider>
+                      </ToastProvider>
+                    </RootPagerProvider>
+                  </PreferencesOverlayProvider>
+                </GlobalSafeAreaInsetsProvider>
+              </NetworkProvider>
             </PreferencesProvider>
           </AuthProvider>
         </QueryClientProvider>
@@ -396,19 +406,6 @@ function RootLayoutNav() {
       console.error("[BootPrefetch] erro inesperado:", e);
     });
   }, [bootComplete, isLoading, isReady, queryClient, user?.id]);
-
-  // Global auth guard: se o usuário não estiver autenticado por qualquer motivo,
-  // redireciona para /login (exceto dentro do grupo (auth) e callback /auth/*).
-  useEffect(() => {
-    if (isLoading) return;
-    if (!isReady) return;
-    if (user?.id) return;
-
-    const first = segments[0];
-    if (first === "(auth)" || first === "auth") return;
-
-    router.replace("/login");
-  }, [isLoading, isReady, router, segments, user?.id]);
 
   // Symmetric guard: se o usuário autenticou e ainda está em (auth) (ex: /login),
   // redireciona para /(app). Isso evita casos onde o OAuth conclui a sessão via
