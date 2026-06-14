@@ -271,7 +271,7 @@ Mutations especially scattered as inline `.from().update()` calls — no abstrac
 | **3. Build `<QueryBoundary>` + `getErrorMessage` util** | S | 15+ screens | Removes loading/error scaffolding duplication | → [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md) (foundation modules + 3 sample adoptions; bulk migration deferred) |
 | **4. Split TabsHeaderWithPreferences** | L | 3,164 → ~1,500 LOC main + 4 extractions | Largest file in repo; removing nested 630-LOC component is mechanical win |
 | **5. Replace `.map()` with `FlatList` in members lists** | S | TerreiroMembers + AccessManager/MembersList | Fixes perceptible jank for terreiros with 50+ members |
-| **6. Move `PreferencesContext` server state → RQ** | M | PreferencesContext + consumers | Removes context/RQ duplication; single source for managed terreiros |
+| **6. Move `PreferencesContext` server state → RQ** | M | PreferencesContext + consumers | Removes context/RQ duplication; single source for managed terreiros | → [Spec 2b](../superpowers/specs/2026-06-14-spec-2b-preferences-context-rq.md) ✅ done 2026-06-14 (−491 LOC from PreferencesContext) |
 | **7. Memoize `pontoIds` in Collection + Player** | S | 2 lines × 2 files | Stops cascading query invalidations |
 | **8. Add `useCallback` to `goToPontosTab` + `showToast` parents** | S | Collection.tsx:251-275 + parents | Stops useEffect re-runs on every parent render |
 | **9. Extract `usePontoUpsertForm` + `usePontoRightsConsent`** | M | PontoUpsertModal 1,840 → ~900 LOC | Tames rights consent state machine; testable form hook |
