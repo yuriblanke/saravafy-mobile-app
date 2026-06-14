@@ -646,7 +646,6 @@ export function PreferencesOverlaySheets(
     curimbaOnboardingDismissed,
     setCurimbaOnboardingDismissed,
     startPagePreference,
-    fetchTerreirosQueAdministro,
   } = usePreferences();
 
   const variant = effectiveTheme;
@@ -1264,7 +1263,9 @@ export function PreferencesOverlaySheets(
 
       if (invite.role === "admin" || invite.role === "curimba") {
         try {
-          await fetchTerreirosQueAdministro(userId);
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.me.managedTerreiros(userId),
+          });
         } catch {
           // best-effort warm cache; ignore failures
         }

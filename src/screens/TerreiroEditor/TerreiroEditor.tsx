@@ -630,8 +630,7 @@ export default function TerreiroEditor() {
 
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { effectiveTheme, applyTerreiroPatch, fetchTerreirosQueAdministro } =
-    usePreferences();
+  const { effectiveTheme, applyTerreiroPatch } = usePreferences();
 
   const variant = effectiveTheme;
 
@@ -937,7 +936,9 @@ export default function TerreiroEditor() {
       });
       queryClient.removeQueries({ queryKey: queryKeys.pontos.terreiro(id) });
 
-      fetchTerreirosQueAdministro(user.id).catch(() => undefined);
+      void queryClient.invalidateQueries({
+        queryKey: queryKeys.me.managedTerreiros(user.id),
+      });
 
       setDeleteModalOpen(false);
       router.replace("/(app)/(tabs)/(terreiros)" as any);
@@ -966,7 +967,6 @@ export default function TerreiroEditor() {
     }
   }, [
     deleteNameMatches,
-    fetchTerreirosQueAdministro,
     form.id,
     invalidateTerreiroListsForRoles,
     isAdmin,
@@ -1412,7 +1412,9 @@ export default function TerreiroEditor() {
         }
 
         if (user?.id) {
-          fetchTerreirosQueAdministro(user.id).catch(() => undefined);
+          void queryClient.invalidateQueries({
+        queryKey: queryKeys.me.managedTerreiros(user.id),
+      });
         }
 
         initialSnapshotRef.current = snapshotOf({
@@ -1536,7 +1538,9 @@ export default function TerreiroEditor() {
       }
 
       if (user?.id) {
-        fetchTerreirosQueAdministro(user.id).catch(() => undefined);
+        void queryClient.invalidateQueries({
+        queryKey: queryKeys.me.managedTerreiros(user.id),
+      });
       }
 
       initialSnapshotRef.current = snapshotOf({ ...form, coverImageUrl });
