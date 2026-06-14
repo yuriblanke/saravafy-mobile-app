@@ -65,6 +65,7 @@ import {
   type CollectionPlayerItem,
   type PlayerPonto,
 } from "./hooks/useCollectionPlayerData";
+import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 
 const LYRICS_FONT_MIN = 14;
 const LYRICS_FONT_MAX = 26;
@@ -213,11 +214,9 @@ export default function PlayerScreen() {
   // Leituras são públicas em contexto de terreiro (sem gate de role/membership).
   const canSeeMediumTags = !!terreiroId;
 
-  const myTerreiroRole = membership.data.role;
-  const canEditCustomTags =
-    !!terreiroId &&
-    membership.data.isActiveMember &&
-    (myTerreiroRole === "admin" || myTerreiroRole === "curimba");
+  const terreiroRole = useTerreiroRole(terreiroId);
+  const myTerreiroRole = terreiroRole.role;
+  const canEditCustomTags = terreiroRole.canEditCustomTags;
 
   const pontoIds = useMemo(() => {
     return items.map((it) => it.ponto.id).filter(Boolean);
