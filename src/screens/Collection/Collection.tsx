@@ -27,6 +27,7 @@ import {
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
+import { getErrorMessage } from "@/src/lib/errors";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -85,21 +86,6 @@ function hexToRgba(input: string, alpha: number) {
 
   const a = Math.max(0, Math.min(1, alpha));
   return `rgba(${r},${g},${b},${a})`;
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
 }
 
 function isColumnMissingError(error: unknown, columnName: string) {
