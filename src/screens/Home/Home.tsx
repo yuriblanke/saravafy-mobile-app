@@ -85,24 +85,10 @@ import {
     upsertById,
 } from "@/src/queries/mutationUtils";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { getErrorMessage } from "@/src/lib/errors";
 
 function normalize(value: string) {
   return value.trim().toLowerCase();
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
 }
 
 export function matchesQuery(point: Ponto, query: string) {
