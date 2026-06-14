@@ -193,7 +193,7 @@ function normalizeEmail(email: string) {
 export function InviteGate() {
   const { user } = useAuth();
   const { showToast } = useToast();
-  const { effectiveTheme, fetchTerreirosQueAdministro } = usePreferences();
+  const { effectiveTheme } = usePreferences();
   const queryClient = useQueryClient();
   const { setTerreiroGateActive, terreiroSnoozeVersion } = useInviteGates();
 
@@ -768,7 +768,9 @@ export function InviteGate() {
       let warmOk = true;
       if (currentInvite.role === "admin" || currentInvite.role === "curimba") {
         try {
-          await fetchTerreirosQueAdministro(userId);
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.me.managedTerreiros(userId),
+          });
         } catch (error) {
           warmOk = false;
           if (__DEV__) {
@@ -876,7 +878,6 @@ export function InviteGate() {
   }, [
     currentInvite,
     ensureModalForQueue,
-    fetchTerreirosQueAdministro,
     queryClient,
     refreshPendingInvites,
     resolveInviteLocally,
