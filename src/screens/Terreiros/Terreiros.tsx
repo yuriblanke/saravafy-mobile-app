@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
+import { QueryBoundary } from "@/src/components/QueryBoundary";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import {
@@ -519,84 +520,97 @@ export default function Terreiros() {
           </View>
         </View>
 
-        {isLoading ? (
-          <View style={styles.paddedBlock}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Carregando…
-            </Text>
-          </View>
-        ) : error ? (
-          <View style={[styles.paddedBlock, styles.errorBlock]}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              {error}
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                void terreirosQuery.refetch();
-              }}
-              style={[
-                styles.retryBtn,
-                variant === "light"
-                  ? styles.retryBtnLight
-                  : styles.retryBtnDark,
-              ]}
-            >
-              <Text style={[styles.retryText, { color: textPrimary }]}>
-                Tentar novamente
+        <QueryBoundary
+          query={{
+            isLoading,
+            isError: !!error,
+            error: error ? new Error(error) : null,
+            data: error || isLoading ? undefined : filteredTerreiros,
+          }}
+          loading={
+            <View style={styles.paddedBlock}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Carregando…
               </Text>
-            </Pressable>
-            <DownloadUpdateButton />
-          </View>
-        ) : filteredTerreiros.length === 0 ? (
-          <View style={styles.paddedBlock}>
-            <Text style={[styles.bodyText, { color: textSecondary }]}>
-              Nenhum terreiro encontrado.
-            </Text>
-          </View>
-        ) : (
-          <FlatList
-            data={filteredTerreiros}
-            keyExtractor={(item) => item.id}
-            contentContainerStyle={[
-              styles.listContent,
-              { paddingBottom: spacing.md },
-            ]}
-            keyboardShouldPersistTaps="handled"
-            renderItem={({ item }) => {
-              const expanded = expandedTerreiroId === item.id;
-              return (
-                <View style={styles.cardGap}>
-                  <TerreiroCard
-                    item={item}
-                    variant={variant}
-                    textPrimary={textPrimary}
-                    textSecondary={textSecondary}
-                    textMuted={textMuted}
-                    expanded={expanded}
-                    onToggleExpanded={() => toggleExpanded(item.id)}
-                    onOpenCollections={() => {
-                      if (gestureGate.shouldBlockPress()) return;
+            </View>
+          }
+          error={(e) => (
+            <View style={[styles.paddedBlock, styles.errorBlock]}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                {(e as Error).message}
+              </Text>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  void terreirosQuery.refetch();
+                }}
+                style={[
+                  styles.retryBtn,
+                  variant === "light"
+                    ? styles.retryBtnLight
+                    : styles.retryBtnDark,
+                ]}
+              >
+                <Text style={[styles.retryText, { color: textPrimary }]}>
+                  Tentar novamente
+                </Text>
+              </Pressable>
+              <DownloadUpdateButton />
+            </View>
+          )}
+          empty={(items) => items.length === 0}
+          emptyState={
+            <View style={styles.paddedBlock}>
+              <Text style={[styles.bodyText, { color: textSecondary }]}>
+                Nenhum terreiro encontrado.
+              </Text>
+            </View>
+          }
+        >
+          {(items) => (
+            <FlatList
+              data={items}
+              keyExtractor={(item) => item.id}
+              contentContainerStyle={[
+                styles.listContent,
+                { paddingBottom: spacing.md },
+              ]}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) => {
+                const expanded = expandedTerreiroId === item.id;
+                return (
+                  <View style={styles.cardGap}>
+                    <TerreiroCard
+                      item={item}
+                      variant={variant}
+                      textPrimary={textPrimary}
+                      textSecondary={textSecondary}
+                      textMuted={textMuted}
+                      expanded={expanded}
+                      onToggleExpanded={() => toggleExpanded(item.id)}
+                      onOpenCollections={() => {
+                        if (gestureGate.shouldBlockPress()) return;
 
-                      const name =
-                        (typeof item.name === "string" && item.name.trim()) ||
-                        "Terreiro";
+                        const name =
+                          (typeof item.name === "string" && item.name.trim()) ||
+                          "Terreiro";
 
-                      router.push({
-                        pathname: "/terreiro" as any,
-                        params: {
-                          terreiroId: item.id,
-                          terreiroTitle: name,
-                          from: "/(app)/(tabs)/(terreiros)",
-                        },
-                      });
-                    }}
-                  />
-                </View>
-              );
-            }}
-          />
-        )}
+                        router.push({
+                          pathname: "/terreiro" as any,
+                          params: {
+                            terreiroId: item.id,
+                            terreiroTitle: name,
+                            from: "/(app)/(tabs)/(terreiros)",
+                          },
+                        });
+                      }}
+                    />
+                  </View>
+                );
+              }}
+            />
+          )}
+        </QueryBoundary>
       </View>
     </View>
   );
