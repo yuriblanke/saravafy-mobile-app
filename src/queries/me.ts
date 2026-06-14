@@ -180,6 +180,22 @@ export type ManagedTerreiro = {
   role: MyTerreiroRole;
 };
 
+function isTerreiroMembersPolicyRecursionError(error: unknown): boolean {
+  const message =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : "";
+
+  const m = (message ?? "").toLowerCase();
+  return (
+    m.includes("infinite recursion detected in policy") &&
+    m.includes('relation "terreiro_members"')
+  );
+}
+
 // NOTE: "follower" is not currently part of the terreiro_members access model
 // in the known schema/policies. We intentionally do NOT infer follower here.
 export type MyTerreiroRole = "admin" | "curimba" | "member";
