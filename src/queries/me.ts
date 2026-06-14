@@ -167,6 +167,19 @@ export type MyEditableTerreiro = {
   role: EditableTerreiroRole;
 };
 
+/**
+ * Returned by `useMyManagedTerreirosQuery` — admin-only.
+ * `role` is typed as `MyTerreiroRole` (broad) to match the legacy shape
+ * from `contexts/PreferencesContext.tsx` for back-compat during migration.
+ * Actual values are always `"admin"` in practice (the fetcher filters).
+ */
+export type ManagedTerreiro = {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+  role: MyTerreiroRole;
+};
+
 // NOTE: "follower" is not currently part of the terreiro_members access model
 // in the known schema/policies. We intentionally do NOT infer follower here.
 export type MyTerreiroRole = "admin" | "curimba" | "member";
