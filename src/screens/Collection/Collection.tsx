@@ -28,6 +28,7 @@ import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectio
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { getErrorMessage } from "@/src/lib/errors";
+import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useQueryClient } from "@tanstack/react-query";
@@ -222,11 +223,9 @@ export default function Collection() {
     isMembersOnly ? terreiroId : ""
   );
 
-  const myRole = membership.data.role;
-  const canEditCustomTags =
-    !!terreiroId &&
-    membership.data.isActiveMember &&
-    (myRole === "admin" || myRole === "curimba");
+  const terreiroRole = useTerreiroRole(terreiroId);
+  const myRole = terreiroRole.role;
+  const canEditCustomTags = terreiroRole.canEditCustomTags;
 
   const isLoggedIn = !!user?.id;
   const isMember = membership.data.isActiveMember;
