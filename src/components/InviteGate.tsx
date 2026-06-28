@@ -19,7 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
+import { rpcTerreiroInvite } from "@/src/components/inviteGateApi";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import {
@@ -63,34 +63,6 @@ function isColumnMissingError(message: string, columnName: string) {
     m.includes(columnName) &&
     (m.includes("does not exist") || m.includes("column"))
   );
-}
-
-function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
-  const anyErr = error as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
-  const hint = typeof anyErr?.hint === "string" ? anyErr.hint : "";
-  if (code !== "PGRST202") return false;
-  return (
-    message.includes(`(${paramName})`) ||
-    message.includes(`parameter ${paramName}`) ||
-    hint.includes("invite_id")
-  );
-}
-
-async function rpcTerreiroInvite(
-  fnName: "accept_terreiro_invite" | "reject_terreiro_invite",
-  inviteId: string
-) {
-  // Prefer `invite_id` (new signature) but fall back to `p_invite_id`.
-  // PostgREST requires the argument names to match the function signature.
-  let rpc: any = await supabase.rpc(fnName, { invite_id: inviteId });
-
-  if (rpc?.error && isRpcFunctionParamMismatch(rpc.error, "invite_id")) {
-    rpc = await supabase.rpc(fnName, { p_invite_id: inviteId });
-  }
-
-  return rpc as any;
 }
 
 type InviteGateDebug = {
