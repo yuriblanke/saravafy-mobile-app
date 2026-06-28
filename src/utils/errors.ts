@@ -20,6 +20,24 @@ export function safeJsonForLog(value: unknown, maxLen = 4000): string {
   }
 }
 
+export function isRpcParamMismatch(
+  error: unknown,
+  paramName?: string
+): boolean {
+  const anyErr = error as any;
+  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
+  if (code !== "PGRST202") return false;
+  if (!paramName) return true;
+  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
+  const hint = typeof anyErr?.hint === "string" ? anyErr.hint : "";
+  return (
+    message.includes(`(${paramName})`) ||
+    message.includes(`parameter ${paramName}`) ||
+    message.includes(paramName) ||
+    hint.includes(paramName)
+  );
+}
+
 export function isColumnMissingError(
   error: unknown,
   columnName: string

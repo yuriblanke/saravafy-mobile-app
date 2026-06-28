@@ -1,34 +1,9 @@
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
+import { rpcTerreiroInvite } from "@/src/components/inviteGateApi";
 import type { PendingTerreiroInvite } from "@/src/queries/pendingTerreiroInvites";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
-
-function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
-  const anyErr = error as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
-  if (code !== "PGRST202") return false;
-  return (
-    message.includes(`(${paramName})`) ||
-    message.includes(`parameter ${paramName}`) ||
-    message.includes(paramName)
-  );
-}
-
-async function rpcTerreiroInvite(
-  fnName: "accept_terreiro_invite" | "reject_terreiro_invite",
-  inviteId: string
-) {
-  let rpc: any = await supabase.rpc(fnName, { invite_id: inviteId });
-
-  if (rpc?.error && isRpcFunctionParamMismatch(rpc.error, "invite_id")) {
-    rpc = await supabase.rpc(fnName, { p_invite_id: inviteId });
-  }
-
-  return rpc as any;
-}
 
 export function useTerreiroInviteDecision(params: {
   userId: string | null;

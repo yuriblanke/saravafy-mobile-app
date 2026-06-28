@@ -44,7 +44,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
-import { isColumnMissingError } from "@/src/utils/errors";
+import { isColumnMissingError, isRpcParamMismatch } from "@/src/utils/errors";
 import {
   getDisplayName as _getDisplayName,
   getInitials as _getInitials,
@@ -84,20 +84,6 @@ type PendingCuratorInvite = {
   id: string;
   created_at: string;
 };
-
-function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
-  const anyErr = error as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  const message = typeof anyErr?.message === "string" ? anyErr.message : "";
-  const hint = typeof anyErr?.hint === "string" ? anyErr.hint : "";
-  if (code !== "PGRST202") return false;
-  return (
-    message.includes(`(${paramName})`) ||
-    message.includes(`parameter ${paramName}`) ||
-    hint.includes("invite_id")
-  );
-}
-
 
 
 function getFriendlyActionError(message: string) {
@@ -1181,7 +1167,7 @@ export function PreferencesOverlaySheets(
         invite_id: invite.id,
       });
 
-      if (res?.error && isRpcFunctionParamMismatch(res.error, "invite_id")) {
+      if (res?.error && isRpcParamMismatch(res.error, "invite_id")) {
         res = await supabase.rpc("accept_terreiro_invite", {
           p_invite_id: invite.id,
         });
@@ -1305,7 +1291,7 @@ export function PreferencesOverlaySheets(
         invite_id: invite.id,
       });
 
-      if (res?.error && isRpcFunctionParamMismatch(res.error, "invite_id")) {
+      if (res?.error && isRpcParamMismatch(res.error, "invite_id")) {
         res = await supabase.rpc("reject_terreiro_invite", {
           p_invite_id: invite.id,
         });
