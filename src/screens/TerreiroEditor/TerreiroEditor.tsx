@@ -46,6 +46,7 @@ import { useIbgeMunicipios } from "@/src/queries/ibge";
 import {
   createTerreiroFlow,
   deleteFinalCoverIfPossible,
+  deleteTerreiroRecord,
   deleteTerreiroStorageFolder,
   ensureWebp,
   makeUniqueFileName,
@@ -514,30 +515,7 @@ export default function TerreiroEditor() {
     try {
       await deleteTerreiroStorageFolder(id);
 
-      const res = await supabase.rpc("delete_terreiro", {
-        p_terreiro_id: id,
-      });
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Não foi possível excluir o terreiro."
-        );
-      }
-
-      const data: any = res.data;
-      if (typeof data === "boolean" && data !== true) {
-        throw new Error("Não foi possível excluir o terreiro.");
-      }
-      if (
-        data &&
-        typeof data === "object" &&
-        "ok" in data &&
-        data.ok !== true
-      ) {
-        throw new Error("Não foi possível excluir o terreiro.");
-      }
+      await deleteTerreiroRecord(id);
 
       showToast("Terreiro excluído.");
 
