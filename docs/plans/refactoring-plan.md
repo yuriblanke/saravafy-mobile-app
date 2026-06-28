@@ -76,18 +76,18 @@ Tamanhos confirmados via `wc -l`. **Inclui dois que o plano original esqueceu** 
 
 | Arquivo | Linhas | Estratégia |
 |---------|--------|-----------|
-| `components/TabsHeaderWithPreferences.tsx` | 3164 | Decompor: TabsHeader + PreferencesModal + PreferencesSections/ + TerreiroSwitcher; estado → `useTabsHeaderState` |
-| `screens/TerreiroEditor/TerreiroEditor.tsx` | 2906 | Subforms (BasicInfo / Location / Contact / AdminPanel) em `TerreiroEditor/components/`; estado → `TerreiroEditor/hooks/`; capa → `useImageUpload` |
-| `screens/TerreiroBiblioteca/TerreiroBiblioteca.tsx` | 2113 | Compartilha animação de header com Collection → `useScrollHeaderAnimation` (global); tirar supabase inline (Fase 3) |
-| `screens/Home/Home.tsx` | 2109 | Busca/filtro → `usePontosFilter` (já há `usePontosSearch`); wizard → consolidar no HomeAddToCollectionWizard; `getLyricsPreview` → utils |
-| `screens/Collection/Collection.tsx` | 2009 | `useScrollHeaderAnimation` compartilhado; `hexToRgba` → utils (Fase 1.3) |
-| `screens/CuratorReviewQueue/ReviewSubmission.tsx` | 1959 | `useAudioReview`; utils de erro → Fase 1.1; RPC fallback → Fase 3 |
+| `components/TabsHeaderWithPreferences.tsx` | 2991 | Decompor: TabsHeader + PreferencesModal + PreferencesSections/ + TerreiroSwitcher; estado → `useTabsHeaderState` |
+| `screens/TerreiroEditor/TerreiroEditor.tsx` | 2277 | Subforms (BasicInfo / Location / Contact / AdminPanel) em `TerreiroEditor/components/`; estado → `TerreiroEditor/hooks/`; capa → `useImageUpload` |
+| `screens/TerreiroBiblioteca/TerreiroBiblioteca.tsx` | 1848 | ~~supabase inline (Fase 3 ✓)~~; ~~`useScrollHeaderAnimation` compartilhado~~; decompor componentes internos |
+| `screens/Home/Home.tsx` | 1681 | Busca/filtro → `usePontosFilter` (já há `usePontosSearch`); wizard → consolidar no HomeAddToCollectionWizard |
+| `screens/Collection/Collection.tsx` | 1535 | ~~`useScrollHeaderAnimation` compartilhado~~; ~~`hexToRgba` → utils~~; decompor componentes internos |
+| `screens/CuratorReviewQueue/ReviewSubmission.tsx` | 1775 | `useAudioReview`; ~~utils de erro → Fase 1.1 ✓~~; ~~RPC fallback → Fase 3 ✓~~ |
 | `components/pontos/PontoUpsertModal.tsx` | 1840 | FormFields / AudioSection / TermsSection; `usePontoFormState`; `useAudioValidation` |
-| `components/InviteGate.tsx` | 1498 | Lógica de mutation de convite → hook; `useInvitePolling` |
-| **`api/pontoAudio.ts`** | **1425** | Avaliar split por responsabilidade (upload / playback prep / cache). Cuidado: é áudio, testar bem |
-| `screens/TerreiroMembers/TerreiroMembers.tsx` | 1332 | `getInitials`/`formatTimeAgo` → utils; lista de membros → componente |
-| `screens/CollectionAddToCollection/AddToCollection.tsx` | 1328 | Decompor seleção/criação de coleção |
-| **`hooks/terreiroMembership.ts`** | **1250** | Já é coleção de hooks, mas grande demais. Separar por sub-domínio (membros / convites / papéis) |
+| `components/InviteGate.tsx` | 1463 | Lógica de mutation de convite → hook; `useInvitePolling` |
+| ~~**`api/pontoAudio.ts`**~~ | ~~**1425**~~ **→ split ✓** | Split em `pontoAudioUpload.ts` (528) + `pontoAudioPlayback.ts` (445) + `pontoAudioHttp.ts` (464); `pontoAudio.ts` virou barrel de 23 linhas |
+| `screens/TerreiroMembers/TerreiroMembers.tsx` | 1293 | `getInitials`/`formatTimeAgo` → ~~utils ✓~~; lista de membros → componente |
+| `screens/CollectionAddToCollection/AddToCollection.tsx` | 1211 | Decompor seleção/criação de coleção |
+| ~~**`hooks/terreiroMembership.ts`**~~ | ~~**1250**~~ **→ split ✓** | Split em `terreiroMembershipMembers.ts` (722) + `terreiroMembershipRequests.ts` (310) + `terreiroMembershipStatus.ts` (235); `terreiroMembership.ts` virou barrel de 3 linhas |
 
 Ordem sugerida dentro da fase: começar pelos que mais se beneficiam das Fases 1–2 já prontas (Collection, TerreiroBiblioteca, ReviewSubmission, Home), deixar TabsHeaderWithPreferences e TerreiroEditor (os dois maiores) por último, com mais cuidado.
 
@@ -163,9 +163,9 @@ Cada tela migrada precisa de teste manual no Android cobrindo os 3 caminhos de e
 ## Checklist de progresso
 
 ### Fase 1 — Utils
-- [ ] `src/utils/errors.ts` (consolidar 13 getErrorMessage + serializers)
-- [ ] `src/utils/format.ts` (getInitials, formatTimeAgo, normalizeEmail, normalize)
-- [ ] `src/utils/color.ts` (hexToRgba)
+- [x] `src/utils/errors.ts` (consolidar 13 getErrorMessage + serializers)
+- [x] `src/utils/format.ts` (getInitials, formatTimeAgo, normalizeEmail, normalize)
+- [x] `src/utils/color.ts` (hexToRgba)
 
 ### Fase 2 — Hooks
 - [ ] `useImageUpload` (TerreiroEditor; decidir local vs global)
@@ -177,36 +177,36 @@ Cada tela migrada precisa de teste manual no Android cobrindo os 3 caminhos de e
 - [ ] Consolidar wizard em HomeAddToCollectionWizard
 
 ### Fase 3 — Supabase inline → camada de dados
-- [ ] TerreiroBiblioteca.tsx (rpc inline)
-- [ ] TerreiroEditor.tsx (storage inline → useImageUpload)
-- [ ] ReviewSubmission.tsx (centralizar callRpcWithParamFallback)
-- [ ] Revisar fetch() inline: Home, Terreiros, TerreirosSection, LibraryPlayerAddToCollectionModal
+- [x] TerreiroBiblioteca.tsx (rpc inline → data/terreiroBiblioteca.ts)
+- [x] TerreiroEditor.tsx (storage inline → data/terreiroEditorApi.ts)
+- [x] ReviewSubmission.tsx (callRpcWithParamFallback já centralizado; queries → data/reviewSubmission.ts)
+- [x] Revisar fetch() inline: Home, Terreiros, TerreirosSection, LibraryPlayerAddToCollectionModal
 
 ### Fase 6 — Navegação
-- [ ] `src/hooks/useScreenBack.ts` (helper único de saída)
-- [ ] Migrar Collection para o helper
-- [ ] Migrar TerreiroBiblioteca + remover `returnTo`
+- [x] `src/hooks/useScreenBack.ts` (helper único de saída)
+- [x] Migrar Collection para o helper
+- [x] Migrar TerreiroBiblioteca + remover `returnTo`
 - [ ] Migrar TerreiroEditor (pós-save)
 - [ ] Refatorar Player para usar o helper
 - [ ] Revisar ReviewQueue / ReviewSubmission `replace("/")`
 - [ ] Telas-destino de deep link `l/*` usam o helper
-- [ ] Podar BackHandler ao conjunto legítimo
+- [x] Podar BackHandler ao conjunto legítimo
 - [ ] Suavizar InviteGate (back fecha o banner em vez de travar)
-- [ ] Remover `detachPreviousScreen` stale em `(terreiros)/_layout.tsx`
+- [x] Remover `detachPreviousScreen` stale em `(terreiros)/_layout.tsx`
 
 ### Fase 4 — Gigantes
-- [ ] TabsHeaderWithPreferences (3164)
-- [ ] TerreiroEditor (2906)
-- [ ] TerreiroBiblioteca (2113)
-- [ ] Home (2109)
-- [ ] Collection (2009)
-- [ ] ReviewSubmission (1959)
+- [ ] TabsHeaderWithPreferences (2991)
+- [ ] TerreiroEditor (2277)
+- [ ] TerreiroBiblioteca (1848)
+- [ ] Home (1681)
+- [ ] Collection (1535)
+- [ ] ReviewSubmission (1775)
 - [ ] PontoUpsertModal (1840)
-- [ ] InviteGate (1498)
-- [ ] api/pontoAudio.ts (1425)
-- [ ] TerreiroMembers (1332)
-- [ ] AddToCollection (1328)
-- [ ] hooks/terreiroMembership.ts (1250)
+- [ ] InviteGate (1463)
+- [x] api/pontoAudio.ts → split em Http/Playback/Upload
+- [ ] TerreiroMembers (1293)
+- [ ] AddToCollection (1211)
+- [x] hooks/terreiroMembership.ts → split em Members/Requests/Status
 
 ### Fase 5 — Composição
 - [ ] PreferencesPageItem
