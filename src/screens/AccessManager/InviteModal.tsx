@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { InfoProps } from "@/src/components/AccessRoleInfo";
 
 import type { AccessRole } from "./InviteRow";
+import { normalizeEmail } from "@/src/utils/format";
 
 export type InviteModalMode = "gestao" | "membro" | "curator";
 
@@ -29,12 +30,6 @@ export type InviteSubmitPayload =
   | {
       email: string;
     };
-
-function normalizeEmail(v: string) {
-  return String(v ?? "")
-    .trim()
-    .toLowerCase();
-}
 
 function isValidEmail(email: string) {
   const e = normalizeEmail(email);

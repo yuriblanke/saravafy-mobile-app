@@ -1,3 +1,5 @@
+import { getErrorMessage } from "@/src/utils/errors";
+import { normalizeSearch } from "@/src/utils/format";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
@@ -86,24 +88,7 @@ import {
 } from "@/src/queries/mutationUtils";
 import { queryKeys } from "@/src/queries/queryKeys";
 
-function normalize(value: string) {
-  return value.trim().toLowerCase();
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
+const normalize = normalizeSearch;
 
 export function matchesQuery(point: Ponto, query: string) {
   const q = normalize(query);

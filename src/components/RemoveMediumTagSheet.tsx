@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -15,20 +16,6 @@ import {
 
 const fillerPng = require("@/assets/images/filler.png");
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
 
 export function RemoveMediumTagSheet(props: {
   visible: boolean;

@@ -8,6 +8,8 @@ import {
   type PublicProfile,
 } from "@/src/features/identity/resolveProfiles";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { getErrorMessage as baseGetErrorMessage } from "@/src/utils/errors";
+import { normalizeEmail } from "@/src/utils/format";
 
 export type TerreiroMemberKind = "corrente" | "assistencia";
 
@@ -21,28 +23,7 @@ export type TerreiroMembershipStatus = {
 };
 
 function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    const msg = e.message;
-    const m = msg.toLowerCase();
-    if (m.includes("cannot_remove_last_admin")) {
-      return "Não é possível remover o último admin";
-    }
-    return msg;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      const msg = anyErr.message as string;
-      const m = msg.toLowerCase();
-      if (m.includes("cannot_remove_last_admin")) {
-        return "Não é possível remover o último admin";
-      }
-      return msg;
-    }
-  }
-
-  const msg = String(e);
+  const msg = baseGetErrorMessage(e);
   if (msg.toLowerCase().includes("cannot_remove_last_admin")) {
     return "Não é possível remover o último admin";
   }
@@ -63,12 +44,6 @@ function isColumnMissingError(error: unknown, columnName: string) {
     m.includes(columnName.toLowerCase()) &&
     (m.includes("does not exist") || m.includes("column"))
   );
-}
-
-function normalizeEmail(email: string) {
-  return String(email ?? "")
-    .trim()
-    .toLowerCase();
 }
 
 function isDuplicateKeyError(error: unknown) {

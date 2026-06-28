@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 
 export type AllowedTerreiro = {
@@ -13,20 +14,6 @@ export type AccessibleCollection = {
   terreiro_title: string | null;
 };
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
 
 export async function fetchAllowedTerreiros(userId: string) {
   try {

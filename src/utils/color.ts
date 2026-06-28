@@ -16,6 +16,8 @@ export function hexToRgba(input: string, alpha: number): string {
   const r = parseInt(norm.slice(0, 2), 16);
   const g = parseInt(norm.slice(2, 4), 16);
   const b = parseInt(norm.slice(4, 6), 16);
+  if ([r, g, b].some((n) => Number.isNaN(n))) return `rgba(0,0,0,${alpha})`;
 
-  return `rgba(${r},${g},${b},${alpha})`;
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${r},${g},${b},${a})`;
 }

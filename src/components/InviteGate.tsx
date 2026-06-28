@@ -37,6 +37,7 @@ import {
 } from "@/src/utils/terreiroInviteSnooze";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRootNavigationState, useSegments } from "expo-router";
+import { normalizeEmail } from "@/src/utils/format";
 
 type InviteRole = "admin" | "curimba" | "member";
 
@@ -184,10 +185,6 @@ function toDebugFromUnknown(params: {
     details,
     hint,
   };
-}
-
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
 }
 
 export function InviteGate() {

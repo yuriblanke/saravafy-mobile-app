@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import * as FileSystemLegacy from "expo-file-system/legacy";
 
@@ -105,14 +106,6 @@ function summarizeBodyForLog(body: unknown) {
     };
   }
   return String(body);
-}
-
-function getErrorMessage(error: unknown): string {
-  if (error instanceof Error) return error.message;
-  if (error && typeof error === "object" && "message" in (error as any)) {
-    return String((error as any).message);
-  }
-  return String(error ?? "Erro");
 }
 
 function maskHeaderValueForLog(key: string, value: unknown) {

@@ -32,6 +32,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { normalizeEmail as normalizeEmailLower, formatTimeAgo } from "@/src/utils/format";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -52,32 +53,6 @@ type ManagementInvite = {
   role: "admin" | "curimba";
   createdAtLabel: string;
 };
-
-function normalizeEmailLower(value: string) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
-
-function formatTimeAgo(isoString: string | null): string {
-  if (!isoString) return "";
-
-  const now = Date.now();
-  const then = new Date(isoString).getTime();
-  const diff = Math.max(0, now - then);
-
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return "agora";
-  if (minutes === 1) return "1 minuto atrás";
-  if (minutes < 60) return `${minutes} minutos atrás`;
-  if (hours === 1) return "1 hora atrás";
-  if (hours < 24) return `${hours} horas atrás`;
-  if (days === 1) return "1 dia atrás";
-  return `${days} dias atrás`;
-}
 
 function getRoleLabel(role: "admin" | "curimba"): string {
   return role === "admin" ? "Admin" : "Curimba";

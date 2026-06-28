@@ -30,6 +30,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import { normalizeEmail as normalizeEmailLower, getInitials, formatTimeAgo } from "@/src/utils/format";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -49,11 +50,6 @@ type InviteItem = {
   createdAtLabel: string;
 };
 
-function normalizeEmailLower(value: string) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
 
 type RequestItem = {
   id: string;
@@ -66,41 +62,6 @@ type RequestItem = {
   showEmailLine: boolean;
 };
 
-function getInitials(value: string | null | undefined) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "?";
-
-  const base = raw.includes("@") ? raw.split("@")[0] : raw;
-  const parts = base
-    .replace(/[^a-zA-Z0-9 ]/g, " ")
-    .split(" ")
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
-
-function formatTimeAgo(isoString: string | null): string {
-  if (!isoString) return "";
-
-  const now = Date.now();
-  const then = new Date(isoString).getTime();
-  const diff = Math.max(0, now - then);
-
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return "agora";
-  if (minutes === 1) return "1 minuto atrás";
-  if (minutes < 60) return `${minutes} minutos atrás`;
-  if (hours === 1) return "1 hora atrás";
-  if (hours < 24) return `${hours} horas atrás`;
-  if (days === 1) return "1 dia atrás";
-  return `${days} dias atrás`;
-}
 
 export default function TerreiroMembers() {
   const router = useRouter();

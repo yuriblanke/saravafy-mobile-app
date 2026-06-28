@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabControllerOptional } from "@/contexts/TabControllerContext";
+import { getErrorMessage } from "@/src/utils/errors";
 import { useScreenBack } from "@/src/hooks/useScreenBack";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
@@ -52,6 +53,7 @@ import {
   Text,
   View,
 } from "react-native";
+import { hexToRgba } from "@/src/utils/color";
 
 type CollectionRow = {
   id: string;
@@ -64,44 +66,7 @@ type CollectionRow = {
   terreiro_cover_image_url?: string | null;
 };
 
-function hexToRgba(input: string, alpha: number) {
-  const raw = String(input ?? "").trim();
-  if (!raw) return `rgba(0,0,0,${alpha})`;
 
-  const hex = raw.startsWith("#") ? raw.slice(1) : raw;
-  const norm =
-    hex.length === 3
-      ? hex
-          .split("")
-          .map((c) => c + c)
-          .join("")
-      : hex;
-
-  if (norm.length !== 6) return `rgba(0,0,0,${alpha})`;
-
-  const r = parseInt(norm.slice(0, 2), 16);
-  const g = parseInt(norm.slice(2, 4), 16);
-  const b = parseInt(norm.slice(4, 6), 16);
-  if ([r, g, b].some((n) => Number.isNaN(n))) return `rgba(0,0,0,${alpha})`;
-
-  const a = Math.max(0, Math.min(1, alpha));
-  return `rgba(${r},${g},${b},${a})`;
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
 
 function isColumnMissingError(error: unknown, columnName: string) {
   const msg =

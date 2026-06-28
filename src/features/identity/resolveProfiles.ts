@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { normalizeEmail } from "@/src/utils/format";
 
 export type PublicProfile = {
   id: string;
@@ -6,12 +7,6 @@ export type PublicProfile = {
   full_name: string | null;
   avatar_url: string | null;
 };
-
-function normalizeEmail(value: string) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
 
 export async function resolveProfiles(params: {
   userIds?: string[];

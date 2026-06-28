@@ -1,5 +1,8 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import type { PontoVersaoPlayerRow } from "@/src/queries/pontoVersoes";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
+
+export { getErrorMessage };
 
 export type ListPonto = {
   id: string;
@@ -104,15 +107,3 @@ export function toListPonto(p: PlayerPonto): ListPonto {
   };
 }
 
-export function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-  return String(e);
-}

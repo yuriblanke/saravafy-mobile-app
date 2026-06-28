@@ -26,6 +26,7 @@ import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, radii, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRootNavigationState, useSegments } from "expo-router";
+import { normalizeEmail } from "@/src/utils/format";
 
 type CuratorInvite = {
   id: string;
@@ -34,9 +35,7 @@ type CuratorInvite = {
   created_at: string;
 };
 
-function normalizeEmail(email: string) {
-  return email.trim().toLowerCase();
-}
+
 
 function getFriendlyActionError(message: string) {
   const m = String(message ?? "").toLowerCase();

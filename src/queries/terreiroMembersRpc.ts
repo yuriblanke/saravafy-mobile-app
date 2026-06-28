@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 
 export type TerreiroMembersVisibilityTier = "public" | "member" | "admin";
@@ -24,20 +25,6 @@ export type TerreiroMemberAny =
   | TerreiroMemberMember
   | TerreiroMemberAdmin;
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
 
 function asStringOrNull(value: unknown): string | null {
   return typeof value === "string" ? value : null;

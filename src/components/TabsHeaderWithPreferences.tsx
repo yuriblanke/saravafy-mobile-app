@@ -44,6 +44,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
+import { normalizeEmail, getInitials as _getInitials } from "@/src/utils/format";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Alert,
@@ -58,22 +59,7 @@ import {
     View,
 } from "react-native";
 
-function getInitials(value: string | undefined) {
-  const fallback = "YB";
-  if (!value) return fallback;
-
-  const raw = value.includes("@") ? value.split("@")[0] : value;
-  const parts = raw
-    .replace(/[^a-zA-Z0-9 ]/g, " ")
-    .split(" ")
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) return fallback;
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
+const getInitials = (v?: string | null) => _getInitials(v, "YB");
 
 function getDisplayName(value: string | undefined) {
   if (!value) return "Usuário";
@@ -122,11 +108,7 @@ function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
   );
 }
 
-function normalizeEmail(value: string) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
+
 
 function getFriendlyActionError(message: string) {
   const m = String(message ?? "").toLowerCase();

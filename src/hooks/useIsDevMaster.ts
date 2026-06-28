@@ -1,10 +1,7 @@
 import { useMemo } from "react";
 
 import { useAuth } from "@/contexts/AuthContext";
-
-function normalizeEmail(value: string) {
-  return value.trim().toLowerCase();
-}
+import { normalizeEmail } from "@/src/utils/format";
 
 // Configuração mínima e segura.
 // - Preferência: EXPO_PUBLIC_DEV_MASTER_EMAILS="a@b.com,c@d.com" (ou separado por espaço)

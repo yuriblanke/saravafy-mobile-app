@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
@@ -106,20 +107,6 @@ function coerceTags(value: unknown): string[] {
   return [];
 }
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
 
 export function useCollectionPlayerData(
   params: PlayerDataParams,

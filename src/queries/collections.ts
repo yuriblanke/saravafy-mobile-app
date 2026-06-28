@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./queryKeys";
@@ -14,18 +15,6 @@ export type AccountableCollection = {
 
 export type EditableCollection = AccountableCollection;
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-  return String(e);
-}
 
 function isColumnMissingError(error: unknown, columnName: string) {
   const msg =

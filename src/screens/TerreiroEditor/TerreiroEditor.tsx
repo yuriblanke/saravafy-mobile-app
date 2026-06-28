@@ -43,6 +43,7 @@ import * as FileSystem from "expo-file-system";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { normalizeEmail } from "@/src/utils/format";
 
 type EditorMode = "create" | "edit";
 
@@ -233,10 +234,6 @@ function normalizeInstagram(input: string) {
 function withCacheBust(url: string) {
   const v = Date.now();
   return url.includes("?") ? `${url}&v=${v}` : `${url}?v=${v}`;
-}
-
-function normalizeEmail(input: string) {
-  return (input ?? "").trim().toLowerCase();
 }
 
 function isValidEmail(input: string) {

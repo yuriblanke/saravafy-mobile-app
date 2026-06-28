@@ -40,37 +40,13 @@ import {
     View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  getErrorMessage,
+  safeJsonForLog,
+  serializeErrorForLog as serializeSupabaseErrorForLog,
+} from "@/src/utils/errors";
 
 const fillerPng = require("@/assets/images/filler.png");
-
-function getErrorMessage(error: unknown): string {
-  const message =
-    error && typeof error === "object" && "message" in error
-      ? String((error as any).message)
-      : "";
-  return message.trim() ? message.trim() : "Erro";
-}
-
-function safeJsonForLog(value: unknown, maxLen = 4000) {
-  try {
-    const s = JSON.stringify(value);
-    return s.length > maxLen ? `${s.slice(0, maxLen)}…` : s;
-  } catch {
-    return "<unstringifiable>";
-  }
-}
-
-function serializeSupabaseErrorForLog(error: unknown) {
-  const e: any = error as any;
-  return {
-    message: typeof e?.message === "string" ? e.message : null,
-    details: typeof e?.details === "string" ? e.details : null,
-    hint: typeof e?.hint === "string" ? e.hint : null,
-    code: typeof e?.code === "string" ? e.code : null,
-    status: typeof e?.status === "number" ? e.status : null,
-    raw: safeJsonForLog(error),
-  };
-}
 
 function isRpcParamMismatch(error: unknown) {
   const anyErr = error as any;

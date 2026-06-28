@@ -16,6 +16,7 @@ import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { getInitials } from "@/src/utils/format";
 import React, {
   useCallback,
   useEffect,
@@ -31,22 +32,6 @@ import {
   Text,
   View,
 } from "react-native";
-
-function getInitials(value: string | null | undefined) {
-  const raw = String(value ?? "").trim();
-  if (!raw) return "?";
-
-  const base = raw.includes("@") ? raw.split("@")[0] : raw;
-  const parts = base
-    .replace(/[^a-zA-Z0-9 ]/g, " ")
-    .split(" ")
-    .map((p) => p.trim())
-    .filter(Boolean);
-
-  if (parts.length === 0) return "?";
-  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
-  return (parts[0][0] + parts[1][0]).toUpperCase();
-}
 
 function roleLabel(role: string | null | undefined) {
   const r = typeof role === "string" ? role.trim().toLowerCase() : "";
