@@ -5,7 +5,6 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { Separator } from "@/src/components/Separator";
 import type { MyTerreiroWithRole } from "@/src/queries/me";
@@ -14,6 +13,10 @@ import { colors, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
 
 import { ConfirmModal } from "./ConfirmModal";
+import {
+  deleteTerreirMembership,
+  downgradeToMember,
+} from "../data/terreiroActionsSheet";
 
 type Props = {
   variant: "light" | "dark";
@@ -107,19 +110,7 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
 
     setLeaveRoleBusy(true);
     try {
-      const res = await supabase
-        .from("terreiro_members")
-        .update({ role: "member" })
-        .eq("terreiro_id", t.id)
-        .eq("user_id", userId);
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Não foi possível sair do papel agora."
-        );
-      }
+      await downgradeToMember({ userId, terreiroId: t.id });
 
       // Update the shared membership cache immediately so all screens (Terreiro/Player/Collection)
       // drop edit permissions without waiting for a refetch.
@@ -183,32 +174,7 @@ export function TerreiroActionsSheet({ variant, target, onClose }: Props) {
 
     setLeaveTerreiroBusy(true);
     try {
-      const res = await supabase
-        .from("terreiro_members")
-        .delete()
-        .eq("terreiro_id", t.id)
-        .eq("user_id", userId);
-
-      if (res.error) {
-        const msg =
-          typeof res.error.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Não foi possível sair do terreiro agora.";
-
-        const lower = msg.toLowerCase();
-        if (
-          lower.includes("row-level") ||
-          lower.includes("rls") ||
-          lower.includes("permission") ||
-          lower.includes("not authorized")
-        ) {
-          throw new Error(
-            "Sem permissão para sair automaticamente. Um admin precisa ajustar a policy no Supabase."
-          );
-        }
-
-        throw new Error(msg);
-      }
+      await deleteTerreirMembership({ userId, terreiroId: t.id });
 
       // Drop membership immediately.
       queryClient.setQueryData(queryKeys.me.membership(userId), (prev: any) => {
