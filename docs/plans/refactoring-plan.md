@@ -2,177 +2,101 @@
 
 Objetivo: deixar o código mais limpo, sustentável e bem componentizado, seguindo as convenções do projeto (ver CLAUDE.md).
 
----
-
-## Prioridades
-
-As tarefas estão organizadas por impacto e dependência. Fazer na ordem sugerida: utilitários primeiro (outros itens dependem deles), depois hooks, depois componentes.
+> **Revisado contra o código real** (não só auditoria automática). Os números de duplicação e tamanho foram confirmados via grep/wc. A premissa de estrutura segue a convenção de co-localização já existente no projeto.
 
 ---
 
-## Fase 1 — Utilitários e helpers (eliminar duplicação)
+## Princípio que guia onde cada coisa vai
 
-Problema central: funções como `getErrorMessage`, `normalizeEmail`, `getInitials`, `formatTimeAgo`, `hexToRgba` e `normalize` estão copiadas em 10+ arquivos. Isso precisa ser resolvido primeiro porque as fases seguintes vão usar esses utilitários.
+O projeto já co-localiza código por tela (`screens/Home/components`, `screens/Home/data`, `screens/Player/hooks`). O plano respeita isso:
+
+- **Global** (`src/utils`, `src/hooks`, `src/components`): só o que é compartilhado por 2+ telas.
+- **Co-localizado** (`screens/X/...`): tudo que é específico de uma tela.
+
+Quando em dúvida, co-localizar. Promover para global só quando a segunda tela precisar.
+
+---
+
+## Fase 1 — Utilitários compartilhados (eliminar duplicação)
+
+Estas funções estão genuinamente espalhadas por várias telas, então vão para o global `src/utils/`. Contagens confirmadas via grep. Fazer primeiro: as fases seguintes consomem esses utilitários.
 
 ### 1.1 `src/utils/errors.ts`
-
-Consolidar todas as variantes de `getErrorMessage`, `serializeSupabaseErrorForLog`, `safeJsonForLog` num único módulo.
-
-Funções a criar:
-- `getErrorMessage(error: unknown): string` — mensagem segura para exibir ao usuário
-- `serializeErrorForLog(error: unknown): Record<string, unknown>` — serialização para logging
-
-Fontes (remover após migração):
-- `src/screens/CuratorReviewQueue/ReviewSubmission.tsx`
-- `src/screens/Home/Home.tsx`
-- `src/screens/Collection/Collection.tsx`
-- `src/components/AddMediumTagSheet.tsx`
-- `src/components/RemoveMediumTagSheet.tsx`
-- `src/hooks/terreiroMembership.ts`
-- `src/queries/collections.ts`
-- +5 outros
+Consolidar `getErrorMessage` — **13 definições** confirmadas — mais `serializeSupabaseErrorForLog` / `safeJsonForLog` (concentrados em ReviewSubmission).
+- `getErrorMessage(error: unknown): string`
+- `serializeErrorForLog(error: unknown): Record<string, unknown>`
 
 ### 1.2 `src/utils/format.ts`
-
-Consolidar formatadores de strings:
-
-- `getInitials(name: string): string`
-- `formatTimeAgo(date: string | Date): string`
-- `normalizeEmail(email: string): string`
-- `normalize(text: string): string` — para busca (remove acentos, lower)
-- `formatPhone(phone: string): string`
-- `normalizeInstagram(handle: string): string`
-
-Fontes (remover após migração):
-- `getInitials` → TabsHeaderWithPreferences.tsx + TerreiroMembers.tsx
-- `formatTimeAgo` → AccessManager.tsx + TerreiroMembers.tsx
-- `normalizeEmail` → 75+ ocorrências espalhadas
-- `normalize` → 20+ ocorrências espalhadas
+- `getInitials` — **5 definições**
+- `formatTimeAgo` — **2 definições** (AccessManager, TerreiroMembers)
+- `normalizeEmail` — **10 definições**
+- `normalize` (busca: remove acento + lower) — espalhado
+- `formatPhone`, `normalizeInstagram` — hoje inline no TerreiroEditor; só promover se uma 2ª tela precisar, senão deixar co-localizado (ver 4.2)
 
 ### 1.3 `src/utils/color.ts`
+- `hexToRgba` — **2 definições** (TerreiroBiblioteca, Collection)
 
-- `hexToRgba(hex: string, alpha: number): string`
-
-Fontes:
-- `TerreiroBiblioteca.tsx`
-- `Collection.tsx`
+> Convenção de `src/utils/` já existente: um arquivo camelCase por tema (authLogger.ts, mergeTags.ts...). Manter o estilo.
 
 ---
 
-## Fase 2 — Hooks faltantes
+## Fase 2 — Hooks (a maioria co-localizada)
 
-Hooks que precisam ser criados para desacoplar lógica das screens.
+Extrair lógica das telas para hooks. **Onde** cada hook vive depende de ser compartilhado ou não:
 
-### 2.1 `src/hooks/useImageUpload.ts`
+| Hook | Onde | Extraído de |
+|------|------|-------------|
+| `useImageUpload` | `src/hooks/` se Collection/Ponto também usarem; senão `TerreiroEditor/hooks/` | TerreiroEditor (supabase.storage inline) |
+| `useIbgeMunicipios` (React Query) | `src/queries/ibge.ts` | TerreiroEditor (fetch IBGE inline) |
+| `useAudioValidation` | `src/components/pontos/` (perto do PontoUpsertModal) | PontoUpsertModal |
+| `useAppStateListener` | `src/hooks/` (genérico) | CuratorInviteGate |
+| `useInvitePolling` | co-localizado no InviteGate/CuratorInviteGate | CuratorInviteGate |
+| `useAudioReview` | `CuratorReviewQueue/hooks/` | ReviewSubmission |
 
-Lógica de seleção + compressão de imagem extraída do TerreiroEditor.
-- Selecionar imagem da galeria/câmera
-- Comprimir para WebP
-- Fazer upload para Supabase Storage
-- Retornar URL com cache-bust
-
-### 2.2 `src/queries/ibge.ts` + `src/hooks/useIbgeMunicipios.ts`
-
-Atualmente TerreiroEditor faz `fetch()` direto para a API do IBGE.  
-Criar query React Query para municípios por UF, com cache.
-
-### 2.3 `src/hooks/useAddToCollectionWizard.ts`
-
-Estado e lógica do fluxo de adicionar ponto a coleção (Home.tsx tem isso inline com múltiplos states).
-
-### 2.4 `src/hooks/useAudioValidation.ts`
-
-Validação de arquivo de áudio (formato, tamanho, duração) extraída do PontoUpsertModal.
-
-### 2.5 `src/hooks/useAppStateListener.ts`
-
-Wrapper sobre AppState do React Native para detectar foreground/background, extraído do CuratorInviteGate.
-
-### 2.6 `src/hooks/useInvitePolling.ts`
-
-Lógica de polling de convites de terreiro, extraída do CuratorInviteGate.
+> **Já existe parcialmente:** o "wizard de adicionar a coleção" já é `Home/components/HomeAddToCollectionWizard.tsx`. Em vez de criar `useAddToCollectionWizard` do zero, **consolidar a lógica de estado restante de Home.tsx dentro desse componente** (ou um `Home/hooks/useAddToCollectionWizard.ts`).
 
 ---
 
-## Fase 3 — Mover chamadas diretas ao Supabase para queries/
+## Fase 3 — Tirar Supabase inline dos componentes de tela
 
-Regra: screens não chamam `supabase` diretamente. Todo acesso ao backend via `api/` + `queries/`.
+Regra (CLAUDE.md): componentes `*.tsx` não chamam `supabase` direto. Um arquivo `data/` da tela fazendo isso é aceitável (é a convenção). O alvo são os **componentes** que chamam inline.
 
-### 3.1 TerreiroEditor — membros e convites
+Ofensores confirmados (supabase.rpc/storage dentro do `.tsx`):
+- **`TerreiroBiblioteca.tsx`** — `supabase.rpc("get_terreiro_members_count")`, `supabase.rpc("delete_collection")` → mover para query/mutation
+- **`TerreiroEditor.tsx`** — `supabase.storage` (upload de capa) → mover para `useImageUpload` (Fase 2)
+- **`ReviewSubmission.tsx`** — wrapper `callRpcWithParamFallback` com `supabase.rpc` → extrair para hook/util reutilizável (já existe `callRpcWithParamFallback`, centralizar)
 
-Atualmente busca membros e convites com `supabase.from("profiles")` e `supabase.from("terreiro_invites")` inline.  
-Criar hooks React Query equivalentes em `src/queries/terreiroMembers.ts` (se não existirem).
-
-### 3.2 Terreiros.tsx, TerreirosSection.tsx
-
-Verificar e mover fetch() diretos para queries/.
-
-### 3.3 LibraryPlayerAddToCollectionModal.tsx
-
-Verificar e mover fetch() diretos para queries/.
+`fetch()` inline a revisar: TerreiroEditor (IBGE → Fase 2), Home, Terreiros, TerreirosSection, LibraryPlayerAddToCollectionModal — checar se já têm `data/` equivalente antes de criar query nova.
 
 ---
 
-## Fase 4 — Quebrar componentes gigantes
+## Fase 4 — Quebrar arquivos gigantes
 
-### 4.1 TabsHeaderWithPreferences (3164 linhas) — CRÍTICO
+Tamanhos confirmados via `wc -l`. **Inclui dois que o plano original esqueceu** (api/pontoAudio.ts, hooks/terreiroMembership.ts).
 
-Este componente mistura: tab control, preferences modal, terreiro switcher, avatar, notificações.
+| Arquivo | Linhas | Estratégia |
+|---------|--------|-----------|
+| `components/TabsHeaderWithPreferences.tsx` | 3164 | Decompor: TabsHeader + PreferencesModal + PreferencesSections/ + TerreiroSwitcher; estado → `useTabsHeaderState` |
+| `screens/TerreiroEditor/TerreiroEditor.tsx` | 2906 | Subforms (BasicInfo / Location / Contact / AdminPanel) em `TerreiroEditor/components/`; estado → `TerreiroEditor/hooks/`; capa → `useImageUpload` |
+| `screens/TerreiroBiblioteca/TerreiroBiblioteca.tsx` | 2113 | Compartilha animação de header com Collection → `useScrollHeaderAnimation` (global); tirar supabase inline (Fase 3) |
+| `screens/Home/Home.tsx` | 2109 | Busca/filtro → `usePontosFilter` (já há `usePontosSearch`); wizard → consolidar no HomeAddToCollectionWizard; `getLyricsPreview` → utils |
+| `screens/Collection/Collection.tsx` | 2009 | `useScrollHeaderAnimation` compartilhado; `hexToRgba` → utils (Fase 1.3) |
+| `screens/CuratorReviewQueue/ReviewSubmission.tsx` | 1959 | `useAudioReview`; utils de erro → Fase 1.1; RPC fallback → Fase 3 |
+| `components/pontos/PontoUpsertModal.tsx` | 1840 | FormFields / AudioSection / TermsSection; `usePontoFormState`; `useAudioValidation` |
+| `components/InviteGate.tsx` | 1498 | Lógica de mutation de convite → hook; `useInvitePolling` |
+| **`api/pontoAudio.ts`** | **1425** | Avaliar split por responsabilidade (upload / playback prep / cache). Cuidado: é áudio, testar bem |
+| `screens/TerreiroMembers/TerreiroMembers.tsx` | 1332 | `getInitials`/`formatTimeAgo` → utils; lista de membros → componente |
+| `screens/CollectionAddToCollection/AddToCollection.tsx` | 1328 | Decompor seleção/criação de coleção |
+| **`hooks/terreiroMembership.ts`** | **1250** | Já é coleção de hooks, mas grande demais. Separar por sub-domínio (membros / convites / papéis) |
 
-Divisão sugerida:
-- `TabsHeader.tsx` — apenas a barra de abas
-- `PreferencesModal.tsx` — container do modal de preferências
-- `PreferencesSections/` — subcomponentes por seção (conta, terreiro, tema, etc.)
-- `TerreiroSwitcher.tsx` — lista e troca de terreiros
-- Extrair lógica de estado → `useTabsHeaderState.ts`
-
-### 4.2 TerreiroEditor (2906 linhas) — CRÍTICO
-
-Formulário de edição de terreiro que mistura dados, upload, localização, membros e administração.
-
-Divisão sugerida:
-- `TerreiroBasicInfoForm.tsx` — nome, descrição, foto
-- `TerreiroLocationForm.tsx` — UF, município (usa `useIbgeMunicipios`)
-- `TerreiroContactForm.tsx` — telefone, Instagram
-- `TerreiroAdminPanel.tsx` — gerenciamento de membros e convites
-- `useTerreiroEditorState.ts` — estado consolidado do formulário
-- Foto de capa → `useImageUpload`
-
-### 4.3 PontoUpsertModal (1840 linhas)
-
-Divisão sugerida:
-- `PontoFormFields.tsx` — campos de texto do ponto
-- `PontoAudioSection.tsx` — upload e validação do áudio (usa `useAudioValidation`)
-- `PontoTermsSection.tsx` — aceite de termos
-- `usePontoFormState.ts` — estado do formulário
-
-### 4.4 Home (2109 linhas)
-
-Extrair:
-- Lógica de busca/filtro → `usePontosFilter` (complementar ao `usePontosSearch` existente)
-- Fluxo de adicionar à coleção → `useAddToCollectionWizard` (Fase 2.3)
-- `getLyricsPreview` → `src/utils/format.ts`
-
-### 4.5 TerreiroBiblioteca (2113 linhas) e Collection (2009 linhas)
-
-Ambos têm lógica de animação scroll + header similar.  
-Extrair padrão compartilhado:
-- `useScrollHeaderAnimation.ts` — hook com lógica de animação baseada em scroll
-- `hexToRgba` → `src/utils/color.ts` (Fase 1.3)
-
-### 4.6 CuratorReviewQueue/ReviewSubmission (1959 linhas)
-
-Extrair:
-- `useAudioReview.ts` — controle de áudio no contexto de revisão
-- Utilitários de erro → `src/utils/errors.ts` (Fase 1.1)
+Ordem sugerida dentro da fase: começar pelos que mais se beneficiam das Fases 1–2 já prontas (Collection, TerreiroBiblioteca, ReviewSubmission, Home), deixar TabsHeaderWithPreferences e TerreiroEditor (os dois maiores) por último, com mais cuidado.
 
 ---
 
 ## Fase 5 — Props e composição
 
-### 5.1 PreferencesPageItem
-
-9 props atualmente. Avaliar composição:
+### 5.1 PreferencesPageItem (9 props)
+Avaliar API de composição:
 ```tsx
 <PreferencesPageItem onPress={...}>
   <PreferencesPageItem.Avatar url={...} initials={...} />
@@ -181,50 +105,58 @@ Extrair:
 </PreferencesPageItem>
 ```
 
-### 5.2 Modal/Sheet padronizado
-
-Múltiplos bottom sheets com implementações ligeiramente diferentes. Avaliar extrair um `BaseSheet.tsx` com props de estilo base, mantendo os sheets específicos como wrappers.
+### 5.2 BaseSheet
+Vários bottom sheets com implementações ligeiramente diferentes. Avaliar `BaseSheet.tsx` com estilo base; sheets específicos viram wrappers finos. (Já existe `src/components/BottomSheet` — checar se basta estendê-lo antes de criar algo novo.)
 
 ---
 
 ## Checklist de progresso
 
 ### Fase 1 — Utils
-- [ ] `src/utils/errors.ts` — consolidar getErrorMessage e serializers
-- [ ] `src/utils/format.ts` — consolidar getInitials, formatTimeAgo, normalizeEmail, normalize, formatPhone, normalizeInstagram
-- [ ] `src/utils/color.ts` — hexToRgba
+- [ ] `src/utils/errors.ts` (consolidar 13 getErrorMessage + serializers)
+- [ ] `src/utils/format.ts` (getInitials, formatTimeAgo, normalizeEmail, normalize)
+- [ ] `src/utils/color.ts` (hexToRgba)
 
 ### Fase 2 — Hooks
-- [ ] `src/hooks/useImageUpload.ts`
-- [ ] `src/queries/ibge.ts` + `src/hooks/useIbgeMunicipios.ts`
-- [ ] `src/hooks/useAddToCollectionWizard.ts`
-- [ ] `src/hooks/useAudioValidation.ts`
-- [ ] `src/hooks/useAppStateListener.ts`
-- [ ] `src/hooks/useInvitePolling.ts`
+- [ ] `useImageUpload` (TerreiroEditor; decidir local vs global)
+- [ ] `src/queries/ibge.ts` + `useIbgeMunicipios`
+- [ ] `useAudioValidation`
+- [ ] `useAppStateListener`
+- [ ] `useInvitePolling`
+- [ ] `useAudioReview`
+- [ ] Consolidar wizard em HomeAddToCollectionWizard
 
-### Fase 3 — Supabase direto → queries
-- [ ] TerreiroEditor — membros e convites
-- [ ] Terreiros.tsx + TerreirosSection.tsx
-- [ ] LibraryPlayerAddToCollectionModal.tsx
+### Fase 3 — Supabase inline → camada de dados
+- [ ] TerreiroBiblioteca.tsx (rpc inline)
+- [ ] TerreiroEditor.tsx (storage inline → useImageUpload)
+- [ ] ReviewSubmission.tsx (centralizar callRpcWithParamFallback)
+- [ ] Revisar fetch() inline: Home, Terreiros, TerreirosSection, LibraryPlayerAddToCollectionModal
 
-### Fase 4 — Componentes gigantes
-- [ ] TabsHeaderWithPreferences → decomposição
-- [ ] TerreiroEditor → decomposição
-- [ ] PontoUpsertModal → decomposição
-- [ ] Home → extrair lógica
-- [ ] TerreiroBiblioteca + Collection → hook de animação compartilhado
-- [ ] ReviewSubmission → extrair utils e hook de áudio
+### Fase 4 — Gigantes
+- [ ] TabsHeaderWithPreferences (3164)
+- [ ] TerreiroEditor (2906)
+- [ ] TerreiroBiblioteca (2113)
+- [ ] Home (2109)
+- [ ] Collection (2009)
+- [ ] ReviewSubmission (1959)
+- [ ] PontoUpsertModal (1840)
+- [ ] InviteGate (1498)
+- [ ] api/pontoAudio.ts (1425)
+- [ ] TerreiroMembers (1332)
+- [ ] AddToCollection (1328)
+- [ ] hooks/terreiroMembership.ts (1250)
 
-### Fase 5 — Props e composição
-- [ ] PreferencesPageItem → composição
-- [ ] BaseSheet → padrão de bottom sheets
+### Fase 5 — Composição
+- [ ] PreferencesPageItem
+- [ ] BaseSheet / estender BottomSheet existente
 
 ---
 
-## Princípios a seguir durante a refatoração
+## Princípios durante a refatoração
 
-1. **Uma mudança por vez** — não misturar refatoração de componente com mudança de comportamento
-2. **Sem remoção de funcionalidade** — refatoração pura; se algo mudar de comportamento, é um bug
-3. **Testar manualmente** as screens afetadas após cada fase
-4. **Sem abstrações especulativas** — só extrair o que está duplicado agora, não o que pode duplicar no futuro
-5. **Commits atômicos** — um commit por extração/quebra, com mensagem descritiva
+1. **Uma mudança por vez** — não misturar refatoração estrutural com mudança de comportamento.
+2. **Refatoração é comportamento-preservante** — se algo mudou de comportamento, é bug, não melhoria.
+3. **Co-localizar por padrão** — promover para global só com 2º consumidor real.
+4. **Sem abstração especulativa** — extrair o que está duplicado *agora*.
+5. **Testar manualmente** as telas afetadas a cada fase (não há suíte de testes no projeto).
+6. **Commits atômicos** — um por extração/quebra, mensagem descritiva em PT.

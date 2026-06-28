@@ -68,13 +68,31 @@ utils/        # Funções utilitárias puras
 
 ### Separação de responsabilidades
 
-- **`api/`** — chama o Supabase diretamente, retorna dados brutos
-- **`queries/`** — wrappa `api/` em hooks React Query; é a única camada que os componentes devem usar para dados remotos
-- **`screens/`** — orquestra queries + hooks + UI; não deve conter lógica de negócio inline
-- **`components/`** — UI reutilizável, sem dependência de queries específicas de domínio
-- **`domain/`** — lógica de negócio pura, sem side effects
+- **`queries/`** — hooks React Query que chamam o Supabase diretamente (`lib/supabase`). É a camada de dados remotos principal; é o que os componentes devem usar.
+- **`screens/`** — orquestra queries + hooks + UI. Cada tela pode co-localizar código próprio em subpastas (ver convenção abaixo).
+- **`components/`** — UI reutilizável cross-screen, sem dependência de queries específicas de domínio.
+- **`domain/`** — lógica de negócio pura, sem side effects.
+- **`api/`** — atualmente quase não usado (só `pontoAudio.ts`). Não é uma camada intermediária genérica; `queries/` fala com o Supabase direto.
 
-**Regra:** screens e components nunca chamam `supabase` diretamente. Toda comunicação com o backend passa por `api/` + `queries/`.
+### Convenção de co-localização
+
+Código específico de uma tela vive na pasta da própria tela, não no global:
+
+```
+screens/Home/
+  Home.tsx
+  components/    # componentes só usados por Home
+  hooks/         # hooks só usados por Home
+  data/          # funções de acesso a dados específicas de Home
+```
+
+**Regra de extração:** só vai para `src/hooks/`, `src/components/` ou `src/utils/` o que for genuinamente compartilhado entre 2+ telas. O resto fica co-localizado na tela.
+
+**Regra Supabase:** componentes de tela (`*.tsx`) não devem chamar `supabase` inline (storage/rpc/from). Isso vai para um hook, uma query, ou o `data/` da tela.
+
+### Imports
+
+Alias `@/*` → raiz do repo (configurado em `tsconfig.json`). Ex: `@/src/components/...`, `@/contexts/...`. Preferir alias a caminhos relativos profundos.
 
 ---
 
@@ -138,8 +156,9 @@ Ver plano detalhado em `docs/plans/refactoring-plan.md`.
 **Em andamento / falta:**
 - Extrair utilitários duplicados para `src/utils/`
 - Quebrar componentes gigantes (TabsHeaderWithPreferences 3164 linhas, TerreiroEditor 2906 linhas)
-- Mover chamadas diretas ao Supabase para `api/` + `queries/`
-- Criar hooks faltantes (useImageUpload, useIbgeMunicipios, etc.)
+- Tirar chamadas inline ao Supabase dos componentes de tela (mover para query/hook/data)
+- Quebrar os dois gigantes não-tela: `api/pontoAudio.ts` (1425 linhas) e `hooks/terreiroMembership.ts` (1250 linhas)
+- Criar hooks faltantes, co-localizados na tela quando específicos
 
 ---
 
