@@ -45,68 +45,9 @@ import {
   safeJsonForLog,
   serializeErrorForLog as serializeSupabaseErrorForLog,
 } from "@/src/utils/errors";
+import { callRpcWithParamFallback } from "./data/reviewSubmissionApi";
 
 const fillerPng = require("@/assets/images/filler.png");
-
-function isRpcParamMismatch(error: unknown) {
-  const anyErr = error as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  return code === "PGRST202";
-}
-
-/**
- * Calls an RPC function with p_ prefixed parameters, falling back to non-prefixed
- * parameters if PGRST202 error occurs (parameter mismatch).
- */
-async function callRpcWithParamFallback(
-  functionName: string,
-  payloadWithPrefix: Record<string, any>,
-): Promise<any> {
-  const startedAt = Date.now();
-
-  // Try with p_ prefix first (new signature)
-  let res: any = await supabase.rpc(functionName, payloadWithPrefix);
-
-  if (__DEV__ && res?.error) {
-    console.error("[review-rpc] error:first-attempt", {
-      functionName,
-      ms: Date.now() - startedAt,
-      payloadKeys: Object.keys(payloadWithPrefix ?? {}),
-      error: serializeSupabaseErrorForLog(res.error),
-    });
-  }
-
-  // Fallback to old signature if param mismatch
-  if (res?.error && isRpcParamMismatch(res.error)) {
-    const fallbackPayload: Record<string, any> = {};
-    for (const [key, value] of Object.entries(payloadWithPrefix)) {
-      // Remove p_ prefix from parameter names
-      const newKey = key.startsWith("p_") ? key.substring(2) : key;
-      fallbackPayload[newKey] = value;
-    }
-
-    if (__DEV__) {
-      console.log("[review-rpc] retry:fallback-params", {
-        functionName,
-        firstAttemptKeys: Object.keys(payloadWithPrefix ?? {}),
-        fallbackKeys: Object.keys(fallbackPayload ?? {}),
-      });
-    }
-
-    res = await supabase.rpc(functionName, fallbackPayload);
-
-    if (__DEV__ && res?.error) {
-      console.error("[review-rpc] error:fallback-attempt", {
-        functionName,
-        ms: Date.now() - startedAt,
-        payloadKeys: Object.keys(fallbackPayload ?? {}),
-        error: serializeSupabaseErrorForLog(res.error),
-      });
-    }
-  }
-
-  return res;
-}
 
 function mapReviewErrorToFriendlyMessage(error: unknown): string {
   const raw = getErrorMessage(error);
