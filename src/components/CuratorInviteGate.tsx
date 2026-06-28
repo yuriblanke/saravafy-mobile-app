@@ -19,6 +19,7 @@ import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
+import { rpcCuratorInvite } from "@/src/components/curatorInviteApi";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { getGlobalRoleBadgeLabel } from "@/src/domain/globalRoles";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
@@ -375,13 +376,11 @@ export function CuratorInviteGate() {
 
     setIsProcessing(true);
     try {
-      const payload = { p_invite_id: currentInvite.id };
-      const res: any = await supabase.rpc("accept_curator_invite", payload);
+      const res: any = await rpcCuratorInvite("accept_curator_invite", currentInvite.id);
 
       if (__DEV__) {
         console.info("[CuratorInviteGate] accept rpc", {
           inviteId: currentInvite.id,
-          payload,
           data: res?.data,
           dataType: typeof res?.data,
           hasError: !!res?.error,
@@ -462,13 +461,11 @@ export function CuratorInviteGate() {
 
     setIsProcessing(true);
     try {
-      const payload = { p_invite_id: currentInvite.id };
-      const res: any = await supabase.rpc("reject_curator_invite", payload);
+      const res: any = await rpcCuratorInvite("reject_curator_invite", currentInvite.id);
 
       if (__DEV__) {
         console.info("[CuratorInviteGate] reject rpc", {
           inviteId: currentInvite.id,
-          payload,
           data: res?.data,
           dataType: typeof res?.data,
           hasError: !!res?.error,

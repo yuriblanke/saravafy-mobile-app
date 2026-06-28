@@ -3,7 +3,6 @@ import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { usePreferences, type ThemeMode } from "@/contexts/PreferencesContext";
 import { useTabController, type TabKey } from "@/contexts/TabControllerContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { AccessRoleInfo } from "@/src/components/AccessRoleInfo";
 import { Badge } from "@/src/components/Badge";
 import { BottomSheet } from "@/src/components/BottomSheet";
@@ -44,7 +43,20 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
-import { isColumnMissingError, isRpcParamMismatch } from "@/src/utils/errors";
+import {
+  cancelCuratorInvite,
+  createCuratorInvite,
+  fetchCuratorInvitesAdminList,
+  fetchPendingCuratorInviteRowForInvitee,
+  rpcCuratorInvite,
+  type PendingCuratorInviteRowRow,
+} from "@/src/components/curatorInviteApi";
+import { rpcTerreiroInvite } from "@/src/components/inviteGateApi";
+import {
+  countActiveAdmins,
+  leaveTerreiroAsMember,
+  removeTerreiroMember,
+} from "@/src/components/terreiroMemberApi";
 import {
   getDisplayName as _getDisplayName,
   getInitials as _getInitials,
@@ -80,10 +92,6 @@ function getCompactTerreiroInviteRoleLabel(role: any): string | null {
   }
 }
 
-type PendingCuratorInvite = {
-  id: string;
-  created_at: string;
-};
 
 
 function getFriendlyActionError(message: string) {
@@ -732,34 +740,7 @@ export function PreferencesOverlaySheets(
     staleTime: 0,
     queryFn: async () => {
       if (!normalizedUserEmail) return null;
-
-      const res: any = await supabase
-        .from("curator_invites")
-        .select("id, created_at")
-        .eq("status", "pending")
-        .eq("email", normalizedUserEmail)
-        .order("created_at", { ascending: true })
-        .limit(1);
-
-      if (res.error) {
-        if (__DEV__) {
-          console.warn("[PreferencesInvites] curator_invites error", res.error);
-        }
-        return null;
-      }
-
-      const row =
-        Array.isArray(res.data) && res.data.length
-          ? (res.data[0] as any)
-          : null;
-      if (!row?.id) return null;
-
-      const invite: PendingCuratorInvite = {
-        id: String(row.id),
-        created_at: String(row.created_at ?? new Date().toISOString()),
-      };
-
-      return invite;
+      return fetchPendingCuratorInviteForInvitee(normalizedUserEmail);
     },
   });
 
@@ -799,33 +780,6 @@ export function PreferencesOverlaySheets(
     );
   };
 
-  const countActiveAdmins = async (
-    terreiroId: string
-  ): Promise<number | null> => {
-    try {
-      let res: any = await supabase
-        .from("terreiro_members")
-        .select("user_id", { count: "exact", head: true })
-        .eq("terreiro_id", terreiroId)
-        .eq("role", "admin")
-        .eq("status", "active");
-
-      if (res.error && isColumnMissingError(res.error, "status")) {
-        res = await supabase
-          .from("terreiro_members")
-          .select("user_id", { count: "exact", head: true })
-          .eq("terreiro_id", terreiroId)
-          .eq("role", "admin");
-      }
-
-      if (res.error) return null;
-
-      const count = typeof res.count === "number" ? res.count : null;
-      return count;
-    } catch {
-      return null;
-    }
-  };
 
   const requestLeaveRole = async (item: MyTerreiroWithRole) => {
     if (!userId) return;
@@ -880,10 +834,7 @@ export function PreferencesOverlaySheets(
 
     setLeaveRoleBusy(true);
     try {
-      const rpc = await supabase.rpc("fn_remove_terreiro_member", {
-        p_terreiro_id: leaveRoleTarget.terreiroId,
-        p_user_id: userId,
-      });
+      const rpc = await removeTerreiroMember(leaveRoleTarget.terreiroId, userId);
 
       if (rpc.error) {
         if (isCannotRemoveLastAdminError(rpc.error)) {
@@ -955,11 +906,7 @@ export function PreferencesOverlaySheets(
 
     setLeaveTerreiroBusy(true);
     try {
-      const res = await supabase
-        .from("terreiro_members")
-        .delete()
-        .eq("terreiro_id", item.id)
-        .eq("user_id", userId);
+      const res = await leaveTerreiroAsMember(item.id, userId);
 
       if (res.error) {
         showToast(getFriendlyActionError(res.error.message));
@@ -1022,44 +969,7 @@ export function PreferencesOverlaySheets(
     queryKey: ["curatorInvites", "adminList"],
     enabled: !!userId && isDevMaster && isCuratorAdminOpen,
     staleTime: 0,
-    queryFn: async () => {
-      const res: any = await supabase
-        .from("curator_invites")
-        .select("id, email, status, created_at")
-        .order("created_at", { ascending: false })
-        .limit(50);
-
-      if (res.error) {
-        if (__DEV__) {
-          console.warn(
-            "[CuratorInvitesAdmin] curator_invites error",
-            res.error
-          );
-        }
-        throw new Error(
-          typeof res.error.message === "string" ? res.error.message : "Erro"
-        );
-      }
-
-      const rows = Array.isArray(res.data) ? res.data : [];
-      return rows
-        .map((row: any) => {
-          const id = String(row?.id ?? "");
-          if (!id) return null;
-          return {
-            id,
-            email: String(row?.email ?? ""),
-            status: String(row?.status ?? ""),
-            created_at: String(row?.created_at ?? ""),
-          };
-        })
-        .filter(Boolean) as {
-        id: string;
-        email: string;
-        status: string;
-        created_at: string;
-      }[];
-    },
+    queryFn: fetchCuratorInvitesAdminList,
   });
 
   const curatorInvitesAdmin = curatorInvitesAdminQuery.data ?? [];
@@ -1068,8 +978,7 @@ export function PreferencesOverlaySheets(
     if (!userId) return;
     setInviteProcessingKey(`curator:${inviteId}`);
     try {
-      const payload = { p_invite_id: inviteId };
-      const res: any = await supabase.rpc("accept_curator_invite", payload);
+      const res: any = await rpcCuratorInvite("accept_curator_invite", inviteId);
 
       if (res?.error) throw res.error;
       if (res?.data === false)
@@ -1116,8 +1025,7 @@ export function PreferencesOverlaySheets(
     if (!userId) return;
     setInviteProcessingKey(`curator:${inviteId}`);
     try {
-      const payload = { p_invite_id: inviteId };
-      const res: any = await supabase.rpc("reject_curator_invite", payload);
+      const res: any = await rpcCuratorInvite("reject_curator_invite", inviteId);
 
       if (res?.error) throw res.error;
       if (res?.data === false)
@@ -1163,15 +1071,7 @@ export function PreferencesOverlaySheets(
     if (!userId) return;
     setInviteProcessingKey(`terreiro:${invite.id}`);
     try {
-      let res: any = await supabase.rpc("accept_terreiro_invite", {
-        invite_id: invite.id,
-      });
-
-      if (res?.error && isRpcParamMismatch(res.error, "invite_id")) {
-        res = await supabase.rpc("accept_terreiro_invite", {
-          p_invite_id: invite.id,
-        });
-      }
+      const res: any = await rpcTerreiroInvite("accept_terreiro_invite", invite.id);
 
       if (res?.error) throw res.error;
       if (res?.data === false)
@@ -1287,15 +1187,7 @@ export function PreferencesOverlaySheets(
     if (!userId) return;
     setInviteProcessingKey(`terreiro:${invite.id}`);
     try {
-      let res: any = await supabase.rpc("reject_terreiro_invite", {
-        invite_id: invite.id,
-      });
-
-      if (res?.error && isRpcParamMismatch(res.error, "invite_id")) {
-        res = await supabase.rpc("reject_terreiro_invite", {
-          p_invite_id: invite.id,
-        });
-      }
+      const res: any = await rpcTerreiroInvite("reject_terreiro_invite", invite.id);
 
       if (res?.error) throw res.error;
       if (res?.data === false)
@@ -2065,17 +1957,7 @@ export function PreferencesOverlaySheets(
 
                   setIsCreatingCuratorInvite(true);
 
-                  const res: any = await supabase.rpc("create_curator_invite", {
-                    p_email: email,
-                  });
-
-                  if (res?.error) {
-                    throw new Error(
-                      typeof res.error.message === "string"
-                        ? res.error.message
-                        : "Erro ao convidar"
-                    );
-                  }
+                  await createCuratorInvite(email);
 
                   setCuratorInviteEmail("");
                   setCuratorInviteInlineError(null);
@@ -2166,20 +2048,7 @@ export function PreferencesOverlaySheets(
                         accessibilityRole="button"
                         onPress={async () => {
                           try {
-                            const rpc: any = await supabase.rpc(
-                              "cancel_curator_invite",
-                              {
-                                p_invite_id: invite.id,
-                              }
-                            );
-
-                            if (rpc?.error) {
-                              throw new Error(
-                                typeof rpc.error.message === "string"
-                                  ? rpc.error.message
-                                  : "Erro"
-                              );
-                            }
+                            await cancelCuratorInvite(invite.id);
 
                             void curatorInvitesAdminQuery
                               .refetch()
