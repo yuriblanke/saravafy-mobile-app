@@ -1,14 +1,9 @@
 import { supabase } from "@/lib/supabase";
 import {
+  isRpcParamMismatch,
   safeJsonForLog,
   serializeErrorForLog as serializeSupabaseErrorForLog,
 } from "@/src/utils/errors";
-
-function isRpcParamMismatch(error: unknown) {
-  const anyErr = error as any;
-  const code = typeof anyErr?.code === "string" ? anyErr.code : "";
-  return code === "PGRST202";
-}
 
 export async function callRpcWithParamFallback(
   functionName: string,
