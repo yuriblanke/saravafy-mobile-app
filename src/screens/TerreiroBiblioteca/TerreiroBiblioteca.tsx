@@ -1,10 +1,8 @@
-import { isColumnMissingError } from "@/src/utils/errors";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
 import { useScreenBack } from "@/src/hooks/useScreenBack";
-import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
 import { TerreiroOfflineSheet } from "@/src/components/TerreiroOfflineSheet";
@@ -42,7 +40,7 @@ import {
   loadTerreiroLibraryOrder,
 } from "@/src/utils/terreiroLibraryOrder";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -55,7 +53,6 @@ import React, {
 import {
   Alert,
   Animated,
-  BackHandler,
   Image,
   Pressable,
   ScrollView,
@@ -78,14 +75,14 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { hexToRgba } from "@/src/utils/color";
+import {
+  createCollectionForTerreiro,
+  fetchTerreiro,
+  updateCollectionTitle,
+  type TerreiroRow,
+} from "./data/terreiroBiblioteca";
 
 const fillerPng = require("@/assets/images/filler.png");
-
-type TerreiroRow = {
-  id: string;
-  title?: string | null;
-  cover_image_url?: string | null;
-};
 
 
 
@@ -246,33 +243,7 @@ export default function TerreiroBiblioteca() {
     enabled: !!terreiroId,
     staleTime: 2 * 60 * 1000,
     gcTime: 15 * 60 * 1000,
-    queryFn: async () => {
-      if (!terreiroId) throw new Error("Terreiro inválido.");
-
-      let res: any = await supabase
-        .from("terreiros")
-        .select("id, title, cover_image_url")
-        .eq("id", terreiroId)
-        .single();
-
-      if (res.error && isColumnMissingError(res.error, "cover_image_url")) {
-        res = await supabase
-          .from("terreiros")
-          .select("id, title")
-          .eq("id", terreiroId)
-          .single();
-      }
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Erro ao carregar o terreiro."
-        );
-      }
-
-      return res.data as TerreiroRow;
-    },
+    queryFn: () => fetchTerreiro(terreiroId),
   });
 
   const terreiroName = useMemo(() => {
@@ -719,38 +690,8 @@ export default function TerreiroBiblioteca() {
   ]);
 
   const createCollectionMutation = useMutation({
-    mutationFn: async (vars: { title: string; tempId: string }) => {
-      const res = await supabase
-        .from("collections")
-        .insert({
-          title: vars.title,
-          owner_terreiro_id: terreiroId,
-          owner_user_id: null,
-        })
-        .select("id, title, description, visibility, owner_terreiro_id")
-        .single();
-
-      if (res.error || !res.data?.id) {
-        throw new Error(res.error?.message || "Erro ao criar coleção");
-      }
-
-      return {
-        id: res.data.id as string,
-        title: typeof res.data.title === "string" ? res.data.title : vars.title,
-        description:
-          typeof (res.data as any).description === "string"
-            ? ((res.data as any).description as string)
-            : null,
-        visibility:
-          typeof (res.data as any).visibility === "string"
-            ? ((res.data as any).visibility as string)
-            : null,
-        owner_terreiro_id:
-          typeof (res.data as any).owner_terreiro_id === "string"
-            ? ((res.data as any).owner_terreiro_id as string)
-            : terreiroId,
-      };
-    },
+    mutationFn: (vars: { title: string; tempId: string }) =>
+      createCollectionForTerreiro({ title: vars.title, terreiroId }),
     onMutate: async (vars) => {
       if (!terreiroId) return null;
 
@@ -822,28 +763,8 @@ export default function TerreiroBiblioteca() {
   });
 
   const updateCollectionTitleMutation = useMutation({
-    mutationFn: async (vars: { collectionId: string; title: string }) => {
-      const res = await supabase
-        .from("collections")
-        .update({ title: vars.title })
-        .eq("id", vars.collectionId)
-        .select("id, title")
-        .single();
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string"
-            ? res.error.message
-            : "Erro ao atualizar título da coleção"
-        );
-      }
-
-      const savedTitle =
-        (typeof res.data?.title === "string" && res.data.title.trim()) ||
-        vars.title;
-
-      return { id: vars.collectionId, title: savedTitle };
-    },
+    mutationFn: (vars: { collectionId: string; title: string }) =>
+      updateCollectionTitle(vars),
     onMutate: async (vars) => {
       if (!terreiroId) return null;
       const filters = [
