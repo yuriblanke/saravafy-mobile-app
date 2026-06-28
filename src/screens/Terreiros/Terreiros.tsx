@@ -1,6 +1,7 @@
 import {
   normalizeInstagramHandle,
   normalizePhoneDigits,
+  normalizeSearch,
 } from "@/src/utils/format";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
@@ -27,14 +28,10 @@ import {
   View,
 } from "react-native";
 
-function normalize(value: string) {
-  return value.trim().toLowerCase();
-}
-
 function matchesTerreiroQuery(terreiro: TerreiroListItem, query: string) {
-  const q = normalize(query);
+  const q = normalizeSearch(query);
   if (!q) return true;
-  return normalize(terreiro.name ?? "").includes(q);
+  return normalizeSearch(terreiro.name ?? "").includes(q);
 }
 
 function formatCityState(city?: string, state?: string) {

@@ -1,4 +1,5 @@
 import { getErrorMessage } from "@/src/utils/errors";
+import { normalizeSearch } from "@/src/utils/format";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
@@ -65,28 +66,23 @@ type PlayerDataParams =
   | { collectionId: string }
   | { mode: "all"; query?: string };
 
-function normalize(value: string) {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase();
-}
 
 function matchesQuery(ponto: PlayerPonto, query: string) {
-  const q = normalize(query);
+  const q = normalizeSearch(query);
   if (!q) return true;
-  if (normalize(ponto.title).includes(q)) return true;
-  if (normalize(ponto.lyrics).includes(q)) return true;
+  if (normalizeSearch(ponto.title).includes(q)) return true;
+  if (normalizeSearch(ponto.lyrics).includes(q)) return true;
   const versoes = Array.isArray(ponto.versoes) ? ponto.versoes : [];
   for (const v of versoes) {
-    if (normalize(v.lyrics).includes(q)) return true;
+    if (normalizeSearch(v.lyrics).includes(q)) return true;
   }
   if (
     ponto.entidadeNome &&
-    normalize(ponto.entidadeNome).includes(q)
+    normalizeSearch(ponto.entidadeNome).includes(q)
   ) {
     return true;
   }
-  if (ponto.orixaNome && normalize(ponto.orixaNome).includes(q)) {
+  if (ponto.orixaNome && normalizeSearch(ponto.orixaNome).includes(q)) {
     return true;
   }
   return false;
