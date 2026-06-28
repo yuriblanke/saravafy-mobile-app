@@ -110,6 +110,56 @@ Vários bottom sheets com implementações ligeiramente diferentes. Avaliar `Bas
 
 ---
 
+## Fase 6 — Navegação (back nativo único)
+
+> Detalhe completo do diagnóstico em `docs/plans/navigation-audit.md`. Esta fase executa a correção.
+
+**Objetivo:** um único idioma de "voltar". Back nativo por padrão; destino fixo só como fallback quando comprovadamente não há histórico. Aposentar `returnTo` e o replace-com-destino-fixo; reduzir `BackHandler` ao conjunto legítimo.
+
+**Por que existe:** a navegação foi historicamente a maior fonte de bug do app. O Player já chegou no idioma correto (`canGoBack() ? back() : replace(fallback)`); falta generalizar.
+
+### 6.1 Helper único de saída
+
+Criar `src/hooks/useScreenBack.ts`:
+
+```ts
+// Generaliza o que PlayerScreen já faz à mão.
+function useScreenBack(fallbackHref: Href, opts?: { alignTab?: "pontos" | "terreiros" })
+  → () => void
+```
+
+Comportamento: alinha aba (se `alignTab`), depois `router.canGoBack() ? router.back() : router.replace(fallbackHref)`. É o ponto único onde a lógica de saída vive — telas só declaram seu fallback.
+
+### 6.2 Migrar telas para o helper
+
+| Tela | Hoje | Fallback do helper |
+|------|------|--------------------|
+| Collection | replace fixo `/terreiro` e `(pontos)`, sem `canGoBack` | terreiro de origem se houver `terreiroId`, senão `(pontos)` |
+| TerreiroBiblioteca | `returnTo` + replace (4 sites) | `(terreiros)` — e **remover o param `returnTo` e todo o threading** |
+| TerreiroEditor | replace fixo `(terreiros)` pós-save | `back()` para a tela de origem |
+| Player | já correto, mas verboso | refatorar `handlePlayerNavigateBack` para usar o helper |
+| ReviewQueue / ReviewSubmission | `replace("/")` | avaliar `back()`; manter replace só se a fila não deve ser back-reachable |
+
+### 6.3 Deep links `l/*`
+
+Manter `replace` na **entrada** (correto — são telas redirect-only). A tela-destino usa o helper: sem histórico, o fallback leva ao root sensato do contexto (ponto → Pontos; coleção de terreiro → aquele terreiro).
+
+### 6.4 Reduzir BackHandler
+
+Manter só os legítimos: guard de "descartar alterações?" (TerreiroEditor, e confirmar PlayerAudioUpload / AddToCollection / EditOrderScreenBase) e fechar modal (PreferencesModal). Remover os que só existem por causa do replace (Player custom). Reavaliar o tab-back em `app/(app)/_layout.tsx` depois que 6.1–6.2 estabilizarem.
+
+### 6.5 Decisões em aberto (resolver antes de fechar a fase)
+
+- [ ] **InviteGate** bloqueia o back inteiro (`() => true`). É requisito de produto (convite obrigatório) ou pode degradar para "fecha o banner"?
+- [ ] **`app/(app)/terreiro.tsx`** — é dead code? O commit `cccb401` disse ter removido "Terreiro.tsx". Confirmar antes de apagar.
+- [ ] **`detachPreviousScreen`** em `(terreiros)/_layout.tsx` referencia rotas (`terreiro`, `collection/[id]`) que não existem naquela pasta. Limpar.
+
+### 6.6 Validação (sem suíte de testes)
+
+Cada tela migrada precisa de teste manual no Android cobrindo os 3 caminhos de entrada (via aba, via deep link, sem histórico) × 3 formas de voltar (back físico, gesto, botão da UI). Todos têm que cair no mesmo lugar.
+
+---
+
 ## Checklist de progresso
 
 ### Fase 1 — Utils
@@ -131,6 +181,17 @@ Vários bottom sheets com implementações ligeiramente diferentes. Avaliar `Bas
 - [ ] TerreiroEditor.tsx (storage inline → useImageUpload)
 - [ ] ReviewSubmission.tsx (centralizar callRpcWithParamFallback)
 - [ ] Revisar fetch() inline: Home, Terreiros, TerreirosSection, LibraryPlayerAddToCollectionModal
+
+### Fase 6 — Navegação
+- [ ] `src/hooks/useScreenBack.ts` (helper único de saída)
+- [ ] Migrar Collection para o helper
+- [ ] Migrar TerreiroBiblioteca + remover `returnTo`
+- [ ] Migrar TerreiroEditor (pós-save)
+- [ ] Refatorar Player para usar o helper
+- [ ] Revisar ReviewQueue / ReviewSubmission `replace("/")`
+- [ ] Telas-destino de deep link `l/*` usam o helper
+- [ ] Podar BackHandler ao conjunto legítimo
+- [ ] Resolver decisões em aberto (InviteGate, terreiro.tsx, detachPreviousScreen)
 
 ### Fase 4 — Gigantes
 - [ ] TabsHeaderWithPreferences (3164)
