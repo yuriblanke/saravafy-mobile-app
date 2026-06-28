@@ -24,7 +24,6 @@ import {
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { getCachedAppInstallUrl } from "@/src/config/remoteConfig";
@@ -52,11 +51,17 @@ import {
   deleteFinalCoverIfPossible,
   deleteTerreiroRecord,
   deleteTerreiroStorageFolder,
+  DuplicateTerreiroInviteError,
   ensureWebp,
-  makeUniqueFileName,
+  insertTerreiroInvite,
+  loadTerreiroAdminData,
+  loadTerreiroForEdit,
+  updateTerreiroFields,
   uploadCoverWebp,
-  uploadCoverWebpToPath,
   upsertPrimaryContato,
+  type ProfileRow,
+  type TerreiroInviteRow,
+  type TerreiroMemberRow,
 } from "./data/terreiroEditorApi";
 
 type EditorMode = "create" | "edit";
@@ -77,51 +82,7 @@ type TerreiroForm = {
   isWhatsappUi: boolean;
 };
 
-type TerreiroDbRow = {
-  id: string;
-  title: string;
-  about: string | null;
-  lines_of_work: string | null;
-  cover_image_url: string | null;
-  created_by: string | null;
-};
-
-type TerreiroContatoDbRow = {
-  terreiro_id: string;
-  city: string;
-  state: string;
-  neighborhood: string | null;
-  address: string;
-  phone_whatsapp: string | null;
-  phone_is_whatsapp: boolean | null;
-  instagram_handle: string | null;
-  is_primary: boolean | null;
-};
-
 type TerreiroRole = "admin" | "curimba";
-
-type TerreiroMemberRow = {
-  terreiro_id: string;
-  role: TerreiroRole;
-  user_id: string | null;
-  created_at: string | null;
-};
-
-type TerreiroInviteRow = {
-  id: string;
-  terreiro_id: string;
-  email: string;
-  role: TerreiroRole;
-  status: string;
-  created_at: string | null;
-};
-
-type ProfileRow = {
-  id: string;
-  full_name: string | null;
-  avatar_url: string | null;
-  email?: string | null;
-};
 
 const UF_OPTIONS = [
   { uf: "AC", label: "Acre" },
@@ -354,35 +315,8 @@ export default function TerreiroEditor() {
 
       setLoading(true);
       try {
-        const [terreiroRes, contatoRes] = await Promise.all([
-          supabase
-            .from("terreiros")
-            .select(
-              "id, title, about, lines_of_work, cover_image_url, created_by"
-            )
-            .eq("id", resolvedTerreiroId)
-            .maybeSingle(),
-          supabase
-            .from("terreiros_contatos")
-            .select(
-              "terreiro_id, city, state, neighborhood, address, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary"
-            )
-            .eq("terreiro_id", resolvedTerreiroId)
-            .maybeSingle(),
-        ]);
-
-        if (terreiroRes.error) {
-          throw new Error(
-            typeof terreiroRes.error.message === "string"
-              ? terreiroRes.error.message
-              : "Não foi possível carregar o terreiro."
-          );
-        }
-
-        const t = terreiroRes.data as TerreiroDbRow | null;
-        const c = contatoRes.data as TerreiroContatoDbRow | null;
-
-        if (!t?.id) throw new Error("Terreiro não encontrado.");
+        const { terreiro: t, contato: c } =
+          await loadTerreiroForEdit(resolvedTerreiroId);
 
         if (!cancelled) {
           terreiroCreatedByRef.current = t.created_by ?? null;
@@ -550,84 +484,15 @@ export default function TerreiroEditor() {
 
     setAdminLoading(true);
     try {
-      const membersRes = await supabase
-        .from("terreiro_members")
-        .select("terreiro_id, role, user_id, created_at")
-        .eq("terreiro_id", id)
-        .order("created_at", { ascending: true });
+      const result = await loadTerreiroAdminData(id, {
+        userId: user.id,
+        ownerId: terreiroCreatedByRef.current,
+      });
 
-      if (membersRes.error) {
-        throw new Error(
-          typeof membersRes.error.message === "string"
-            ? membersRes.error.message
-            : "Não foi possível carregar os membros."
-        );
-      }
-
-      const nextMembers = (membersRes.data ?? []) as TerreiroMemberRow[];
-      setMembers(nextMembers);
-
-      const nextMyRole = (() => {
-        const u = user.id;
-        const match = nextMembers.find((m) => m.user_id === u);
-        const role = match?.role;
-        return role === "admin" || role === "curimba" ? role : null;
-      })();
-      setMyTerreiroRole(nextMyRole);
-
-      const profileIds = nextMembers
-        .map((m) => m.user_id)
-        .filter((pid): pid is string => typeof pid === "string" && !!pid);
-
-      if (profileIds.length > 0) {
-        const profilesRes = await supabase
-          .from("profiles")
-          .select("id, full_name, avatar_url, email")
-          .in("id", profileIds);
-
-        if (!profilesRes.error && Array.isArray(profilesRes.data)) {
-          const map: Record<string, ProfileRow> = {};
-          for (const p of profilesRes.data as any[]) {
-            if (p?.id && typeof p.id === "string") {
-              map[p.id] = {
-                id: p.id,
-                full_name: typeof p.full_name === "string" ? p.full_name : null,
-                avatar_url:
-                  typeof p.avatar_url === "string" ? p.avatar_url : null,
-                email: typeof p.email === "string" ? p.email : null,
-              };
-            }
-          }
-          setProfilesById(map);
-        }
-      } else {
-        setProfilesById({});
-      }
-
-      const ownerId = terreiroCreatedByRef.current;
-      const computedIsAdmin =
-        (ownerId && ownerId === user.id) || nextMyRole === "admin";
-
-      if (computedIsAdmin) {
-        const invitesRes = await supabase
-          .from("terreiro_invites")
-          .select("id, terreiro_id, email, role, status, created_at")
-          .eq("terreiro_id", id)
-          .eq("status", "pending")
-          .order("created_at", { ascending: false });
-
-        if (invitesRes.error) {
-          throw new Error(
-            typeof invitesRes.error.message === "string"
-              ? invitesRes.error.message
-              : "Não foi possível carregar os convites pendentes."
-          );
-        }
-
-        setInvitesPending((invitesRes.data ?? []) as TerreiroInviteRow[]);
-      } else {
-        setInvitesPending([]);
-      }
+      setMembers(result.members);
+      setMyTerreiroRole(result.myRole);
+      setProfilesById(result.profilesById);
+      setInvitesPending(result.invitesPending);
     } catch (e) {
       Alert.alert(
         "Erro",
@@ -703,40 +568,21 @@ export default function TerreiroEditor() {
     setInviteSending(true);
     setInviteInlineError("");
     try {
-      const insertRes = await supabase
-        .from("terreiro_invites")
-        .insert({
-          terreiro_id: resolvedTerreiroId,
-          email: emailNorm,
-          role: inviteRole,
-          created_by: user.id,
-          status: "pending",
-        } as any)
-        .select("id")
-        .single();
-
-      if (insertRes.error) {
-        const err = insertRes.error as any;
-        const code = typeof err?.code === "string" ? err.code : "";
-        const message = typeof err?.message === "string" ? err.message : "";
-
-        if (
-          code === "23505" ||
-          message.includes("ux_terreiro_invites_pending")
-        ) {
-          setInviteInlineError(
-            "Este e-mail já possui um convite pendente para este terreiro."
-          );
-          return;
-        }
-
-        throw new Error(message || "Não foi possível enviar o convite.");
-      }
+      await insertTerreiroInvite({
+        terreiroId: resolvedTerreiroId,
+        email: emailNorm,
+        role: inviteRole,
+        createdBy: user.id,
+      });
 
       setInviteEmail("");
       setInviteFormOpen(false);
       await loadAdminData(resolvedTerreiroId);
     } catch (e) {
+      if (e instanceof DuplicateTerreiroInviteError) {
+        setInviteInlineError(e.message);
+        return;
+      }
       Alert.alert(
         "Erro",
         e instanceof Error ? e.message : "Não foi possível enviar o convite."
@@ -998,29 +844,18 @@ export default function TerreiroEditor() {
         linesChanged;
 
       if (shouldUpdateTerreiro) {
-        const updateTerreiro = await supabase
-          .from("terreiros")
-          .update({
-            title,
-            about: form.about.trim() ? form.about.trim() : null,
-            lines_of_work: form.linesOfWork.trim()
-              ? form.linesOfWork.trim()
-              : null,
-            cover_image_url: wantsRemoveCover
-              ? null
-              : coverImageUrl
-              ? coverImageUrl
-              : null,
-          })
-          .eq("id", id);
-
-        if (updateTerreiro.error) {
-          throw new Error(
-            typeof updateTerreiro.error.message === "string"
-              ? `Terreiro: ${updateTerreiro.error.message}`
-              : "Terreiro: não foi possível salvar."
-          );
-        }
+        await updateTerreiroFields(id, {
+          title,
+          about: form.about.trim() ? form.about.trim() : null,
+          lines_of_work: form.linesOfWork.trim()
+            ? form.linesOfWork.trim()
+            : null,
+          cover_image_url: wantsRemoveCover
+            ? null
+            : coverImageUrl
+            ? coverImageUrl
+            : null,
+        });
 
         if (wantsRemoveCover) {
           deleteFinalCoverIfPossible(id).catch(() => undefined);

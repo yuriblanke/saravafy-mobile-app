@@ -217,6 +217,231 @@ export async function deleteTerreiroRecord(terreiroId: string): Promise<void> {
   }
 }
 
+// ---- DB reads ----
+
+export type TerreiroDbRow = {
+  id: string;
+  title: string;
+  about: string | null;
+  lines_of_work: string | null;
+  cover_image_url: string | null;
+  created_by: string | null;
+};
+
+export type TerreiroContatoDbRow = {
+  terreiro_id: string;
+  city: string;
+  state: string;
+  neighborhood: string | null;
+  address: string;
+  phone_whatsapp: string | null;
+  phone_is_whatsapp: boolean | null;
+  instagram_handle: string | null;
+  is_primary: boolean | null;
+};
+
+export type TerreiroMemberRow = {
+  terreiro_id: string;
+  role: "admin" | "curimba";
+  user_id: string | null;
+  created_at: string | null;
+};
+
+export type TerreiroInviteRow = {
+  id: string;
+  terreiro_id: string;
+  email: string;
+  role: "admin" | "curimba";
+  status: string;
+  created_at: string | null;
+};
+
+export type ProfileRow = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  email?: string | null;
+};
+
+export async function loadTerreiroForEdit(
+  terreiroId: string
+): Promise<{ terreiro: TerreiroDbRow; contato: TerreiroContatoDbRow | null }> {
+  const [terreiroRes, contatoRes] = await Promise.all([
+    supabase
+      .from("terreiros")
+      .select("id, title, about, lines_of_work, cover_image_url, created_by")
+      .eq("id", terreiroId)
+      .maybeSingle(),
+    supabase
+      .from("terreiros_contatos")
+      .select(
+        "terreiro_id, city, state, neighborhood, address, phone_whatsapp, phone_is_whatsapp, instagram_handle, is_primary"
+      )
+      .eq("terreiro_id", terreiroId)
+      .maybeSingle(),
+  ]);
+
+  if (terreiroRes.error) {
+    throw new Error(
+      typeof terreiroRes.error.message === "string"
+        ? terreiroRes.error.message
+        : "Não foi possível carregar o terreiro."
+    );
+  }
+
+  const terreiro = terreiroRes.data as TerreiroDbRow | null;
+  if (!terreiro?.id) throw new Error("Terreiro não encontrado.");
+
+  return {
+    terreiro,
+    contato: (contatoRes.data ?? null) as TerreiroContatoDbRow | null,
+  };
+}
+
+export async function loadTerreiroAdminData(
+  terreiroId: string,
+  params: { userId: string; ownerId: string | null }
+): Promise<{
+  members: TerreiroMemberRow[];
+  profilesById: Record<string, ProfileRow>;
+  invitesPending: TerreiroInviteRow[];
+  myRole: "admin" | "curimba" | null;
+}> {
+  const membersRes = await supabase
+    .from("terreiro_members")
+    .select("terreiro_id, role, user_id, created_at")
+    .eq("terreiro_id", terreiroId)
+    .order("created_at", { ascending: true });
+
+  if (membersRes.error) {
+    throw new Error(
+      typeof membersRes.error.message === "string"
+        ? membersRes.error.message
+        : "Não foi possível carregar os membros."
+    );
+  }
+
+  const members = (membersRes.data ?? []) as TerreiroMemberRow[];
+
+  const myRole = (() => {
+    const match = members.find((m) => m.user_id === params.userId);
+    const role = match?.role;
+    return role === "admin" || role === "curimba" ? role : null;
+  })();
+
+  const isAdmin =
+    !!(params.ownerId && params.ownerId === params.userId) ||
+    myRole === "admin";
+
+  const profileIds = members
+    .map((m) => m.user_id)
+    .filter((pid): pid is string => typeof pid === "string" && !!pid);
+
+  let profilesById: Record<string, ProfileRow> = {};
+  if (profileIds.length > 0) {
+    const profilesRes = await supabase
+      .from("profiles")
+      .select("id, full_name, avatar_url, email")
+      .in("id", profileIds);
+
+    if (!profilesRes.error && Array.isArray(profilesRes.data)) {
+      for (const p of profilesRes.data as any[]) {
+        if (p?.id && typeof p.id === "string") {
+          profilesById[p.id] = {
+            id: p.id,
+            full_name: typeof p.full_name === "string" ? p.full_name : null,
+            avatar_url: typeof p.avatar_url === "string" ? p.avatar_url : null,
+            email: typeof p.email === "string" ? p.email : null,
+          };
+        }
+      }
+    }
+  }
+
+  let invitesPending: TerreiroInviteRow[] = [];
+  if (isAdmin) {
+    const invitesRes = await supabase
+      .from("terreiro_invites")
+      .select("id, terreiro_id, email, role, status, created_at")
+      .eq("terreiro_id", terreiroId)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false });
+
+    if (invitesRes.error) {
+      throw new Error(
+        typeof invitesRes.error.message === "string"
+          ? invitesRes.error.message
+          : "Não foi possível carregar os convites pendentes."
+      );
+    }
+
+    invitesPending = (invitesRes.data ?? []) as TerreiroInviteRow[];
+  }
+
+  return { members, profilesById, invitesPending, myRole };
+}
+
+export class DuplicateTerreiroInviteError extends Error {
+  constructor() {
+    super("Este e-mail já possui um convite pendente para este terreiro.");
+  }
+}
+
+export async function insertTerreiroInvite(params: {
+  terreiroId: string;
+  email: string;
+  role: "admin" | "curimba";
+  createdBy: string;
+}): Promise<{ id: string }> {
+  const res = await supabase
+    .from("terreiro_invites")
+    .insert({
+      terreiro_id: params.terreiroId,
+      email: params.email,
+      role: params.role,
+      created_by: params.createdBy,
+      status: "pending",
+    } as any)
+    .select("id")
+    .single();
+
+  if (res.error) {
+    const code = typeof (res.error as any)?.code === "string" ? (res.error as any).code : "";
+    const message = typeof (res.error as any)?.message === "string" ? (res.error as any).message : "";
+
+    if (code === "23505" || message.includes("ux_terreiro_invites_pending")) {
+      throw new DuplicateTerreiroInviteError();
+    }
+
+    throw new Error(message || "Não foi possível enviar o convite.");
+  }
+
+  return res.data as { id: string };
+}
+
+export async function updateTerreiroFields(
+  id: string,
+  fields: {
+    title: string;
+    about: string | null;
+    lines_of_work: string | null;
+    cover_image_url: string | null;
+  }
+): Promise<void> {
+  const res = await supabase
+    .from("terreiros")
+    .update(fields)
+    .eq("id", id);
+
+  if (res.error) {
+    throw new Error(
+      typeof res.error.message === "string"
+        ? `Terreiro: ${res.error.message}`
+        : "Terreiro: não foi possível salvar."
+    );
+  }
+}
+
 // ---- DB helpers ----
 
 export async function upsertPrimaryContato(payload: {
