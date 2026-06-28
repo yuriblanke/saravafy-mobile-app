@@ -41,7 +41,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as Crypto from "expo-crypto";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { normalizeEmail } from "@/src/utils/format";
+import {
+  normalizeEmail,
+  normalizeInstagramHandle,
+  normalizePhoneDigits,
+} from "@/src/utils/format";
 import { useIbgeMunicipios } from "@/src/queries/ibge";
 import {
   createTerreiroFlow,
@@ -154,12 +158,10 @@ function labelForUf(uf: string) {
   return match?.label ?? uf;
 }
 
-function onlyDigits(value: string) {
-  return value.replace(/\D/g, "");
-}
-
-function normalizePhoneDigits(value: string) {
-  return onlyDigits(value).slice(0, 11);
+// Wraps the shared utility to preserve the @-prefixed display format used in this form.
+function normalizeInstagram(v: string) {
+  const h = normalizeInstagramHandle(v);
+  return h ? `@${h}` : "";
 }
 
 function formatPhone(digits: string) {
@@ -186,36 +188,6 @@ function formatPhone(digits: string) {
   const p2 = rest.slice(1, 5);
   const p3 = rest.slice(5, 9);
   return `(${ddd}) ${p1} ${p2}-${p3}`;
-}
-
-function normalizeInstagram(input: string) {
-  const raw = (input ?? "").trim();
-  if (!raw) return "";
-
-  const lower = raw.toLowerCase();
-  const looksLikeUrl = lower.includes("instagram.com/");
-
-  let handle = raw;
-  if (looksLikeUrl) {
-    try {
-      const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
-      const parts = url.pathname.split("/").filter(Boolean);
-      handle = parts[0] ?? "";
-    } catch {
-      // mantém handle como está
-    }
-  }
-
-  handle = handle.replace(/^@+/, "").trim();
-  if (!handle) return "";
-
-  // remove tudo após espaços
-  handle = handle.split(/\s+/)[0] ?? handle;
-
-  // remove query-like fragments
-  handle = handle.replace(/[?#].*$/, "");
-
-  return `@${handle}`;
 }
 
 function isValidEmail(input: string) {

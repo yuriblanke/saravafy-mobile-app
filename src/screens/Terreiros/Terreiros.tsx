@@ -1,3 +1,7 @@
+import {
+  normalizeInstagramHandle,
+  normalizePhoneDigits,
+} from "@/src/utils/format";
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureGate } from "@/contexts/GestureGateContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
@@ -62,31 +66,6 @@ function formatPhoneBr(digits: string) {
     return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
   }
   return d;
-}
-
-function normalizeInstagramHandle(handle?: string) {
-  if (typeof handle !== "string") return "";
-  let h = handle.trim();
-
-  // Accept @handle
-  h = h.replace(/^@+/, "");
-
-  // Accept full URLs like https://instagram.com/handle
-  h = h.replace(/^https?:\/\/(www\.)?instagram\.com\//i, "");
-  h = h.replace(/^instagram\.com\//i, "");
-
-  // Strip query/hash and trailing slashes
-  h = h.split(/[?#]/)[0] ?? "";
-  h = h.replace(/\/+$/, "");
-
-  // Keep only first path segment
-  h = h.split("/")[0] ?? "";
-  return h.trim();
-}
-
-function normalizePhoneDigits(phoneDigits?: string) {
-  if (typeof phoneDigits !== "string") return "";
-  return phoneDigits.replace(/\D/g, "");
 }
 
 async function openInstagram(handle: string) {

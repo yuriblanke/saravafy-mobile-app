@@ -53,6 +53,42 @@ export function normalizeSearch(value: string): string {
   return String(value ?? "").trim().toLowerCase();
 }
 
+export function onlyDigits(value: string): string {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
+export function normalizePhoneDigits(value: string, maxLength = 11): string {
+  return onlyDigits(value).slice(0, maxLength);
+}
+
+// Returns the raw handle without @ prefix (callers add @ for display as needed).
+export function normalizeInstagramHandle(input: string): string {
+  const raw = (input ?? "").trim();
+  if (!raw) return "";
+
+  const lower = raw.toLowerCase();
+  const looksLikeUrl = lower.includes("instagram.com/");
+
+  let handle = raw;
+  if (looksLikeUrl) {
+    try {
+      const url = new URL(raw.startsWith("http") ? raw : `https://${raw}`);
+      const parts = url.pathname.split("/").filter(Boolean);
+      handle = parts[0] ?? "";
+    } catch {
+      // keep handle as-is
+    }
+  }
+
+  handle = handle.replace(/^@+/, "").trim();
+  if (!handle) return "";
+
+  handle = handle.split(/\s+/)[0] ?? handle;
+  handle = handle.replace(/[?#].*$/, "");
+
+  return handle;
+}
+
 export function getLyricsPreview(lyrics: string, maxLines = 6): string {
   const lines = lyrics
     .split("\n")
