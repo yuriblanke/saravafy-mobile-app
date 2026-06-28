@@ -1,6 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabControllerOptional } from "@/contexts/TabControllerContext";
+import { useScreenBack } from "@/src/hooks/useScreenBack";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
@@ -219,17 +220,11 @@ export default function Collection() {
     typeof collection?.visibility === "string" ? collection.visibility : "";
   const isMembersOnly = !!collection && visibility === "members";
 
-  const goBackFromCollection = useCallback(() => {
-    if (terreiroId && terreiroId.trim()) {
-      router.replace({
-        pathname: "/terreiro" as any,
-        params: { terreiroId },
-      });
-      return;
-    }
-
-    router.back();
-  }, [router, terreiroId]);
+  const goBackFromCollection = useScreenBack(
+    terreiroId
+      ? { pathname: "/terreiro" as any, params: { terreiroId } }
+      : ("/(app)/(tabs)/(pontos)" as any)
+  );
 
   const membership = useTerreiroMembershipStatus(terreiroId);
   const createRequest = useCreateTerreiroMembershipRequest(
