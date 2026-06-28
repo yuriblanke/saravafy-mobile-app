@@ -150,9 +150,9 @@ Manter só os legítimos: guard de "descartar alterações?" (TerreiroEditor, e 
 
 ### 6.5 Decisões em aberto (resolver antes de fechar a fase)
 
-- [ ] **InviteGate** bloqueia o back inteiro (`() => true`). É requisito de produto (convite obrigatório) ou pode degradar para "fecha o banner"?
-- [ ] **`app/(app)/terreiro.tsx`** — é dead code? O commit `cccb401` disse ter removido "Terreiro.tsx". Confirmar antes de apagar.
-- [ ] **`detachPreviousScreen`** em `(terreiros)/_layout.tsx` referencia rotas (`terreiro`, `collection/[id]`) que não existem naquela pasta. Limpar.
+- [x] ~~InviteGate bloqueia o back inteiro?~~ **Resolvido (produto): suavizar.** O back passa a fechar/dispensar o banner em vez de travar (`() => true` → fecha o convite e retorna `true`). Alinha ao back nativo único da fase.
+- [x] ~~`app/(app)/terreiro.tsx` é dead code?~~ **Resolvido: NÃO é.** É a rota `/terreiro` que renderiza TerreiroBiblioteca. Manter.
+- [x] ~~`detachPreviousScreen` em `(terreiros)/_layout.tsx`~~ **Resolvido: stale, remover.** Condição nunca casa (rotas vivem no nível `(app)`). No-op órfão da migração `3d2668a`.
 
 ### 6.6 Validação (sem suíte de testes)
 
@@ -191,7 +191,8 @@ Cada tela migrada precisa de teste manual no Android cobrindo os 3 caminhos de e
 - [ ] Revisar ReviewQueue / ReviewSubmission `replace("/")`
 - [ ] Telas-destino de deep link `l/*` usam o helper
 - [ ] Podar BackHandler ao conjunto legítimo
-- [ ] Resolver decisões em aberto (InviteGate, terreiro.tsx, detachPreviousScreen)
+- [ ] Suavizar InviteGate (back fecha o banner em vez de travar)
+- [ ] Remover `detachPreviousScreen` stale em `(terreiros)/_layout.tsx`
 
 ### Fase 4 — Gigantes
 - [ ] TabsHeaderWithPreferences (3164)

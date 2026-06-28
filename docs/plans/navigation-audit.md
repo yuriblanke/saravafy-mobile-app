@@ -90,7 +90,13 @@ Objetivo: **um único idioma de "voltar"**, back nativo por padrão, destino fix
 4. **Deep links** — manter `replace` na entrada (correto), mas a tela-destino usa o helper: se não há histórico, o fallback leva ao root sensato do contexto (ex.: ponto → Pontos, coleção de terreiro → aquele terreiro).
 5. **Reduzir `BackHandler`** ao conjunto legítimo: guards de descarte de edição e fechar modal. Remover os que só existem por causa do replace (Player custom; reavaliar o tab-back do `_layout` se o pager virar stack-aware).
 6. **Reavaliar `InviteGate` bloquear back inteiro** — confirmar se é requisito de produto ou se pode degradar pra "fecha o banner".
-7. **Dead code de rota**: investigar `app/(app)/terreiro.tsx` (commit disse ter removido "Terreiro.tsx") e o `detachPreviousScreen` em `(terreiros)/_layout.tsx` que referencia rotas (`terreiro`, `collection/[id]`) inexistentes naquela pasta.
+7. **Limpeza de config órfã** (investigado — ver abaixo): remover o `detachPreviousScreen` stale em `(terreiros)/_layout.tsx`. `app/(app)/terreiro.tsx` **não** é dead code.
+
+### Resultado da investigação (decisões 6.5)
+
+- **`app/(app)/terreiro.tsx` — NÃO é dead code.** É o arquivo de rota da URL `/terreiro`, que renderiza `TerreiroBiblioteca` (`export default TerreiroBiblioteca`). Referenciado por 8+ sites de navegação + redirect de boot. O commit `cccb401` removeu outro `Terreiro.tsx` (componente antigo), não este alias. **Manter.** Renomear para `terreiro-biblioteca.tsx` mudaria a URL — não vale.
+- **`detachPreviousScreen` — stale confirmado, remover.** O stack `(terreiros)/` contém só `index.tsx`; as rotas `terreiro` e `collection/[id]` da condição vivem no nível `(app)`, então a condição nunca casa. Órfã da migração `3d2668a`. No-op — remover por clareza.
+- **Topologia confirmada limpa:** cada stack de aba tem só seu index; todas as telas fullscreen no nível `(app)`.
 
 ### Pré-requisito de validação
 
