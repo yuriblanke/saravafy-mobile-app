@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { useScreenBack } from "@/src/hooks/useScreenBack";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
@@ -176,14 +177,6 @@ export default function TerreiroBiblioteca() {
       ? params.terreiroId
       : "";
 
-  const from =
-    Array.isArray(params.from) && params.from.length > 0
-      ? params.from[0]
-      : typeof params.from === "string"
-      ? params.from
-      : "";
-
-  const returnTo = typeof from === "string" ? from.trim() : "";
 
   const insets = useGlobalSafeAreaInsets();
   const safeAreaInsets = useSafeAreaInsets();
@@ -258,12 +251,11 @@ export default function TerreiroBiblioteca() {
   const canEdit =
     membership.isActiveMember && (myRole === "admin" || myRole === "curimba");
 
-  // Se não tiver terreiroId e não for bootStart, mantém o comportamento atual de fallback.
   useEffect(() => {
     if (terreiroId) return;
     if (params.bootStart === "1") return;
 
-    router.replace((returnTo || "/(app)/(tabs)/(pontos)") as any);
+    router.replace("/(app)/(tabs)/(pontos)" as any);
   }, [params.bootStart, router, terreiroId]);
 
   // Boot offline: se abrimos via snapshot e o fetch falhar, volta para Pontos.
@@ -274,7 +266,7 @@ export default function TerreiroBiblioteca() {
     if (!collectionsQuery.isError) return;
 
     clearStartPageSnapshotOnly().catch(() => undefined);
-    router.replace((returnTo || "/(app)/(tabs)/(pontos)") as any);
+    router.replace("/(app)/(tabs)/(pontos)" as any);
   }, [
     clearStartPageSnapshotOnly,
     collectionsQuery.isError,
@@ -566,25 +558,7 @@ export default function TerreiroBiblioteca() {
     },
   });
 
-  const goBack = useCallback(() => {
-    if (returnTo) {
-      router.replace(returnTo as any);
-      return;
-    }
-
-    router.back();
-  }, [returnTo, router]);
-
-  useEffect(() => {
-    if (!returnTo) return;
-
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      router.replace(returnTo as any);
-      return true;
-    });
-
-    return () => sub.remove();
-  }, [returnTo, router]);
+  const goBack = useScreenBack("/(app)/(tabs)/(terreiros)" as any);
 
   // --- Biblioteca (ordenação + ações) ---
   const accentColor = colors.brass600;

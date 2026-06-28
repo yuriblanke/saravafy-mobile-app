@@ -587,7 +587,6 @@ export default function Terreiros() {
                         params: {
                           terreiroId: item.id,
                           terreiroTitle: name,
-                          from: "/(app)/(tabs)/(terreiros)",
                         },
                       });
                     }}

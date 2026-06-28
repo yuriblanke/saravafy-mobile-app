@@ -289,7 +289,6 @@ export function TerreirosSection({ variant, onOpenActions }: Props) {
                     params: {
                       terreiroId: t.id,
                       terreiroTitle: t.title,
-                      from: "/preferences",
                     },
                   });
                 }}

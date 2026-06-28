@@ -691,13 +691,16 @@ export function InviteGate() {
     };
   }, [normalizedUserEmail]);
 
-  // Block Android back while modal is visible.
+  // Android back while modal is visible: dismiss the invite (same as "decidir depois").
   useEffect(() => {
     if (!isModalVisible) return;
 
-    const sub = BackHandler.addEventListener("hardwareBackPress", () => true);
+    const sub = BackHandler.addEventListener("hardwareBackPress", () => {
+      closeModalNoSideEffects();
+      return true;
+    });
     return () => sub.remove();
-  }, [isModalVisible]);
+  }, [isModalVisible, closeModalNoSideEffects]);
 
   const onPressBannerCta = useCallback(async () => {
     if (!userId || !normalizedUserEmail) return;
