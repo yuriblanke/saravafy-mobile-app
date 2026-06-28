@@ -1,8 +1,9 @@
 import { getErrorMessage } from "@/src/utils/errors";
+import { getLyricsPreview } from "@/src/utils/format";
 import type { PontoVersaoPlayerRow } from "@/src/queries/pontoVersoes";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
-export { getErrorMessage };
+export { getErrorMessage, getLyricsPreview };
 
 export type ListPonto = {
   id: string;
@@ -49,18 +50,6 @@ export function versaoCardTitle(
       ? versao.title.trim()
       : null;
   return t ?? pontoTitle;
-}
-
-export function getLyricsPreview(lyrics: string, maxLines = 6) {
-  const lines = String(lyrics ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-
-  const previewLines = lines.slice(0, maxLines);
-  const preview = previewLines.join("\n");
-  if (lines.length > maxLines) return `${preview}\n…`;
-  return preview;
 }
 
 export function coerceStringArray(value: unknown): string[] {

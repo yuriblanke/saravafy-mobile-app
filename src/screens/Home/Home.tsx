@@ -1,5 +1,5 @@
 import { getErrorMessage } from "@/src/utils/errors";
-import { normalizeSearch } from "@/src/utils/format";
+import { getLyricsPreview, normalizeSearch } from "@/src/utils/format";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCuratorMode } from "@/contexts/CuratorModeContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
@@ -105,19 +105,6 @@ export function matchesQuery(point: Ponto, query: string) {
     return true;
   }
   return false;
-}
-
-export function getLyricsPreview(lyrics: string, maxLines = 6) {
-  const lines = lyrics
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const previewLines = lines.slice(0, maxLines);
-  const preview = previewLines.join("\n");
-  if (lines.length > maxLines) {
-    return `${preview}\n…`;
-  }
-  return preview;
 }
 
 export default function Home() {

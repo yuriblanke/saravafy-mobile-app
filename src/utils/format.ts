@@ -52,3 +52,12 @@ export function normalizeEmail(value: string): string {
 export function normalizeSearch(value: string): string {
   return String(value ?? "").trim().toLowerCase();
 }
+
+export function getLyricsPreview(lyrics: string, maxLines = 6): string {
+  const lines = lyrics
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const preview = lines.slice(0, maxLines).join("\n");
+  return lines.length > maxLines ? `${preview}\n…` : preview;
+}

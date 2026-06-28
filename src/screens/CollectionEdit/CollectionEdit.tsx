@@ -14,20 +14,10 @@ import {
     EditOrderScreenBase,
     type EditOrderItem,
 } from "@/src/screens/EditOrderScreenBase/EditOrderScreenBase";
+import { getLyricsPreview } from "@/src/utils/format";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-
-function getLyricsPreview(lyrics: string, maxLines = 2) {
-  const lines = String(lyrics ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const previewLines = lines.slice(0, maxLines);
-  const preview = previewLines.join("\n");
-  if (lines.length > maxLines) return `${preview}\n…`;
-  return preview;
-}
 
 async function saveCollectionPontosDraft(params: {
   collectionId: string;

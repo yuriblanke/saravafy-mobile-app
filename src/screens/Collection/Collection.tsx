@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabControllerOptional } from "@/contexts/TabControllerContext";
 import { getErrorMessage } from "@/src/utils/errors";
+import { getLyricsPreview } from "@/src/utils/format";
 import { useScreenBack } from "@/src/hooks/useScreenBack";
 import { supabase } from "@/lib/supabase";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
@@ -82,17 +83,6 @@ function isColumnMissingError(error: unknown, columnName: string) {
     m.includes(columnName.toLowerCase()) &&
     (m.includes("does not exist") || m.includes("column"))
   );
-}
-
-function getLyricsPreview(lyrics: string, maxLines = 4) {
-  const lines = String(lyrics ?? "")
-    .split("\n")
-    .map((l) => l.trim())
-    .filter(Boolean);
-  const previewLines = lines.slice(0, maxLines);
-  const preview = previewLines.join("\n");
-  if (lines.length > maxLines) return `${preview}\n…`;
-  return preview;
 }
 
 export default function Collection() {
