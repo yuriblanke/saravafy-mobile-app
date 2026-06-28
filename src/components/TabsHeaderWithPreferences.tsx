@@ -44,7 +44,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
-import { normalizeEmail, getInitials as _getInitials } from "@/src/utils/format";
+import {
+  getDisplayName as _getDisplayName,
+  getInitials as _getInitials,
+  normalizeEmail,
+} from "@/src/utils/format";
 import React, { useEffect, useMemo, useState } from "react";
 import {
     Alert,
@@ -60,14 +64,7 @@ import {
 } from "react-native";
 
 const getInitials = (v?: string | null) => _getInitials(v, "YB");
-
-function getDisplayName(value: string | undefined) {
-  if (!value) return "Usuário";
-  const raw = value.trim();
-  if (!raw) return "Usuário";
-  if (raw.includes("@")) return raw.split("@")[0];
-  return raw;
-}
+const getDisplayName = (v?: string) => _getDisplayName(v, "Usuário");
 
 function getCompactTerreiroInviteRoleLabel(role: any): string | null {
   switch (role) {

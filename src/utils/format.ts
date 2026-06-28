@@ -17,9 +17,12 @@ export function getInitials(
   return (parts[0][0] + parts[1][0]).toUpperCase();
 }
 
-export function getDisplayName(value: string | undefined): string {
+export function getDisplayName(
+  value: string | undefined,
+  fallback = "Você"
+): string {
   const raw = String(value ?? "").trim();
-  if (!raw) return "Você";
+  if (!raw) return fallback;
   const at = raw.indexOf("@");
   if (at > 0) return raw.slice(0, at);
   return raw;
