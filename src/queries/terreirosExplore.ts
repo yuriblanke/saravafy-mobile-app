@@ -1,3 +1,4 @@
+import { isColumnMissingError } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 
@@ -8,22 +9,6 @@ export type ExploreTerreiro = {
   title: string;
   coverImageUrl?: string | null;
 };
-
-function isColumnMissingError(error: unknown, columnName: string) {
-  const msg =
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
-
-  const m = msg.toLowerCase();
-  return (
-    m.includes(columnName.toLowerCase()) &&
-    (m.includes("does not exist") || m.includes("column"))
-  );
-}
 
 export async function fetchExploreTerreiros(params: { limit: number }) {
   const { limit } = params;

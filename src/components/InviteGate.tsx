@@ -19,6 +19,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useInviteGates } from "@/contexts/InviteGatesContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
+import { isColumnMissingError } from "@/src/utils/errors";
 import { rpcTerreiroInvite } from "@/src/components/inviteGateApi";
 import { Badge } from "@/src/components/Badge";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
@@ -55,14 +56,6 @@ function normalizeInviteRole(role: unknown): InviteRole | null {
   const r = typeof role === "string" ? role.trim().toLowerCase() : "";
   if (r === "admin" || r === "curimba" || r === "member") return r;
   return null;
-}
-
-function isColumnMissingError(message: string, columnName: string) {
-  const m = String(message ?? "");
-  return (
-    m.includes(columnName) &&
-    (m.includes("does not exist") || m.includes("column"))
-  );
 }
 
 type InviteGateDebug = {
@@ -327,7 +320,7 @@ export function InviteGate() {
           .eq("email", normalizedUserEmail)
           .order("created_at", { ascending: true });
 
-        if (res.error && isColumnMissingError(res.error.message, "title")) {
+        if (res.error && isColumnMissingError(res.error, "title")) {
           res = await supabase
             .from("terreiro_invites")
             .select(selectWithName)

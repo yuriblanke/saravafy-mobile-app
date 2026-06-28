@@ -1,3 +1,4 @@
+import { isColumnMissingError } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import { isOffline } from "@/src/offline/networkCheck";
 import { getPackage } from "@/src/offline/terreiroPackage";
@@ -33,18 +34,6 @@ async function withTimeout<T>(
   }
 }
 
-function isMissingColumnError(error: unknown, columnName: string) {
-  const message =
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
-
-  return message.includes(columnName) && message.includes("does not exist");
-}
-
 export async function fetchCollectionsByTerreiro(
   terreiroId: string
 ): Promise<TerreiroCollectionCard[]> {
@@ -75,7 +64,7 @@ export async function fetchCollectionsByTerreiro(
 
   // Compat: se description não existe (schema legado), refaz sem ela.
   const finalRes: any =
-    res.error && isMissingColumnError(res.error, "description")
+    res.error && isColumnMissingError(res.error, "description")
       ? await withTimeout(
           supabase
             .from("collections")

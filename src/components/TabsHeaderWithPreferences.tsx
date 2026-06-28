@@ -44,6 +44,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import * as Haptics from "expo-haptics";
 import { usePathname, useRouter, useSegments } from "expo-router";
+import { isColumnMissingError } from "@/src/utils/errors";
 import {
   getDisplayName as _getDisplayName,
   getInitials as _getInitials,
@@ -83,14 +84,6 @@ type PendingCuratorInvite = {
   id: string;
   created_at: string;
 };
-
-function isColumnMissingError(message: string, columnName: string) {
-  const m = String(message ?? "");
-  return (
-    m.includes(columnName) &&
-    (m.includes("does not exist") || m.includes("column"))
-  );
-}
 
 function isRpcFunctionParamMismatch(error: unknown, paramName: string) {
   const anyErr = error as any;
@@ -831,7 +824,7 @@ export function PreferencesOverlaySheets(
         .eq("role", "admin")
         .eq("status", "active");
 
-      if (res.error && isColumnMissingError(res.error.message, "status")) {
+      if (res.error && isColumnMissingError(res.error, "status")) {
         res = await supabase
           .from("terreiro_members")
           .select("user_id", { count: "exact", head: true })

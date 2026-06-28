@@ -1,3 +1,4 @@
+import { isColumnMissingError } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import {
   normalizeTerreiroMemberKind,
@@ -18,16 +19,6 @@ export type PendingTerreiroInvite = {
   terreiro_title?: string | null;
   member_kind?: TerreiroMemberKind | null;
 };
-
-function isColumnMissingError(message: string, columnName: string) {
-  const m = String(message ?? "");
-  const lower = m.toLowerCase();
-  const col = columnName.toLowerCase();
-  return (
-    lower.includes(col) &&
-    (lower.includes("does not exist") || lower.includes("column"))
-  );
-}
 
 export async function fetchPendingTerreiroInvitesForInvitee(
   normalizedEmail: string
@@ -52,7 +43,7 @@ export async function fetchPendingTerreiroInvitesForInvitee(
     .eq("email", normalizedEmail)
     .order("created_at", { ascending: true });
 
-  if (res.error && isColumnMissingError(res.error.message, "title")) {
+  if (res.error && isColumnMissingError(res.error, "title")) {
     useName = true;
     res = await supabase
       .from("terreiro_invites")
@@ -62,7 +53,7 @@ export async function fetchPendingTerreiroInvitesForInvitee(
       .order("created_at", { ascending: true });
   }
 
-  if (res.error && isColumnMissingError(res.error.message, "member_kind")) {
+  if (res.error && isColumnMissingError(res.error, "member_kind")) {
     includeMemberKind = false;
     res = await supabase
       .from("terreiro_invites")
@@ -74,7 +65,7 @@ export async function fetchPendingTerreiroInvitesForInvitee(
     if (
       res.error &&
       !useName &&
-      isColumnMissingError(res.error.message, "title")
+      isColumnMissingError(res.error, "title")
     ) {
       useName = true;
       res = await supabase

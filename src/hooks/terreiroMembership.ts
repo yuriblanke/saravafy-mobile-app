@@ -8,7 +8,10 @@ import {
   type PublicProfile,
 } from "@/src/features/identity/resolveProfiles";
 import { queryKeys } from "@/src/queries/queryKeys";
-import { getErrorMessage as baseGetErrorMessage } from "@/src/utils/errors";
+import {
+  getErrorMessage as baseGetErrorMessage,
+  isColumnMissingError,
+} from "@/src/utils/errors";
 import { normalizeEmail } from "@/src/utils/format";
 
 export type TerreiroMemberKind = "corrente" | "assistencia";
@@ -28,22 +31,6 @@ function getErrorMessage(e: unknown): string {
     return "Não é possível remover o último admin";
   }
   return msg;
-}
-
-function isColumnMissingError(error: unknown, columnName: string) {
-  const msg =
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
-
-  const m = msg.toLowerCase();
-  return (
-    m.includes(columnName.toLowerCase()) &&
-    (m.includes("does not exist") || m.includes("column"))
-  );
 }
 
 function isDuplicateKeyError(error: unknown) {

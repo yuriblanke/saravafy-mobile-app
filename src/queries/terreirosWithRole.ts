@@ -1,3 +1,4 @@
+import { isColumnMissingError } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import { isOffline } from "@/src/offline/networkCheck";
 import { listPackages } from "@/src/offline/terreiroPackage";
@@ -65,21 +66,6 @@ function isTerreiroMembersPolicyRecursionError(error: unknown) {
   return (
     m.includes("infinite recursion detected in policy") &&
     m.includes('relation "terreiro_members"')
-  );
-}
-
-function isColumnMissingError(error: unknown, columnName: string) {
-  const message =
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
-
-  return (
-    message.includes(columnName) &&
-    (message.includes("does not exist") || message.includes("column"))
   );
 }
 

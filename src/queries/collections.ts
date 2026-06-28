@@ -1,4 +1,4 @@
-import { getErrorMessage } from "@/src/utils/errors";
+import { getErrorMessage, isColumnMissingError } from "@/src/utils/errors";
 import { supabase } from "@/lib/supabase";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { queryKeys } from "./queryKeys";
@@ -15,22 +15,6 @@ export type AccountableCollection = {
 
 export type EditableCollection = AccountableCollection;
 
-
-function isColumnMissingError(error: unknown, columnName: string) {
-  const msg =
-    error &&
-    typeof error === "object" &&
-    "message" in error &&
-    typeof (error as { message?: unknown }).message === "string"
-      ? (error as { message: string }).message
-      : "";
-
-  const m = msg.toLowerCase();
-  return (
-    m.includes(columnName.toLowerCase()) &&
-    (m.includes("does not exist") || m.includes("column"))
-  );
-}
 
 function hashIds(ids: readonly string[]): string {
   // Hash estável e curto para evitar queryKey gigantes.

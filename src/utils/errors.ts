@@ -20,6 +20,23 @@ export function safeJsonForLog(value: unknown, maxLen = 4000): string {
   }
 }
 
+export function isColumnMissingError(
+  error: unknown,
+  columnName: string
+): boolean {
+  const raw =
+    error &&
+    typeof error === "object" &&
+    "message" in error &&
+    typeof (error as { message?: unknown }).message === "string"
+      ? (error as { message: string }).message
+      : "";
+
+  const m = raw.toLowerCase();
+  const col = columnName.toLowerCase();
+  return m.includes(col) && (m.includes("does not exist") || m.includes("column"));
+}
+
 export function serializeErrorForLog(error: unknown): Record<string, unknown> {
   const e = error as any;
   return {
