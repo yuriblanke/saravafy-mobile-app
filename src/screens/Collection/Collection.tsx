@@ -1,10 +1,10 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useTabControllerOptional } from "@/contexts/TabControllerContext";
-import { getErrorMessage, isColumnMissingError } from "@/src/utils/errors";
+import { getErrorMessage } from "@/src/utils/errors";
 import { getLyricsPreview } from "@/src/utils/format";
 import { useScreenBack } from "@/src/hooks/useScreenBack";
-import { supabase } from "@/lib/supabase";
+import { useScrollHeaderAnimation } from "@/src/hooks/useScrollHeaderAnimation";
 import { AddMediumTagSheet } from "@/src/components/AddMediumTagSheet";
 import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
 import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
@@ -20,7 +20,6 @@ import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
-import { queryKeys } from "@/src/queries/queryKeys";
 import { useTerreiroPontosCustomTagsMap } from "@/src/queries/terreiroPontoCustomTags";
 import { CollectionNameDetailsSheet } from "@/src/screens/Collection/CollectionNameDetailsSheet";
 import {
@@ -28,11 +27,12 @@ import {
   putCollectionEditDraft,
 } from "@/src/screens/CollectionEdit/draftStore";
 import { useCollectionPlayerData } from "@/src/screens/Player/hooks/useCollectionPlayerData";
+import { useCollectionData } from "@/src/screens/Collection/hooks/useCollectionData";
+import { useCollectionMutations } from "@/src/screens/Collection/hooks/useCollectionMutations";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForColecao } from "@/src/utils/shareContent";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
-import { useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter, useSegments } from "expo-router";
 import React, {
@@ -56,17 +56,6 @@ import {
 } from "react-native";
 import { hexToRgba } from "@/src/utils/color";
 
-type CollectionRow = {
-  id: string;
-  title?: string | null;
-  description?: string | null;
-  owner_user_id?: string | null;
-  owner_terreiro_id?: string | null;
-  visibility?: string | null;
-  terreiro_title?: string | null;
-  terreiro_cover_image_url?: string | null;
-};
-
 
 
 export default function Collection() {
@@ -75,7 +64,6 @@ export default function Collection() {
   const tabController = useTabControllerOptional();
   const params = useLocalSearchParams();
   const { shouldBlockPress } = useGestureBlock();
-  const queryClient = useQueryClient();
 
   const { user } = useAuth();
   const { openLoginSheet } = useLoginPrompt();
@@ -116,24 +104,23 @@ export default function Collection() {
   const headerVisibleHeight = 52;
   const headerTotalHeight = headerVisibleHeight + (insets.top ?? 0);
 
-  const [collection, setCollection] = useState<CollectionRow | null>(null);
-  const [collectionLoading, setCollectionLoading] = useState(false);
-  const [collectionError, setCollectionError] = useState<string | null>(null);
+  const { collection, setCollection, collectionLoading, collectionError, loadCollection } =
+    useCollectionData(collectionId);
 
-  const [isNameDetailsOpen, setIsNameDetailsOpen] = useState(false);
-  const [isSavingNameDetails, setIsSavingNameDetails] = useState(false);
-  const [isDeletingCollection, setIsDeletingCollection] = useState(false);
-
-  const [h1Height, setH1Height] = useState<number | null>(null);
-  const [titleBlockY, setTitleBlockY] = useState<number | null>(null);
-  const [terreiroRowY, setTerreiroRowY] = useState<number | null>(null);
-  const [actionsBottomY, setActionsBottomY] = useState<number | null>(null);
-  const [pontosTopY, setPontosTopY] = useState<number | null>(null);
-  const headerTitleOpacity = useRef(new Animated.Value(0)).current;
-  const headerTitleVisibleRef = useRef(false);
-  const [isHeaderTitleVisible, setIsHeaderTitleVisible] = useState(false);
-  const headerGradientOpacity = useRef(new Animated.Value(0)).current;
-  const headerGradientVisibleRef = useRef(false);
+  const {
+    setH1Height,
+    setTitleBlockY,
+    setTerreiroRowY,
+    setActionsBottomY,
+    setPontosTopY,
+    isHeaderTitleVisible,
+    headerTitleOpacity,
+    headerGradientOpacity,
+    headerBackdropOpacity,
+    titleShareOpacity,
+    topGradientHeight,
+    onScroll,
+  } = useScrollHeaderAnimation({ headerTotalHeight });
 
   const isInTabs = segments.includes("(tabs)");
   const goToPontosTab = useCallback(() => {
@@ -260,90 +247,6 @@ export default function Collection() {
     if (mediumTargetPontoId) setMediumTargetPontoId(null);
     if (deleteTarget) setDeleteTarget(null);
   }, [canEditCustomTags, deleteTarget, mediumTargetPontoId]);
-  const loadCollection = useCallback(async () => {
-    if (!collectionId) {
-      setCollection(null);
-      setCollectionError("Collection inválida.");
-      return;
-    }
-
-    setCollectionLoading(true);
-    setCollectionError(null);
-
-    try {
-      const baseSelect =
-        "id, title, description, owner_terreiro_id, owner_user_id, visibility, terreiros:owner_terreiro_id (title, cover_image_url)";
-
-      const res: any = await supabase
-        .from("collections")
-        .select(baseSelect)
-        .eq("id", collectionId)
-        .single();
-
-      const finalRes: any =
-        res.error && isColumnMissingError(res.error, "description")
-          ? await supabase
-              .from("collections")
-              .select(
-                "id, title, owner_terreiro_id, owner_user_id, visibility, terreiros:owner_terreiro_id (title, cover_image_url)"
-              )
-              .eq("id", collectionId)
-              .single()
-          : res;
-
-      if (finalRes.error) {
-        const anyErr = finalRes.error as any;
-        const message =
-          typeof anyErr?.message === "string" && anyErr.message.trim()
-            ? anyErr.message
-            : "Erro ao carregar a collection.";
-        const extra = [anyErr?.code, anyErr?.details, anyErr?.hint]
-          .filter((v) => typeof v === "string" && v.trim().length > 0)
-          .join(" | ");
-        throw new Error(extra ? `${message} (${extra})` : message);
-      }
-
-      const row = (finalRes.data ?? null) as any;
-      const terreiroTitle =
-        typeof row?.terreiros?.title === "string" ? row.terreiros.title : null;
-      const terreiroCover =
-        typeof row?.terreiros?.cover_image_url === "string"
-          ? row.terreiros.cover_image_url
-          : null;
-
-      setCollection({
-        id: String(row?.id ?? ""),
-        title: typeof row?.title === "string" ? row.title : null,
-        description:
-          typeof row?.description === "string" ? row.description : null,
-        owner_terreiro_id:
-          typeof row?.owner_terreiro_id === "string"
-            ? row.owner_terreiro_id
-            : null,
-        owner_user_id:
-          typeof row?.owner_user_id === "string" ? row.owner_user_id : null,
-        visibility: typeof row?.visibility === "string" ? row.visibility : null,
-        terreiro_title: terreiroTitle,
-        terreiro_cover_image_url: terreiroCover,
-      });
-    } catch (e) {
-      if (__DEV__) {
-        console.info("[Collection] erro ao carregar collection", {
-          collectionId,
-          error: getErrorMessage(e),
-          raw: e,
-        });
-      }
-      setCollection(null);
-      setCollectionError(getErrorMessage(e));
-    } finally {
-      setCollectionLoading(false);
-    }
-  }, [collectionId]);
-
-  useEffect(() => {
-    loadCollection();
-  }, [loadCollection]);
 
   useFocusEffect(
     useCallback(() => {
@@ -376,6 +279,26 @@ export default function Collection() {
     (!!terreiroId &&
       membership.data.isActiveMember &&
       (myRole === "admin" || myRole === "curimba"));
+
+  const {
+    isNameDetailsOpen,
+    openNameDetails,
+    closeNameDetails,
+    isSavingNameDetails,
+    isDeletingCollection,
+    saveNameDetails,
+    deleteCollection,
+  } = useCollectionMutations({
+    collectionId,
+    collection,
+    canEditCollection,
+    userId: user?.id,
+    terreiroId,
+    showToast,
+    shouldBlockPress,
+    setCollection,
+    goBackFromCollection,
+  });
 
   const openEdit = useCallback(() => {
     if (!collectionId) return;
@@ -420,7 +343,7 @@ export default function Collection() {
         });
       }
 
-      message = `Olha essa coleção “${title}” no Saravafy.`;
+      message = `Olha essa coleção "${title}" no Saravafy.`;
     }
 
     try {
@@ -436,73 +359,10 @@ export default function Collection() {
 
   const hasCachedPontos = orderedItems.length > 0;
 
-  // Não bloquear UI com loading se já temos cache de pontos.
   const isLoading = (collectionLoading || pontosLoading) && !hasCachedPontos;
   const error = collectionError || pontosError;
 
   const pontosCountText = `${orderedItems.length} ponto(s)`;
-
-  const setHeaderTitleVisible = useCallback(
-    (visible: boolean) => {
-      if (headerTitleVisibleRef.current === visible) return;
-      headerTitleVisibleRef.current = visible;
-      setIsHeaderTitleVisible(visible);
-
-      // Comportamento assimétrico:
-      // - scroll -> header: anima (fica mais "Spotify")
-      // - header -> scroll: troca imediata (sem fade-out no header)
-      headerTitleOpacity.stopAnimation();
-      if (!visible) {
-        headerTitleOpacity.setValue(0);
-        return;
-      }
-
-      Animated.timing(headerTitleOpacity, {
-        toValue: 1,
-        duration: 160,
-        useNativeDriver: true,
-      }).start();
-    },
-    [headerTitleOpacity]
-  );
-
-  const titleShareOpacity = useMemo(() => {
-    return headerTitleOpacity.interpolate({
-      inputRange: [0, 1],
-      outputRange: [1, 0],
-      extrapolate: "clamp",
-    });
-  }, [headerTitleOpacity]);
-
-  const setHeaderGradientVisible = useCallback(
-    (visible: boolean) => {
-      if (headerGradientVisibleRef.current === visible) return;
-      headerGradientVisibleRef.current = visible;
-      Animated.timing(headerGradientOpacity, {
-        toValue: visible ? 1 : 0,
-        duration: 160,
-        useNativeDriver: true,
-      }).start();
-    },
-    [headerGradientOpacity]
-  );
-
-  const headerBackdropOpacity = useMemo(() => {
-    // Quando o header entra no modo "degradê", queremos limitar a transparência
-    // a no máximo 25% (ou seja, opacidade mínima de 0.75).
-    return headerGradientOpacity.interpolate({
-      inputRange: [0, 1],
-      outputRange: [0, 0.75],
-      extrapolate: "clamp",
-    });
-  }, [headerGradientOpacity]);
-
-  const topGradientHeight = useMemo(() => {
-    const h =
-      typeof pontosTopY === "number" && pontosTopY > 0 ? pontosTopY : 220;
-    // Mantém o degradê focado no topo e garante que ele "termine" antes da lista.
-    return Math.max(160, Math.min(360, h));
-  }, [pontosTopY]);
 
   const headerGoldColor =
     variant === "light" ? colors.brass500 : colors.brass600;
@@ -512,274 +372,6 @@ export default function Collection() {
       : isHeaderTitleVisible
       ? colors.paper50
       : textPrimary;
-
-  const terreiroRowTopY = useMemo(() => {
-    if (typeof titleBlockY !== "number" || typeof terreiroRowY !== "number") {
-      return null;
-    }
-    return titleBlockY + terreiroRowY;
-  }, [titleBlockY, terreiroRowY]);
-
-  const headerGradientThreshold = useMemo(() => {
-    // Breakpoint ideal: quando a linha do terreiro (avatar + nome) encosta no header.
-    // Isso evita sobreposição de texto quando o header ainda está transparente.
-    if (typeof terreiroRowTopY === "number" && terreiroRowTopY > 0) {
-      return Math.max(0, terreiroRowTopY - headerTotalHeight);
-    }
-
-    // Queremos ligar o degradê do header quando o degradê do topo
-    // já não estiver mais passando por trás do header.
-    const topGradientNoLongerBehindHeader = Math.max(
-      0,
-      topGradientHeight - headerTotalHeight
-    );
-
-    if (typeof actionsBottomY === "number" && actionsBottomY > 0) {
-      const actionsBottomReachedHeader = Math.max(
-        0,
-        actionsBottomY - headerTotalHeight
-      );
-      return Math.max(
-        actionsBottomReachedHeader,
-        topGradientNoLongerBehindHeader
-      );
-    }
-    const base = typeof h1Height === "number" && h1Height > 0 ? h1Height : 44;
-    const fallback = Math.max(0, base + headerVisibleHeight);
-    return Math.max(fallback, topGradientNoLongerBehindHeader);
-  }, [
-    actionsBottomY,
-    h1Height,
-    headerTotalHeight,
-    topGradientHeight,
-    terreiroRowTopY,
-  ]);
-
-  const onScroll = useCallback(
-    (y: number) => {
-      // Mostra o título pequeno no header apenas depois que o H1
-      // já "passou" visualmente do topo (tipo Spotify).
-      const base = typeof h1Height === "number" && h1Height > 0 ? h1Height : 44;
-      const threshold = Math.max(0, base - 8);
-      setHeaderTitleVisible(y >= threshold);
-
-      // Header fica transparente enquanto o degradê do topo ainda passa por trás.
-      // Quando o degradê do topo já não está mais atrás do header, o header assume
-      // um degradê próprio (continuação visual).
-      setHeaderGradientVisible(y >= headerGradientThreshold);
-    },
-    [
-      h1Height,
-      headerGradientThreshold,
-      setHeaderGradientVisible,
-      setHeaderTitleVisible,
-    ]
-  );
-
-  const openNameDetails = useCallback(() => {
-    setIsNameDetailsOpen(true);
-  }, []);
-
-  const saveNameDetails = useCallback(
-    async (next: { title: string; description: string }) => {
-      if (!collectionId) return;
-      if (shouldBlockPress()) return;
-
-      if (!canEditCollection) {
-        showToast("Você não tem permissão para editar esta coleção.");
-        return;
-      }
-
-      const nextTitle = String(next.title ?? "").trim();
-      if (nextTitle.length < 2) {
-        showToast("Nome muito curto.");
-        return;
-      }
-
-      setIsSavingNameDetails(true);
-
-      try {
-        const updatePayload: any = {
-          title: nextTitle,
-          description: String(next.description ?? ""),
-        };
-
-        let req: any = supabase
-          .from("collections")
-          .update(updatePayload)
-          .eq("id", collectionId);
-
-        // Guard extra para evitar deletar/alterar fora do escopo permitido.
-        if (user?.id && collection?.owner_user_id === user.id) {
-          req = req.eq("owner_user_id", user.id);
-        } else if (terreiroId) {
-          req = req.eq("owner_terreiro_id", terreiroId);
-        }
-
-        const res: any = await req.select("id, title, description").single();
-
-        // Compat: se coluna description não existe, re-tenta só com title.
-        if (res.error && isColumnMissingError(res.error, "description")) {
-          const res2: any = await supabase
-            .from("collections")
-            .update({ title: nextTitle })
-            .eq("id", collectionId)
-            .select("id, title")
-            .single();
-
-          if (res2.error) {
-            throw new Error(
-              typeof res2.error.message === "string" &&
-              res2.error.message.trim()
-                ? res2.error.message
-                : "Não foi possível salvar."
-            );
-          }
-
-          setCollection((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  title:
-                    typeof res2.data?.title === "string"
-                      ? res2.data.title
-                      : nextTitle,
-                }
-              : prev
-          );
-          showToast("Nome atualizado.");
-          setIsNameDetailsOpen(false);
-        } else {
-          if (res.error) {
-            throw new Error(
-              typeof res.error.message === "string" && res.error.message.trim()
-                ? res.error.message
-                : "Não foi possível salvar."
-            );
-          }
-
-          setCollection((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  title:
-                    typeof res.data?.title === "string"
-                      ? res.data.title
-                      : nextTitle,
-                  description:
-                    typeof res.data?.description === "string"
-                      ? res.data.description
-                      : String(next.description ?? ""),
-                }
-              : prev
-          );
-
-          showToast("Coleção atualizada.");
-          setIsNameDetailsOpen(false);
-        }
-
-        if (user?.id) {
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.collections.accountable(user.id),
-          });
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.collections.editableByUserPrefix(user.id),
-          });
-        }
-        if (terreiroId) {
-          queryClient.invalidateQueries({
-            queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
-          });
-        }
-      } catch (e) {
-        showToast(getErrorMessage(e));
-      } finally {
-        setIsSavingNameDetails(false);
-      }
-    },
-    [
-      canEditCollection,
-      collection?.owner_user_id,
-      collectionId,
-      queryClient,
-      shouldBlockPress,
-      showToast,
-      terreiroId,
-      user?.id,
-    ]
-  );
-
-  const deleteCollection = useCallback(async () => {
-    if (!collectionId) return;
-    if (shouldBlockPress()) return;
-
-    if (!canEditCollection) {
-      showToast("Você não tem permissão para apagar esta coleção.");
-      return;
-    }
-
-    setIsDeletingCollection(true);
-    try {
-      let req: any = supabase
-        .from("collections")
-        .delete()
-        .eq("id", collectionId);
-
-      if (user?.id && collection?.owner_user_id === user.id) {
-        req = req.eq("owner_user_id", user.id);
-      } else if (terreiroId) {
-        req = req.eq("owner_terreiro_id", terreiroId);
-      }
-
-      const res: any = await req;
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Não foi possível excluir a coleção."
-        );
-      }
-
-      if (user?.id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.accountable(user.id),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.editableByUserPrefix(user.id),
-        });
-      }
-      if (terreiroId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
-        });
-      }
-      queryClient.removeQueries({
-        queryKey: queryKeys.collections.byId(collectionId),
-      });
-      queryClient.removeQueries({
-        queryKey: queryKeys.collections.pontos(collectionId),
-      });
-
-      setIsNameDetailsOpen(false);
-      showToast("Coleção apagada.");
-      goBackFromCollection();
-    } catch (e) {
-      showToast(getErrorMessage(e));
-    } finally {
-      setIsDeletingCollection(false);
-    }
-  }, [
-    canEditCollection,
-    collection?.owner_user_id,
-    collectionId,
-    queryClient,
-    goBackFromCollection,
-    router,
-    shouldBlockPress,
-    showToast,
-    terreiroId,
-    user?.id,
-  ]);
 
   return (
     <View
@@ -879,7 +471,7 @@ export default function Collection() {
           canEdit={canEditCollection}
           isSaving={isSavingNameDetails}
           isDeleting={isDeletingCollection}
-          onClose={() => setIsNameDetailsOpen(false)}
+          onClose={closeNameDetails}
           onSave={(next) => {
             void saveNameDetails(next);
           }}
