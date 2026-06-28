@@ -1,7 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { useGestureBlock } from "@/contexts/GestureBlockContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { useCollectionsByTerreiroQuery } from "@/src/queries/terreirosCollections";
@@ -14,6 +13,7 @@ import {
   loadTerreiroLibraryOrder,
   saveTerreiroLibraryOrder,
 } from "@/src/utils/terreiroLibraryOrder";
+import { deleteCollectionFromTerreiro } from "./data/terreiroCollectionsEdit";
 import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -122,19 +122,7 @@ export default function EditTerreiroCollectionsScreen() {
 
       // Se houve remoções, refletimos no backend removendo as coleções.
       for (const id of removedIds) {
-        const res: any = await supabase
-          .from("collections")
-          .delete()
-          .eq("id", id)
-          .eq("owner_terreiro_id", terreiroId);
-
-        if (res.error) {
-          throw new Error(
-            typeof res.error.message === "string" && res.error.message.trim()
-              ? res.error.message
-              : "Não foi possível excluir a coleção."
-          );
-        }
+        await deleteCollectionFromTerreiro({ collectionId: id, terreiroId });
       }
 
       if (removedIds.length > 0) {

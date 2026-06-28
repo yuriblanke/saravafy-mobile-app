@@ -1,7 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
 import { useToast } from "@/contexts/ToastContext";
-import { supabase } from "@/lib/supabase";
 import { Badge } from "@/src/components/Badge";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { ConfirmModal } from "@/src/components/ConfirmModal";
@@ -33,6 +32,7 @@ import {
   View,
 } from "react-native";
 import { normalizeEmail as normalizeEmailLower, formatTimeAgo } from "@/src/utils/format";
+import { updateMemberRole } from "./data/accessManager";
 
 const fillerPng = require("@/assets/images/filler.png");
 
@@ -251,20 +251,7 @@ export default function AccessManager() {
         onConfirm: async () => {
           setIsConfirming(true);
           try {
-            const res = await supabase
-              .from("terreiro_members")
-              .update({ role: newRole })
-              .eq("terreiro_id", terreiroId)
-              .eq("user_id", member.userId);
-
-            if (res.error) {
-              throw new Error(
-                typeof res.error.message === "string"
-                  ? res.error.message
-                  : "Erro ao alterar papel"
-              );
-            }
-
+            await updateMemberRole({ terreiroId, userId: member.userId, role: newRole });
             showToast("Papel atualizado com sucesso");
             membersHook.reload();
 
