@@ -30,8 +30,10 @@ import {
 import { queryKeys } from "@/src/queries/queryKeys";
 import {
   useCollectionsByTerreiroQuery,
+  useTerreiroMembersCount,
   type TerreiroCollectionCard,
 } from "@/src/queries/terreirosCollections";
+import { useDeleteCollectionMutation } from "./hooks/useDeleteCollectionMutation";
 import { colors, spacing } from "@/src/theme";
 import { buildShareMessageForTerreiro } from "@/src/utils/shareContent";
 import {
@@ -39,7 +41,7 @@ import {
   loadTerreiroLibraryOrder,
 } from "@/src/utils/terreiroLibraryOrder";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, {
@@ -571,49 +573,7 @@ export default function TerreiroBiblioteca() {
     return n > 0 ? `${n} coleções` : "";
   }, [orderedCollections.length]);
 
-  const membersCountQuery = useQuery({
-    queryKey: terreiroId ? queryKeys.terreiroMembersCount(terreiroId) : [],
-    enabled: !!terreiroId,
-    staleTime: 60 * 1000,
-    gcTime: 5 * 60 * 1000,
-    queryFn: async () => {
-      if (!terreiroId) return null;
-
-      const res = await supabase.rpc("get_terreiro_members_count", {
-        p_terreiro_id: terreiroId,
-      });
-
-      if (res.error) {
-        if (__DEV__) {
-          console.info("[TerreiroBiblioteca] erro ao contar membros (rpc)", {
-            terreiroId,
-            error: res.error.message,
-          });
-        }
-        return null;
-      }
-
-      const data: any = res.data;
-      if (typeof data === "number" && Number.isFinite(data)) return data;
-      if (data && typeof data === "object" && typeof data.count === "number") {
-        return data.count;
-      }
-      if (Array.isArray(data) && data.length > 0) {
-        const first = data[0];
-        if (typeof first === "number" && Number.isFinite(first)) return first;
-        if (
-          first &&
-          typeof first === "object" &&
-          typeof (first as any).count === "number"
-        ) {
-          return (first as any).count;
-        }
-      }
-
-      return null;
-    },
-    placeholderData: (prev) => prev,
-  });
+  const membersCountQuery = useTerreiroMembersCount(terreiroId);
 
   const membersCountText = useMemo(() => {
     if (!terreiroId) return null as string | null;
@@ -664,94 +624,10 @@ export default function TerreiroBiblioteca() {
     setCollectionPendingDelete(null);
   };
 
-  const deleteCollectionMutation = useMutation({
-    mutationFn: async (collection: TerreiroCollectionCard) => {
-      const res = await supabase.rpc("delete_collection", {
-        p_collection_id: collection.id,
-      });
-
-      if (res.error) {
-        throw new Error(
-          typeof res.error.message === "string" && res.error.message.trim()
-            ? res.error.message
-            : "Não foi possível excluir a coleção."
-        );
-      }
-
-      const data: any = res.data;
-      const ok =
-        data === true ||
-        (data && typeof data === "object" && "ok" in data && data.ok === true);
-
-      if (!ok) {
-        const message =
-          data &&
-          typeof data === "object" &&
-          typeof data.error === "string" &&
-          data.error.trim()
-            ? data.error
-            : "Não foi possível excluir a coleção.";
-        throw new Error(message);
-      }
-
-      return { id: collection.id };
-    },
-    onMutate: async (vars) => {
-      if (!terreiroId) return null;
-
-      const filters = [
-        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-      ];
-
-      await cancelQueries(queryClient, filters);
-      const snapshot = snapshotQueries(queryClient, filters);
-
-      setQueriesDataSafe<TerreiroCollectionCard[]>(
-        queryClient,
-        { queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId) },
-        (old) => removeById(old ?? [], vars.id)
-      );
-
-      return { snapshot, id: vars.id };
-    },
-    onError: (err, vars, ctx) => {
-      if (ctx?.snapshot) rollbackQueries(queryClient, ctx.snapshot);
-
-      if (__DEV__) {
-        console.info("[TerreiroBiblioteca] erro ao excluir coleção", {
-          error: err instanceof Error ? err.message : String(err),
-          id: vars?.id,
-        });
-      }
-
-      showToast(
-        err instanceof Error
-          ? err.message
-          : "Não foi possível excluir a coleção."
-      );
-    },
-    onSettled: (_data, _err, vars) => {
-      if (!terreiroId) return;
-
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.terreiros.collectionsByTerreiro(terreiroId),
-      });
-
-      if (vars?.id) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.byId(vars.id),
-        });
-      }
-
-      if (userId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.accountable(userId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.editableByUserPrefix(userId),
-        });
-      }
-    },
+  const deleteCollectionMutation = useDeleteCollectionMutation({
+    terreiroId,
+    userId,
+    showToast,
   });
 
   const deleteCollection = async (collection: TerreiroCollectionCard) => {

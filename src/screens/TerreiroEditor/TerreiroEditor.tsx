@@ -44,6 +44,7 @@ import * as ImageManipulator from "expo-image-manipulator";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { normalizeEmail } from "@/src/utils/format";
+import { useIbgeMunicipios } from "@/src/queries/ibge";
 
 type EditorMode = "create" | "edit";
 
@@ -138,29 +139,6 @@ const UF_OPTIONS = [
   { uf: "SE", label: "Sergipe" },
   { uf: "TO", label: "Tocantins" },
 ] as const;
-
-type IbgeMunicipio = { nome?: string };
-
-async function fetchIbgeMunicipiosByUf(uf: string) {
-  const safeUf = (uf ?? "").trim().toUpperCase();
-  if (!safeUf) return [];
-
-  const url = `https://servicodados.ibge.gov.br/api/v1/localidades/estados/${encodeURIComponent(
-    safeUf
-  )}/municipios?orderBy=nome`;
-
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`IBGE: não foi possível carregar cidades (${res.status}).`);
-  }
-
-  const data = (await res.json()) as unknown;
-  if (!Array.isArray(data)) return [];
-
-  return (data as IbgeMunicipio[])
-    .map((m) => (typeof m?.nome === "string" ? m.nome.trim() : ""))
-    .filter(Boolean);
-}
 
 function labelForUf(uf: string) {
   const match = UF_OPTIONS.find((o) => o.uf === uf);
@@ -669,9 +647,6 @@ export default function TerreiroEditor() {
   const [isInviteRoleModalOpen, setIsInviteRoleModalOpen] = useState(false);
   const [isRolesSheetOpen, setIsRolesSheetOpen] = useState(false);
 
-  const [citiesByUf, setCitiesByUf] = useState<Record<string, string[]>>({});
-  const [citiesLoadingUf, setCitiesLoadingUf] = useState<string | null>(null);
-
   const initialSnapshotRef = useRef<string | null>(null);
   const webpLocalUriRef = useRef<string | null>(null);
   const coverRemoveRequestedRef = useRef(false);
@@ -707,6 +682,8 @@ export default function TerreiroEditor() {
     if (!initialSnapshotRef.current) return false;
     return snapshotOf(form) !== initialSnapshotRef.current;
   }, [form]);
+
+  const ibgeMunicipios = useIbgeMunicipios(form.stateUF || null);
 
   const [adminLoading, setAdminLoading] = useState(false);
   const [members, setMembers] = useState<TerreiroMemberRow[]>([]);
@@ -1211,34 +1188,8 @@ export default function TerreiroEditor() {
     return () => sub.remove();
   }, [dirty, router, saving]);
 
-  const citiesForSelectedUf = form.stateUF
-    ? citiesByUf[form.stateUF] ?? []
-    : [];
-
-  const isCityLoading = !!form.stateUF && citiesLoadingUf === form.stateUF;
-
-  const ensureCitiesForUf = async (uf: string) => {
-    const safeUf = (uf ?? "").trim().toUpperCase();
-    if (!safeUf) return;
-
-    if (citiesByUf[safeUf]?.length) return;
-    if (citiesLoadingUf === safeUf) return;
-
-    setCitiesLoadingUf(safeUf);
-    try {
-      const cities = await fetchIbgeMunicipiosByUf(safeUf);
-      setCitiesByUf((prev) => ({ ...prev, [safeUf]: cities }));
-    } catch (e) {
-      Alert.alert(
-        "Erro",
-        e instanceof Error
-          ? e.message
-          : "Não foi possível carregar as cidades do IBGE."
-      );
-    } finally {
-      setCitiesLoadingUf((prev) => (prev === safeUf ? null : prev));
-    }
-  };
+  const citiesForSelectedUf = ibgeMunicipios.data ?? [];
+  const isCityLoading = ibgeMunicipios.isLoading || ibgeMunicipios.isFetching;
 
   const onCancel = () => {
     if (!dirty) {
@@ -1563,10 +1514,6 @@ export default function TerreiroEditor() {
       stateUF: next,
       city: prev.stateUF === next ? prev.city : "",
     }));
-
-    if (next) {
-      void ensureCitiesForUf(next);
-    }
   };
 
   const onChangeCity = (next: string) => {
@@ -1785,7 +1732,6 @@ export default function TerreiroEditor() {
             onPress={() => {
               if (!form.stateUF || saving) return;
               setIsCityModalOpen(true);
-              void ensureCitiesForUf(form.stateUF);
             }}
             style={({ pressed }) => [
               styles.selectField,

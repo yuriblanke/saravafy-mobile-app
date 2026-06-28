@@ -188,3 +188,37 @@ export async function prefetchCollectionsByTerreiro(
     queryFn: () => fetchCollectionsByTerreiro(terreiroId),
   });
 }
+
+export function useTerreiroMembersCount(terreiroId: string | null) {
+  return useQuery({
+    queryKey: terreiroId ? queryKeys.terreiroMembersCount(terreiroId) : [],
+    enabled: !!terreiroId,
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
+    queryFn: async () => {
+      if (!terreiroId) return null as number | null;
+
+      const res = await supabase.rpc("get_terreiro_members_count", {
+        p_terreiro_id: terreiroId,
+      });
+
+      if (res.error) return null;
+
+      const data: any = res.data;
+      if (typeof data === "number" && Number.isFinite(data)) return data;
+      if (data && typeof data === "object" && typeof data.count === "number") {
+        return data.count as number;
+      }
+      if (Array.isArray(data) && data.length > 0) {
+        const first = data[0];
+        if (typeof first === "number" && Number.isFinite(first)) return first;
+        if (first && typeof first === "object" && typeof (first as any).count === "number") {
+          return (first as any).count as number;
+        }
+      }
+
+      return null;
+    },
+  });
+}
