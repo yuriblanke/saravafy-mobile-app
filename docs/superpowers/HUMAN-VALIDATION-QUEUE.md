@@ -82,8 +82,8 @@ Origem: Spec 1 (`useTerreiroRole`), Spec 2a (add-to-collection).
 | 2.4 | Como **admin/curimba** do terreiro | Botões de editar tag aparecem | ✅ OK |
 | 2.5 | Como **membro comum** | Botões de editar tag **não** aparecem | ✅ OK |
 | 2.6 | Como **não-membro** | Nenhuma afordância de edição | ❌ vazamento de permissão — ver nota |
-| 2.7 | Menu → "Adicionar à coleção" | Abre direto na escolha de coleção (fase única, versão já selecionada) | ❌ botão nem aparece — ver nota |
-| 2.8 | Concluir adição pelo player | Ponto entra na coleção; toast de sucesso | ⏸️ bloqueado por 2.7 |
+| 2.7 | Menu → "Adicionar à coleção" | Abre direto na escolha de coleção (fase única, versão já selecionada) | 🔧 corrigido em código (`D9`) — pendente de teste manual, ver nota |
+| 2.8 | Concluir adição pelo player | Ponto entra na coleção; toast de sucesso | 🔧 desbloqueado por 2.7 (`D9`) — pendente de teste manual, ver nota |
 
 **Atenção 2.4–2.6:** gating agora vem de `useTerreiroRole().canEditCustomTags` em vez de checagem
 inline. Tem que dar exatamente o mesmo resultado de antes. Membro inativo/pendente **nunca** pode
@@ -105,6 +105,19 @@ ver edição.
 
 **Atenção 2.7:** o modal do player foi substituído pelo mesmo `AddToCollectionFlow` do Home, mas
 em modo fase-única. Se ele abrir pedindo pra escolher versão, está errado.
+
+> **2.7/2.8 — corrigido em código (`D9`), pendente de teste manual.** O botão e o mount de
+> `AddToCollectionFlow` estavam gated em `isLibraryPlayer` nos dois lugares; ambos foram
+> ungated (mantendo `requireAuth`), então o "+" agora deveria aparecer também no player aberto a
+> partir de uma coleção de terreiro. Retestar assim:
+>
+> 1. Abrir um ponto a partir de uma coleção de terreiro (não da biblioteca pública) → confirmar que
+>    o "+" aparece no header (2.7).
+> 2. Tocar o "+" → confirmar que abre direto na escolha de coleção, fase única, sem tela de versão.
+> 3. Concluir uma adição a partir desse contexto → ponto entra na coleção, toast de sucesso (2.8).
+> 4. Confirmar que o fluxo do player em modo biblioteca pública continua idêntico (sem regressão).
+> 5. Reteste `1.7` (duplicado): adicionar de novo o mesmo ponto/coleção → mensagem "Este ponto já
+>    estava na coleção", sem deixar o ponto duplicado na lista.
 
 ---
 
