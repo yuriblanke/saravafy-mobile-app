@@ -460,6 +460,53 @@ máximo de detalhe possível o que aparece no frame errado; é o que vai direcio
 
 ---
 
+## 7. Pull-to-refresh (novo)
+
+Origem: primeira implementação do gesto no app — nenhuma tela tinha `RefreshControl` antes disso.
+Seis telas ganharam o gesto, nesta ordem: Terreiros, Home, TerreiroMembers, ReviewQueue,
+TerreiroBiblioteca, Collection. Fora dessas seis, nenhuma outra tela foi tocada — sheets, Player,
+telas de reordenação e formulários continuam sem o gesto de propósito (ver notas do código).
+
+`refreshing` vem sempre de estado local (`isRefreshing`), nunca de `isFetching`/`isRefetching` do
+React Query — motivo: `TerreirosRealtimeSync` invalida `terreiros.withRole` sozinho em eventos de
+Postgres, então qualquer uma dessas duas flags acenderia o spinner sem ninguém ter puxado nada.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 7.1 | Terreiros: puxar a lista pra baixo com dados já na tela | Spinner aparece, some ao terminar, lista não pisca nem desmonta | |
+| 7.2 | Terreiros: puxar e soltar rápido, repetidamente | Sem spinner preso, sem crash | |
+| 7.3 | Home: puxar a lista principal de pontos pra baixo | Spinner aparece, lista atualiza (mesma fonte do carregamento inicial), sem pular pra tela de busca | |
+| 7.4 | TerreiroMembers: puxar com membros/convites/pedidos pendentes na tela | As três seções atualizam juntas; spinner some mesmo se alguma das três falhar | |
+| 7.5 | TerreiroMembers: conferir que o spinner não fica escondido atrás do header fixo | Spinner aparece abaixo do header, não por trás dele | |
+| 7.6 | ReviewQueue (como curador): puxar a fila de revisão | Spinner aparece, lista de envios pendentes atualiza | |
+| 7.7 | TerreiroBiblioteca: puxar a lista de coleções | Coleções, nome do terreiro e contagem de membros atualizam juntos; spinner some abaixo do header absoluto (`progressViewOffset`), não atrás dele | |
+| 7.8 | Collection: puxar a lista de pontos da coleção | Pontos e metadados da coleção (título/descrição) atualizam; spinner some abaixo do header absoluto, não atrás dele | |
+| 7.9 | **Puxar com o app em modo avião**, em qualquer uma das seis telas | O spinner aparece e **sempre** some sozinho (nunca fica girando pra sempre) mesmo o refetch falhando; o único aviso de "sem conexão" vem do banner global, não de um travamento na tela | |
+| 7.10 | **Eixo do gesto** — Home e Terreiros ficam dentro do swipe horizontal de abas (`material-top-tabs`). Testar nas duas: puxar pra baixo continua atualizando a lista, e arrastar pro lado continua trocando de aba, sem um gesto "roubar" o outro | Desambiguação por eixo funciona nos dois sentidos, sem gesto ambíguo nem troca de aba acidental durante o pull | |
+
+> **7.9 é o item mais importante desta seção.** A regra decidida foi **não bloquear o gesto
+> offline** — deixar o `refetch`/reload falhar e confiar no banner global de conectividade
+> (`OfflineBanner`) pra avisar o usuário, em vez de checar `useNetwork().isConnected` antes de
+> permitir o pull (esse campo faz default `true` antes do primeiro relatório do `NetInfo`, o que o
+> tornaria não confiável bem no boot). A segurança inteira desse comportamento depende do `finally
+> { setIsRefreshing(false) }` em cada handler — se aparecer um spinner preso em modo avião em
+> qualquer uma das seis telas, é bug, e é aqui que ele vai aparecer.
+>
+> **7.10 não é um risco novo — a investigação de escopo já descartou o suspeito óbvio.**
+> `AppTabSwipeOverlay`, o único dos quatro contexts de gesto que criava um `PanResponder` de tela
+> cheia (e que competiria de verdade com um `RefreshControl`), **não está montado** em lugar nenhum
+> do app (`docs/architecture/foundation.md:243`). O vizinho de gesto real é só o swipe nativo do
+> `material-top-tabs`, que desambigua por eixo — mas isso nunca foi confirmado num aparelho, daí o
+> item 7.10 aqui.
+>
+> **Isto desbloqueia os itens 4.2 e 4.3 desta mesma fila** (seção 4, Terreiros). Antes, confirmar o
+> comportamento anti-*flicker* do `<QueryBoundary>` exigia esperar >30s de `staleTime`, ligar modo
+> avião e sair/voltar da aba pra forçar um refetch em segundo plano. Com 7.1 confirmado, a recipe
+> vira simplesmente "puxar a lista de Terreiros pra baixo com dados na tela e observar se pisca" —
+> mais direto que a recipe de 5 passos que 4.3 ainda descreve.
+
+---
+
 ## Fora de escopo
 
 Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez de tentar consertar:
