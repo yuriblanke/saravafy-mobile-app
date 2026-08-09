@@ -76,18 +76,32 @@ Origem: Spec 1 (`useTerreiroRole`), Spec 2a (add-to-collection).
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 2.1 | Abrir player a partir de uma coleção de terreiro | Letra e áudio carregam | |
-| 2.2 | Tocar áudio | Playback funciona, footer responde | |
-| 2.3 | Navegar entre versões (‹ Versão N de N ›) | Título, letra e áudio trocam juntos | |
-| 2.4 | Como **admin/curimba** do terreiro | Botões de editar tag aparecem | |
-| 2.5 | Como **membro comum** | Botões de editar tag **não** aparecem | |
-| 2.6 | Como **não-membro** | Nenhuma afordância de edição | |
-| 2.7 | Menu → "Adicionar à coleção" | Abre direto na escolha de coleção (fase única, versão já selecionada) | |
-| 2.8 | Concluir adição pelo player | Ponto entra na coleção; toast de sucesso | |
+| 2.1 | Abrir player a partir de uma coleção de terreiro | Letra e áudio carregam | ✅ OK |
+| 2.2 | Tocar áudio | Playback funciona, footer responde | ✅ OK |
+| 2.3 | Navegar entre versões (‹ Versão N de N ›) | Título, letra e áudio trocam juntos | ✅ OK |
+| 2.4 | Como **admin/curimba** do terreiro | Botões de editar tag aparecem | ✅ OK |
+| 2.5 | Como **membro comum** | Botões de editar tag **não** aparecem | ✅ OK |
+| 2.6 | Como **não-membro** | Nenhuma afordância de edição | ❌ vazamento de permissão — ver nota |
+| 2.7 | Menu → "Adicionar à coleção" | Abre direto na escolha de coleção (fase única, versão já selecionada) | ❌ botão nem aparece — ver nota |
+| 2.8 | Concluir adição pelo player | Ponto entra na coleção; toast de sucesso | ⏸️ bloqueado por 2.7 |
 
 **Atenção 2.4–2.6:** gating agora vem de `useTerreiroRole().canEditCustomTags` em vez de checagem
 inline. Tem que dar exatamente o mesmo resultado de antes. Membro inativo/pendente **nunca** pode
 ver edição.
+
+> **2.6 — bug real, mecanismo confirmado no código, diferente do `D1` já catalogado.**
+> `useTerreiroMembershipStatus` usa `placeholderData: (prev) => prev` — ao deslogar, a consulta
+> nova (sem usuário) não busca nada, mas continua mostrando o resultado da consulta *anterior*
+> como placeholder. Todo botão gated por `canEditCustomTags` (e qualquer outro que use esse hook)
+> fica preso no cargo de antes do logout até a tela desmontar. Reproduz exatamente como você
+> testou: logar como admin/curimba → deslogar sem fechar o app → cargo antigo vaza pra visão de
+> visitante. Causa raiz e severidade: `D8` em [`BACKLOG.md`](BACKLOG.md), P0.
+>
+> **2.7 — confirmado bug pré-existente, não é regressão da Spec 2a.** O botão "+" só existe no
+> player em modo biblioteca pública (`isLibraryPlayer`); nunca existiu no player aberto a partir de
+> coleção de terreiro. **Decidido (2026-08-08): tratar como bug a corrigir**, não feature nova —
+> registrado como `D9` em [`BACKLOG.md`](BACKLOG.md), P0. 2.8 fica bloqueado até isso ser
+> corrigido.
 
 **Atenção 2.7:** o modal do player foi substituído pelo mesmo `AddToCollectionFlow` do Home, mas
 em modo fase-única. Se ele abrir pedindo pra escolher versão, está errado.
