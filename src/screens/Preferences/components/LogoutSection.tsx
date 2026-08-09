@@ -14,7 +14,7 @@ type Props = {
 };
 
 export function LogoutSection({ variant }: Props) {
-  const { signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const { showToast } = useToast();
 
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -38,6 +38,10 @@ export function LogoutSection({ variant }: Props) {
       setIsBusy(false);
     }
   }, [isBusy, showToast, signOut]);
+
+  if (!user) {
+    return null;
+  }
 
   return (
     <PreferencesSection title="Conta" variant={variant}>
