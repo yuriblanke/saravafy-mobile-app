@@ -176,14 +176,25 @@ default — see §4.2.
 
 - [ ] `npx tsc --noEmit` → **zero output**.
 - [ ] Test suite → **0 failures**.
-- [ ] `npm run android:dev` completes and the app launches (the native module actually builds).
+- [ ] `cd android && ./gradlew assembleDebug` → `BUILD SUCCESSFUL` (the native module links).
+      **Not** `npm run android:dev` — that never returns, so an agent invoking it hangs.
 - [ ] `grep -rn "filler" src/` shows **exactly 8 remaining usages** — the pilot's is gone, the
       others are untouched.
 - [ ] Backlog updated: `D14` recorded, pilot marked done, Spec 7 noted as blocked on human sign-off.
 
 ### Human DoD — the gate for Spec 7
 
-On the médium-tag sheet (Collection → add médium tag):
+**Requires a native rebuild** (`npm run android:dev`) — a JS reload cannot pick up a new native
+module, and the agent cannot run that command.
+
+First, before anything keyboard-related:
+- The app **launches without crashing** (Gradle proves the module links, not that it registers at
+  runtime under New Architecture).
+- **Provider inertness:** screens with inputs look exactly as before — no shifted insets, sheet
+  heights, or status bar. If anything moved, stop: a provider that changes layout on its own makes
+  every later observation unattributable.
+
+Then, on the médium-tag sheet (Collection → add médium tag):
 - Focus the input → it sits visible above the keyboard, no manual scrolling.
 - Try a third-party keyboard and/or one with the emoji row open — height variation is the entire
   point of the fix.

@@ -96,17 +96,35 @@ first.
 Spec §3.1 requires this — the fix rests on an assumption about what `ON CONFLICT DO NOTHING` returns
 through PostgREST, and client typings do not answer it.
 
-Use the Supabase MCP tools (or any available direct query path) against a scratch collection to
-confirm: **an upsert with `ignoreDuplicates: true` and `.select()` returns an empty array when the
-row already exists, and one row when it inserts.**
+The claim to verify: **an insert that conflicts returns no row, while one that succeeds returns
+one.**
 
-- If confirmed → proceed to Step 4.
-- If **not** confirmed → stop, record the actual behavior as a `> **DEVIATION:**` note in this plan,
-  and implement spec §3.1's documented fallback instead (a pre-check `select` before the insert,
+**Do not test this by inserting into `collections_pontos`.** Writing probe rows into a real app
+table — even in dev — leaves debris in someone's collection and risks tripping the position-unique
+retry for unrelated reasons. Use a throwaway table instead:
+
+```sql
+create table if not exists _probe_conflict (a int, b int, primary key (a, b));
+insert into _probe_conflict (a, b) values (1, 1) on conflict do nothing returning a;  -- expect 1 row
+insert into _probe_conflict (a, b) values (1, 1) on conflict do nothing returning a;  -- expect 0 rows
+drop table _probe_conflict;
+```
+
+Run it via the Supabase MCP tools if available. **Drop the table even if a step fails** — do not
+leave the probe behind.
+
+That settles the Postgres half with certainty. The residual question is whether supabase-js's
+`ignoreDuplicates: true` + `.select()` faithfully surfaces it through PostgREST. If you can exercise
+the real client path safely, do; otherwise treat that as covered by the human re-test of queue item
+1.7 and say so.
+
+- **Confirmed** → proceed to Step 4.
+- **Contradicted** → stop, record the actual behavior as a `> **DEVIATION:**` note here, and
+  implement spec §3.1's documented fallback instead (a pre-check `select` before the insert,
   accepting the extra round-trip and a benign race, since the insert stays idempotent either way).
-- If you cannot reach a database at all → say so plainly, implement the primary approach, and mark
-  the Agent DoD item as **unverified** rather than ticking it. Do not claim verification you did not
-  perform.
+- **No database reachable** → say so plainly, implement the primary approach, and leave the Agent
+  DoD item **unticked with a note**. Do not claim verification you did not perform; an honest gap
+  here is cheap, a false one is expensive.
 
 - [ ] **Step 4: Implement**
 

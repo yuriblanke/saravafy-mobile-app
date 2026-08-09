@@ -112,14 +112,22 @@ const memberRow = useMemo(() => {
 }, [membershipQuery.data, terreiroId, userId]);
 ```
 
-Then ensure `pendingRequestId` is `null` when `!userId` (~line 200) by the same reasoning:
+Then ensure `pendingRequestId` is `null` when `!userId` (~line 200) by the same reasoning — note the
+parentheses, since mixing `??` with a ternary is legal but reads ambiguously:
 
 ```ts
-const pendingRequestId = userId ? pendingQuery.data ?? null : null;
+const pendingRequestId = userId ? (pendingQuery.data ?? null) : null;
 ```
 
 Leave both `placeholderData: (prev) => prev` lines in place — spec §3.1 explains why removing them
 is the fallback, not the fix.
+
+> **Why this leak happens, so the fix isn't cargo-culted:** in React Query v5,
+> `placeholderData: (prev) => prev` is the replacement for `keepPreviousData`. When the query key
+> changes, the new query has no data of its own, so the previous query's data is served as a
+> placeholder. On logout the key changes (`userId` → `null` → `[]`) and `enabled` goes false, so it
+> never fetches anything fresh — and keeps handing back the previous session's rows indefinitely.
+> `enabled: false` does not clear a placeholder.
 
 - [ ] **Step 4: Verify**
 

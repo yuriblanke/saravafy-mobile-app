@@ -85,18 +85,27 @@ npx expo-doctor
 Compare against the known-issue list in [`../BACKLOG.md`](../BACKLOG.md) `P0.5` (`N1`–`N5`). New
 entries caused by this install must be resolved now or recorded; pre-existing ones stay as they are.
 
-- [ ] **Step 3: Prove the native module actually builds — before writing any UI code**
+- [ ] **Step 3: Prove the native module actually links — before writing any UI code**
 
 ```
-npm run android:dev
+cd android && ./gradlew assembleDebug
 ```
 
-Expected: the build completes and the app launches on the device.
+Expected: `BUILD SUCCESSFUL`.
 
-**This is a stop-and-report gate** (spec §6). If the module fails to build or the app crashes at
-launch under New Architecture, do not attempt workarounds, do not disable New Arch, do not pin an
-older version on your own initiative. Report the failure with the actual error output — the whole
-approach depends on this working, and a hack here would be worse than the filler.
+> **Do not use `npm run android:dev` here.** `expo run:android` builds, installs, launches, and then
+> **keeps Metro running in the foreground** — it never returns, so an agent invoking it hangs. Use
+> Gradle directly for the build gate: it terminates, and it is what actually compiles and packages
+> the new module's Android sources, which is what this gate is checking.
+
+A native module that is missing, incompatible, or misconfigured fails **here**. (A module that
+builds but fails to register at runtime under New Architecture would not be caught by Gradle —
+that is covered by the human launch check queued in Task 5.)
+
+**This is a stop-and-report gate** (spec §6). If the build fails, do not attempt workarounds, do not
+disable New Architecture, do not pin an older version on your own initiative. Report the failure
+with the actual Gradle output — the whole approach depends on this working, and a hack here would be
+worse than the filler.
 
 - [ ] **Step 4: Commit**
 
@@ -134,18 +143,26 @@ Wrap per the documented placement. This step adds the provider **only** — no s
 ```
 npx tsc --noEmit
 node node_modules/jest/bin/jest.js
-npm run android:dev
+cd android && ./gradlew assembleDebug
 ```
 
-Expected: **zero output**, **0 failures**, app launches.
+Expected: **zero output**, **0 failures**, `BUILD SUCCESSFUL`.
 
-- [ ] **Step 4: Confirm the provider alone is inert**
+- [ ] **Step 4: Queue the inertness check — you cannot perform it**
 
-Open the app and look at a couple of screens with inputs (Home search, the médium-tag sheet).
+Per spec §4.1, adding the provider must produce **no visible change** anywhere, since nothing has
+opted in yet. That is a claim about rendered layout, and **an agent cannot verify it** — no amount
+of `tsc` or Gradle output says whether insets shifted.
 
-Per spec §4.1, adding the provider must produce **no visible change**. If layout shifts anywhere —
-insets, sheet heights, status bar — **stop and report**. A provider that silently changes layout
-before anything opts in would make every later result unattributable.
+Append to [`../HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md), in the Spec 6 section, as
+the **first** item to check after the next rebuild:
+
+> Provider mounted, nothing opted in yet: Home, the médium-tag sheet, and any sheet with inputs
+> must look exactly as before — no shifted insets, sheet heights, or status bar. **If anything
+> moved, stop and report before trusting any later keyboard result** — a provider that changes
+> layout on its own would make every subsequent visual observation unattributable.
+
+**Commit regardless** — [`CONVENTIONS.md`](../CONVENTIONS.md) §4.
 
 - [ ] **Step 5: Commit**
 
@@ -169,6 +186,15 @@ results are attributable to the opt-in and not to this."
 
 Create `src/components/BottomSheet.test.tsx`. Model the harness on
 `src/components/QueryBoundary.test.tsx`, which already renders components in this repo.
+
+Harness notes, pre-checked so you don't rediscover them:
+- `BottomSheet` uses React Native's built-in `Animated` + `PanResponder`, **not** Reanimated — so no
+  Reanimated jest mock is needed (there is none configured, and none should be added for this).
+- It reads `useRootPagerOptional()`, which is optional by design and tolerates no provider.
+- It also calls `dismissAllTooltips` from `TooltipPopover` — mock that import if it drags in
+  anything awkward.
+- Pass `visible` — the component short-circuits when closed, and a test asserting on children of a
+  hidden sheet would pass vacuously.
 
 Three paths, and the **first one is the one that protects the other 8 screens**:
 
@@ -275,16 +301,24 @@ Leave every other file's filler alone. Task 6 verifies exactly that.
 ```
 npx tsc --noEmit
 node node_modules/jest/bin/jest.js
-npm run android:dev
+cd android && ./gradlew assembleDebug
 ```
 
-Expected: **zero output**, **0 failures**, app launches.
+Expected: **zero output**, **0 failures**, `BUILD SUCCESSFUL`.
 
 - [ ] **Step 5: Queue the human check — do not attempt to judge it yourself**
 
 Append a new section to [`../HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md), flagged
-clearly as **the gate for Spec 7**:
+clearly as **the gate for Spec 7**. Open it with the rebuild instruction, because this is the one
+spec whose changes cannot reach the device over a JS reload:
 
+> **Requires a native rebuild — run `npm run android:dev` yourself.** The agent cannot: that command
+> starts Metro in the foreground and never returns. The agent verified the build with
+> `./gradlew assembleDebug`; everything below needs the app actually running.
+
+- The app **launches without crashing** (Gradle proves the module links, not that it registers at
+  runtime under New Architecture).
+- The provider inertness check queued in Task 3 Step 4 — do this one **first**.
 - Collection → add médium tag → focus the input → the field sits above the keyboard with no manual
   scrolling.
 - Try a third-party keyboard, and/or open the emoji row — height variation is the entire point.
@@ -384,19 +418,35 @@ unstarted."
 
 **Why this plan is unusually cautious about verification:** it is the only one in this effort that
 adds a native module, and the only one whose correctness an agent genuinely cannot observe. `tsc`
-and Jest prove nothing about whether a keyboard covers a field. Hence the build gate in Task 2, the
-inertness check in Task 3, and the blast-radius grep in Task 6.
+and Jest prove nothing about whether a keyboard covers a field. Hence the Gradle gate in Task 2, the
+queued inertness check in Task 3, and the blast-radius grep in Task 6.
+
+**The agent/human split in this plan, stated plainly** — every item on the right is queued, never
+attempted:
+
+| Agent can verify | Only a human can verify |
+|---|---|
+| `tsc` clean, tests green | The app launches without crashing |
+| Native module **links** (`./gradlew assembleDebug`) | The provider changed no layout |
+| Exactly 8 fillers remain, 1 call site opted in | The field clears the keyboard |
+| | No leftover gap on dismiss |
+| | Swipe-to-close still works |
+
+**Never run `npm run android:dev` from an agent.** It builds, installs, launches, and then holds
+Metro in the foreground — it does not return. Use `./gradlew assembleDebug` for build verification
+and queue everything that needs a running app.
 
 **If a step fails:**
-- Native build fails (Task 2 Step 3) → stop and report with the real output. Do not disable New
-  Architecture, do not downgrade the library unilaterally, do not fall back to
-  `KeyboardAvoidingView`. The approach hinges on this and a quiet workaround here would recreate the
-  problem this spec exists to remove.
-- The provider shifts layout (Task 3 Step 4) → stop and report. Do not compensate with padding
-  tweaks; that would bury a global change under a local patch.
-- The sheet can no longer be swiped closed (Task 5) → the pan gesture and the scroll view are
-  fighting. The library supports a custom `ScrollViewComponent` for gesture-handler integration.
-  Record the conflict and the resolution as a deviation — Spec 7 needs it.
+- Native build fails (Task 2 Step 3) → stop and report with the real Gradle output. Do not disable
+  New Architecture, do not downgrade the library unilaterally, do not fall back to
+  `KeyboardAvoidingView`. The approach hinges on this, and a quiet workaround here would recreate
+  the very problem this spec exists to remove.
+- The provider shifts layout (reported back from the queued check) → stop. Do not compensate with
+  padding tweaks; that would bury a global change under a local patch.
+- The sheet can no longer be swiped closed (reported back from the queued check) → the pan gesture
+  and the scroll view are fighting. The library supports a custom `ScrollViewComponent` for
+  gesture-handler integration. Record the conflict and the resolution as a deviation — Spec 7's
+  approach depends on knowing this.
 
 **Out of scope reminders:** the other 8 fillers, `ReviewSubmission.tsx`, deleting `filler.png`,
 flipping the `BottomSheet` default, `KeyboardToolbar`, and the `scrollEnabled={false}` call sites.

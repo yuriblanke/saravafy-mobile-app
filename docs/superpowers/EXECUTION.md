@@ -101,22 +101,34 @@ and everything downstream looks fine. Several tasks below hinge on this.
 | 5. Adopt on pilot screen + delete filler | **Sonnet** | Mechanical, but must delete from **exactly one** file while eight identical patterns sit next to it — precisely the situation where a helpful agent tidies up the rest |
 | 6. Reconcile | **Main (Opus)** | See rule above — and must capture any gesture conflict, the most valuable thing the pilot can produce for Spec 7 |
 
-### ⚠️ Defect in Plan 6 — fix before running
+### Defects found in Plan 6 — both fixed 2026-08-09
 
-**Task 3 Step 4 and Task 5 Step 4 tell the agent to launch the app and look at it.** That violates
-[`CONVENTIONS.md`](CONVENTIONS.md) §4 (no dev-client steps in plans) — the same unreachable-gate
-mistake that stalled Spec 2a for two months, reintroduced by me while writing the plan meant to
-avoid it.
+A review pass found **two**, both mine, both the same root cause: writing verification steps without
+checking what an agent can actually execute.
 
-An agent can legitimately verify:
-- the build completes (exit code);
-- the app launches without crashing (`adb logcat` for a fatal on startup).
+**1. Unverifiable visual checks.** Task 3 Step 4 and Task 5 Step 4 told the agent to launch the app
+and look at it — the same unreachable-gate mistake that stalled Spec 2a for two months,
+reintroduced inside the plan written to avoid it. *Fixed:* split into an agent half (build) and a
+human half appended to the queue.
 
-An agent **cannot** verify that layout didn't shift or that a field sits above the keyboard.
+**2. Blocking command — the worse of the two.** Three steps ran `npm run android:dev`. That is
+`expo run:android`, which builds, installs, launches, **and then holds Metro in the foreground** —
+visible in the user's own terminal earlier: `BUILD SUCCESSFUL` → `Starting Metro Bundler` → QR code
+→ *"Press Ctrl+C to exit"*. An agent invoking it hangs indefinitely, having produced a perfectly
+good build it can never report on. *Fixed:* `cd android && ./gradlew assembleDebug`, which
+terminates and is what actually compiles and packages the new module's Android sources.
 
-**Fix:** split those steps into an agent half (build + no-crash) and a human half appended to the
-queue. Until that edit lands, either instruct the agent to skip the visual sub-step explicitly, or
-expect a fabricated checkmark — which is worse than a missing one.
+The resulting split, now stated explicitly in the plan:
+
+| Agent verifies | Queued for a human |
+|---|---|
+| Native module **links** (Gradle) | App **launches** (runtime module registration) |
+| `tsc` clean, tests green | Provider changed no layout |
+| Blast radius: 8 fillers left, 1 opt-in | Field clears the keyboard; no leftover gap; swipe-to-close |
+
+**Also fixed in the same pass:** Plan 5's database-verification step originally implied probing
+`collections_pontos` directly. It now uses a throwaway table and drops it, so no probe rows land in
+a real collection.
 
 ---
 
