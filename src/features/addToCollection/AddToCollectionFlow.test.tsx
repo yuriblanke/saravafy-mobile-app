@@ -12,10 +12,13 @@ jest.mock("react-native-safe-area-context", () =>
   require("react-native-safe-area-context/jest/mock").default,
 );
 
-// useToast() throws outside a <ToastProvider>. The flow only calls
-// showToast() as a side effect we don't assert on here, so a stub is enough.
+// useToast() throws outside a <ToastProvider>. Most tests below don't assert
+// on showToast, but the duplicate-add test does (it's the user-visible half
+// of that outcome), so the mock is a stable jest.fn() rather than a fresh one
+// per call.
+const mockShowToast = jest.fn();
 jest.mock("@/contexts/ToastContext", () => ({
-  useToast: () => ({ showToast: jest.fn() }),
+  useToast: () => ({ showToast: mockShowToast }),
 }));
 
 // Query hooks that hit Supabase are mocked at the hook boundary so the test
@@ -42,6 +45,7 @@ import { useMyEditableTerreirosQuery } from "@/src/queries/me";
 import { useEntidadesCatalogQuery } from "@/src/queries/entidadesCatalog";
 import { fetchActivePontoVersoesByPontoIds } from "@/src/queries/pontoVersoes";
 import { addPontoToCollection } from "@/src/screens/Home/data/collections_pontos";
+import { queryKeys } from "@/src/queries/queryKeys";
 import {
   AddToCollectionFlow,
   type AddToCollectionFlowProps,
@@ -327,6 +331,52 @@ describe("AddToCollectionFlow", () => {
     });
 
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("reports the duplicate and reverts the optimistic insert instead of leaving it in place", async () => {
+    // D6: addPontoToCollection now attaches .select("ponto_id") to the upsert
+    // and reports alreadyExists: true when no row comes back (verified against
+    // the real DB at both the Postgres and PostgREST layers). This branch was
+    // unreachable before that change; this test is the first coverage of it.
+    mockAddPontoToCollection.mockResolvedValue({
+      ok: true,
+      alreadyExists: true,
+    });
+    const { renderer, queryClient } = renderFlow(
+      {},
+      { renderers: activeRenderers, queryClients: activeQueryClients },
+    );
+
+    const pontosKey = queryKeys.collections.pontos("c1");
+
+    const pressable = findPressableContaining(renderer.root, "Giras de Segunda");
+
+    await TestRenderer.act(async () => {
+      pressable.props.onPress();
+      await flushPromises();
+    });
+
+    // Cache-state assertion, taken right after mutateAsync settles and
+    // *before* any further ticks. onSettled (AddToCollectionFlow.tsx:518-534)
+    // unconditionally invalidates every affected query key on every outcome,
+    // which would let a mocked refetch mask a broken or missing revert if we
+    // waited past this point — this key has no active observer in this test
+    // tree (it's written only via setQueryData from collectionsCache.ts, never
+    // read through a useQuery here), so invalidateQueries has nothing to
+    // refetch and cannot supply the answer either way. What is asserted here
+    // is only what onSuccess's alreadyExists branch (lines 502-517) itself did.
+    const pontosAfter = queryClient.getQueryData(pontosKey) as
+      | Array<{ ponto: { id: string } }>
+      | undefined;
+    expect(
+      (pontosAfter ?? []).some((it) => it.ponto.id === "ponto-1"),
+    ).toBe(false);
+
+    // User-visible half of the same outcome: the duplicate message, distinct
+    // from the success message ("Ponto adicionado à coleção").
+    expect(mockShowToast).toHaveBeenCalledWith(
+      "Este ponto já estava na coleção",
+    );
   });
 
   it("Home-style two-phase flow: starts on versão selection, then advances to coleção", async () => {
