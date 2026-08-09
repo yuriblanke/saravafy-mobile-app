@@ -50,6 +50,7 @@ import {
   QueryClientProvider,
   useQueryClient,
 } from "@tanstack/react-query";
+import { KeyboardProvider } from "react-native-keyboard-controller";
 import {
   SafeAreaProvider,
   initialWindowMetrics,
@@ -123,36 +124,46 @@ export default function RootLayout() {
   return (
     <RootGestureHandlerWrapper>
       <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <PreferencesProvider>
-              <NetworkProvider>
-                <GlobalSafeAreaInsetsProvider>
-                  <PreferencesOverlayProvider>
-                    <RootPagerProvider>
-                      <ToastProvider>
-                        <CuratorModeProvider>
-                          <InviteGatesProvider>
-                            <LoginPromptProvider>
-                              <RootLayoutNav />
-                              <TerreirosRealtimeSync />
-                              <InviteGate />
-                              <CuratorInviteGate />
-                              <GlobalOverlaysHost />
-                              <LoginPromptSheet />
-                              <OfflineBanner />
-                              <OfflineAutoSync />
-                            </LoginPromptProvider>
-                          </InviteGatesProvider>
-                        </CuratorModeProvider>
-                      </ToastProvider>
-                    </RootPagerProvider>
-                  </PreferencesOverlayProvider>
-                </GlobalSafeAreaInsetsProvider>
-              </NetworkProvider>
-            </PreferencesProvider>
-          </AuthProvider>
-        </QueryClientProvider>
+        {/*
+          KeyboardProvider fica dentro de SafeAreaProvider e do root de gesture,
+          e por fora de tudo que é da aplicação (query client, contexts, navegação).
+          É a mesma ordem do exemplo oficial da lib:
+          SafeAreaProvider > GestureHandlerRootView > KeyboardProvider > navegação.
+          Nenhuma prop é passada de propósito: os defaults (statusBarTranslucent e
+          navigationBarTranslucent = false) são os que não mexem em layout.
+        */}
+        <KeyboardProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <PreferencesProvider>
+                <NetworkProvider>
+                  <GlobalSafeAreaInsetsProvider>
+                    <PreferencesOverlayProvider>
+                      <RootPagerProvider>
+                        <ToastProvider>
+                          <CuratorModeProvider>
+                            <InviteGatesProvider>
+                              <LoginPromptProvider>
+                                <RootLayoutNav />
+                                <TerreirosRealtimeSync />
+                                <InviteGate />
+                                <CuratorInviteGate />
+                                <GlobalOverlaysHost />
+                                <LoginPromptSheet />
+                                <OfflineBanner />
+                                <OfflineAutoSync />
+                              </LoginPromptProvider>
+                            </InviteGatesProvider>
+                          </CuratorModeProvider>
+                        </ToastProvider>
+                      </RootPagerProvider>
+                    </PreferencesOverlayProvider>
+                  </GlobalSafeAreaInsetsProvider>
+                </NetworkProvider>
+              </PreferencesProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </KeyboardProvider>
       </SafeAreaProvider>
     </RootGestureHandlerWrapper>
   );
