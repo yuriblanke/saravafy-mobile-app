@@ -405,6 +405,11 @@ export function BottomSheet({
     showsVerticalScrollIndicator: false,
     scrollEnabled,
     scrollEventThrottle: 16,
+    // A tap on a child (e.g. a "Salvar" button) should act *and* dismiss the
+    // keyboard in one gesture, instead of the default "never" swallowing the
+    // first tap to dismiss-only. Matches the 15 other call sites in this
+    // codebase that already set this on their own ScrollViews.
+    keyboardShouldPersistTaps: "handled",
     onScrollBeginDrag: () => {
       dismissAllTooltips();
     },
