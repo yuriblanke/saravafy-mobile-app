@@ -172,20 +172,44 @@ default — see §4.2.
 
 ## 9. Definition of done
 
-### Agent DoD
+### Agent DoD — ✅ complete 2026-08-09
 
-- [ ] `npx tsc --noEmit` → **zero output**.
-- [ ] Test suite → **0 failures**.
-- [ ] `cd android && ./gradlew assembleDebug` → `BUILD SUCCESSFUL` (the native module links).
-      **Not** `npm run android:dev` — that never returns, so an agent invoking it hangs.
-- [ ] `grep -rn "filler" src/` shows **exactly 8 remaining usages** — the pilot's is gone, the
-      others are untouched.
-- [ ] Backlog updated: `D14` recorded, pilot marked done, Spec 7 noted as blocked on human sign-off.
+- [x] `npx tsc --noEmit` → **zero output**.
+- [x] Test suite → **0 failures** (61 passing; 3 added by this spec, covering all three
+      `BottomSheet` render paths).
+- [x] ~~`cd android && ./gradlew assembleDebug`~~ → **replaced by an EAS build, and not by choice.**
+      The local Gradle gate is unreachable on this machine: `ninja.exe` and `cmake.exe` carry no
+      `longPathAware` manifest element, so Windows truncates the codegen object paths at 260
+      characters even with `LongPathsEnabled=1`. The module was proven to link by EAS build
+      `3f9666b9` (profile `development`, SDK 54, New Architecture, APK produced). See the plan's
+      Task 2 Step 3 for why every in-repo workaround was rejected.
+- [x] `grep -rln "filler" src/` → **13**: twelve files still rendering `filler.png` plus
+      `BottomSheet.tsx`, which only mentions the word in a doc comment. The pilot's usage is gone,
+      the others are untouched. `keyboardAware` appears at **exactly one** call site.
+- [x] Backlog updated: `D14` recorded, pilot marked done, the rollout noted as blocked on human
+      sign-off.
+
+**Two counts in this spec were wrong.** It says nine files use the filler — thirteen do, so twelve
+remain rather than eight. And it says `BottomSheet` has 8 consumers — **19 files render
+`<BottomSheet>`**; the 8 was the filler-form subset. Neither weakens the pilot (the default is off
+and the default render path is tested), but the rollout inherits the larger numbers.
+
+**The most valuable thing this pilot produced is a testing hazard, not a UI result.** The library's
+shipped jest mock aliases `KeyboardAwareScrollView` to React Native's own `ScrollView`, so under it
+both render branches share an identity and the default-off test — the one guarding every other
+consumer — passes even if keyboard-aware becomes the default. It was overridden and proven
+load-bearing here. **The rollout spec must not adopt that mock as-is.**
 
 ### Human DoD — the gate for Spec 7
 
-**Requires a native rebuild** (`npm run android:dev`) — a JS reload cannot pick up a new native
-module, and the agent cannot run that command.
+**Requires installing the APK from the EAS build** — a JS reload cannot pick up a new native module,
+and `npm run android:dev` does not work on this machine (see the Agent DoD above). The current dev
+client will **not** show this change.
+
+⚠️ **If the field does not rise, suspect this first:** the pilot screen passes `scrollEnabled={false}`
+alongside `keyboardAware`. In React Native that disables only user dragging — programmatic scrolling,
+which is what `KeyboardAwareScrollView` uses, should still work — but it is unverified on a device.
+If that is the cause, it is the combination of the two props, not the library.
 
 First, before anything keyboard-related:
 - The app **launches without crashing** (Gradle proves the module links, not that it registers at
