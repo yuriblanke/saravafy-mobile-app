@@ -19,6 +19,7 @@ import {
   Image,
   Linking,
   Pressable,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
@@ -429,6 +430,16 @@ export default function Terreiros() {
     [terreirosQuery.data]
   );
   const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await terreirosQuery.refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [terreirosQuery]);
   const error = deriveListErrorMessage({
     isError: terreirosQuery.isError,
     error: terreirosQuery.error,
@@ -579,6 +590,19 @@ export default function Terreiros() {
                 { paddingBottom: spacing.md },
               ]}
               keyboardShouldPersistTaps="handled"
+              refreshControl={
+                <RefreshControl
+                  refreshing={isRefreshing}
+                  onRefresh={onRefresh}
+                  tintColor={colors.brass600}
+                  colors={[colors.brass600]}
+                  progressBackgroundColor={
+                    variant === "light"
+                      ? colors.surfaceCardBgLight
+                      : colors.surfaceCardBg
+                  }
+                />
+              }
               renderItem={({ item }) => {
                 const expanded = expandedTerreiroId === item.id;
                 return (
