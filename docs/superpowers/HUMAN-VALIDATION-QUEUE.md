@@ -152,7 +152,7 @@ Origem: Spec 1 (`<QueryBoundary>` — adotado aqui, **não** no Home como o plan
 |---|---|---|---|
 | 4.1 | Abrir aba Terreiros (primeira vez, cache frio) | Spinner centralizado, depois lista | ✅ parece instantâneo — ver nota |
 | 4.2 | ~~Puxar pra atualizar com dados já na tela~~ | ~~Lista continua visível, sem piscar~~ | 🔧 gesto não existe — mas código já verificado, ver nota |
-| 4.3 | ~~Modo avião → puxar pra atualizar~~ | Lista continua visível; sem tela de erro por cima do conteúdo | ❌ confirmado no código — ver nota |
+| 4.3 | Modo avião → refetch em segundo plano com lista já carregada (sem gesto de pull-to-refresh — ver recipe na nota) | Lista continua visível; sem tela de erro por cima do conteúdo | 🔧 corrigido em código (`D11`) — pendente de teste manual, ver recipe na nota |
 | 4.4 | Modo avião + cache frio | Card de erro "Não foi possível carregar" + mensagem legível | 🔧 não testável via dev client — ver nota |
 | 4.5 | Usuário sem nenhum terreiro | Estado vazio | 🔮 não é esse o design — ver nota |
 
@@ -170,15 +170,30 @@ recebendo `data: undefined` durante o refetch. É o item mais relevante da fila 
 > um helper pronto (`prefetchTerreirosWithRole`) que nunca foi ligado ao boot (`X8` no
 > [`BACKLOG.md`](BACKLOG.md), baixa prioridade já que na prática já parece rápido).
 >
-> **4.2/4.3 — sem gesto de pull-to-refresh (confirmado app inteiro, não só Home), mas dava pra
-> verificar direto no código — e achei bug real.** `Terreiros.tsx:430` guarda `isLoading` certo
-> (só esconde dado se `terreiros.length === 0`), mas `error` (linha 431) **não tem esse guard** —
-> fica `true` mesmo com lista carregada. Isso quebra a garantia anti-flicker do `<QueryBoundary>`
-> exatamente pro caso de erro: qualquer refetch em segundo plano que falhe (rede instável, não
-> precisa nem ser avião) cobre a lista já carregada com o card de erro. Registrado como `D11` no
-> [`BACKLOG.md`](BACKLOG.md), P0 — é o achado mais direto ligado ao seu objetivo original
-> (flicker). **Como testar sem pull-to-refresh:** espera uns 30s+ na aba, ativa avião, aperta
-> "Tentar novamente" ou sai e volta pra aba — deve reproduzir.
+> **4.2 — sem gesto de pull-to-refresh (confirmado app inteiro, não só Home), mas dava pra
+> verificar direto no código.** `Terreiros.tsx` guarda `isLoading` certo (só esconde dado se
+> `terreiros.length === 0`) — esse guard já era correto antes desta spec e continua sem mudança.
+>
+> **4.3 — corrigido (Spec 4, Task 5, `D11`).** O guard de `error` não existia: ficava `true` mesmo
+> com lista carregada, e qualquer refetch em segundo plano que falhasse (rede instável, não
+> precisava nem ser avião) cobria a lista já carregada com o card de erro — exatamente a garantia
+> anti-flicker que o `<QueryBoundary>` existe pra dar. Extraído para `deriveListErrorMessage`
+> (`src/screens/Terreiros/deriveListErrorMessage.ts`), agora com o mesmo guard de linhas que
+> `isLoading` já tinha, coberto por teste (`deriveListErrorMessage.test.ts`). Falta só a confirmação
+> visual — sem gesto de pull-to-refresh, use esta recipe:
+>
+> 1. Abrir a aba Terreiros com a lista carregando normalmente.
+> 2. Esperar mais de 30s (passar do `staleTime`) sem sair da aba.
+> 3. Ativar modo avião.
+> 4. Disparar um refetch — sair e voltar pra aba, ou apertar "Tentar novamente" no card de erro
+>    (se ele aparecer).
+> 5. **Esperado: a lista continua na tela, sem card de erro por cima.** Se aparecer o card de erro
+>    cobrindo a lista, a regressão voltou.
+>
+> Caso frio, ainda coberto por 4.4: sem cache e sem conexão (app recém-aberto já em modo avião,
+> sem terreiros carregados antes) → o card de erro deve aparecer normalmente. A correção do `D11`
+> não muda esse caso — ele nunca teve dado pra proteger (`rowCount === 0`), só o caso de dado já
+> carregado que o guard novo passou a proteger.
 >
 > **4.4 — limitação de ferramenta, não do app.** Dev client depende do Metro pra buscar o bundle
 > JS; não abre com o avião já ligado. Pra testar cold-cache+offline de verdade precisa de build
