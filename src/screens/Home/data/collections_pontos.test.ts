@@ -29,6 +29,9 @@ function makeBuilder(result: BuilderResult): Builder {
   builder.order = jest.fn(() => builder);
   builder.limit = jest.fn(() => builder);
   builder.upsert = jest.fn(() => builder);
+  // `then` só aceita `resolve`: não simula falha lançada/erro de rede (o
+  // supabase-js real rejeitaria a Promise nesse caso). Nenhum teste atual
+  // precisa disso — se precisar, adicionar um segundo parâmetro `reject`.
   builder.then = (resolve) => resolve(result);
   return builder;
 }
@@ -76,6 +79,13 @@ describe("addPontoToCollection", () => {
       onConflict: "collection_id,ponto_id",
       ignoreDuplicates: true,
     });
+
+    // §3.1: sem `.select("ponto_id")` no upsert, `res.data` vem `null` (medido
+    // contra o banco real) em vez de `[]`/`[{...}]`. `Array.isArray(null)` é
+    // `false`, então `inserted` fica 0 e TODO add — incluindo um insert real —
+    // volta como `{ ok: true, alreadyExists: true }`. Sem esta asserção, essa
+    // linha pode ser removida do source com a suite inteira continuando verde.
+    expect(upsertBuilder.select).toHaveBeenCalledWith("ponto_id");
   });
 
   it("reports alreadyExists when the insert was ignored", async () => {
