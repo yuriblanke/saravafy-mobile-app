@@ -8,6 +8,7 @@ import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
 import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
+import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 import { useCollectionPontosQuery } from "@/src/queries/collectionPontos";
 import {
   incrementCollectionPontosCountInTerreiroLists,
@@ -192,7 +193,7 @@ export default function AddToCollection() {
 
       const res = await supabase
         .from("collections")
-        .select("id, title")
+        .select("id, title, owner_user_id, owner_terreiro_id")
         .eq("id", collectionId)
         .single();
 
@@ -210,7 +211,20 @@ export default function AddToCollection() {
           typeof (res.data as any)?.title === "string"
             ? (res.data as any).title
             : null,
-      } as { id: string; title: string | null };
+        ownerUserId:
+          typeof (res.data as any)?.owner_user_id === "string"
+            ? (res.data as any).owner_user_id
+            : null,
+        ownerTerreiroId:
+          typeof (res.data as any)?.owner_terreiro_id === "string"
+            ? (res.data as any).owner_terreiro_id
+            : null,
+      } as {
+        id: string;
+        title: string | null;
+        ownerUserId: string | null;
+        ownerTerreiroId: string | null;
+      };
     },
     placeholderData: (prev) => prev,
   });
@@ -219,6 +233,16 @@ export default function AddToCollection() {
     (typeof collectionQuery.data?.title === "string" &&
       collectionQuery.data.title.trim()) ||
     "Coleção";
+
+  const collectionTerreiroId = collectionQuery.data?.ownerTerreiroId ?? null;
+  const collectionOwnerUserId = collectionQuery.data?.ownerUserId ?? null;
+
+  // Mesma regra de `canEditCollection` em Collection.tsx: dono da coleção
+  // pessoal, ou admin/curimba ativo do terreiro dono da coleção.
+  const terreiroRole = useTerreiroRole(collectionTerreiroId);
+  const canAddToCollection =
+    (!!userId && !!collectionOwnerUserId && collectionOwnerUserId === userId) ||
+    (!!collectionTerreiroId && terreiroRole.isAdminOrCurimba);
 
   const suggestionTags = useMemo(() => {
     return extractSuggestionTagsFromTitle(collectionTitle);
@@ -478,6 +502,9 @@ export default function AddToCollection() {
       if (!collectionId) {
         throw new Error("Coleção inválida.");
       }
+      if (!canAddToCollection) {
+        throw new Error("Você não tem permissão para editar esta coleção.");
+      }
 
       const explicit =
         typeof vars.pontoVersaoId === "string" && vars.pontoVersaoId.trim()
@@ -627,6 +654,21 @@ export default function AddToCollection() {
         return;
       }
 
+      if (collectionQuery.isError) {
+        showToast("Não foi possível carregar esta coleção.");
+        return;
+      }
+
+      if (!collectionQuery.data || terreiroRole.isLoading) {
+        showToast("Carregando permissões…");
+        return;
+      }
+
+      if (!canAddToCollection) {
+        showToast("Você não tem permissão para editar esta coleção.");
+        return;
+      }
+
       if (alreadyInCollectionIds.has(ponto.id)) {
         showToast("Este ponto já está na coleção.");
         return;
@@ -673,11 +715,15 @@ export default function AddToCollection() {
     [
       addMutation,
       alreadyInCollectionIds,
+      canAddToCollection,
       collectionId,
+      collectionQuery.data,
+      collectionQuery.isError,
       goBackToCollection,
       router,
       searchVersoesStillLoading,
       showToast,
+      terreiroRole.isLoading,
       userId,
     ],
   );
