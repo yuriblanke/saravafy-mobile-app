@@ -9,6 +9,7 @@ import {
   type TerreiroListItem,
   useTerreirosWithRoleQuery,
 } from "@/src/queries/terreirosWithRole";
+import { deriveListErrorMessage } from "./deriveListErrorMessage";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -428,9 +429,11 @@ export default function Terreiros() {
     [terreirosQuery.data]
   );
   const isLoading = terreirosQuery.isFetching && terreiros.length === 0;
-  const error = terreirosQuery.isError
-    ? "Ops, seu app parece estar desatualizado."
-    : null;
+  const error = deriveListErrorMessage({
+    isError: terreirosQuery.isError,
+    error: terreirosQuery.error,
+    rowCount: terreiros.length,
+  });
 
   const filteredTerreiros = useMemo(() => {
     const q = normalize(searchQuery);
