@@ -142,12 +142,19 @@ Specific sites:
 
 ## 8. Definition of done
 
-- All new unit tests pass.
-- `npx tsc --noEmit` baseline preserved (0 errors).
-- All 23 existing tests pass + new tests pass.
-- Manual smoke test of 3 flows above.
-- `grep "fetchTerreirosQueAdministro" src/ contexts/` returns no matches.
-- Audit doc `code-quality-audit.md` wave 6 row cross-linked.
+Split per [`CONVENTIONS.md`](../CONVENTIONS.md) §4. A pending human check never blocks a commit.
+
+### Agent DoD — ✅ met (2026-06-14)
+
+- [x] All new unit tests pass; suite reports **0 failures**.
+- [x] `npx tsc --noEmit` produces **zero output**.
+- [x] `grep "fetchTerreirosQueAdministro" src/ contexts/` returns no matches.
+- [x] Audit doc `code-quality-audit.md` wave 6 row cross-linked.
+
+### Human DoD — ⏳ pending
+
+Moved to [`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §5: managed-terreiros list
+populates, and refreshes on its own after terreiro save and after invite accept.
 
 ## 9. Open questions
 

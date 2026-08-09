@@ -6,6 +6,22 @@
 
 This document catalogs concrete defects across three axes — monolithic components, performance/inefficiency, and architecture/state — with file:line refs. Findings are diagnostic; fixes are scoped separately.
 
+> **⚠️ Read this before working §4's remediation order (updated 2026-08-08).**
+>
+> **1. This document is not the priority list anymore.** It ranks by *size and duplication*.
+> The active goal is resistance to unexpected bugs, and the defects that actually cause those are
+> catalogued in [`aggregation.md` §6](aggregation.md#6-known-cross-cutting-issues) — five of which
+> were re-verified against source on 2026-08-08 and confirmed live. Current prioritized ordering
+> lives in [`../superpowers/BACKLOG.md`](../superpowers/BACKLOG.md). Monolith splits are
+> deliberately scheduled **last**, as a consequence of fixing the contract holes rather than as a
+> goal in itself.
+>
+> **2. Findings here have a measured false-positive rate.** Spec 1 disproved 3 of the §2.2/§2.3
+> items on inspection (waves 7 and 8 below are struck through as a result). **Verify any finding
+> against current source before turning it into a spec.**
+>
+> **3. Status is tracked per wave** in the §4 table below.
+
 ---
 
 ## TL;DR — Top 10 priorities
@@ -266,14 +282,14 @@ Mutations especially scattered as inline `.from().update()` calls — no abstrac
 
 | Wave | Effort | Files | Impact |
 |---|---|---|---|
-| **1. Unify add-to-collection** | M | 3 implementations → 1 wizard + 2 thin wrappers | Eliminates ~600 LOC duplication; single source of truth for ponto-version + entidade resolution |
+| **1. Unify add-to-collection** | M | 3 implementations → 1 wizard + 2 thin wrappers | Eliminates ~600 LOC duplication; single source of truth for ponto-version + entidade resolution | → [Spec 2a](../superpowers/specs/2026-06-14-spec-2a-add-to-collection-unify.md) ✅ done (Home + Player unified into `<AddToCollectionFlow>`; dedicated `AddToCollection.tsx` route deferred to Spec 2c) |
 | **2. Extract `useTerreiroRole(terreiroId)`** | S | 12+ inline checks across 5 files | Removes scattered role logic; sets pattern for permission hooks | → [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md) (foundation hook + 2 sample adoptions; bulk migration deferred) |
 | **3. Build `<QueryBoundary>` + `getErrorMessage` util** | S | 15+ screens | Removes loading/error scaffolding duplication | → [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md) (foundation modules + 3 sample adoptions; bulk migration deferred) |
 | **4. Split TabsHeaderWithPreferences** | L | 3,164 → ~1,500 LOC main + 4 extractions | Largest file in repo; removing nested 630-LOC component is mechanical win |
 | **5. Replace `.map()` with `FlatList` in members lists** | S | TerreiroMembers + AccessManager/MembersList | Fixes perceptible jank for terreiros with 50+ members |
 | **6. Move `PreferencesContext` server state → RQ** | M | PreferencesContext + consumers | Removes context/RQ duplication; single source for managed terreiros | → [Spec 2b](../superpowers/specs/2026-06-14-spec-2b-preferences-context-rq.md) ✅ done 2026-06-14 (−491 LOC from PreferencesContext) |
-| **7. Memoize `pontoIds` in Collection + Player** | S | 2 lines × 2 files | Stops cascading query invalidations |
-| **8. Add `useCallback` to `goToPontosTab` + `showToast` parents** | S | Collection.tsx:251-275 + parents | Stops useEffect re-runs on every parent render |
+| ~~**7. Memoize `pontoIds` in Collection + Player**~~ | — | — | ❌ **FALSE POSITIVE** — already memoized at `Collection.tsx:295` and `PlayerScreen.tsx:222`. Verified in [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md) §2.3. The real issue at these lines is the N+1 query cascade — see §2.4, tracked as `S-4c` in [BACKLOG.md](../superpowers/BACKLOG.md) |
+| ~~**8. Add `useCallback` to `goToPontosTab` + `showToast` parents**~~ | — | — | ❌ **FALSE POSITIVE** — `goToPontosTab` already `useCallback`'d at `Collection.tsx:199`, `showToast` at `ToastContext.tsx:367`. Verified in [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md) §2.3 |
 | **9. Extract `usePontoUpsertForm` + `usePontoRightsConsent`** | M | PontoUpsertModal 1,840 → ~900 LOC | Tames rights consent state machine; testable form hook |
 | **10. Introduce smoke tests** | L | OAuth + audio upload + add-to-collection mutations | First 3 critical flow tests; covers ~40% of bug surface |
 | **11. TypeScript cleanup** | L | 507 `any` casts | Start with `src/api/pontoAudio.ts` (20+); add response validation layer |

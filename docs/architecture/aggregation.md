@@ -302,9 +302,21 @@ The terreiro-member-related keys could expose one user's membership data to a su
 
 `TabsHeaderWithPreferences` (overlay sheet driven by `PreferencesOverlayContext`) and `Preferences.tsx` (stack route at `/(app)/preferences`) are parallel implementations of the same UI. Both maintain their own component trees for theme, curimba, terreiro list, and invite handling. Changes to one do not automatically propagate to the other. `TabsHeaderWithPreferences` additionally contains a hardcoded `"YB"` initial fallback.
 
-### 6.13 `fetchTerreirosQueAdministro` in PreferencesContext is dead code
+### 6.13 ~~`fetchTerreirosQueAdministro` in PreferencesContext is dead code~~ — ✅ RESOLVED, and the original finding was wrong
 
-`PreferencesContext` exposes `fetchTerreirosQueAdministro` and a `terreirosAdmin` state slice. The Preferences screen does not consume them — it uses `usePreferencesTerreirosQuery` (React Query) instead. The imperative fetch remains as exposed API but has no active consumer.
+> **CORRECTION (2026-08-08).** The original finding below claimed the function had *no active
+> consumer*. That was incorrect — it only checked the Preferences screen. Spec 2b implementation
+> found **three** live consumers: `InviteGate.tsx` (line 196), `TabsHeaderWithPreferences.tsx`
+> (line 649), and `TerreiroEditor.tsx` (lines 633, 940, 969, 1415, 1539).
+>
+> All three were migrated to `useMyManagedTerreirosQuery` + `queryClient.invalidateQueries`, and
+> the function was removed from the context (−491 LOC). See
+> [Spec 2b](../superpowers/specs/2026-06-14-spec-2b-preferences-context-rq.md), landed 2026-06-14.
+>
+> **Lesson:** "no consumer" claims must be backed by a repo-wide grep, not a single-screen read.
+> A finding stated with more confidence than its evidence supports is worse than no finding.
+
+**Original text:** `PreferencesContext` exposes `fetchTerreirosQueAdministro` and a `terreirosAdmin` state slice. The Preferences screen does not consume them — it uses `usePreferencesTerreirosQuery` (React Query) instead. The imperative fetch remains as exposed API but has no active consumer.
 
 ### 6.14 `PontoSubmissionKind` domain mismatch
 

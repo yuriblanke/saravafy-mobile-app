@@ -70,6 +70,11 @@ The real perf issue at `Collection.tsx:300-310` + `PlayerScreen.tsx:226-229` is 
 - **API:** `function getErrorMessage(e: unknown, fallback?: string): string`
 - **Behavior:** matches existing inlined implementations:
   1. If `e instanceof Error` and `e.message.trim()` → return trimmed message.
+     > **⚠️ SPEC/IMPL MISMATCH (found 2026-08-08, unresolved).** The shipped `src/lib/errors.ts`
+     > uses `.trim()` only as a *non-empty test* and returns `e.message` **untrimmed**. The test in
+     > the plan is titled `"trims and returns object.message"` but asserts `.toBe("  hello  ")` —
+     > i.e. it ratifies the untrimmed implementation, not this spec. Contract must be decided and
+     > all three aligned. Tracked as `X1` in [`BACKLOG.md`](../BACKLOG.md).
   2. If `e` is object with string `message` field → return that.
   3. If `e` is string → return it.
   4. Otherwise → return `fallback ?? String(e)`.
@@ -109,9 +114,25 @@ Convert 3-5 call sites to validate ergonomics. Pick varied surfaces:
 | `PlayerScreen.tsx:218-220` | `useTerreiroRole(terreiroId).canEditCustomTags` | same; ensures hook returns identical value across two consumers |
 | `Home.tsx:93-106` | `import { getErrorMessage } from "@/src/lib/errors"` and delete local copy | removes duplicate |
 | `Collection.tsx:90-102` | same — delete local copy | removes duplicate |
-| `Home.tsx` (1 list render of pontos) | `<QueryBoundary>` for pontos query | validates loading + error + empty + stale-while-revalidate paths |
+| ~~`Home.tsx` (1 list render of pontos)~~ | `<QueryBoundary>` for pontos query | validates loading + error + empty + stale-while-revalidate paths |
 
 If any of these reveal API gaps, iterate spec before locking in.
+
+> **DEVIATION (recorded 2026-08-08, retroactively).** The `<QueryBoundary>` adoption did **not**
+> land in `Home.tsx`. It landed in the **Terreiros** screen — commit `36a04c6`
+> *"refactor: Terreiros uses QueryBoundary for terreirosQuery render"*.
+>
+> `Home.tsx` consumes its pontos through `fetchAllPontos()` into local `useState`, not through a
+> React Query result (see `aggregation.md` §6.15), so it has no `QueryLike` object to hand the
+> boundary. The plan's own escape clause — *"If no clean wrap site exists… pick the most contained
+> block"* — was correctly exercised; it simply was never written back to this spec or the plan.
+>
+> Consequence: `Home.tsx` still contains ad-hoc loading/error scaffolding, and the human validation
+> of `<QueryBoundary>` behaviour must target **Terreiros**, not Home. Reflected in
+> [`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §4.
+>
+> Adopting the boundary in Home requires first moving its pontos read onto React Query — tracked as
+> `S-4e` in [`BACKLOG.md`](../BACKLOG.md).
 
 ## 4. Non-goals (explicit)
 
@@ -160,10 +181,19 @@ Output of `superpowers:writing-plans` skill will be `docs/superpowers/plans/2026
 
 ## 9. Definition of done
 
-- All 3 new modules merged with passing unit tests.
-- 4 sample adoption commits (one per call site) with `npx tsc --noEmit` clean.
-- Manual smoke: Collection screen, Player screen, Home screen load and show pontos without regression.
-- Audit doc updated: cross-reference `code-quality-audit.md` wave 2 + 3 entries with link to this spec.
+Split per [`CONVENTIONS.md`](../CONVENTIONS.md) §4. A pending human check never blocks a commit.
+
+### Agent DoD — ✅ met (2026-06-13)
+
+- [x] All 3 new modules merged with passing unit tests.
+- [x] Sample adoption commits (one per call site) with `npx tsc --noEmit` clean.
+- [x] Audit doc cross-referenced from `code-quality-audit.md` waves 2 + 3.
+
+### Human DoD — ⏳ pending
+
+Moved to [`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md), sections 2, 3, 4:
+Collection and Player role gating produce identical results to the old inline checks;
+Terreiros renders `<QueryBoundary>` loading / error / empty / stale-while-revalidate without flicker.
 
 ## 10. Open questions (to resolve before plan)
 

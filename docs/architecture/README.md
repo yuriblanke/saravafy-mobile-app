@@ -6,6 +6,11 @@ Saravafy is a React Native mobile app (Expo + Expo Router, New Architecture enab
 
 ## How to use these docs
 
+> **Doing remediation work rather than reading?** Start at
+> [`../superpowers/README.md`](../superpowers/README.md) instead — it holds the binding spec/plan
+> conventions, the prioritized backlog, and the human-validation queue. The audit doc in this
+> folder is a *diagnostic catalogue*, not the priority order.
+
 Start with the slice doc for the feature you are investigating. Each doc follows the same template-driven structure: Purpose, Files, Routes table, Navigation, Contexts, Data flow (queries + mutations), State management, Error handling, Known issues, and Cross-slice dependencies. The template is `_TEMPLATE.md`.
 
 For cross-feature questions — shared query keys, which mutations affect which slices, the full Supabase surface, or systemic bugs — read `aggregation.md`. Section 6 of that doc lists the known cross-cutting issues found during the documentation pass.

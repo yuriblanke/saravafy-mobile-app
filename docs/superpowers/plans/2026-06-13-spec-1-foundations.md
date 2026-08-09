@@ -42,20 +42,20 @@
 
 The mobile app has zero test infrastructure today (no `test` script, no jest config, no test files). This spec requires unit tests, and subsequent specs will too. Install once.
 
-- [ ] **Step 1: Inspect current package.json `scripts` and `devDependencies`**
+- [x] **Step 1: Inspect current package.json `scripts` and `devDependencies`**
 
-Run: `cat /mnt/c/saravafy/saravafy-mobile-app/package.json | grep -E "\"scripts\"|jest|testing-library" | head -20`
+Run: `cat C:/saravafy/saravafy-mobile-app/package.json | grep -E "\"scripts\"|jest|testing-library" | head -20`
 Expected: only `react-test-renderer` shows; no jest entries.
 
-- [ ] **Step 2: Install jest-expo + testing-library**
+- [x] **Step 2: Install jest-expo + testing-library**
 
-Run from `/mnt/c/saravafy/saravafy-mobile-app/`:
+Run from `C:/saravafy/saravafy-mobile-app/`:
 ```bash
 npm install --save-dev jest jest-expo @testing-library/react-native @testing-library/jest-native @types/jest
 ```
 Expected: clean install, no peer-dep errors. If peer-dep warnings about React 19, accept (jest-expo supports SDK 52).
 
-- [ ] **Step 3: Add `test` and `test:watch` scripts to package.json**
+- [x] **Step 3: Add `test` and `test:watch` scripts to package.json**
 
 In `package.json`, inside `"scripts"`, add:
 ```json
@@ -64,13 +64,13 @@ In `package.json`, inside `"scripts"`, add:
 "test:ci": "jest --ci --silent"
 ```
 
-- [ ] **Step 4: Create `jest.config.js`**
+- [x] **Step 4: Create `jest.config.js`**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/jest.config.js`:
+Create `C:/saravafy/saravafy-mobile-app/jest.config.js`:
 ```js
 module.exports = {
   preset: "jest-expo",
-  setupFilesAfterEach: ["<rootDir>/jest.setup.ts"],
+  setupFilesAfterEnv: ["<rootDir>/jest.setup.ts"],
   testMatch: ["**/?(*.)+(test).[jt]s?(x)"],
   testPathIgnorePatterns: ["/node_modules/", "/android/", "/ios/"],
   transformIgnorePatterns: [
@@ -78,21 +78,35 @@ module.exports = {
   ],
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/$1",
+    "^test-renderer$": "react-test-renderer",
   },
   collectCoverageFrom: ["src/**/*.{ts,tsx}", "!src/**/*.d.ts", "!src/**/*.test.{ts,tsx}"],
 };
 ```
 
-- [ ] **Step 5: Create `jest.setup.ts`**
+> **CORRECTED 2026-08-08 — two errors in the original plan text:**
+>
+> 1. The plan wrote **`setupFilesAfterEach`**, which is not a Jest option. Jest ignores unknown
+>    keys, so `jest.setup.ts` would never load and `@testing-library/jest-native` matchers
+>    (`toBeOnTheScreen`) would be undefined — every component test in Task 4 fails with a
+>    confusing "not a function". Correct key is **`setupFilesAfterEnv`**, which is what the
+>    executor shipped (`jest.config.js:3`).
+> 2. The `"^test-renderer$": "react-test-renderer"` mapper was added during execution and never
+>    written back to this plan. It is required for `@testing-library/react-native` to resolve its
+>    renderer under this Expo SDK; without it, the component tests fail at import.
+>
+> Both are now reflected above. See [`CONVENTIONS.md`](../CONVENTIONS.md) §5.
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/jest.setup.ts`:
+- [x] **Step 5: Create `jest.setup.ts`**
+
+Create `C:/saravafy/saravafy-mobile-app/jest.setup.ts`:
 ```ts
 import "@testing-library/jest-native/extend-expect";
 ```
 
-- [ ] **Step 6: Smoke test — create + run a trivial test**
+- [x] **Step 6: Smoke test — create + run a trivial test**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/lib/__smoke__.test.ts`:
+Create `C:/saravafy/saravafy-mobile-app/src/lib/__smoke__.test.ts`:
 ```ts
 describe("jest bootstrap", () => {
   it("runs", () => {
@@ -101,19 +115,19 @@ describe("jest bootstrap", () => {
 });
 ```
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=__smoke__`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=__smoke__`
 Expected: PASS — 1 test passed.
 
 If FAIL with "Cannot find module" or transform errors, fix `jest.config.js` `transformIgnorePatterns` before proceeding.
 
-- [ ] **Step 7: Delete smoke test (no longer needed)**
+- [x] **Step 7: Delete smoke test (no longer needed)**
 
-Run: `rm /mnt/c/saravafy/saravafy-mobile-app/src/lib/__smoke__.test.ts`
+Run: `rm C:/saravafy/saravafy-mobile-app/src/lib/__smoke__.test.ts`
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add package.json package-lock.json jest.config.js jest.setup.ts
 git commit -m "chore: bootstrap jest-expo + testing-library for unit tests
 
@@ -131,9 +145,9 @@ subsequent specs. Smoke-verified with trivial test; harness boots and runs."
 
 Single shared utility replacing 10+ duplicated copies across screens, queries, and components.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/lib/errors.test.ts`:
+Create `C:/saravafy/saravafy-mobile-app/src/lib/errors.test.ts`:
 ```ts
 import { getErrorMessage } from "./errors";
 
@@ -169,14 +183,14 @@ describe("getErrorMessage", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=lib/errors`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=lib/errors`
 Expected: FAIL with `Cannot find module './errors'`.
 
-- [ ] **Step 3: Implement `getErrorMessage`**
+- [x] **Step 3: Implement `getErrorMessage`**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/lib/errors.ts`:
+Create `C:/saravafy/saravafy-mobile-app/src/lib/errors.ts`:
 ```ts
 export function getErrorMessage(e: unknown, fallback?: string): string {
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
@@ -202,20 +216,20 @@ export function getErrorMessage(e: unknown, fallback?: string): string {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=lib/errors`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=lib/errors`
 Expected: PASS — 7 tests passed.
 
-- [ ] **Step 5: Verify TypeScript compiles**
+- [x] **Step 5: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep -E "src/lib/errors" | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep -E "src/lib/errors" | head -5`
 Expected: no output (no errors in new files).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/lib/errors.ts src/lib/errors.test.ts
 git commit -m "feat: add getErrorMessage shared utility (src/lib/errors)
 
@@ -234,9 +248,9 @@ Adoption deferred to Tasks 6, 7. Tests cover all 7 branches."
 
 Per-terreiro role + permission lens built on existing `useTerreiroMembershipStatus`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/hooks/useTerreiroRole.test.tsx`:
+Create `C:/saravafy/saravafy-mobile-app/src/hooks/useTerreiroRole.test.tsx`:
 ```tsx
 import { renderHook } from "@testing-library/react-native";
 import { useTerreiroRole } from "./useTerreiroRole";
@@ -335,14 +349,14 @@ describe("useTerreiroRole", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=hooks/useTerreiroRole`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=hooks/useTerreiroRole`
 Expected: FAIL with `Cannot find module './useTerreiroRole'`.
 
-- [ ] **Step 3: Implement `useTerreiroRole`**
+- [x] **Step 3: Implement `useTerreiroRole`**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/hooks/useTerreiroRole.ts`:
+Create `C:/saravafy/saravafy-mobile-app/src/hooks/useTerreiroRole.ts`:
 ```ts
 import { useMemo } from "react";
 import { useTerreiroMembershipStatus } from "./terreiroMembership";
@@ -403,20 +417,20 @@ export function useTerreiroRole(
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=hooks/useTerreiroRole`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=hooks/useTerreiroRole`
 Expected: PASS — 8 tests passed.
 
-- [ ] **Step 5: Verify TypeScript compiles**
+- [x] **Step 5: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep -E "useTerreiroRole" | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep -E "useTerreiroRole" | head -5`
 Expected: no output.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/hooks/useTerreiroRole.ts src/hooks/useTerreiroRole.test.tsx
 git commit -m "feat: add useTerreiroRole permission hook
 
@@ -436,9 +450,9 @@ Adoption deferred to Tasks 7, 8."
 
 Loading/error/empty/stale-while-revalidate wrapper for React Query results.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/components/QueryBoundary.test.tsx`:
+Create `C:/saravafy/saravafy-mobile-app/src/components/QueryBoundary.test.tsx`:
 ```tsx
 import { render, screen } from "@testing-library/react-native";
 import { Text } from "react-native";
@@ -543,14 +557,14 @@ describe("QueryBoundary", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=QueryBoundary`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=QueryBoundary`
 Expected: FAIL with `Cannot find module './QueryBoundary'`.
 
-- [ ] **Step 3: Implement `<QueryBoundary>`**
+- [x] **Step 3: Implement `<QueryBoundary>`**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/components/QueryBoundary.tsx`:
+Create `C:/saravafy/saravafy-mobile-app/src/components/QueryBoundary.tsx`:
 ```tsx
 import { ReactNode } from "react";
 import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
@@ -635,20 +649,20 @@ const styles = StyleSheet.create({
 });
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [x] **Step 4: Run test to verify it passes**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=QueryBoundary`
+Run: `cd C:/saravafy/saravafy-mobile-app && npm test -- --testPathPattern=QueryBoundary`
 Expected: PASS — 8 tests passed.
 
-- [ ] **Step 5: Verify TypeScript compiles**
+- [x] **Step 5: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep -E "QueryBoundary" | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep -E "QueryBoundary" | head -5`
 Expected: no output.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/components/QueryBoundary.tsx src/components/QueryBoundary.test.tsx
 git commit -m "feat: add QueryBoundary component
 
@@ -662,15 +676,19 @@ Adoption deferred to Task 9."
 
 ## Task 5: Run full test suite to confirm green baseline
 
-- [ ] **Step 1: Run all tests**
+- [x] **Step 1: Run all tests**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test`
-Expected: PASS — 23 tests across 3 files (7 errors + 8 useTerreiroRole + 8 QueryBoundary).
+Run: `npm test`
+Expected: **0 failures.** Do not assert a total count — see [`CONVENTIONS.md`](../CONVENTIONS.md) §3.
 
-- [ ] **Step 2: Confirm TypeScript still compiles**
+- [x] **Step 2: Confirm TypeScript still compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | wc -l`
-Record number. If it matches the pre-Spec-1 baseline (pre-existing errors only), proceed. If new errors appear, fix before adoption tasks.
+Run: `npx tsc --noEmit`
+Expected: **zero output.**
+
+> **CORRECTED 2026-08-08.** The original step piped to `wc -l` and compared the line count against
+> a remembered baseline. That check passes when a new error simply replaces an old one — it
+> measures volume, not correctness. Assert an empty result instead.
 
 ---
 
@@ -679,14 +697,14 @@ Record number. If it matches the pre-Spec-1 baseline (pre-existing errors only),
 **Files:**
 - Modify: `src/screens/Home/Home.tsx:93-106`
 
-- [ ] **Step 1: Add import**
+- [x] **Step 1: Add import**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/screens/Home/Home.tsx`, add to existing imports block (preserve existing order):
+In `C:/saravafy/saravafy-mobile-app/src/screens/Home/Home.tsx`, add to existing imports block (preserve existing order):
 ```ts
 import { getErrorMessage } from "@/src/lib/errors";
 ```
 
-- [ ] **Step 2: Delete local `getErrorMessage` function (lines 93-106)**
+- [x] **Step 2: Delete local `getErrorMessage` function (lines 93-106)**
 
 Remove the block:
 ```ts
@@ -706,15 +724,15 @@ function getErrorMessage(e: unknown): string {
 }
 ```
 
-- [ ] **Step 3: Verify TypeScript compiles**
+- [x] **Step 3: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Home.tsx" | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Home.tsx" | head -5`
 Expected: no new errors specific to Home.tsx.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/screens/Home/Home.tsx
 git commit -m "refactor: Home uses shared getErrorMessage util
 
@@ -729,26 +747,26 @@ Behavior identical: same branch order, same fallback to String(e)."
 **Files:**
 - Modify: `src/screens/Collection/Collection.tsx:90-102`
 
-- [ ] **Step 1: Add import**
+- [x] **Step 1: Add import**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/screens/Collection/Collection.tsx`, add:
+In `C:/saravafy/saravafy-mobile-app/src/screens/Collection/Collection.tsx`, add:
 ```ts
 import { getErrorMessage } from "@/src/lib/errors";
 ```
 
-- [ ] **Step 2: Delete local `getErrorMessage` function (lines 90-102 in original; line numbers may have shifted)**
+- [x] **Step 2: Delete local `getErrorMessage` function (lines 90-102 in original; line numbers may have shifted)**
 
 Locate the local `function getErrorMessage(e: unknown): string {` block and remove it entirely.
 
-- [ ] **Step 3: Verify TypeScript compiles**
+- [x] **Step 3: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Collection.tsx" | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Collection.tsx" | head -5`
 Expected: no new errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/screens/Collection/Collection.tsx
 git commit -m "refactor: Collection uses shared getErrorMessage util
 
@@ -764,14 +782,14 @@ Sample adoption 2 of Spec 1. Removes local copy."
 
 Replace inline role check with hook. Verify behavior preserved.
 
-- [ ] **Step 1: Add import**
+- [x] **Step 1: Add import**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/screens/Collection/Collection.tsx`, add:
+In `C:/saravafy/saravafy-mobile-app/src/screens/Collection/Collection.tsx`, add:
 ```ts
 import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 ```
 
-- [ ] **Step 2: Replace inline canEditCustomTags computation**
+- [x] **Step 2: Replace inline canEditCustomTags computation**
 
 Locate (around line 234-243):
 ```ts
@@ -801,26 +819,24 @@ const canEditCustomTags = terreiroRole.canEditCustomTags;
 
 (Note: `membership` is still used downstream for `isActiveMember`, `hasPendingRequest`, `pendingRequestId`, etc. — keep that call; the new hook is additive.)
 
-- [ ] **Step 3: Verify TypeScript compiles**
+- [x] **Step 3: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Collection.tsx" | head -10`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Collection.tsx" | head -10`
 Expected: no new errors.
 
-- [ ] **Step 4: Smoke test — render Collection screen**
+- [x] **Step 4: Queue the human check — do not run it here**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm run start:dev` (in a separate terminal — leave running).
+Per [`CONVENTIONS.md`](../CONVENTIONS.md) §4, no plan step drives a dev client. Append to
+[`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §3 (Coleção): tag-edit sheets appear
+for admin/curimba only; plain members and non-members see no edit affordance.
 
-Manually open a collection screen in the dev client. Verify:
-- Pontos load.
-- "Add tag" / "Remove tag" sheets appear only for admin/curimba of the owning terreiro.
-- Plain members and non-members see no edit affordances.
+`useTerreiroRole().canEditCustomTags` must return exactly what the old three-clause expression
+returned. **Commit anyway** — this check does not gate the task.
 
-If behavior changes, stop and inspect — `useTerreiroRole` must return same `canEditCustomTags` as the old expression.
-
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/screens/Collection/Collection.tsx
 git commit -m "refactor: Collection uses useTerreiroRole for canEditCustomTags
 
@@ -836,14 +852,14 @@ preserved for downstream consumers (isActiveMember, hasPendingRequest)."
 **Files:**
 - Modify: `src/screens/Player/PlayerScreen.tsx:215-220`
 
-- [ ] **Step 1: Add import**
+- [x] **Step 1: Add import**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/screens/Player/PlayerScreen.tsx`, add:
+In `C:/saravafy/saravafy-mobile-app/src/screens/Player/PlayerScreen.tsx`, add:
 ```ts
 import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 ```
 
-- [ ] **Step 2: Replace inline canSeeMediumTags / canEdit derivation**
+- [x] **Step 2: Replace inline canSeeMediumTags / canEdit derivation**
 
 Locate (around line 215-220):
 ```ts
@@ -862,22 +878,20 @@ const canEditCustomTags = terreiroRole.canEditCustomTags;
 
 (If `myTerreiroRole` is used elsewhere in the file, keep it sourced from the same place; only replace the permission boolean.)
 
-- [ ] **Step 3: Verify TypeScript compiles**
+- [x] **Step 3: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "PlayerScreen.tsx" | head -10`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "PlayerScreen.tsx" | head -10`
 Expected: no new errors.
 
-- [ ] **Step 4: Smoke test — Player screen**
+- [x] **Step 4: Queue the human check — do not run it here**
 
-In dev client (still running), open the player from a terreiro's collection. Verify:
-- Same tag edit gating as before (admin/curimba only).
-- Player playback still works.
-- No console warnings about hook order changes.
+Append to [`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §2 (Player): same tag-edit
+gating as before, playback still works, no hook-order warnings in console. **Commit anyway.**
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/screens/Player/PlayerScreen.tsx
 git commit -m "refactor: PlayerScreen uses useTerreiroRole for canEditCustomTags
 
@@ -886,20 +900,41 @@ Sample adoption 4 of Spec 1. Same pattern as Collection adoption."
 
 ---
 
-## Task 10: Adoption — `<QueryBoundary>` for Home pontos query
+## Task 10: Adoption — `<QueryBoundary>` for ~~Home pontos~~ Terreiros query
 
 **Files:**
-- Modify: `src/screens/Home/Home.tsx` (locate the main pontos list query render)
+- ~~Modify: `src/screens/Home/Home.tsx`~~ → **actually modified: the Terreiros screen**
 
 Validates `<QueryBoundary>` loading + error + empty + stale-while-revalidate paths on a real query consumer.
 
-- [ ] **Step 1: Locate the Home pontos query render block**
+> **DEVIATION — recorded 2026-08-08, retroactively.**
+>
+> **Planned:** wrap the Home pontos list. **Actual:** wrapped the Terreiros list —
+> commit `36a04c6` *"refactor: Terreiros uses QueryBoundary for terreirosQuery render"*.
+> No `Home uses QueryBoundary` commit exists.
+>
+> **Root cause:** `Home.tsx` does not consume pontos through React Query at all. It calls
+> `fetchAllPontos()` into local `useState` (`aggregation.md` §6.15), so there is no
+> `{ isLoading, isError, error, data }` object to hand the boundary. Step 2's escape clause
+> — *"If no clean wrap site exists… pick the most contained block"* — was correctly exercised.
+>
+> **What went wrong was the recording, not the decision.** Neither this plan nor Spec 1 §3.4 was
+> updated, so for ~2 months both documents described an adoption that never happened, and the
+> human-validation target was wrong (Home instead of Terreiros).
+>
+> **Consequence:** `Home.tsx` still carries ad-hoc loading/error scaffolding. Adopting the boundary
+> there requires first moving its pontos read onto React Query — tracked as `S-4e` in
+> [`BACKLOG.md`](../BACKLOG.md).
+>
+> The steps below are left as originally written, for the record. Read `Home.tsx` as `Terreiros`.
 
-Run: `grep -n "useQuery\|isLoading\|pontos.*map\|FlatList\|ScrollView" /mnt/c/saravafy/saravafy-mobile-app/src/screens/Home/Home.tsx | head -20`
+- [x] **Step 1: Locate the Home pontos query render block**
+
+Run: `grep -n "useQuery\|isLoading\|pontos.*map\|FlatList\|ScrollView" C:/saravafy/saravafy-mobile-app/src/screens/Home/Home.tsx | head -20`
 
 Identify the block that renders pontos with conditional loading/error/empty UI. Read 30 lines of context around it.
 
-- [ ] **Step 2: Wrap the render with `<QueryBoundary>`**
+- [x] **Step 2: Wrap the render with `<QueryBoundary>`**
 
 Replace the conditional loading/error/empty scaffolding with the shape below. Use the actual query variable name from the file (Step 1 identified it):
 
@@ -928,31 +963,29 @@ Rules:
 
 If no clean wrap site exists (the query is consumed across multiple places in the same render), pick the most contained block and document the limitation in the commit message. Do not force-fit.
 
-- [ ] **Step 3: Add import**
+- [x] **Step 3: Add import**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/screens/Home/Home.tsx`:
+In `C:/saravafy/saravafy-mobile-app/src/screens/Home/Home.tsx`:
 ```ts
 import { QueryBoundary } from "@/src/components/QueryBoundary";
 ```
 
-- [ ] **Step 4: Verify TypeScript compiles**
+- [x] **Step 4: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Home.tsx" | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | grep "Home.tsx" | head -5`
 Expected: no new errors.
 
-- [ ] **Step 5: Smoke test — Home screen**
+- [x] **Step 5: Queue the human check — do not run it here**
 
-In dev client, open Home. Verify:
-- Initial load shows loading spinner.
-- Pontos render when data arrives.
-- Pull-to-refresh during stale state shows pontos (no flicker to loading).
-- Disable network → pull-to-refresh → no flicker, may show error eventually.
-- Empty search query result shows empty state.
+Append to [`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §4: initial load shows the
+spinner; pull-to-refresh over existing data keeps content on screen with **no flicker back to
+loading**; offline refresh keeps content; cold + offline shows the error card; empty result shows
+the empty state. **Commit anyway.**
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/screens/Home/Home.tsx
 git commit -m "refactor: Home uses QueryBoundary for pontos query
 
@@ -965,36 +998,37 @@ Removes ad-hoc conditional scaffolding."
 
 ## Task 11: Final verification + cross-link audit doc
 
-- [ ] **Step 1: Run full test suite**
+- [x] **Step 1: Run full test suite**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm test`
-Expected: all tests pass (count = pre-spec count + 23).
+Run: `npm test`
+Expected: **0 failures.**
 
-- [ ] **Step 2: TypeScript clean check**
+- [x] **Step 2: TypeScript clean check**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | wc -l`
-Compare to baseline recorded in Task 5 Step 2. Number must be equal or lower — never higher.
+Run: `npx tsc --noEmit`
+Expected: **zero output.**
 
-- [ ] **Step 3: Update audit doc cross-reference**
+- [x] **Step 3: Update audit doc cross-reference**
 
-Edit `/mnt/c/saravafy/saravafy-mobile-app/docs/architecture/code-quality-audit.md`. In §4 ("Recommended remediation order"), append column linking waves 2 + 3 to Spec 1:
+Edit `C:/saravafy/saravafy-mobile-app/docs/architecture/code-quality-audit.md`. In §4 ("Recommended remediation order"), append column linking waves 2 + 3 to Spec 1:
 
 Find the row "**2. Extract `useTerreiroRole(terreiroId)`**" and append at end of row: `→ [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md)`
 
 Find the row "**3. Build `<QueryBoundary>` + `getErrorMessage` util**" and append: `→ [Spec 1](../superpowers/specs/2026-06-13-spec-1-foundations.md)`
 
-- [ ] **Step 4: Smoke test — full app launch in dev client**
+- [x] **Step 4: Queue the human checks — do not run them here**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npm run start:dev`
+Confirm every deferred check from Tasks 8, 9, 10 is present in
+[`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md), plus the end-to-end regression walk
+(§6): login → Home → search → player → terreiro collection, no crash and no hook-order warnings.
 
-Launch on Android or iOS simulator. Walk through:
-- Login → Home loads → search for ponto → open player → open collection from terreiro → verify tag edit gating.
-- No crashes, no console errors, no visible regressions.
+The spec closes on **Agent DoD**. Human DoD stays open in the queue until the batched validation
+pass — see [`CONVENTIONS.md`](../CONVENTIONS.md) §4.
 
-- [ ] **Step 5: Final commit**
+- [x] **Step 5: Final commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add docs/architecture/code-quality-audit.md
 git commit -m "docs: cross-link Spec 1 from code-quality-audit waves 2,3
 
@@ -1013,10 +1047,17 @@ Unblocks Specs 2-4 which consume these primitives."
 **Tests added:** 23 (jest-expo baseline)
 **Commits:** 11 (one per task)
 
-**Adoption deferred to later specs** (intentionally NOT done in Spec 1):
-- 8 remaining `getErrorMessage` local copies (queries, components, ReviewSubmission, etc.) → Spec 2 or 3 mechanical sweep.
-- 10+ remaining inline role checks across `TabsHeaderWithPreferences`, `InviteGate`, `AccessManager` → Spec 2 (Dedup wave).
-- `<QueryBoundary>` adoption at remaining 14+ query consumers → opportunistic in Specs 2-4.
+**Status: executed and reconciled 2026-08-08.** Agent DoD met. Human DoD open in
+[`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md). One deviation recorded (Task 10 —
+`<QueryBoundary>` landed in Terreiros, not Home).
+
+**Adoption deferred** (intentionally NOT done in Spec 1) — now tracked in
+[`BACKLOG.md`](../BACKLOG.md), not against unwritten spec numbers:
+- 8 remaining `getErrorMessage` local copies → `S-3a`.
+- 10+ remaining inline role checks across `TabsHeaderWithPreferences`, `InviteGate`, `AccessManager` → `S-3b`.
+- `<QueryBoundary>` adoption at remaining ~14 query consumers → `S-3c`.
+- Home's pontos read moved onto React Query (prerequisite for boundary adoption there) → `S-4e`.
+- `getErrorMessage` trim contract mismatch + dead branch → `X1`, `X2`.
 
 **If a step fails:**
 - TypeScript error in adoption task → revert the file (`git checkout src/screens/<file>`), re-read the new API, retry.

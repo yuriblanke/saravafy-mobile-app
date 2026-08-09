@@ -33,9 +33,9 @@
 
 Purpose: capture the exact legacy logic before porting. No code changes this task.
 
-- [ ] **Step 1: Read the full `fetchTerreirosQueAdministro` body**
+- [x] **Step 1: Read the full `fetchTerreirosQueAdministro` body**
 
-Run: `sed -n '67,312p' /mnt/c/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx`
+Run: `sed -n '67,312p' C:/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx`
 
 Note down (in your scratch):
 - Initial membership query: `terreiro_members` filtered by `user_id`, `role IN ("admin")`, `status = "active"`.
@@ -45,15 +45,15 @@ Note down (in your scratch):
 - Final mapping: `{ id, name: t.title, avatarUrl: cover_image_url ?? avatar_url ?? image_url, role: "admin" }`.
 - Sort: `safeLocaleCompare(a.name, b.name)`.
 
-- [ ] **Step 2: Read the `isTerreiroMembersPolicyRecursionError` helper definition**
+- [x] **Step 2: Read the `isTerreiroMembersPolicyRecursionError` helper definition**
 
-Run: `grep -n "isTerreiroMembersPolicyRecursionError\|function isTerreiro" /mnt/c/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx | head -5`
+Run: `grep -n "isTerreiroMembersPolicyRecursionError\|function isTerreiro" C:/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx | head -5`
 
 Read its body. This helper moves to `src/queries/me.ts` (or `src/lib/`) in Task 4 — port it verbatim.
 
-- [ ] **Step 3: Note ManagedTerreiro shape and any internal helpers used (e.g., `safeLocaleCompare`)**
+- [x] **Step 3: Note ManagedTerreiro shape and any internal helpers used (e.g., `safeLocaleCompare`)**
 
-Run: `grep -n "safeLocaleCompare\|ManagedTerreiro" /mnt/c/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx | head -10`
+Run: `grep -n "safeLocaleCompare\|ManagedTerreiro" C:/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx | head -10`
 
 `safeLocaleCompare` already exists in `src/queries/me.ts:182`. Reuse — do not duplicate.
 
@@ -66,9 +66,9 @@ Run: `grep -n "safeLocaleCompare\|ManagedTerreiro" /mnt/c/saravafy/saravafy-mobi
 **Files:**
 - Modify: `src/queries/queryKeys.ts:33-45` (the `me:` block)
 
-- [ ] **Step 1: Add the key**
+- [x] **Step 1: Add the key**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/queries/queryKeys.ts`, inside the `me:` object (currently lines 33-45), add a new entry:
+In `C:/saravafy/saravafy-mobile-app/src/queries/queryKeys.ts`, inside the `me:` object (currently lines 33-45), add a new entry:
 
 ```ts
 managedTerreiros: (userId: string) =>
@@ -77,15 +77,15 @@ managedTerreiros: (userId: string) =>
 
 Suggested placement: right after `editableTerreiros` (line 42-43) to keep similar keys grouped.
 
-- [ ] **Step 2: Verify TypeScript compiles**
+- [x] **Step 2: Verify TypeScript compiles**
 
-Run: `cd /mnt/c/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | head -5`
+Run: `cd C:/saravafy/saravafy-mobile-app && npx tsc --noEmit 2>&1 | head -5`
 Expected: no new errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
-cd /mnt/c/saravafy/saravafy-mobile-app
+cd C:/saravafy/saravafy-mobile-app
 git add src/queries/queryKeys.ts
 git commit -m "feat(queries): add me.managedTerreiros query key
 
@@ -100,7 +100,7 @@ Reserved for useMyManagedTerreirosQuery (Spec 2b)."
 - Modify: `src/queries/me.ts` — add type export
 - Modify: `contexts/PreferencesContext.tsx` — remove type export, add import (so existing context-internal usage still compiles)
 
-- [ ] **Step 1: Add type to `src/queries/me.ts`**
+- [x] **Step 1: Add type to `src/queries/me.ts`**
 
 Find a sensible location (near other types around line 161-180). Insert:
 
@@ -115,9 +115,9 @@ export type ManagedTerreiro = {
 
 Verify `TerreiroRole` is imported/defined in `me.ts`. If not, add it. (Existing `EditableTerreiroRole = "admin" | "curimba"` is similar — check exports.)
 
-- [ ] **Step 2: Update PreferencesContext to import the type**
+- [x] **Step 2: Update PreferencesContext to import the type**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx`:
+In `C:/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx`:
 
 Delete lines 20-25 (the local `export type ManagedTerreiro = { ... };` block).
 
@@ -131,12 +131,12 @@ Re-export so external importers from `@/contexts/PreferencesContext` keep workin
 export type { ManagedTerreiro };
 ```
 
-- [ ] **Step 3: Verify TypeScript compiles**
+- [x] **Step 3: Verify TypeScript compiles**
 
 Run: `npx tsc --noEmit 2>&1 | grep -E "ManagedTerreiro|PreferencesContext" | head -10`
 Expected: no errors.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```bash
 git add src/queries/me.ts contexts/PreferencesContext.tsx
@@ -154,7 +154,7 @@ consumer migration (Spec 2b Task 8)."
 - Modify: `src/queries/me.ts` — add helper (un-exported, file-local)
 - Keep: `contexts/PreferencesContext.tsx` — leave existing definition in place until Task 7 (the legacy fn still uses it)
 
-- [ ] **Step 1: Copy helper into `src/queries/me.ts`**
+- [x] **Step 1: Copy helper into `src/queries/me.ts`**
 
 Locate `isTerreiroMembersPolicyRecursionError` in `contexts/PreferencesContext.tsx` (use grep from Task 1 Step 2). Copy the body verbatim into `src/queries/me.ts` as a file-local helper (not exported):
 
@@ -164,12 +164,12 @@ function isTerreiroMembersPolicyRecursionError(err: unknown): boolean {
 }
 ```
 
-- [ ] **Step 2: Verify TypeScript compiles**
+- [x] **Step 2: Verify TypeScript compiles**
 
 Run: `npx tsc --noEmit 2>&1 | head -5`
 Expected: no errors.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/queries/me.ts
@@ -190,9 +190,9 @@ is deleted (Spec 2b Task 8)."
 
 This is the bulk of Spec 2b. Port the legacy fetcher's branches verbatim.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
-Create `/mnt/c/saravafy/saravafy-mobile-app/src/queries/me.test.ts`:
+Create `C:/saravafy/saravafy-mobile-app/src/queries/me.test.ts`:
 
 ```ts
 import { fetchMyManagedTerreiros } from "./me";
@@ -383,16 +383,16 @@ describe("fetchMyManagedTerreiros", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 ```
 npm test -- --testPathPattern=queries/me
 ```
 Expected: FAIL — `fetchMyManagedTerreiros` is not exported from `./me`.
 
-- [ ] **Step 3: Implement `fetchMyManagedTerreiros` and `useMyManagedTerreirosQuery`**
+- [x] **Step 3: Implement `fetchMyManagedTerreiros` and `useMyManagedTerreirosQuery`**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/src/queries/me.ts`:
+In `C:/saravafy/saravafy-mobile-app/src/queries/me.ts`:
 
 Port the legacy `fetchTerreirosQueAdministro` body from `PreferencesContext.tsx:67-312` as a new function `fetchMyManagedTerreiros(params: { userId: string }): Promise<ManagedTerreiro[]>`.
 
@@ -427,7 +427,7 @@ export function useMyManagedTerreirosQuery(
 
 (Imports: ensure `useQuery`, `UseQueryResult`, and `queryKeys` are imported if not already.)
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [x] **Step 4: Run tests to verify they pass**
 
 ```
 npm test -- --testPathPattern=queries/me
@@ -436,14 +436,14 @@ Expected: PASS — all 5 tests.
 
 If any fail because the mock chain doesn't match what the implementation calls (Supabase fluent API can be tricky), inspect the failing test, refine the mock chain, and retry. The test should not be loosened to hide a real branch divergence — if the implementation calls supabase differently than the mock, the implementation is wrong (not the test).
 
-- [ ] **Step 5: Verify TypeScript compiles**
+- [x] **Step 5: Verify TypeScript compiles**
 
 ```
 npx tsc --noEmit 2>&1 | grep -E "me\.ts|me\.test" | head -5
 ```
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/queries/me.ts src/queries/me.test.ts
@@ -467,16 +467,16 @@ Legacy fn in PreferencesContext remains until consumers migrate
 **Files:**
 - Modify: `src/components/InviteGate.tsx` (lines 196, 771, 879)
 
-- [ ] **Step 1: Read the 3 sites**
+- [x] **Step 1: Read the 3 sites**
 
-Run: `grep -n "fetchTerreirosQueAdministro" /mnt/c/saravafy/saravafy-mobile-app/src/components/InviteGate.tsx`
+Run: `grep -n "fetchTerreirosQueAdministro" C:/saravafy/saravafy-mobile-app/src/components/InviteGate.tsx`
 
 Inspect each. Confirm:
 - Line 196: destructured from `usePreferences()` — read-side.
 - Line 771: `await fetchTerreirosQueAdministro(userId)` inside an invite-accept handler — refresh after mutation.
 - Line 879: dep array entry — for `useCallback`/`useEffect`.
 
-- [ ] **Step 2: Replace destructure with `useQueryClient`**
+- [x] **Step 2: Replace destructure with `useQueryClient`**
 
 Find the `usePreferences()` call near line 196. Remove `fetchTerreirosQueAdministro` from the destructure.
 
@@ -491,7 +491,7 @@ Inside the component (alongside other hooks):
 const queryClient = useQueryClient();
 ```
 
-- [ ] **Step 3: Replace the `await fetchTerreirosQueAdministro(userId)` call (line 771)**
+- [x] **Step 3: Replace the `await fetchTerreirosQueAdministro(userId)` call (line 771)**
 
 Replace with:
 ```ts
@@ -502,18 +502,18 @@ await queryClient.invalidateQueries({
 
 **Caveat:** the original `await` was fire-and-await-result (returns the data). The replacement is fire-and-forget-via-cache. If the surrounding code reads the result of the call, you must instead use `queryClient.fetchQuery(...)` or refactor to read from the hook. **Inspect the 3 lines around line 771 before swapping.** If the result is used, escalate as DONE_WITH_CONCERNS.
 
-- [ ] **Step 4: Remove dep-array entry at line 879**
+- [x] **Step 4: Remove dep-array entry at line 879**
 
 Find the `useCallback`/`useEffect` deps array that listed `fetchTerreirosQueAdministro`. Remove it. Add `queryClient` if it's referenced in the callback (RQ guarantees `queryClient` stable identity but ESLint rule may still want it listed).
 
-- [ ] **Step 5: Verify TypeScript compiles**
+- [x] **Step 5: Verify TypeScript compiles**
 
 ```
 npx tsc --noEmit 2>&1 | grep "InviteGate.tsx" | head -5
 ```
 Expected: no errors.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/InviteGate.tsx
@@ -534,13 +534,13 @@ useMyManagedTerreirosQuery updates automatically."
 
 Same pattern as Task 6.
 
-- [ ] **Step 1: TabsHeaderWithPreferences — read sites**
+- [x] **Step 1: TabsHeaderWithPreferences — read sites**
 
-Run: `grep -n "fetchTerreirosQueAdministro" /mnt/c/saravafy/saravafy-mobile-app/src/components/TabsHeaderWithPreferences.tsx`
+Run: `grep -n "fetchTerreirosQueAdministro" C:/saravafy/saravafy-mobile-app/src/components/TabsHeaderWithPreferences.tsx`
 
 Inspect lines 649 (destructure) and 1267 (call after invite action).
 
-- [ ] **Step 2: TabsHeaderWithPreferences — apply migration**
+- [x] **Step 2: TabsHeaderWithPreferences — apply migration**
 
 Same 4 substeps as Task 6 Step 2-5: add `useQueryClient` + `queryKeys` imports; remove from `usePreferences()` destructure; replace `await fetchTerreirosQueAdministro(userId)` with `await queryClient.invalidateQueries({ queryKey: queryKeys.me.managedTerreiros(userId) })`.
 
@@ -549,13 +549,13 @@ Verify TS clean:
 npx tsc --noEmit 2>&1 | grep "TabsHeaderWithPreferences" | head -5
 ```
 
-- [ ] **Step 3: TerreiroEditor — read sites**
+- [x] **Step 3: TerreiroEditor — read sites**
 
-Run: `grep -n "fetchTerreirosQueAdministro" /mnt/c/saravafy/saravafy-mobile-app/src/screens/TerreiroEditor/TerreiroEditor.tsx`
+Run: `grep -n "fetchTerreirosQueAdministro" C:/saravafy/saravafy-mobile-app/src/screens/TerreiroEditor/TerreiroEditor.tsx`
 
 Inspect lines 633 (destructure), 940/1415/1539 (3 imperative calls after mutations), 969 (dep array).
 
-- [ ] **Step 4: TerreiroEditor — apply migration**
+- [x] **Step 4: TerreiroEditor — apply migration**
 
 Same pattern. Each of 3 calls becomes:
 ```ts
@@ -571,12 +571,12 @@ Verify TS clean:
 npx tsc --noEmit 2>&1 | grep "TerreiroEditor" | head -5
 ```
 
-- [ ] **Step 5: Verify no remaining consumers**
+- [x] **Step 5: Verify no remaining consumers**
 
-Run: `grep -rn "fetchTerreirosQueAdministro" /mnt/c/saravafy/saravafy-mobile-app/src/ /mnt/c/saravafy/saravafy-mobile-app/contexts/`
+Run: `grep -rn "fetchTerreirosQueAdministro" C:/saravafy/saravafy-mobile-app/src/ C:/saravafy/saravafy-mobile-app/contexts/`
 Expected: ONLY matches inside `contexts/PreferencesContext.tsx` (the legacy definition, removed in Task 8).
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add src/components/TabsHeaderWithPreferences.tsx src/screens/TerreiroEditor/TerreiroEditor.tsx
@@ -594,23 +594,26 @@ in next commit."
 **Files:**
 - Modify: `contexts/PreferencesContext.tsx`
 
-- [ ] **Step 1: Confirm zero consumers remain**
+- [x] **Step 1: Confirm zero consumers remain**
 
-Run: `grep -rn "fetchTerreirosQueAdministro" /mnt/c/saravafy/saravafy-mobile-app/src/ /mnt/c/saravafy/saravafy-mobile-app/contexts/ /mnt/c/saravafy/saravafy-mobile-app/app/`
+Run: `grep -rn "fetchTerreirosQueAdministro" C:/saravafy/saravafy-mobile-app/src/ C:/saravafy/saravafy-mobile-app/contexts/ C:/saravafy/saravafy-mobile-app/app/`
 
 Expected: ONLY the definition inside `PreferencesContext.tsx`. If any other consumer surfaces, stop and migrate it (Task 6/7 pattern) before proceeding.
 
-- [ ] **Step 2: Delete the function body**
+- [x] **Step 2: Delete the function body**
 
-In `/mnt/c/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx`, delete the entire `export async function fetchTerreirosQueAdministro(userId: string) { ... }` block (approximately lines 67–312; verify exact span by searching).
+In `C:/saravafy/saravafy-mobile-app/contexts/PreferencesContext.tsx`, delete the entire `export async function fetchTerreirosQueAdministro(userId: string) { ... }` block (approximately lines 67–312; verify exact span by searching).
 
-- [ ] **Step 3: Delete `isTerreiroMembersPolicyRecursionError` helper (now duplicated in me.ts)**
+- [x] **Step 3: Delete `isTerreiroMembersPolicyRecursionError` helper (now duplicated in me.ts)**
 
 Search the rest of the file for any remaining usage of `isTerreiroMembersPolicyRecursionError`. If none remain (`grep "isTerreiroMembersPolicyRecursionError"` inside PreferencesContext.tsx returns 0 matches outside the helper definition itself), delete the helper definition.
 
-If something else still uses it, keep it — note as DONE_WITH_CONCERNS for a future cleanup.
+If something else still uses it, keep it — and **before committing this task**, add a row to
+[`BACKLOG.md`](../BACKLOG.md) under P3 describing what still depends on it and why it could not be
+removed. `DONE_WITH_CONCERNS` with no recorded destination is a dropped concern
+([`CONVENTIONS.md`](../CONVENTIONS.md) §9).
 
-- [ ] **Step 4: Remove from context value type + provider**
+- [x] **Step 4: Remove from context value type + provider**
 
 Search for `fetchTerreirosQueAdministro` in the rest of `PreferencesContext.tsx`. Likely appears in:
 - The `PreferencesContextValue` interface
@@ -618,31 +621,31 @@ Search for `fetchTerreirosQueAdministro` in the rest of `PreferencesContext.tsx`
 
 Remove both entries.
 
-- [ ] **Step 5: Remove the `export type { ManagedTerreiro }` back-compat shim (added in Task 3)**
+- [x] **Step 5: Remove the `export type { ManagedTerreiro }` back-compat shim (added in Task 3)**
 
 Verify no external consumer imports `ManagedTerreiro` from `@/contexts/PreferencesContext`:
 
 ```
-grep -rn "ManagedTerreiro" /mnt/c/saravafy/saravafy-mobile-app/src/ | grep -v "src/queries/me" | head -10
+grep -rn "ManagedTerreiro" C:/saravafy/saravafy-mobile-app/src/ | grep -v "src/queries/me" | head -10
 ```
 
 If matches exist, update each importer to import from `@/src/queries/me` instead. Then remove the re-export from `PreferencesContext.tsx`.
 
-- [ ] **Step 6: Verify TypeScript compiles**
+- [x] **Step 6: Verify TypeScript compiles**
 
 ```
-npx tsc --noEmit 2>&1 | wc -l
+npx tsc --noEmit
 ```
-Expected: 0 (matches baseline). If positive, investigate before commit.
+Expected: **zero output.**
 
-- [ ] **Step 7: Run full test suite**
+- [x] **Step 7: Run full test suite**
 
 ```
 npm test
 ```
-Expected: all tests pass (28 = 23 baseline + 5 new in me.test.ts).
+Expected: **0 failures.** Do not assert a total count — see [`CONVENTIONS.md`](../CONVENTIONS.md) §3.
 
-- [ ] **Step 8: Commit**
+- [x] **Step 8: Commit**
 
 ```bash
 git add contexts/PreferencesContext.tsx
@@ -662,33 +665,36 @@ including the RLS recursion fallback and schema-tolerance branches
 
 ## Task 9: Smoke test + cross-link audit doc
 
-- [ ] **Step 1: Final test run**
+- [x] **Step 1: Final test run**
 
 ```
-npm test && npx tsc --noEmit 2>&1 | wc -l
+npm test
+npx tsc --noEmit
 ```
-Expected: all tests pass; tsc output is `0`.
+Expected: **0 test failures; zero `tsc` output.**
 
-- [ ] **Step 2: Manual smoke (requires dev client)**
+- [x] **Step 2: Queue the human checks — do not run them here**
 
-Start: `npm run start:dev` (in a separate terminal).
+Per [`CONVENTIONS.md`](../CONVENTIONS.md) §4, no plan step drives a dev client. Append to
+[`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §5 (Preferências / Meus terreiros):
 
-In the dev client, walk through:
-- Login → open Preferences/menu → confirm "Meus terreiros" admin list populates.
-- Open Terreiro Editor for an admin terreiro → save changes → return to menu → confirm list reflects the change.
-- (If you have a pending admin invite) Accept invite → return to menu → confirm new terreiro appears.
+- Login → Preferences → "Meus terreiros" populates with admin terreiros.
+- Terreiro Editor → save → list reflects the change **without manual refresh**.
+- Accept an admin invite → new terreiro appears on its own.
 
-If any flow shows stale data, the `invalidateQueries` call site is wrong (probably wrong `userId` arg) — fix before proceeding.
+Diagnostic to include with the queued item: if any flow shows stale data, the `userId` passed to
+`invalidateQueries` does not match the one the hook reads. **Commit anyway** — this does not gate
+the task.
 
-- [ ] **Step 3: Cross-link audit doc**
+- [x] **Step 3: Cross-link audit doc**
 
-Edit `/mnt/c/saravafy/saravafy-mobile-app/docs/architecture/code-quality-audit.md`. Find the row "**6. Move `PreferencesContext` server state → RQ**" (in §4 remediation order) and append:
+Edit `C:/saravafy/saravafy-mobile-app/docs/architecture/code-quality-audit.md`. Find the row "**6. Move `PreferencesContext` server state → RQ**" (in §4 remediation order) and append:
 
 ```
  → [Spec 2b](../superpowers/specs/2026-06-14-spec-2b-preferences-context-rq.md)
 ```
 
-- [ ] **Step 4: Final commit**
+- [x] **Step 4: Final commit**
 
 ```bash
 git add docs/architecture/code-quality-audit.md
@@ -713,7 +719,12 @@ use useMyManagedTerreirosQuery + invalidateQueries instead."
 - TS error in Task 6/7 (consumer migration): likely the surrounding code expected `await fetchTerreirosQueAdministro(userId)` to return data inline. Re-read the surrounding code; if the data is used, refactor to use `useMyManagedTerreirosQuery` instead of `invalidateQueries`, or use `queryClient.fetchQuery({ queryKey, queryFn })` for one-shot reads.
 - Smoke test stale data: `userId` mismatch in invalidate call. Compare the `userId` passed to `invalidateQueries` with the `userId` the hook reads — they must match exactly.
 
+**Status: executed and reconciled 2026-08-08.** Agent DoD met. Human DoD open in
+[`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §5. No deviations recorded.
+
 **Out of scope (reminder):**
 - AddToCollection unification → Spec 2a (sibling).
 - Other PreferencesContext concerns (theme, start page) → not addressed; only the server-fetch leak.
-- Logout cache eviction for the new key (audit §6.10) → separate spec.
+- Logout cache eviction (`aggregation.md` §6.10) → **confirmed live defect**, tracked as `D1` in
+  [`BACKLOG.md`](../BACKLOG.md) at P0. Note this spec's new key `me.managedTerreiros(userId)` *does*
+  carry `userId`, so it is correctly evicted; the gap is in the non-user-scoped terreiro keys.
