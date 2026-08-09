@@ -32,6 +32,30 @@ Detail for each: `docs/architecture/aggregation.md` §6.10, §6.11, §6.7, §6.6
 
 ---
 
+## P0.5 — dependency drift (found 2026-08-08, via `npx expo-doctor`)
+
+Surfaced while preparing a native rebuild: a clean `npm install` failed with an `ERESOLVE` conflict
+because `jest-expo` had drifted 2 majors ahead of the installed Expo SDK (fixed same day, commit
+`6d08cdb`). That prompted a full `expo-doctor` pass — Expo's own SDK-compatibility diagnostic —
+which found more of the same class of problem. Not yet actioned; listed here rather than fixed
+immediately because upgrading native deps right before the human validation pass would introduce a
+new variable while trying to isolate whether the reported bugs (flicker, routing) still exist.
+
+| ID | Finding | Severity | Why |
+|---|---|---|---|
+| **N1** | `react-native-track-player` is **not supported on New Architecture** | 🔴 high | `app.config.ts:76` sets `newArchEnabled: true` (required by Reanimated 4), and `android/gradle.properties:38` confirms it's active. RNTP is the app's sole audio playback engine (`aggregation.md` — "RNTP as single source of truth"). A documented incompatibility here is a strong candidate for exactly the class of bug this whole effort targets — native crashes or inconsistent playback behavior that would look "random" from the JS side |
+| **N2** | `@react-native-community/netinfo` installed at `12.0.1`, Expo SDK 54 expects `11.4.1` (major ahead) | 🟡 medium | Same *shape* of defect as the `jest-expo` fix — a native module ahead of the SDK it's paired with. This package belongs to the uncommitted offline-sync WIP (`S-5`); fix it together with that spec, not in isolation |
+| **N3** | 11 `expo-*` packages behind by a patch version each | 🟢 low | `npx expo install --check` fixes in one pass. No known behavioral risk |
+| **N4** | `react-native-gesture-handler` `2.30.0` vs expected `~2.28.0` (minor) | 🟢 low | Within normal drift; gesture handling is already flagged as fragmented in `code-quality-audit.md` §3.1 (4 contexts) — worth re-checking together if that work happens |
+| **N5** | `@types/jest` `30` vs expected `29.5.14` | 🟢 low | Types-only, dev dependency, no runtime effect |
+
+**Next step:** re-run `npx expo-doctor` after the human validation pass. Fix N3–N5 as a routine
+patch-bump commit (low risk, do anytime). Investigate N1 before it becomes load-bearing — either
+confirm RNTP works acceptably in practice under New Arch (many libraries run fine via interop layer
+despite not being *listed* as supported) or plan a replacement. Fix N2 as part of `S-5`.
+
+---
+
 ## P1 — contract holes
 
 | ID | Item | Why it is P1 |
