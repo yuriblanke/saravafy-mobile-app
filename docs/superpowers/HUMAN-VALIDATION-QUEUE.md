@@ -198,13 +198,36 @@ Origem: Spec 2b (`PreferencesContext` → React Query).
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 5.1 | Login → abrir Preferências | "Meus terreiros" lista os terreiros onde sou admin | |
-| 5.2 | Editar um terreiro → salvar → voltar | Lista reflete a mudança **sem refresh manual** | |
-| 5.3 | Aceitar convite de admin → voltar | Terreiro novo aparece na lista sozinho | |
-| 5.4 | Sair de um terreiro | Some da lista sozinho | |
+| 5.1 | Login → abrir Preferências | ~~lista onde sou admin~~ ver nota | ✅ OK (lista admin + membro/curimba) |
+| 5.2 | Editar um terreiro → salvar → voltar | Lista reflete a mudança **sem refresh manual** | ✅ OK |
+| 5.3 | Aceitar convite de admin → voltar | Terreiro novo aparece na lista sozinho | ⏸️ adiado, ver nota |
+| 5.4 | Sair de um terreiro | Some da lista sozinho | ✅ OK |
+| 5.5 | **(novo)** Conta/perfil: deslogar de dentro da tela de Preferências | Card de identidade mostra "Entrar"; nenhum botão "Sair" aparece | ❌ mostra "? Você" + botão "Sair" continua — ver nota |
+| 5.6 | **(novo)** Remover/trocar a foto de perfil | Deveria existir alguma forma de controlar a foto exibida | ❌ não existe — ver nota |
 
 **Atenção 5.2–5.4:** antes era fetch imperativo, agora é `invalidateQueries`. Se ficar dado velho,
 o `userId` passado no invalidate não bate com o que o hook lê.
+
+> **5.1 — item da fila era mais estreito que o comportamento real (correto).** A lista mistura
+> terreiros onde você é admin **e** onde é membro/curimba, não só admin — confirmado por você como
+> o esperado. Ajustado aqui só pra registro, não é bug.
+>
+> **5.3 — adiado por decisão sua.** Todos os fluxos de convite (aceitar, rejeitar, reenviar) ficam
+> pra testar só depois do refactor completo. Não retestar isso nesta rodada.
+>
+> **5.5 — bug confirmado, dois lugares independentes.** `ProfileSection.tsx` e `LogoutSection.tsx`
+> (as duas telas de "Conta" dentro de `Preferences.tsx`) não têm **nenhuma** checagem de `user` —
+> renderizam a UI de logado mesmo deslogado. `getDisplayName("")` retorna literalmente `"Você"`
+> (por isso o "? Você" exato que você viu), e o botão "Sair" não tem guard nenhum no JSX. **O mesmo
+> buraco existe de forma independente na outra implementação de Preferências**
+> (`TabsHeaderWithPreferences.tsx:1948`) — confirma na prática o `aggregation.md §6.12` (2 telas
+> paralelas que divergem). Registrado como `D12` em [`BACKLOG.md`](BACKLOG.md), P0.
+>
+> **5.6 — bug por decisão sua, mas é capacidade que nunca existiu, não botão quebrado.** Confirmado
+> por grep exaustivo: a foto vem só do OAuth (Google), sem nenhum controle no app pra trocar ou
+> remover. Não dá pra "deletar" a foto do lado do Saravafy — a correção seria uma preferência tipo
+> "usar iniciais em vez da foto". Registrado como `D13` em [`BACKLOG.md`](BACKLOG.md), com essa
+> nota de escopo pra não virar "restaurar botão que sumiu".
 
 ---
 
@@ -212,15 +235,24 @@ o `userId` passado no invalidate não bate com o que o hook lê.
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 6.1 | Login com Google | Entra sem loop | |
-| 6.2 | Percurso: login → Home → buscar → player → coleção de terreiro → voltar | Sem crash, sem warning de hook order no console | |
-| 6.3 | Trocar de aba (Pontos ↔ Terreiros) por swipe | Sem frame estranho na transição | |
-| 6.4 | Abrir e fechar Preferências pelo header | Sem flash de conteúdo errado | |
+| 6.1 | Login com Google | Entra sem loop | ✅ OK |
+| 6.2 | Percurso: login → Home → buscar → player → coleção de terreiro → voltar | Sem crash, sem warning de hook order no console | ✅ OK |
+| 6.3 | Trocar de aba (Pontos ↔ Terreiros) por swipe | Sem frame estranho na transição | ✅ OK |
+| 6.4 | Abrir e fechar Preferências pelo header | Sem flash de conteúdo errado | ✅ OK hoje — ver nota importante |
 
 **Atenção 6.3 e 6.4:** são os *flickers* que você relatou. Nenhuma spec atacou isso ainda —
 suspeitos mapeados: 4 contexts de gesture/pager fragmentados (`code-quality-audit.md` §3.1) e as
 duas implementações paralelas da tela de Preferências (`aggregation.md` §6.12). Descrever com o
 máximo de detalhe possível o que aparece no frame errado; é o que vai direcionar a spec.
+
+> **6.4 — não pisca hoje, mas por causa de uma camada de mascaramento, não porque foi corrigido na
+> raiz.** Confirmado no código: `src/utils/navCover.ts` é um overlay global que cobre a tela antes
+> de navegar e só libera quando o destino avisa que está pronto — construído especificamente pra
+> esconder esse handoff, com até ferramenta de debug dedicada (`__saravafyDebugGhostAmplifyUntil`
+> etc). Ou seja, o flicker é real e documentado no próprio código-fonte, só que hoje está tapado.
+> **Decisão sua: esse refactor deve resolver a causa raiz**, não só confirmar que a máscara
+> continua funcionando. Critério de pronto: dar pra deletar `navCover.ts` inteiro e a transição
+> continuar sem piscar. Detalhes em `S-4a` no [`BACKLOG.md`](BACKLOG.md).
 
 ---
 
@@ -233,6 +265,12 @@ Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez d
 | | | |
 
 ### Offline / conexão — entrada pra spec `S-5`
+
+**Deprioritizado (2026-08-09): testar só depois do refactor completo.** Confirmado que dev client
+não abre com o avião já ligado (limitação de ferramenta, item 4.4) — testar cold-cache+offline de
+verdade exige build de produção/standalone. Em vez de testar aos poucos e mal com o dev client, fica
+pra uma rodada dedicada com build de prod, depois do refactor. Seção mantida pra quando chegar lá —
+não preencher agora.
 
 Seção separada de propósito: isso **não** é caça a bug, é levantamento. O trabalho de auto-sync
 offline está no working tree sem spec, e vai virar spec a partir do que você observar aqui.
