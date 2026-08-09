@@ -397,18 +397,17 @@ export default function Collection() {
     loadCollection();
   }, [loadCollection]);
 
-  // reloadPontos() is fire-and-forget (useCollectionPlayerData.ts:380-387 calls
-  // `void query.refetch()` and returns void, not a promise) -- it can't be
-  // awaited or thrown by. loadCollection() also can't reject: it catches its
-  // own errors internally and stores them in collectionError. So this can't
-  // follow the Promise.all shape used on the other multi-source screens; it
-  // just kicks reloadPontos off and awaits the one call that is a promise.
+  // reloadPontos() now returns the underlying refetch() promise, so this can
+  // follow the same Promise.all shape used on TerreiroBiblioteca/TerreiroMembers.
+  // Neither call can reject: React Query's refetch() swallows into its own
+  // query state unless { throwOnError: true } is passed (not the case here),
+  // and loadCollection() catches its own errors internally into
+  // collectionError. No catch is needed; the finally still guards the spinner.
   const [isRefreshing, setIsRefreshing] = useState(false);
   const onRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      reloadPontos();
-      await loadCollection();
+      await Promise.all([reloadPontos(), loadCollection()]);
     } finally {
       setIsRefreshing(false);
     }

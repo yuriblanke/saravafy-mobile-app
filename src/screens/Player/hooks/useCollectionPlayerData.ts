@@ -377,13 +377,12 @@ export function useCollectionPlayerData(
     );
   }, []);
 
-  const reload = useCallback(() => {
-    if (!enabled) return;
+  const reload = useCallback((): Promise<unknown> => {
+    if (!enabled) return Promise.resolve();
     if (isAllMode) {
-      void allPontosQuery.refetch();
-      return;
+      return allPontosQuery.refetch();
     }
-    void collectionPontosQuery.refetch();
+    return collectionPontosQuery.refetch();
   }, [allPontosQuery, collectionPontosQuery, enabled, isAllMode]);
 
   return {
