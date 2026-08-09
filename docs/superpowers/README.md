@@ -43,6 +43,8 @@ Two rules carry most of the weight:
 | [Spec 3 — Auth state leaks](specs/2026-08-09-spec-3-auth-state-leaks.md) | [✅](plans/2026-08-09-spec-3-auth-state-leaks.md) | 🔜 next | ⏳ |
 | [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | [✅](plans/2026-08-09-spec-4-failure-presentation.md) | ⏳ | ⏳ |
 | [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | [✅](plans/2026-08-09-spec-5-add-to-collection-write-path.md) | ⏳ | ⏳ |
+| [Spec 6 — Keyboard avoidance (pilot)](specs/2026-08-09-spec-6-keyboard-avoidance.md) | [✅](plans/2026-08-09-spec-6-keyboard-avoidance.md) | ⏳ | ⏳ **gates Spec 7** |
+| *Spec 7 — Keyboard avoidance (rollout)* | — | 🔒 blocked | blocked on Spec 6 sign-off |
 
 The 2026-08-08/09 validation pass confirmed **8 defects** (`D6`–`D13`). Specs 3-5 cover seven of
 them; `D13` (profile photo) needs a product decision and a likely schema change, so it stays in the
@@ -51,6 +53,11 @@ backlog rather than being forced into scope.
 **Execution order is by blast radius, not by size:** Spec 3 first (it is the only
 permission-adjacent group — a signed-out viewer seeing admin affordances), then Spec 4 (`D10`
 blocks the `S-3a` sweep, so fixing it unblocks later work), then Spec 5.
+
+**Spec 6 is the one deliberately partial spec.** It replaces a keyboard workaround on a single
+screen and stops, because the fix routes through a component with 8 consumers — changing it in
+place would not be a pilot. Spec 7 (the rollout) is *blocked*, not merely unstarted: it does not get
+written until the pilot is validated by hand.
 
 Spec 2a had **no plan** — it predates [`CONVENTIONS.md`](CONVENTIONS.md) §1, and is the reason
 that rule exists (it stalled half-implemented for ~2 months without one). It was the last spec
