@@ -2,6 +2,7 @@ import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
 import { MediumTagRemoveHintBottomSheet } from "@/src/components/MediumTagRemoveHintBottomSheet";
+import { getErrorMessage } from "@/src/lib/errors";
 import { colors, spacing } from "@/src/theme";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useQueryClient } from "@tanstack/react-query";
@@ -57,21 +58,6 @@ function normalizeMediumText(value: string) {
   return String(value ?? "")
     .trim()
     .toLowerCase();
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
 }
 
 export function AddMediumTagSheet(props: {
