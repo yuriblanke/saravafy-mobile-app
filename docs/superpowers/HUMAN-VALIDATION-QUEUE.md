@@ -32,6 +32,11 @@ Além das specs abaixo, há trabalho **não commitado** em cima de sync offline,
 Isso muda comportamento de banner offline e re-sync. Se aparecer algo estranho relacionado a
 conexão/offline, provavelmente vem daí e não das specs. Anotar em [Fora de escopo](#fora-de-escopo).
 
+**Decidido (2026-08-08): fica como está, não reverter.** Vai ser specado *depois* desta validação,
+usando o que você observar como entrada — rastreado como `S-5` em [`BACKLOG.md`](BACKLOG.md).
+Ou seja: o que você anotar sobre offline aqui **não é bug pra corrigir agora**, é matéria-prima
+pra spec. Vale anotar mesmo o que parecer funcionar bem.
+
 ---
 
 ## 1. Home
@@ -153,6 +158,22 @@ Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez d
 | O quê | Onde | Observado |
 |---|---|---|
 | | | |
+
+### Offline / conexão — entrada pra spec `S-5`
+
+Seção separada de propósito: isso **não** é caça a bug, é levantamento. O trabalho de auto-sync
+offline está no working tree sem spec, e vai virar spec a partir do que você observar aqui.
+Anotar tudo — inclusive o que funcionar bem, que também define o comportamento esperado.
+
+| # | Verificar | Observado |
+|---|---|---|
+| O.1 | Ligar modo avião com o app aberto — banner offline aparece? Quanto tempo depois? | |
+| O.2 | Voltar a ficar online — banner some sozinho? Sincroniza sozinho? | |
+| O.3 | Mandar o app pra background offline → voltar online → reabrir | |
+| O.4 | Abrir uma coleção de terreiro baixado, offline | |
+| O.5 | Tocar áudio de ponto baixado, offline | |
+| O.6 | Banner offline aparece em cima de algo? Empurra layout? Pisca? | |
+| O.7 | Qualquer coisa que pareça "sincronizando" sem você ter pedido | |
 
 ---
 

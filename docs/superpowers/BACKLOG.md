@@ -91,7 +91,40 @@ Full split proposals: `code-quality-audit.md` §1.
 | **X4** | `PontoSubmissionKind` domain mismatch — `"issue"` in `src/domain/ponto.ts` vs `"problem"` in review UI mapping | `aggregation.md` §6.14 |
 | **X5** | Dead prefetch: `useHomeFeedPontos` and `useExploreTerreiros` warmed at boot, never consumed | `aggregation.md` §6.1 |
 | **X6** | Offline `bytesEstimate` measures the JSON metadata blob, not audio size, and is shown to users as "Tamanho" | `aggregation.md` §6.16 |
-| **X7** | Uncommitted offline auto-sync work (`useOfflineAutoSync.ts` + 5 edited files) has no spec and no tests. Decide: spec it, or revert | Working tree, 2026-08-08 |
+| ~~**X7**~~ | Offline auto-sync WIP — **decided 2026-08-08: keep it, spec it after the validation pass.** Promoted to `S-5` below | Working tree |
+
+---
+
+## S-5 — Offline auto-sync: retro-spec after validation
+
+**Status:** code is in the working tree, uncommitted, with no spec and no tests.
+**Decision (2026-08-08):** keep it. Do **not** revert. Write the spec *after* the batched human
+validation pass, using what that pass observes as input.
+
+**Why this ordering:** the code changes offline-banner and re-sync behaviour, so it will be live
+during validation anyway. Reverting would mean testing an app that is not the one being built.
+Writing the spec first would mean guessing at behaviour that a single run of the app will show
+directly.
+
+**Files in scope:**
+
+| File | State |
+|---|---|
+| `src/hooks/useOfflineAutoSync.ts` | new, untracked |
+| `src/components/OfflineBanner.tsx` | modified (+75/−5) |
+| `app/_layout.tsx` | modified (+7) |
+| `src/queries/collectionPontos.ts` | modified |
+| `src/screens/Player/components/AudioPlayerFooter.tsx` | modified |
+| `src/screens/Player/hooks/useCollectionPlayerData.ts` | modified |
+
+**Inputs the spec will need from validation:** anything logged in the
+[`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md) "Fora de escopo" table relating to
+connectivity, the offline banner, or re-sync on foreground.
+
+**Then:** reconstruct intent from the diff + observed behaviour, write spec and plan per
+[`CONVENTIONS.md`](CONVENTIONS.md), add tests, and land it as a normal commit. Related existing
+doc: `docs/architecture/offline-sync.md` (generated 2026-06-12 — predates this work, so treat as
+background, not as a description of the current code).
 
 ---
 
