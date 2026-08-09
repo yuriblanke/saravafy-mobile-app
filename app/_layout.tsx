@@ -26,6 +26,7 @@ import { CuratorInviteGate } from "@/src/components/CuratorInviteGate";
 import { InviteGate } from "@/src/components/InviteGate";
 import { LoginPromptSheet } from "@/src/components/LoginPromptSheet";
 import { OfflineBanner } from "@/src/components/OfflineBanner";
+import { useOfflineAutoSync } from "@/src/hooks/useOfflineAutoSync";
 import { LoginPromptProvider } from "@/src/contexts/LoginPromptContext";
 import { NetworkProvider } from "@/src/contexts/NetworkContext";
 import { GlobalOverlaysHost } from "@/src/components/overlays/GlobalOverlaysHost";
@@ -140,6 +141,7 @@ export default function RootLayout() {
                               <GlobalOverlaysHost />
                               <LoginPromptSheet />
                               <OfflineBanner />
+                              <OfflineAutoSync />
                             </LoginPromptProvider>
                           </InviteGatesProvider>
                         </CuratorModeProvider>
@@ -154,6 +156,11 @@ export default function RootLayout() {
       </SafeAreaProvider>
     </RootGestureHandlerWrapper>
   );
+}
+
+function OfflineAutoSync() {
+  useOfflineAutoSync();
+  return null;
 }
 
 function RootLayoutNav() {
