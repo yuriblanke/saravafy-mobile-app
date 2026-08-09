@@ -14,10 +14,13 @@ import {
     useWindowDimensions,
     View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
 import { dismissAllTooltips } from "@/src/components/TooltipPopover";
 import { colors, spacing } from "@/src/theme";
+
+import type { ScrollViewProps } from "react-native";
 
 // --- Swipe-to-close tuning ---
 // Fechamento por duas vias:
@@ -49,7 +52,11 @@ type Props = {
   closeOnBackdropPress?: boolean;
   /**
    * When false, disables ScrollView scrolling (no scroll / no bounce).
-   * Useful for sheets that rely on static layout + filler spacing.
+   *
+   * Historically used by sheets that relied on static layout + `filler.png`
+   * spacing. That filler pattern is being retired — a fixed 290px guess against
+   * a keyboard whose real height varies — so these call sites are revisited by
+   * the rollout spec that follows this pilot. Behavior here is unchanged.
    */
   scrollEnabled?: boolean;
   /**
@@ -68,6 +75,14 @@ type Props = {
    * Use a single value like ["75%"] to keep the sheet height stable.
    */
   snapPoints?: readonly (string | number)[];
+  /**
+   * When true, the internal ScrollView becomes a KeyboardAwareScrollView, so a
+   * focused input scrolls above the keyboard using its real height.
+   *
+   * Default false while this is piloted on a single screen (Spec 6). Spec 7
+   * makes it the default and removes the flag.
+   */
+  keyboardAware?: boolean;
 };
 
 function resolveSnapHeight(
@@ -112,6 +127,7 @@ export function BottomSheet({
   bounces = true,
   snapPoints,
   wrapInScrollView = true,
+  keyboardAware = false,
 }: Props) {
   const { height: screenHeight } = useWindowDimensions();
   const rootPager = useRootPagerOptional();
@@ -380,6 +396,25 @@ export function BottomSheet({
 
   if (!visible) return null;
 
+  // Single source of truth for the scroll container's props, so the
+  // keyboard-aware variant is a swap of the component and nothing else.
+  // KeyboardAwareScrollView inherits ScrollViewProps, so these forward unchanged.
+  const scrollProps: ScrollViewProps = {
+    style: styles.scroll,
+    contentContainerStyle: styles.scrollContent,
+    showsVerticalScrollIndicator: false,
+    scrollEnabled,
+    scrollEventThrottle: 16,
+    onScrollBeginDrag: () => {
+      dismissAllTooltips();
+    },
+    onScroll: (e) => {
+      const nextY = e.nativeEvent.contentOffset?.y ?? 0;
+      scrollYRef.current = nextY > 0 ? nextY : 0;
+    },
+    bounces,
+  };
+
   return (
     <View style={styles.portal} pointerEvents="box-none">
       <Pressable
@@ -425,23 +460,13 @@ export function BottomSheet({
           {...(contentPanResponder ? contentPanResponder.panHandlers : null)}
         >
           {wrapInScrollView ? (
-            <ScrollView
-              style={styles.scroll}
-              contentContainerStyle={styles.scrollContent}
-              showsVerticalScrollIndicator={false}
-              scrollEnabled={scrollEnabled}
-              scrollEventThrottle={16}
-              onScrollBeginDrag={() => {
-                dismissAllTooltips();
-              }}
-              onScroll={(e) => {
-                const nextY = e.nativeEvent.contentOffset?.y ?? 0;
-                scrollYRef.current = nextY > 0 ? nextY : 0;
-              }}
-              bounces={bounces}
-            >
-              {children}
-            </ScrollView>
+            keyboardAware ? (
+              <KeyboardAwareScrollView {...scrollProps} bottomOffset={spacing.lg}>
+                {children}
+              </KeyboardAwareScrollView>
+            ) : (
+              <ScrollView {...scrollProps}>{children}</ScrollView>
+            )
           ) : (
             <View style={styles.scrollContent}>{children}</View>
           )}
