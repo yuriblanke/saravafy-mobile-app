@@ -518,6 +518,39 @@ Postgres, então qualquer uma dessas duas flags acenderia o spinner sem ninguém
 
 ---
 
+## 8. Vazamento de permissão na Coleção (novo)
+
+Origem: teste manual — a tela `Collection` calculava `canEditCollection` corretamente e **nunca
+aplicava o valor** aos três botões da linha de ações ("Adicionar", "Editar", "Nome e detalhes").
+Todo mundo via os três, inclusive deslogado. Além disso, a tela de destino do "Adicionar"
+(`AddToCollection`) só checava se o usuário estava logado — nunca papel/vínculo no terreiro —,
+então um logado não-membro chegava na mutation de adicionar mesmo sem o botão.
+
+Regra aplicada (a mesma nos dois arquivos): **dono da coleção pessoal**, ou **membro ativo do
+terreiro com papel admin/curimba**. Ninguém mais.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 8.1 | **Deslogado**, abrir uma coleção de terreiro (pública) | Nenhum dos três botões aparece — nem "Adicionar", nem "Editar", nem "Nome e detalhes". A lista de pontos continua visível e tocável normalmente | |
+| 8.2 | **Logado como membro comum** (nem admin nem curimba), abrir coleção desse terreiro | Mesma coisa: os três botões somem. Ver a coleção e tocar os pontos continua funcionando | |
+| 8.3 | **Logado como admin ou curimba** do terreiro, abrir a mesma coleção | Os três botões voltam a aparecer **e funcionam**: "Adicionar" abre a busca e adiciona de verdade, "Editar" abre a reordenação, "Nome e detalhes" abre o sheet e salva | |
+| 8.4 | **Coleção pessoal, logado como dono** | Tudo continua editável — os três botões aparecem e funcionam como sempre. **Este é o caso com mais risco de quebrar com esta mudança**; se algo aqui sumir, é regressão, reportar | |
+| 8.5 | Coleção **vazia** de terreiro, aberta por não-membro ou deslogado | O card "Esta coleção ainda não tem pontos" continua aparecendo, mas **sem** o botão "Buscar pontos" e sem a dica "você pode adicionar direto pela busca" | |
+| 8.6 | Coleção **vazia**, aberta por quem pode editar (dono / admin / curimba) | O botão "Buscar pontos" e a dica continuam lá e levam pra tela de adicionar | |
+| 8.7 | **Fundo do poço do "Adicionar"** — como admin/curimba, abrir a tela de adicionar, e (se der) sair do terreiro / perder o papel com a tela ainda aberta, depois tocar "+" num ponto | Toast "Você não tem permissão para editar esta coleção." e **nada é gravado**. É o caso raro; se for difícil de montar, pular e anotar | |
+| 8.8 | Como admin/curimba, adicionar um ponto com **mais de uma versão** e um ponto com `[entidade]` na letra | Os dois fluxos (sheet de versão e sheet de entidade) continuam adicionando normalmente — a checagem nova não pode ter travado eles | |
+
+> **8.3 e 8.4 são o teste de verdade.** Esconder botão é fácil; o risco desta mudança é esconder
+> demais. Se admin/curimba ou dono de coleção pessoal perder qualquer afordância, é regressão.
+>
+> **Sobre 8.1/8.2 — o servidor já barrava a gravação.** As policies de RLS de `collections_pontos`
+> exigem dono ou membro ativo com papel admin/curimba/editor, então nunca houve gravação indevida
+> de fato. O que vazava era a **afordância**: botão visível pra quem não podia usar, e no caso do
+> "Adicionar", o caminho até a mutation. A correção fecha os dois no cliente; o backstop do
+> servidor continua sendo o servidor.
+
+---
+
 ## Fora de escopo
 
 Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez de tentar consertar:
