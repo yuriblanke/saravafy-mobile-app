@@ -1,3 +1,4 @@
+import { getErrorMessage } from "@/src/lib/errors";
 import {
   normalizePontosSearchQueryGate,
   PONTOS_SEARCH_DEBOUNCE_MS,
@@ -70,7 +71,7 @@ export function usePontosSearch(
         } catch (e) {
           if (currentQuery !== query) return;
 
-          const message = e instanceof Error ? e.message : String(e);
+          const message = getErrorMessage(e);
           setResults([]);
           setError(message);
         } finally {
