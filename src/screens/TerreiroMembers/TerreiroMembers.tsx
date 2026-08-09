@@ -24,6 +24,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import {
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -488,6 +489,22 @@ export default function TerreiroMembers() {
     router.back();
   }, [router]);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        membersHook.reload(),
+        invitesHook.reload(),
+        requestsHook.reload(),
+      ]);
+    } catch {
+      // Offline/falha: o banner global de conectividade já avisa o usuário.
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [membersHook, invitesHook, requestsHook]);
+
   if (!canManage) {
     return (
       <View style={[styles.screen, { backgroundColor: baseBgColor }]}>
@@ -749,6 +766,20 @@ export default function TerreiroMembers() {
           styles.scrollContent,
           { paddingTop: headerTotalHeight + spacing.lg },
         ]}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.brass600}
+            colors={[colors.brass600]}
+            progressBackgroundColor={
+              variant === "light"
+                ? colors.surfaceCardBgLight
+                : colors.surfaceCardBg
+            }
+            progressViewOffset={headerTotalHeight}
+          />
+        }
       >
         {/* Section 1: Members */}
         <View style={styles.section}>
