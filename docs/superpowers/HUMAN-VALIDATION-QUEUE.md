@@ -31,6 +31,10 @@ Detalhes: `plans/2026-08-09-spec-6-keyboard-avoidance.md`, Task 2 Step 3.
 atual **não** serve para testá-la — vai precisar instalar o APK novo do EAS. Os itens das Specs 3-5
 abaixo não dependem disso e podem ser testados no dev client que você já tem.
 
+Quando o APK novo chegar, comece pela [seção 0](#0-spec-6-teclado--checar-antes-de-qualquer-outra-seção):
+o provider já está montado e tem que ser invisível — se ele mexer em layout sozinho, nenhum
+resultado de teclado depois disso é atribuível.
+
 ---
 
 ## Estado do repo no momento deste teste
@@ -61,6 +65,41 @@ Onze correções de código. As linhas novas/reabertas estão marcadas nas seç�
 | `D11` | Refetch que falha não esconde mais a lista já carregada | 4.x (Terreiros) |
 | `D6` | Ponto duplicado agora avisa de verdade | 1.7 |
 | `D9` | "+" de adicionar à coleção aparece no player de coleção | 2.7, 2.8 |
+
+---
+
+## 0. Spec 6 (teclado) — checar **antes** de qualquer outra seção
+
+Origem: Spec 6 (`react-native-keyboard-controller`), §4.1.
+
+**Esta seção vem primeiro de propósito.** O `KeyboardProvider` já está montado na raiz
+(`app/_layout.tsx`, `d1efb58`), mas **nenhuma tela optou por ele ainda** — nada de teclado mudou.
+Ou seja: neste build o provider tem que ser *invisível*. Se ele mexer em layout sozinho, toda
+observação de teclado feita depois fica sem dono — não dá pra saber se o que você viu veio da tela
+que optou ou do provider. Por isso é o item 0, e por isso ele **bloqueia** o resto da rodada de
+Spec 6.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 0.1 | Abrir o app no APK novo e percorrer Home, o sheet de tag de médium e qualquer sheet com campo de texto — **sem digitar nada, só olhar** | Tudo exatamente igual a antes: mesmos insets, mesma altura de sheet, mesma barra de status. Nenhum deslocamento, nenhuma faixa nova em cima ou embaixo | |
+
+> **0.1 — se algo se mexeu, pare e reporte antes de testar qualquer coisa de teclado.** Um provider
+> que altera layout por conta própria torna toda observação visual seguinte não-atribuível. Não
+> tente compensar o deslocamento na tela — pela §4.1 da spec isso é achado, não ajuste.
+>
+> **Onde olhar com mais atenção (Android):** barra de status e barra de navegação. O app roda
+> `edgeToEdgeEnabled: true` (`app.config.ts:106`), mas a lib detecta edge-to-edge pela presença do
+> pacote `react-native-edge-to-edge`, que **não** está instalado aqui. Então o provider foi montado
+> sem prop nenhuma, ficando com os defaults `statusBarTranslucent: false` e
+> `navigationBarTranslucent: false` — que é a configuração que *não* mexe em layout. Se mesmo assim
+> aparecer faixa/deslocamento em cima ou embaixo, é exatamente esse ponto e vale anotar com print.
+>
+> **Não dá pra verificar por agente.** `tsc` e a suíte de testes passaram (Task 3), e nenhum dos
+> dois diz nada sobre pixel na tela. É check humano por natureza — ver
+> [`CONVENTIONS.md`](CONVENTIONS.md) §4.
+>
+> **Precisa do APK novo do EAS.** Módulo nativo mudou; o dev client antigo não serve (ver aviso em
+> "Antes de começar").
 
 ---
 
