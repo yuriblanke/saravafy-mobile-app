@@ -7,6 +7,7 @@
 | [`CONVENTIONS.md`](CONVENTIONS.md) | **Binding rules** for how specs and plans are written here. Every rule cites the failure that produced it. |
 | [`BACKLOG.md`](BACKLOG.md) | Prioritized deferred scope. P0 confirmed defects → P1 contract holes → P2 duplication → P3 cleanup. Nothing is "deferred to Spec N" unless Spec N exists. |
 | [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md) | Everything needing eyes on a running app, batched into one pass. Agents never validate from here, and a pending item never blocks a commit. |
+| [`EXECUTION.md`](EXECUTION.md) | Which model runs which task in the subagent-driven run, and why. Includes the rule that reconciliation is never delegated. |
 | `specs/` | What and why, per unit of work. |
 | `plans/` | How, task by task, one commit per task. |
 
