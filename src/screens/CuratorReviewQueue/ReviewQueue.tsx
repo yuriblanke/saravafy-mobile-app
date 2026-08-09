@@ -14,10 +14,11 @@ import {
 } from "@/src/queries/pontoSubmissions";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
+    RefreshControl,
     ScrollView,
     StyleSheet,
     Text,
@@ -82,6 +83,16 @@ export default function ReviewQueueScreen() {
     () => submissionsQuery.data ?? [],
     [submissionsQuery.data],
   );
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await submissionsQuery.refetch();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [submissionsQuery]);
 
   const firstSubmissionId = items?.[0]?.id ? String(items[0].id) : null;
 
@@ -194,6 +205,15 @@ export default function ReviewQueueScreen() {
           <ScrollView
             contentContainerStyle={styles.list}
             showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.brass600}
+                colors={[colors.brass600]}
+                progressBackgroundColor={bgColor}
+              />
+            }
           >
             {items.map((s) => {
               const dateLabel = formatDateLabel(s.created_at ?? null);
