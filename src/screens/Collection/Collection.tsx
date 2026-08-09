@@ -645,8 +645,12 @@ export default function Collection() {
   );
 
   const openNameDetails = useCallback(() => {
+    if (!canEditCollection) {
+      showToast("Você não tem permissão para editar esta coleção.");
+      return;
+    }
     setIsNameDetailsOpen(true);
-  }, []);
+  }, [canEditCollection, showToast]);
 
   const saveNameDetails = useCallback(
     async (next: { title: string; description: string }) => {
@@ -1113,73 +1117,83 @@ export default function Collection() {
                 setActionsBottomY(y + height);
               }}
             >
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Adicionar"
-                onPress={() => {
-                  if (!collectionId) {
-                    showToast("Não foi possível abrir esta coleção.");
-                    return;
-                  }
+              {canEditCollection ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Adicionar"
+                  onPress={() => {
+                    if (!collectionId) {
+                      showToast("Não foi possível abrir esta coleção.");
+                      return;
+                    }
 
-                  router.push({
-                    pathname: "/collection/[id]/add" as any,
-                    params: { id: collectionId },
-                  });
-                }}
-                style={({ pressed }) => [
-                  styles.primaryActionBtn,
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Ionicons name="add" size={18} color={colors.paper50} />
-                <Text style={styles.primaryActionText}>Adicionar</Text>
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Editar"
-                onPress={openEdit}
-                style={({ pressed }) => [
-                  styles.secondaryActionBtn,
-                  {
-                    borderColor:
-                      variant === "light"
-                        ? colors.inputBorderLight
-                        : colors.inputBorderDark,
-                  },
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Ionicons name="reorder-three" size={18} color={textPrimary} />
-                <Text
-                  style={[styles.secondaryActionText, { color: textPrimary }]}
+                    router.push({
+                      pathname: "/collection/[id]/add" as any,
+                      params: { id: collectionId },
+                    });
+                  }}
+                  style={({ pressed }) => [
+                    styles.primaryActionBtn,
+                    pressed ? styles.pressed : null,
+                  ]}
                 >
-                  Editar
-                </Text>
-              </Pressable>
+                  <Ionicons name="add" size={18} color={colors.paper50} />
+                  <Text style={styles.primaryActionText}>Adicionar</Text>
+                </Pressable>
+              ) : null}
 
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Nome e detalhes"
-                onPress={openNameDetails}
-                style={({ pressed }) => [
-                  styles.secondaryActionBtn,
-                  {
-                    borderColor:
-                      variant === "light"
-                        ? colors.inputBorderLight
-                        : colors.inputBorderDark,
-                  },
-                  pressed ? styles.pressed : null,
-                ]}
-              >
-                <Text
-                  style={[styles.secondaryActionText, { color: textPrimary }]}
+              {canEditCollection ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Editar"
+                  onPress={openEdit}
+                  style={({ pressed }) => [
+                    styles.secondaryActionBtn,
+                    {
+                      borderColor:
+                        variant === "light"
+                          ? colors.inputBorderLight
+                          : colors.inputBorderDark,
+                    },
+                    pressed ? styles.pressed : null,
+                  ]}
                 >
-                  Nome e detalhes
-                </Text>
-              </Pressable>
+                  <Ionicons
+                    name="reorder-three"
+                    size={18}
+                    color={textPrimary}
+                  />
+                  <Text
+                    style={[styles.secondaryActionText, { color: textPrimary }]}
+                  >
+                    Editar
+                  </Text>
+                </Pressable>
+              ) : null}
+
+              {canEditCollection ? (
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Nome e detalhes"
+                  onPress={openNameDetails}
+                  style={({ pressed }) => [
+                    styles.secondaryActionBtn,
+                    {
+                      borderColor:
+                        variant === "light"
+                          ? colors.inputBorderLight
+                          : colors.inputBorderDark,
+                    },
+                    pressed ? styles.pressed : null,
+                  ]}
+                >
+                  <Text
+                    style={[styles.secondaryActionText, { color: textPrimary }]}
+                  >
+                    Nome e detalhes
+                  </Text>
+                </Pressable>
+              ) : null}
             </ScrollView>
           </View>
 
@@ -1234,48 +1248,52 @@ export default function Collection() {
                   Para montar esta coleção, procure pontos e adicione os que
                   fazem sentido aqui.
                 </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  onPress={() => {
-                    if (!collectionId) {
-                      showToast("Não foi possível abrir esta coleção.");
-                      return;
-                    }
+                {canEditCollection ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                      if (!collectionId) {
+                        showToast("Não foi possível abrir esta coleção.");
+                        return;
+                      }
 
-                    router.push({
-                      pathname: "/collection/[id]/add" as any,
-                      params: { id: collectionId },
-                    });
-                  }}
-                  style={({ pressed }) => [
-                    styles.ctaButton,
-                    pressed && styles.retryBtnPressed,
-                    variant === "light"
-                      ? styles.ctaButtonLight
-                      : styles.ctaButtonDark,
-                  ]}
-                >
-                  <Ionicons
-                    name="search"
-                    size={18}
-                    color={
-                      variant === "light" ? colors.brass500 : colors.brass600
-                    }
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text
-                    style={
+                      router.push({
+                        pathname: "/collection/[id]/add" as any,
+                        params: { id: collectionId },
+                      });
+                    }}
+                    style={({ pressed }) => [
+                      styles.ctaButton,
+                      pressed && styles.retryBtnPressed,
                       variant === "light"
-                        ? styles.ctaTextLight
-                        : styles.ctaTextDark
-                    }
+                        ? styles.ctaButtonLight
+                        : styles.ctaButtonDark,
+                    ]}
                   >
-                    Buscar pontos
+                    <Ionicons
+                      name="search"
+                      size={18}
+                      color={
+                        variant === "light" ? colors.brass500 : colors.brass600
+                      }
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text
+                      style={
+                        variant === "light"
+                          ? styles.ctaTextLight
+                          : styles.ctaTextDark
+                      }
+                    >
+                      Buscar pontos
+                    </Text>
+                  </Pressable>
+                ) : null}
+                {canEditCollection ? (
+                  <Text style={[styles.emptyHint, { color: textMuted }]}>
+                    Dica: você pode adicionar direto pela busca.
                   </Text>
-                </Pressable>
-                <Text style={[styles.emptyHint, { color: textMuted }]}>
-                  Dica: você pode adicionar direto pela busca.
-                </Text>
+                ) : null}
               </View>
             </SurfaceCard>
           ) : isMembersOnly && !isMember ? (
