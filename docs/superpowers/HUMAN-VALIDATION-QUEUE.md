@@ -270,7 +270,7 @@ Origem: Spec 1 (`useTerreiroRole`, `getErrorMessage`).
 |---|---|---|---|
 | 3.1 | Abrir uma coleção | Pontos listam | ✅ OK |
 | 3.2 | Como admin/curimba | Sheets de adicionar/remover tag aparecem | ✅ OK |
-| 3.3 | Como membro comum ou não-membro | Sem afordância de edição | ❌ mesmo vazamento do 2.6 — ver nota |
+| 3.3 | Como membro comum ou não-membro | Sem afordância de edição | 🔧 corrigido (`D8`, `8fd05c3`) — mesmo vazamento do 2.6, um fix resolveu os dois. Reteste junto com 5.9 |
 | 3.4 | Coleção "somente membros" sem ser membro | Gate de acesso aparece, com opção de pedir entrada | 🔮 feature não existe — ver nota |
 | 3.5 | Adicionar tag → desligar rede → adicionar outra | **Ver observação abaixo** | 🔧 parcialmente corrigido (`D10`, `cdfc461`) — o toast agora é legível. **`D4` continua aberto**: a tag some da tela só quando o cache expira |
 
@@ -307,7 +307,7 @@ Origem: Spec 1 (`<QueryBoundary>` — adotado aqui, **não** no Home como o plan
 | 4.1 | Abrir aba Terreiros (primeira vez, cache frio) | Spinner centralizado, depois lista | ✅ parece instantâneo — ver nota |
 | 4.2 | ~~Puxar pra atualizar com dados já na tela~~ | ~~Lista continua visível, sem piscar~~ | 🔧 gesto não existe — mas código já verificado, ver nota |
 | 4.3 | Modo avião → refetch em segundo plano com lista já carregada (sem gesto de pull-to-refresh — ver recipe na nota) | Lista continua visível; sem tela de erro por cima do conteúdo | 🔧 corrigido em código (`D11`) — pendente de teste manual, ver recipe na nota |
-| 4.4 | Modo avião + cache frio | Card de erro "Não foi possível carregar" + mensagem legível | 🔧 não testável via dev client — ver nota |
+| 4.4 | Modo avião + cache frio | Card de erro "Não foi possível carregar" + mensagem legível | 🔓 **destravado pelo APK de produção** — o dev client não abre com o avião já ligado. Agora dá pra testar de verdade |
 | 4.5 | Usuário sem nenhum terreiro | Estado vazio | 🔮 não é esse o design — ver nota |
 
 **Atenção 4.2 e 4.3:** esse é exatamente o comportamento anti-*flicker* que o `<QueryBoundary>`
@@ -446,11 +446,14 @@ Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez d
 
 ### Offline / conexão — entrada pra spec `S-5`
 
-**Deprioritizado (2026-08-09): testar só depois do refactor completo.** Confirmado que dev client
-não abre com o avião já ligado (limitação de ferramenta, item 4.4) — testar cold-cache+offline de
-verdade exige build de produção/standalone. Em vez de testar aos poucos e mal com o dev client, fica
-pra uma rodada dedicada com build de prod, depois do refactor. Seção mantida pra quando chegar lá —
-não preencher agora.
+🔓 **DESTRAVADO 2026-08-09 — pode preencher.** O motivo do adiamento era ferramenta, não escopo: o
+dev client não abre com o avião já ligado, então cold-cache + offline de verdade exigia um build
+standalone. **Esse build agora existe** (perfil `production`, APK — link na seção "Antes de
+começar"). Use o APK de produção para esta seção e para o item 4.4; o APK de desenvolvimento serve
+para todo o resto.
+
+⚠️ **São dois APKs diferentes e eles não se substituem.** O de desenvolvimento carrega o piloto de
+teclado e o Metro; o de produção é o único que testa offline honestamente. Instalar um por vez.
 
 Seção separada de propósito: isso **não** é caça a bug, é levantamento. O trabalho de auto-sync
 offline está no working tree sem spec, e vai virar spec a partir do que você observar aqui.
