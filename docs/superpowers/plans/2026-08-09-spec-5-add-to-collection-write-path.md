@@ -33,7 +33,7 @@ PATH. The gate is **0 failures** — never a specific total.
 
 ## Task 1: Baseline and read the flow end to end
 
-- [ ] **Step 1: Confirm a clean starting point**
+- [x] **Step 1: Confirm a clean starting point**
 
 ```
 npx tsc --noEmit
@@ -42,7 +42,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero `tsc` output**, **0 failures**.
 
-- [ ] **Step 2: Read the whole path before changing any of it**
+- [x] **Step 2: Read the whole path before changing any of it**
 
 Read, in order:
 1. `src/screens/Home/data/collections_pontos.ts` — the retry loop (~137-184).
@@ -54,6 +54,21 @@ already complete and correct** — it removes the optimistic insert and decremen
 purely a detection failure one layer below. If that turns out to be wrong, stop: the spec's scope is
 wrong and needs revising before code changes.
 
+> **DEVIATION — the premise is only partly true, and the scope survives anyway.** `onMutate`
+> (`AddToCollectionFlow.tsx:399-493`) writes **five** things optimistically: three `updated_at`
+> timestamp patches (413-432), the pontos-list insert (478-482), and the `+1` count (484-490). The
+> `alreadyExists` branch (502-517) reverts **only the last two**. The three `updated_at` patches are
+> never reverted by that branch — they are cleaned up incidentally by `onSettled`'s unconditional
+> invalidation.
+>
+> Scope is unchanged: `D6` is still purely a detection-layer bug, and no revert code was added or
+> changed. But spec §2.3's wording overstated the handler, so it is corrected there.
+>
+> **This finding changed how Task 3 had to be written.** `onSettled` (518-534) invalidates all five
+> key spaces on *every* outcome, so a flow test that waits for settled state with a mocked refetch
+> would pass even with the revert logic deleted — a false pass. Task 3 asserts before invalidation
+> can supply the answer instead.
+
 (No commit — read-only.)
 
 ---
@@ -62,7 +77,7 @@ wrong and needs revising before code changes.
 
 **Files:** `src/screens/Home/data/collections_pontos.ts`, `src/screens/Home/data/collections_pontos.test.ts`
 
-- [ ] **Step 1: Write the failing tests first**
+- [x] **Step 1: Write the failing tests first**
 
 Create `src/screens/Home/data/collections_pontos.test.ts` with a mocked Supabase chain. The mock
 must support `.from().upsert().select()` and the `fetchNextPosition` read the loop performs.
@@ -81,7 +96,7 @@ it("surfaces a real error unchanged", /* non-unique error → { ok: false, error
 with the mock, Step 3's verification catches it and the spec's documented fallback applies — the
 test is not what bends.
 
-- [ ] **Step 2: Run and watch the duplicate test fail**
+- [x] **Step 2: Run and watch the duplicate test fail**
 
 ```
 node node_modules/jest/bin/jest.js --testPathPattern=collections_pontos
@@ -91,7 +106,7 @@ Expected: the `alreadyExists` test **fails**, reporting a plain `{ ok: true }`. 
 bug reproduced. If it passes, the mock isn't modelling `ON CONFLICT DO NOTHING` — fix the mock
 first.
 
-- [ ] **Step 3: Verify the real database behavior before implementing**
+- [x] **Step 3: Verify the real database behavior before implementing**
 
 Spec §3.1 requires this — the fix rests on an assumption about what `ON CONFLICT DO NOTHING` returns
 through PostgREST, and client typings do not answer it.
@@ -118,6 +133,29 @@ That settles the Postgres half with certainty. The residual question is whether 
 the real client path safely, do; otherwise treat that as covered by the human re-test of queue item
 1.7 and say so.
 
+> **OUTCOME: CONFIRMED — at both layers.** This is the highest-value fact in the spec, so it is
+> recorded in full rather than as a tick.
+>
+> **Postgres half**, via the throwaway `_probe_conflict` table exactly as specified above
+> (`collections_pontos` was never written to):
+> - `insert … (1,1) on conflict do nothing returning a` → `[{"a":1}]` — **1 row**
+> - the identical statement again → `[]` — **0 rows, and no error raised**
+> - table dropped, then its absence re-queried → `0`. Independently re-verified by the controller
+>   afterwards: no `_probe%` table remains.
+>
+> **Client half — answered, not deferred.** The plan allowed leaving this to the human re-test of
+> queue item 1.7. It did not have to be: `_probe_conflict` was reachable without any
+> grant/policy/schema change (checked before use), so the app's own `@supabase/supabase-js` 2.89.0
+> was driven against the live project:
+> - 1st `.upsert({ onConflict, ignoreDuplicates: true }).select("a")` → `status 201, error null, data [{a:2}]`
+> - 2nd, conflicting → `status 201, error null, data []`
+> - the same duplicate **without** `.select()` — i.e. the shipped behavior — → `data: null, error: null`,
+>   **byte-for-byte indistinguishable from a real insert.** That is `D6` reproduced against
+>   production PostgREST, not against a mock.
+>
+> Probe rows deleted, table dropped, scratchpad script removed. `execute_sql` was used rather than
+> `apply_migration`, deliberately, so no migration record was created.
+
 - **Confirmed** → proceed to Step 4.
 - **Contradicted** → stop, record the actual behavior as a `> **DEVIATION:**` note here, and
   implement spec §3.1's documented fallback instead (a pre-check `select` before the insert,
@@ -126,7 +164,7 @@ the real client path safely, do; otherwise treat that as covered by the human re
   DoD item **unticked with a note**. Do not claim verification you did not perform; an honest gap
   here is cheap, a false one is expensive.
 
-- [ ] **Step 4: Implement**
+- [x] **Step 4: Implement**
 
 In the retry loop, add `.select("ponto_id")` to the upsert and branch on the returned row count:
 
@@ -153,7 +191,7 @@ existing row — silently reordering a shared terreiro collection. That is worse
 now defense-in-depth. Add a short comment saying the PK branch is no longer the primary duplicate
 path, so a future reader doesn't mistake it for dead code and delete it.
 
-- [ ] **Step 5: Verify**
+- [x] **Step 5: Verify**
 
 ```
 node node_modules/jest/bin/jest.js --testPathPattern=collections_pontos
@@ -162,7 +200,7 @@ npx tsc --noEmit
 
 Expected: **0 failures**, **zero output**.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```
 git add src/screens/Home/data/collections_pontos.ts src/screens/Home/data/collections_pontos.test.ts
@@ -193,7 +231,7 @@ Backlog D6."
 
 **File:** `src/features/addToCollection/AddToCollectionFlow.test.tsx`
 
-- [ ] **Step 1: Add the assertion**
+- [x] **Step 1: Add the assertion**
 
 With a mocked `addPontoToCollection` returning `{ ok: true, alreadyExists: true }`, assert the flow
 surfaces the duplicate message and does **not** leave the ponto optimistically inserted.
@@ -202,7 +240,17 @@ If the existing test harness makes cache-state assertions disproportionate, asse
 half (the message) and say so explicitly in the commit — do not write a test that asserts nothing
 meaningful.
 
-- [ ] **Step 2: Verify**
+> **Result: the full route was taken, not the escape hatch** — and the escape hatch nearly had to be,
+> because of the `onSettled` masking hazard recorded at Task 1. The test asserts
+> `queryClient.getQueryData(queryKeys.collections.pontos("c1"))` no longer contains the ponto. That
+> key has **no active `useQuery` observer** in the test tree (only `versoesQuery` is mounted, keyed
+> on `versoesBatch`), so `invalidateQueries` has nothing to refetch and cannot repopulate it — the
+> assertion reads the manual revert, not a server round-trip. Verified independently at review by
+> tracing the observers and the cache shape written by `collectionsCache.ts`, and by confirming the
+> test would fail if the `alreadyExists` revert branch were deleted. The user-visible half is
+> asserted too.
+
+- [x] **Step 2: Verify**
 
 ```
 node node_modules/jest/bin/jest.js
@@ -211,7 +259,7 @@ npx tsc --noEmit
 
 Expected: **0 failures**, **zero output**.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```
 git add src/features/addToCollection/AddToCollectionFlow.test.tsx
@@ -226,14 +274,14 @@ This branch existed and was correct but could never execute before D6."
 
 **File:** `src/screens/Player/PlayerScreen.tsx` (~lines 625, 815)
 
-- [ ] **Step 1: Ungate the button**
+- [x] **Step 1: Ungate the button**
 
 The button (~625) is gated on `isLibraryPlayer && activePonto`. Drop the `isLibraryPlayer` condition
 so it renders in both modes. **Keep the `requireAuth(...)` wrapper** — signed-out users must get the
 login sheet, not a dead control (and this is exactly the class of bug Spec 3 fixes; don't
 reintroduce it here).
 
-- [ ] **Step 2: Ungate the flow mount**
+- [x] **Step 2: Ungate the flow mount**
 
 The `<AddToCollectionFlow>` mount (~815) is gated on `isLibraryPlayer && user?.id && activePonto`.
 Drop `isLibraryPlayer`, keep `user?.id && activePonto`. Props stay exactly as Spec 2a established:
@@ -244,7 +292,7 @@ initialPontoVersaoId={activeVersao?.id ?? null}
 initialVersoes={activePonto.versoes}
 ```
 
-- [ ] **Step 3: Rename the now-misleading state**
+- [x] **Step 3: Rename the now-misleading state**
 
 `libraryAddToCollectionOpen` / `setLibraryAddToCollectionOpen` (~line 234) are no longer
 library-specific. Rename to `addToCollectionOpen` / `setAddToCollectionOpen`.
@@ -252,7 +300,7 @@ library-specific. Rename to `addToCollectionOpen` / `setAddToCollectionOpen`.
 Mechanical, but do it now: a name that says "library" on a control that is no longer
 library-only is exactly how the next reader concludes the gate was intentional and re-adds it.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```
 npx tsc --noEmit
@@ -261,7 +309,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**. `tsc` will catch any missed rename.
 
-- [ ] **Step 5: Queue the human checks — do not run them here**
+- [x] **Step 5: Queue the human checks — do not run them here**
 
 Append to [`../HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §2, and mark the
 previously blocked items as ready to re-test:
@@ -272,7 +320,7 @@ previously blocked items as ready to re-test:
 
 **Commit regardless** — [`CONVENTIONS.md`](../CONVENTIONS.md) §4.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```
 git add src/screens/Player/PlayerScreen.tsx
@@ -297,7 +345,7 @@ Backlog D9. Unblocks validation queue item 2.8."
 
 ## Task 5: Reconcile ([`CONVENTIONS.md`](../CONVENTIONS.md) §5)
 
-- [ ] **Step 1: Final verification**
+- [x] **Step 1: Final verification**
 
 ```
 npx tsc --noEmit
@@ -306,7 +354,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 2: Confirm the gate is fully gone**
+- [x] **Step 2: Confirm the gate is fully gone**
 
 ```
 grep -n "isLibraryPlayer" src/screens/Player/PlayerScreen.tsx
@@ -315,25 +363,31 @@ grep -n "isLibraryPlayer" src/screens/Player/PlayerScreen.tsx
 Remaining matches are fine — the flag legitimately drives playlist/source behavior elsewhere. What
 must **not** remain is any add-to-collection affordance still behind it.
 
-- [ ] **Step 3: Tick this plan and record deviations**
+> **Result:** five matches remain (lines 150, 161, 188, 204, 208), all legitimate — the flag's own
+> definition, back-navigation routing, a `useCallback` dep, `inCollectionPlayer`'s derivation, and
+> the playlist-source choice in `useCollectionPlayerData`. **No add-to-collection affordance is
+> behind it.** `grep -rn "libraryAddToCollectionOpen" src/` returns nothing, so the rename is
+> complete.
+
+- [x] **Step 3: Tick this plan and record deviations**
 
 Mark completed steps `- [x]`. Record inline `> **DEVIATION:**` notes — **especially Task 2 Step 3's
 database verification**: what you ran, what it returned, and whether the primary approach or the
 fallback shipped. That is the highest-value fact for the next reader and the easiest to lose.
 
-- [ ] **Step 4: Update the backlog**
+- [x] **Step 4: Update the backlog**
 
 Mark `D6` and `D9` resolved with commit refs. If the fallback shipped, note it on `D6`'s row so
 nobody re-litigates the approach later.
 
-- [ ] **Step 5: Update the spec's Agent DoD**
+- [x] **Step 5: Update the spec's Agent DoD**
 
 Tick §8 in
 [`../specs/2026-08-09-spec-5-add-to-collection-write-path.md`](../specs/2026-08-09-spec-5-add-to-collection-write-path.md),
 add the completion date, and **be honest about the DB-verification checkbox** — leave it unticked
 with a note if you could not reach a database.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```
 git add docs/

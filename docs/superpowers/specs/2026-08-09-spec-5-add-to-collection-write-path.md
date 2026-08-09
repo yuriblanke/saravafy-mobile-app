@@ -149,14 +149,32 @@ there is exactly one implementation to fix instead of three.
 
 ## 8. Definition of done
 
-### Agent DoD
+### Agent DoD — ✅ complete 2026-08-09
 
-- [ ] `npx tsc --noEmit` → **zero output**.
-- [ ] Test suite → **0 failures**.
-- [ ] The §3.1 database behavior was verified, not assumed — result recorded in the plan (including
-      if it forced the fallback approach).
-- [ ] No new inline query keys ([`CONVENTIONS.md`](../CONVENTIONS.md) §11).
-- [ ] Backlog updated: `D6`, `D9` marked resolved with commit refs.
+- [x] `npx tsc --noEmit` → **zero output**.
+- [x] Test suite → **0 failures** (57 passing; 5 added by this spec).
+- [x] The §3.1 database behavior was **verified, not assumed** — and at both layers, so the primary
+      approach shipped rather than the fallback. Postgres: a conflicting `on conflict do nothing …
+      returning` returns **0 rows and no error**, a fresh one returns 1. Client: the app's own
+      supabase-js 2.89.0, against the live project, returns `data: []` on conflict *with* `.select()`
+      and `data: null, error: null` *without* it — the shipped behavior being indistinguishable from
+      success is `D6` reproduced against production PostgREST. Probed via a throwaway table, dropped
+      after; `collections_pontos` was never written to. Full transcript in the plan, Task 2 Step 3.
+- [x] No new inline query keys ([`CONVENTIONS.md`](../CONVENTIONS.md) §11).
+- [x] Backlog updated: `D6`, `D9` marked resolved with commit refs.
+
+**Correction to §2.3.** This spec asserted the `alreadyExists` handling in `onSuccess` was "already
+complete and correct". It is **partial**: `onMutate` writes five optimistic changes and that branch
+reverts two of them — the three `updated_at` patches are only cleaned up incidentally by
+`onSettled`'s invalidation. The scope decision still holds (`D6` is purely a detection-layer bug, and
+no revert code was added or changed), but the claim as written was too strong. It also changed how
+the flow-level test had to be built, since `onSettled` invalidates on every outcome and would have
+masked a broken revert.
+
+**New concern surfaced by the DB verification — `X14`.** `collections_pontos`'s INSERT policy is
+broader than its SELECT policies, so a `private` terreiro-owned collection with a null owner would be
+writable but not readable — and this fix's `RETURNING` read would miss its own row. No live data is
+in that shape today. Pre-existing, but this spec is the first code to depend on the asymmetry.
 
 ### Human DoD — deferred to the queue
 
