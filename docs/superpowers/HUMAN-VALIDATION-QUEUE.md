@@ -205,6 +205,10 @@ Origem: Spec 2b (`PreferencesContext` → React Query).
 | 5.5 | **(novo)** Conta/perfil: deslogar de dentro da tela de Preferências | Card de identidade mostra "Entrar"; nenhum botão "Sair" aparece | ❌ mostra "? Você" + botão "Sair" continua — ver nota |
 | 5.6 | **(novo)** Remover/trocar a foto de perfil | Deveria existir alguma forma de controlar a foto exibida | ❌ não existe — ver nota |
 | 5.7 | **(novo, reteste pós-fix D12)** Deslogar de dentro da tela de Preferências (rota `/preferences`, componente `ProfileSection`) | Área "Conta" mostra uma afordância "Entrar" (convite pra login); nenhum "? Você" nem identidade falsa aparece | |
+| 5.8 | **(novo, pós-fix D12)** Mesmo teste na **outra** implementação: abrir o overlay de preferências pelo header (`TabsHeaderWithPreferences`) deslogado | Nem a linha "Sair" nem a linha de identidade/avatar aparecem. O lápis de editar perfil não fica clicável | |
+| 5.9 | **(novo, pós-fix D8)** Logar como admin de terreiro → sair **sem reiniciar o app** → abrir Player e Coleção | Nenhuma afordância de edição admin/curimba. É o defeito original do `D8` | |
+| 5.10 | **(novo, pós-fix D8)** Sair e logar com um usuário **diferente** | Nenhum vestígio dos papéis do primeiro usuário | |
+| 5.11 | **(novo, guarda de regressão do D8)** Trocar de terreiro **logado**, sem sair | Badges e permissões continuam resolvendo **sem flash de loading**. Testa algo que *não* deve mudar — fácil de esquecer, e é o que protege o `placeholderData` que foi deliberadamente mantido | |
 
 **Atenção 5.2–5.4:** antes era fetch imperativo, agora é `invalidateQueries`. Se ficar dado velho,
 o `userId` passado no invalidate não bate com o que o hook lê.
@@ -215,6 +219,10 @@ o `userId` passado no invalidate não bate com o que o hook lê.
 >
 > **5.3 — adiado por decisão sua.** Todos os fluxos de convite (aceitar, rejeitar, reenviar) ficam
 > pra testar só depois do refactor completo. Não retestar isso nesta rodada.
+>
+> **5.5 — ✅ corrigido 2026-08-09 pela Spec 3, substituído pelos itens 5.7–5.8.** Não reteste 5.5
+> direto; os retestes estão nas linhas novas. O bug era em **quatro** lugares, não dois — a varredura
+> do overlay achou também a linha de identidade do perfil dentro do `BottomSheet` de preferências.
 >
 > **5.5 — bug confirmado, dois lugares independentes.** `ProfileSection.tsx` e `LogoutSection.tsx`
 > (as duas telas de "Conta" dentro de `Preferences.tsx`) não têm **nenhuma** checagem de `user` —

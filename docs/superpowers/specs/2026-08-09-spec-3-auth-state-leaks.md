@@ -154,14 +154,26 @@ above mean it is never reached with an empty value from these call sites.
 
 Split per [`CONVENTIONS.md`](../CONVENTIONS.md) §4.
 
-### Agent DoD
+### Agent DoD — ✅ complete 2026-08-09
 
-- [ ] `npx tsc --noEmit` → **zero output**.
-- [ ] Test suite → **0 failures**, including the new `D8` regression tests.
-- [ ] `grep -n "placeholderData" src/hooks/terreiroMembership.ts` reviewed: either both remain with
-      the derivation gated, or their removal is recorded as a deviation with reasoning.
-- [ ] No new inline query keys ([`CONVENTIONS.md`](../CONVENTIONS.md) §11).
-- [ ] Backlog updated: `D8` and `D12` marked resolved with commit refs.
+- [x] `npx tsc --noEmit` → **zero output**.
+- [x] Test suite → **0 failures**, including the new `D8` regression tests (40 passing, 6 added by
+      this spec).
+- [x] `grep -n "placeholderData" src/hooks/terreiroMembership.ts` reviewed: both remain, derivation
+      gated. Nothing removed, so §3.1's fallback was not needed. (The grep returns five hits in the
+      file; three belong to unrelated queries in the same module.)
+- [x] No new inline query keys ([`CONVENTIONS.md`](../CONVENTIONS.md) §11).
+- [x] Backlog updated: `D8` and `D12` marked resolved with commit refs.
+
+**Correction to §2.3:** this spec expected three consumers of `useTerreiroMembershipStatus`
+(`useTerreiroRole`, `Collection.tsx`, `PlayerScreen.tsx`). There are **eight** — six of them bypass
+`useTerreiroRole` entirely. All eight were opened and every one reads the hook for the signed-in
+viewer's own permissions, so the gate holds for all of them, but the blast radius stated here was
+too narrow.
+
+**Correction to §2 (`D12` site count):** three sites were expected. The Task 6 scan of the overlay
+found a **fourth** — the preferences sheet's profile identity row, with the same missing guard and a
+still-tappable edit-profile pencil. Fixed in the same commit.
 
 ### Human DoD — deferred to the queue
 

@@ -36,7 +36,7 @@ summary line — the gate is **0 failures**, never a specific total.
 
 ## Task 1: Record the baseline
 
-- [ ] **Step 1: Confirm a clean starting point**
+- [x] **Step 1: Confirm a clean starting point**
 
 ```
 npx tsc --noEmit
@@ -46,7 +46,7 @@ node node_modules/jest/bin/jest.js
 Expected: **zero `tsc` output**, **0 test failures**. If either fails before you change anything,
 stop and report — do not build on a broken baseline.
 
-- [ ] **Step 2: Inventory the consumers you are about to affect**
+- [x] **Step 2: Inventory the consumers you are about to affect**
 
 ```
 grep -rn "useTerreiroMembershipStatus" src/
@@ -57,6 +57,15 @@ Record the list. Spec §2.3 expects `useTerreiroRole` plus direct callers in `Co
 current-user permissions** (e.g. displaying another user's role), note it — the §3.1 gate would
 change its behavior, and that is a deviation to record, not to silently accept.
 
+> **DEVIATION:** there are **8** call sites, not the 3 the spec expected. Six bypass
+> `useTerreiroRole` entirely: `JoinTerreiroButton.tsx`, `AccessManager.tsx`, `TerreiroBiblioteca.tsx`,
+> `TerreiroCollectionsEdit.tsx`, `TerreiroMembers.tsx`, `TerreiroMembersList.tsx`. All eight were
+> opened: every one reads `role`/`isActiveMember`/`hasPendingRequest` to gate the **signed-in
+> viewer's own** permissions, so the gate is safe for all of them. Screens that display *other*
+> members' roles source those from `useTerreiroMembers` / `fetchTerreiroMembersPage`, never from this
+> hook. The spec's §2.3 blast-radius estimate was simply too narrow — corrected here, not worked
+> around. Full evidence in `.superpowers/sdd/2026-08-09-spec-3-auth-state-leaks/task-1-report.md`.
+
 (No commit — read-only.)
 
 ---
@@ -65,7 +74,7 @@ change its behavior, and that is a deviation to record, not to silently accept.
 
 **Files:** `src/hooks/terreiroMembership.ts`, `src/hooks/terreiroMembership.test.tsx`
 
-- [ ] **Step 1: Write the failing test first**
+- [x] **Step 1: Write the failing test first**
 
 Create `src/hooks/terreiroMembership.test.tsx`. Model the mocking on the existing
 `src/hooks/useTerreiroRole.test.tsx` (same harness, already working in this repo).
@@ -91,7 +100,7 @@ Also cover:
   deletes `placeholderData` would pass tests while reintroducing flicker).
 - `hasPendingRequest` is `false` when `userId` is null.
 
-- [ ] **Step 2: Run it and watch it fail**
+- [x] **Step 2: Run it and watch it fail**
 
 ```
 node node_modules/jest/bin/jest.js --testPathPattern=terreiroMembership
@@ -100,7 +109,15 @@ node node_modules/jest/bin/jest.js --testPathPattern=terreiroMembership
 Expected: **the logout test fails** — it should report a leaked `"admin"` role. If it passes
 immediately, the test is not reproducing the defect; fix the test before touching the source.
 
-- [ ] **Step 3: Apply the gate**
+> **DEVIATION (method, not outcome):** the red run happened twice. React Query's `notifyManager`
+> flushes on `setTimeout(0)`, so a single macrotask tick raced the notification and one test failed
+> non-deterministically. The harness gained a `flushMacrotask` helper draining 5 ticks inside `act`.
+> Because that changed the test file *after* the first red run, the source gate was reverted and the
+> **final** test file re-run against unfixed code — same two failures, same reasons — then restored.
+> Both red outputs are in `task-2-report.md`. Recorded because "I saw it fail once" would otherwise
+> be describing a test file that no longer exists.
+
+- [x] **Step 3: Apply the gate**
 
 In `src/hooks/terreiroMembership.ts` (~line 160):
 
@@ -129,7 +146,7 @@ is the fallback, not the fix.
 > never fetches anything fresh — and keeps handing back the previous session's rows indefinitely.
 > `enabled: false` does not clear a placeholder.
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```
 node node_modules/jest/bin/jest.js --testPathPattern=terreiroMembership
@@ -138,7 +155,7 @@ npx tsc --noEmit
 
 Expected: **0 failures**, **zero `tsc` output**.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```
 git add src/hooks/terreiroMembership.ts src/hooks/terreiroMembership.test.tsx
@@ -164,13 +181,22 @@ Backlog D8."
 
 **File:** `src/hooks/useTerreiroRole.test.tsx`
 
-- [ ] **Step 1: Add a consumer-level regression test**
+- [x] **Step 1: Add a consumer-level regression test**
 
 `useTerreiroRole` is what screens actually call. Add a case proving the leak is closed at that
 boundary too: with membership data present but no user, `canEditCustomTags`, `isAdmin`,
 `canManageMembers` and `canEditTerreiro` are all `false`.
 
-- [ ] **Step 2: Verify**
+> **DEVIATION:** "add a case" understated the cost. The file stubbed `./terreiroMembership`
+> wholesale, so a test added alongside the existing eight would have had no query cache and would
+> have passed against pre-fix source — proving nothing. The mock factory now delegates via
+> `jest.requireActual` behind a `mockUseRealMembership` flag: the eight existing tests keep the stub,
+> the new test runs the real hook against a real `QueryClient`. Existing test bodies, assertions and
+> names are untouched; the shared **mocking infrastructure** did change. The flag is set in each
+> `describe`'s own `beforeEach` and reset in `afterEach`, so no test-order dependency exists. One
+> file grew 123 → 269 lines for one test case, which is the honest price of making it load-bearing.
+
+- [x] **Step 2: Verify**
 
 ```
 node node_modules/jest/bin/jest.js
@@ -179,7 +205,7 @@ npx tsc --noEmit
 
 Expected: **0 failures**, **zero output**.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```
 git add src/hooks/useTerreiroRole.test.tsx
@@ -195,7 +221,7 @@ underneath it."
 
 **File:** `src/screens/Preferences/components/ProfileSection.tsx`
 
-- [ ] **Step 1: Add the early branch**
+- [x] **Step 1: Add the early branch**
 
 Import `useLoginPrompt` from `@/src/contexts/LoginPromptContext` and, when `!user`, return a
 signed-out block instead of the identity card:
@@ -213,7 +239,7 @@ string `"Você"`), no initials, no email, no badges, no curator toggle, no "Revi
 **Hook order:** the `!user` early return must come *after* all hook calls in the component, or
 React will error on hook-count changes between renders. Compute first, branch at the return.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```
 npx tsc --noEmit
@@ -222,13 +248,13 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 3: Queue the human check — do not run it here**
+- [x] **Step 3: Queue the human check — do not run it here**
 
 Append to [`../HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §5: signed out, the
 Preferences "Conta" area shows an "Entrar" affordance and no "? Você" placeholder identity.
 **Commit regardless** — per [`CONVENTIONS.md`](../CONVENTIONS.md) §4 this never gates the task.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```
 git add src/screens/Preferences/components/ProfileSection.tsx
@@ -248,12 +274,12 @@ Backlog D12 (1 of 3 sites)."
 
 **File:** `src/screens/Preferences/components/LogoutSection.tsx`
 
-- [ ] **Step 1: Guard the whole section**
+- [x] **Step 1: Guard the whole section**
 
 Read `user` from `useAuth()` and return `null` when absent — including the `PreferencesSection`
 wrapper, so no empty titled section is left behind. Same hook-order rule as Task 4.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```
 npx tsc --noEmit
@@ -262,7 +288,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```
 git add src/screens/Preferences/components/LogoutSection.tsx
@@ -285,12 +311,12 @@ This is a **separate task on purpose.** The same defect exists independently in 
 Preferences implementation, and the whole point of `aggregation.md` §6.12 is that fixing one does
 not reach the other. Do not skip this because Tasks 4-5 "already fixed Preferences".
 
-- [ ] **Step 1: Guard the row**
+- [x] **Step 1: Guard the row**
 
 Wrap the `Pressable` rendering "Sair" (~1948-1959) so it is not rendered when there is no `user`.
 `user` is already in scope in that component (`const { user, signOut } = useAuth()`, ~line 635).
 
-- [ ] **Step 2: Check for siblings in the same overlay**
+- [x] **Step 2: Check for siblings in the same overlay**
 
 ```
 grep -n "signOut\|isLogoutConfirmOpen" src/components/TabsHeaderWithPreferences.tsx
@@ -301,7 +327,16 @@ The confirm modal is state-driven and unreachable once the trigger is hidden, so
 here if trivial, otherwise record it in [`../BACKLOG.md`](../BACKLOG.md) rather than leaving it
 undocumented ([`CONVENTIONS.md`](../CONVENTIONS.md) §9).
 
-- [ ] **Step 3: Verify**
+> **DEVIATION (in scope, wider than Step 1's literal wording):** the scan found a second, independent
+> `D12` instance in the same overlay — the preferences `BottomSheet`'s profile identity row
+> (`title={userDisplayName}`, avatar, hardcoded `"YB"` initials fallback) had no `user` guard, and its
+> edit-profile pencil stayed tappable after logout. No effect closes that sheet on logout, so the
+> state was genuinely reachable. Guarded in the same commit using the sibling rows' existing pattern,
+> per this step's "fix it here if trivial" allowance. Reviewed independently: the wrap is a plain
+> conditional around pre-existing JSX, byte-identical behavior while signed in, and the edit-profile
+> modal is unreachable once its only trigger is hidden. Nothing else in the overlay was unguarded.
+
+- [x] **Step 3: Verify**
 
 ```
 npx tsc --noEmit
@@ -310,7 +345,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```
 git add src/components/TabsHeaderWithPreferences.tsx
@@ -327,7 +362,7 @@ Backlog D12 (3 of 3 sites)."
 
 ## Task 7: Reconcile ([`CONVENTIONS.md`](../CONVENTIONS.md) §5)
 
-- [ ] **Step 1: Final verification**
+- [x] **Step 1: Final verification**
 
 ```
 npx tsc --noEmit
@@ -336,7 +371,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 2: Confirm the leak is closed everywhere it was reported**
+- [x] **Step 2: Confirm the leak is closed everywhere it was reported**
 
 ```
 grep -n "placeholderData" src/hooks/terreiroMembership.ts
@@ -345,13 +380,18 @@ grep -n "placeholderData" src/hooks/terreiroMembership.ts
 Both occurrences should remain, with the derivation gated. If you removed either, that is a
 deviation — record it inline in this plan with the reasoning (spec §3.1 permits it as a fallback).
 
-- [ ] **Step 3: Tick this plan's checkboxes and record any deviation**
+> **Result:** the grep returns **five** hits in this file (157, 197, 331, 683, 792) — the two this
+> spec cares about are 157 (membership) and 197 (pending); the other three belong to unrelated
+> queries in the same module and were never in scope. Both target lines remain, derivation gated.
+> Nothing was removed, so the fallback was not needed.
+
+- [x] **Step 3: Tick this plan's checkboxes and record any deviation**
 
 Mark every completed step `- [x]`. For anything that differed from the plan, add an inline
 `> **DEVIATION:**` note explaining what and why. An unticked, un-annotated plan is what made the
 earlier specs unusable as history.
 
-- [ ] **Step 4: Update the backlog**
+- [x] **Step 4: Update the backlog**
 
 In [`../BACKLOG.md`](../BACKLOG.md), mark `D8` and `D12` resolved with commit refs. If Task 6 Step 2
 surfaced extra unguarded affordances, they are already logged there.
@@ -359,20 +399,20 @@ surfaced extra unguarded affordances, they are already logged there.
 Add a note to `C5` that this spec patched the same hole in both implementations — evidence for why
 unification is worth doing.
 
-- [ ] **Step 5: Update the spec's Agent DoD**
+- [x] **Step 5: Update the spec's Agent DoD**
 
 Tick §8's Agent DoD boxes in
 [`../specs/2026-08-09-spec-3-auth-state-leaks.md`](../specs/2026-08-09-spec-3-auth-state-leaks.md)
 and add the completion date.
 
-- [ ] **Step 6: Confirm the human checks are queued**
+- [x] **Step 6: Confirm the human checks are queued**
 
 Verify [`../HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §5 contains the spec §8
 Human DoD items, including the **different-user re-login** check and the **in-session terreiro
 switch** check (the latter guards the §5 flash regression and is easy to forget because it tests
 something that should *not* change).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```
 git add docs/
