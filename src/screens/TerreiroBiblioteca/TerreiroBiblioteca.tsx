@@ -54,6 +54,7 @@ import {
   BackHandler,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -669,6 +670,20 @@ export default function TerreiroBiblioteca() {
     if (membersCountQuery.isLoading && n == null) return "— membros";
     return null;
   }, [membersCountQuery.data, membersCountQuery.isLoading, terreiroId]);
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([
+        collectionsQuery.refetch(),
+        terreiroQuery.refetch(),
+        membersCountQuery.refetch(),
+      ]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [collectionsQuery, terreiroQuery, membersCountQuery]);
 
   const [isCollectionActionsOpen, setIsCollectionActionsOpen] = useState(false);
   const [collectionActionsTarget, setCollectionActionsTarget] =
@@ -1465,6 +1480,20 @@ export default function TerreiroBiblioteca() {
           ]}
           scrollEventThrottle={16}
           onScroll={scrollHandler}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.brass600}
+              colors={[colors.brass600]}
+              progressBackgroundColor={
+                variant === "light"
+                  ? colors.surfaceCardBgLight
+                  : colors.surfaceCardBg
+              }
+              progressViewOffset={headerTotalHeight}
+            />
+          }
         >
           <LinearGradient
             pointerEvents="none"
