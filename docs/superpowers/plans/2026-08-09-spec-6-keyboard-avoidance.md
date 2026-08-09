@@ -58,6 +58,15 @@ grep -rln "filler" src/
 Record both numbers. Task 6 asserts the pilot's usages are gone and **everything else is
 unchanged** — you need the "before" to prove the "after".
 
+> **CORRECTION — the "nine files" figure in this spec and in `D14` is wrong.** Measured 2026-08-09:
+> `grep -rn "filler" src/` → **39 hits across 14 files**; `grep -rl "filler.png" src/` → **13 files**
+> that actually render the image. The 14th is `src/components/BottomSheet.tsx`, which only mentions
+> "filler" in a doc comment.
+>
+> So Task 6's expected post-pilot count is **12 files still rendering `filler.png`**, not 8. The
+> leverage argument is unchanged and if anything stronger — most of the 13 still sit behind the
+> shared `BottomSheet`.
+
 (No commit — read-only.)
 
 ---
@@ -106,6 +115,72 @@ that is covered by the human launch check queued in Task 5.)
 disable New Architecture, do not pin an older version on your own initiative. Report the failure
 with the actual Gradle output — the whole approach depends on this working, and a hack here would be
 worse than the filler.
+
+> ## 🚫 **GATE FAILED 2026-08-09 — Spec 6 is BLOCKED here. Nothing past this point ran.**
+>
+> `./gradlew assembleDebug` → **BUILD FAILED in 5m 34s**. Tasks 3-6 were not attempted, and the
+> dependency install was **reverted** — see "Why nothing was committed" below.
+>
+> **This is not a library incompatibility.** The failure is a Windows `MAX_PATH` limit:
+>
+> ```
+> ninja: error: Stat(reactnativekeyboardcontroller_autolinked_build/CMakeFiles/
+> react_codegen_reactnativekeyboardcontroller.dir/C_/saravafy/saravafy-mobile-app/node_modules/
+> react-native-keyboard-controller/common/cpp/react/renderer/components/
+> reactnativekeyboardcontroller/RNKCKeyboardBackgroundViewShadowNode.cpp.o):
+> Filename longer than 260 characters
+> ```
+>
+> CMake mirrors the full absolute source path underneath an already-deep `.cxx` directory, so the
+> repo path appears **twice** and `reactnativekeyboardcontroller` **three times** — 367 characters
+> against a 260 limit. The enabling condition is
+> `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem\LongPathsEnabled = 0` on this machine, confirmed
+> directly.
+>
+> Evidence it is environmental, not the library: every ninja error names a keyboard-controller path,
+> **zero other modules failed**, and CMake configure *and* generate both succeeded — so autolinking
+> wired the module up correctly. `npx expo install` resolved **1.18.5** (npm `latest` is 1.22.3), so
+> it did consult the SDK 54 list rather than taking newest, and `expo-doctor` after the install was
+> **byte-identical** to a pre-install control run: zero new complaints, `N1`–`N5` untouched.
+>
+> **What is still unproven, in both directions:** whether this library links under SDK 54 + New
+> Architecture. The gate did not pass, so nothing may be claimed either way.
+>
+> ### No workarounds were applied
+>
+> New Architecture untouched (`newArchEnabled=true`), library not downgraded, no
+> `KeyboardAvoidingView` fallback — the three anti-patterns this plan names. Nor was a fourth one
+> improvised: Gradle/CMake config surgery to route around a machine setting would be the same
+> category of quiet hack, and `LongPathsEnabled` is a machine-wide OS change that is not an agent's
+> to make on someone's laptop.
+>
+> ### Why nothing was committed, and why the install was rolled back
+>
+> Task 2 Step 4's commit message asserts the module was *"verified to build and launch under New
+> Architecture"*. That is false here, and committing it would record a verification that never
+> happened — the precise failure mode [`CONVENTIONS.md`](../CONVENTIONS.md) §3 exists to prevent.
+>
+> The install itself was then reverted (`package.json`, `package-lock.json`, and the package removed
+> from `node_modules`) for a sharper reason: **leaving the dependency in place would break the
+> Android build for everyone.** Autolinking would pick it up and every `assembleDebug` would die on
+> the same ninja error. A half-landed native dependency is worse than none. `tsc` and Jest were
+> re-run after the rollback and are clean.
+>
+> ### To unblock — pick one, then re-run the gate
+>
+> 1. **Enable Win32 long paths (the real fix).** Set `LongPathsEnabled=1` at
+>    `HKLM\SYSTEM\CurrentControlSet\Control\FileSystem`, then **reboot**. Admin, machine-wide.
+> 2. **Shorten CMake object paths** via `CMAKE_OBJECT_PATH_MAX` or a `buildStagingDirectory`
+>    override. Stays in-repo, but is native build config well beyond this spec's file scope, and it
+>    changes how *every* native module builds, not just this one.
+> 3. ~~Relocate the repo~~ — **checked and insufficient alone.** The path contributes twice; even
+>    `C:\sv` recovers only ~52 of the 107 excess characters.
+>
+> After enabling long paths, **clear `android/.cxx` before retrying** — the failed configure state is
+> cached and will be reused.
+>
+> Full transcript, including the pre-install `expo-doctor` control run:
+> `.superpowers/sdd/2026-08-09-spec-6-keyboard-avoidance/task-2-report.md`.
 
 - [ ] **Step 4: Commit**
 

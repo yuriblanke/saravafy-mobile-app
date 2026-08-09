@@ -44,7 +44,7 @@ Two rules carry most of the weight:
 | [Spec 3 — Auth state leaks](specs/2026-08-09-spec-3-auth-state-leaks.md) | [✅](plans/2026-08-09-spec-3-auth-state-leaks.md) | ✅ 2026-08-09 | ⏳ queued 5.7–5.11 |
 | [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | [✅](plans/2026-08-09-spec-4-failure-presentation.md) | ✅ 2026-08-09 | ⏳ queued |
 | [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | [✅](plans/2026-08-09-spec-5-add-to-collection-write-path.md) | ✅ 2026-08-09 | ⏳ queued |
-| [Spec 6 — Keyboard avoidance (pilot)](specs/2026-08-09-spec-6-keyboard-avoidance.md) | [✅](plans/2026-08-09-spec-6-keyboard-avoidance.md) | ⏳ | ⏳ **gates Spec 7** |
+| [Spec 6 — Keyboard avoidance (pilot)](specs/2026-08-09-spec-6-keyboard-avoidance.md) | [✅](plans/2026-08-09-spec-6-keyboard-avoidance.md) | 🚫 blocked at the build gate | ⏳ **gates Spec 7** |
 | *Spec 7 — Keyboard avoidance (rollout)* | — | 🔒 blocked | blocked on Spec 6 sign-off |
 
 The 2026-08-08/09 validation pass confirmed **8 defects** (`D6`–`D13`). Specs 3-5 cover seven of
@@ -66,7 +66,11 @@ permitted to run without a plan; finished as-is rather than retro-planned. While
 repo-wide grep for its own §11 rule caught a second pre-existing offender in `AddToCollection.tsx`
 sharing the same ad-hoc key pattern — both are now registered in `queryKeys.ts`.
 
-**Specs 1, 2a, 2b, 3, 4 and 5 are Agent-DoD-complete.** Only Spec 6 (the keyboard pilot) remains. Nothing is blocking a batched human validation
+**Specs 1, 2a, 2b, 3, 4 and 5 are Agent-DoD-complete.** Only Spec 6 remains, and it is **blocked on
+a machine setting, not on code** — its native build gate fails because `LongPathsEnabled=0` on this
+Windows machine makes CMake exceed the 260-character path limit while compiling the new module.
+Nothing was committed and the dependency install was rolled back, so the Android build still works.
+Enabling Win32 long paths (admin + reboot) unblocks it; details in the plan's Task 2 Step 3. Nothing is blocking a batched human validation
 pass — see [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md).
 
 ## Where the priorities come from
