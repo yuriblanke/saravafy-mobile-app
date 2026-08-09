@@ -45,13 +45,25 @@ Origem: Spec 1 (`getErrorMessage`), Spec 2a (add-to-collection).
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 1.1 | Abrir Home | Pontos carregam | |
-| 1.2 | Buscar um ponto | Filtra sem travar ao digitar | |
-| 1.3 | Busca sem resultado | Estado vazio, não spinner infinito | |
-| 1.4 | Modo avião → puxar pra atualizar | Erro com mensagem legível (não "[object Object]") | |
-| 1.5 | Ponto → "Adicionar à coleção" | Wizard abre em 2 fases: escolher versão → escolher coleção | |
-| 1.6 | Concluir adição | Ponto entra na coleção; toast de sucesso | |
-| 1.7 | Adicionar ponto que já está na coleção | Mensagem de duplicado clara, sem crash | |
+| 1.1 | Abrir Home | Pontos carregam | ✅ OK |
+| 1.2 | Buscar um ponto | Filtra sem travar ao digitar | ✅ OK |
+| 1.3 | Busca sem resultado | Estado vazio, não spinner infinito | ✅ OK |
+| 1.4 | ~~Modo avião → puxar pra atualizar~~ Modo avião → buscar | ~~Erro com mensagem legível~~ ver nota | ❌ mostra `TypeError: Network request failed` cru |
+| 1.5 | Ponto → "Adicionar à coleção" | Wizard abre em 2 fases: escolher versão → escolher coleção | ✅ OK |
+| 1.6 | Concluir adição | Ponto entra na coleção; toast de sucesso | ✅ OK |
+| 1.7 | Adicionar ponto que já está na coleção | Mensagem de duplicado clara, sem crash | ❌ não acontece — ver nota |
+
+> **1.4 — item da fila estava errado, corrigido 2026-08-08.** Home **não tem** "puxar pra
+> atualizar" — nunca teve (`fetchAllPontos()` único + refetch ao focar tela, não
+> `RefreshControl`). Não é bug, é ausência de recurso; o item presumia algo que não existe nesta
+> tela. Testado no lugar: busca em modo avião. **Isso sim é bug confirmado** — mensagem crua
+> vazando em vez de texto legível. Causa raiz e correção: `D7` em [`BACKLOG.md`](BACKLOG.md).
+>
+> **1.7 — bug confirmado, determinístico (sempre reproduz, não é flaky).** Causa raiz: o insert usa
+> `ignoreDuplicates: true`, então o banco nunca acusa duplicado — a mensagem de "já estava na
+> coleção" está morta no código. Pior: a UI mostra "adicionado com sucesso" e mexe no cache local
+> mesmo o banco não tendo feito nada, ou seja cache e banco ficam dessincronizados até o próximo
+> refetch. Detalhe e correção: `D6` em [`BACKLOG.md`](BACKLOG.md).
 
 **Atenção 1.5:** o wizard do Home foi substituído pelo componente unificado `AddToCollectionFlow`.
 O comportamento de 2 fases tem que ser idêntico ao de antes. Qualquer passo faltando é regressão.
