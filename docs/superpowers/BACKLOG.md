@@ -50,9 +50,26 @@ new variable while trying to isolate whether the reported bugs (flicker, routing
 | **N5** | `@types/jest` `30` vs expected `29.5.14` | 🟢 low | Types-only, dev dependency, no runtime effect |
 
 **Next step:** re-run `npx expo-doctor` after the human validation pass. Fix N3–N5 as a routine
-patch-bump commit (low risk, do anytime). Investigate N1 before it becomes load-bearing — either
-confirm RNTP works acceptably in practice under New Arch (many libraries run fine via interop layer
-despite not being *listed* as supported) or plan a replacement. Fix N2 as part of `S-5`.
+patch-bump commit (low risk, do anytime). Fix N2 as part of `S-5`.
+
+> **DECISION (2026-08-08, user call): N1 / player rework is explicitly deprioritized to LAST, and
+> is scoped as a full rebuild, not a patch.**
+>
+> Context: the current player (RNTP-based, including its notification/media-session controls) was
+> a source of real user pain **before** this refactor effort started — the user described it as
+> traumatic and confirmed it was part of what motivated starting the mobile-app cleanup in the
+> first place. The N1 finding above (RNTP unsupported on New Architecture) is corroborating
+> technical evidence for something the user already knew experientially. Notification media
+> controls were previously patched around at least twice (see git history: `c60729d`, `148f726`)
+> rather than fixed at the root.
+>
+> **Scope when this is eventually tackled:** not just an engine swap (RNTP → another library) —
+> **a full redesign of the player experience.** This is a deliberate, explicit exception to this
+> project's stated "no new features, fix what exists" objective ([`CLAUDE.md`](../../../CLAUDE.md),
+> [`README.md`](README.md)) — noted here so it isn't silently applied as precedent to other backlog
+> items. Everything else in this document stays fix-only.
+>
+> **Do not start this now.** Purely a marker for when the P0/P1/P2 work above is done.
 
 ---
 
