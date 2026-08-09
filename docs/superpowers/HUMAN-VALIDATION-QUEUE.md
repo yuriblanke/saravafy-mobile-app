@@ -92,7 +92,14 @@ isso ele **bloqueia** o resto da rodada de Spec 6.
 > nativo, então a mudança não chega por reload de JS. O build local (`npm run android:dev`) **não
 > funciona nesta máquina**: `ninja.exe` não declara `longPathAware`, então o limite de 260 caracteres
 > do Windows corta os caminhos do codegen mesmo com `LongPathsEnabled=1`. Por isso a verificação
-> nativa foi feita no EAS, que roda em Linux. Instale o APK do build mais recente antes de começar.
+> nativa foi feita no EAS, que roda em Linux.
+>
+> **APK a instalar** — build `4c675867`, commit `9ae0a99`, perfil `development`, SDK 54, New
+> Architecture, status `finished`:
+> https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/4c675867-6475-40a5-b97f-f8b7d7feaa33
+>
+> Esse build contém o piloto inteiro (provider + prop opt-in + adoção na tela). Um build anterior
+> (`3f9666b9`) provou só que o módulo linka, sem UI — **não use aquele.**
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
