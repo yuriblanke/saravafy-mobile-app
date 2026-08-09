@@ -150,15 +150,45 @@ Origem: Spec 1 (`<QueryBoundary>` — adotado aqui, **não** no Home como o plan
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 4.1 | Abrir aba Terreiros (primeira vez, cache frio) | Spinner centralizado, depois lista | |
-| 4.2 | Puxar pra atualizar com dados já na tela | Lista **continua visível**, sem piscar pro spinner | |
-| 4.3 | Modo avião → puxar pra atualizar | Lista continua visível; sem tela de erro por cima do conteúdo | |
-| 4.4 | Modo avião + cache frio | Card de erro "Não foi possível carregar" + mensagem legível | |
-| 4.5 | Usuário sem nenhum terreiro | Estado vazio | |
+| 4.1 | Abrir aba Terreiros (primeira vez, cache frio) | Spinner centralizado, depois lista | ✅ parece instantâneo — ver nota |
+| 4.2 | ~~Puxar pra atualizar com dados já na tela~~ | ~~Lista continua visível, sem piscar~~ | 🔧 gesto não existe — mas código já verificado, ver nota |
+| 4.3 | ~~Modo avião → puxar pra atualizar~~ | Lista continua visível; sem tela de erro por cima do conteúdo | ❌ confirmado no código — ver nota |
+| 4.4 | Modo avião + cache frio | Card de erro "Não foi possível carregar" + mensagem legível | 🔧 não testável via dev client — ver nota |
+| 4.5 | Usuário sem nenhum terreiro | Estado vazio | 🔮 não é esse o design — ver nota |
 
 **Atenção 4.2 e 4.3:** esse é exatamente o comportamento anti-*flicker* que o `<QueryBoundary>`
 deveria garantir (stale-while-revalidate). Se piscar, o componente não está sendo usado ali ou está
 recebendo `data: undefined` durante o refetch. É o item mais relevante da fila pro seu objetivo.
+
+> **4.1 — não é prefetch no boot, é cache de sessão (e revelou que o §6.1 do aggregation.md está
+> certo).** Verificado no código: a query que a aba Terreiros realmente lê
+> (`terreiros.withRole`) **não** é aquecida no boot — só `terreiros.exploreInitial` é (via
+> `prefetchExploreTerreiros`), e `Terreiros.tsx` nunca lê essa chave. Ou seja, o achado do
+> `aggregation.md` §6.1 ("prefetch morto, sem consumidor") **é verdadeiro**, diferente das 2 waves
+> do audit de code-quality que eram falso-positivo. A sensação de "já carregado" que você notou
+> vem de `staleTime`/cache de sessão normal (30s/30min), não de otimização proposital — existe até
+> um helper pronto (`prefetchTerreirosWithRole`) que nunca foi ligado ao boot (`X8` no
+> [`BACKLOG.md`](BACKLOG.md), baixa prioridade já que na prática já parece rápido).
+>
+> **4.2/4.3 — sem gesto de pull-to-refresh (confirmado app inteiro, não só Home), mas dava pra
+> verificar direto no código — e achei bug real.** `Terreiros.tsx:430` guarda `isLoading` certo
+> (só esconde dado se `terreiros.length === 0`), mas `error` (linha 431) **não tem esse guard** —
+> fica `true` mesmo com lista carregada. Isso quebra a garantia anti-flicker do `<QueryBoundary>`
+> exatamente pro caso de erro: qualquer refetch em segundo plano que falhe (rede instável, não
+> precisa nem ser avião) cobre a lista já carregada com o card de erro. Registrado como `D11` no
+> [`BACKLOG.md`](BACKLOG.md), P0 — é o achado mais direto ligado ao seu objetivo original
+> (flicker). **Como testar sem pull-to-refresh:** espera uns 30s+ na aba, ativa avião, aperta
+> "Tentar novamente" ou sai e volta pra aba — deve reproduzir.
+>
+> **4.4 — limitação de ferramenta, não do app.** Dev client depende do Metro pra buscar o bundle
+> JS; não abre com o avião já ligado. Pra testar cold-cache+offline de verdade precisa de build
+> standalone/release (EAS), não dev client. Anotado, não é bug.
+>
+> **4.5 — não é bug, é o design atual (confirmado no código).** `fetchTerreirosWithRole` busca
+> **todos** os terreiros sem filtro de participação — é diretório público por definição, o vínculo
+> do usuário só decora com badge de cargo. Sua ideia de busca já tem filtro client-side pronto
+> (`Terreiros.tsx:435-438`, `matchesTerreiroQuery`) — só falta UI de busca visível. Registrado como
+> `F2` em [`BACKLOG.md`](BACKLOG.md).
 
 ---
 
