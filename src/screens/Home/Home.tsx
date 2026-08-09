@@ -225,7 +225,7 @@ export default function Home() {
             raw: e,
           });
         }
-        setLoadError(__DEV__ ? getErrorMessage(e) : "Ops, seu app parece estar desatualizado.");
+        setLoadError(getErrorMessage(e, "Ops, seu app parece estar desatualizado."));
       })
       .finally(() => setIsLoading(false));
   }, []);
@@ -823,9 +823,7 @@ export default function Home() {
                       });
                     }
                     setLoadError(
-                      __DEV__ && e instanceof Error && e.message
-                        ? e.message
-                        : "Ops, seu app parece estar desatualizado.",
+                      getErrorMessage(e, "Ops, seu app parece estar desatualizado."),
                     );
                   })
                   .finally(() => setIsLoading(false));
