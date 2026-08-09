@@ -15,15 +15,12 @@ import React, {
 } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   TextInput,
   View,
 } from "react-native";
-
-const fillerPng = require("@/assets/images/filler.png");
 
 const HINT_STORAGE_KEY = "hint_medium_tag_long_press_remove_shown_v1";
 
@@ -268,6 +265,7 @@ export function AddMediumTagSheet(props: {
         variant={variant}
         scrollEnabled={false}
         bounces={false}
+        keyboardAware
       >
         <View style={{ paddingBottom: 16 }}>
           <View style={styles.sheetHeaderRow}>
@@ -371,13 +369,6 @@ export function AddMediumTagSheet(props: {
               )}
             </Pressable>
           </View>
-
-          <Image
-            source={fillerPng}
-            style={styles.filler}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -467,10 +458,5 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.6,
-  },
-  filler: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
 });
