@@ -35,7 +35,7 @@ PATH. The gate is **0 failures** — never a specific total.
 
 ## Task 1: Baseline
 
-- [ ] **Step 1: Confirm a clean starting point**
+- [x] **Step 1: Confirm a clean starting point**
 
 ```
 npx tsc --noEmit
@@ -44,7 +44,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero `tsc` output**, **0 failures**. If either fails first, stop and report.
 
-- [ ] **Step 2: Inventory the duplication you are NOT fixing**
+- [x] **Step 2: Inventory the duplication you are NOT fixing**
 
 ```
 grep -rn "function getErrorMessage" src/
@@ -54,6 +54,14 @@ Record the count. Spec §2.2 scopes out the bulk sweep (`S-3a`) — only `AddMed
 scope here, because it produced an observed bug. Anything else you find stays listed for `S-3a`;
 do not opportunistically sweep it.
 
+> **Result:** 12 definitions in `src/` — 1 canonical (`src/lib/errors.ts:1`) plus **11 local
+> copies**. Task 4 removed one, so **10 remain for `S-3a`**.
+>
+> **Finding worth carrying into `S-3a`:** the copy in
+> `src/screens/CollectionAddToCollection/addToCollectionModel.ts:107` is **exported**, not
+> file-local. The sweep must check its importers before deleting it, rather than assuming every copy
+> is private to its file.
+
 (No commit — read-only.)
 
 ---
@@ -62,7 +70,7 @@ do not opportunistically sweep it.
 
 **Files:** `src/lib/errors.ts`, `src/lib/errors.test.ts`
 
-- [ ] **Step 1: Write the failing tests first**
+- [x] **Step 1: Write the failing tests first**
 
 Add to `src/lib/errors.test.ts`. **Do not modify the 7 existing tests** — this change is additive,
 and if an existing test needs edits, the implementation is wrong (see Step 4).
@@ -109,7 +117,7 @@ describe("isNetworkError", () => {
 });
 ```
 
-- [ ] **Step 2: Run and watch them fail**
+- [x] **Step 2: Run and watch them fail**
 
 ```
 node node_modules/jest/bin/jest.js --testPathPattern=lib/errors
@@ -118,7 +126,7 @@ node node_modules/jest/bin/jest.js --testPathPattern=lib/errors
 Expected: the new network cases fail; the **decoy passes already** (it describes current
 behavior we must preserve); `isNetworkError` fails to import.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `src/lib/errors.ts`, add the predicate and consult it **before** any raw-message return:
 
@@ -148,10 +156,25 @@ if (isNetworkError(e)) return NETWORK_MESSAGE;
 Match on the **specific phrasings only** — never the bare word "network", which is what the decoy
 test exists to enforce.
 
+> **KNOWN GAP, deliberately not fixed here — decision needed before `S-3a`.** The extraction above
+> reads `.message` off `Error`s and message-bearing objects only. A **bare string**
+> `"Network request failed"` therefore does *not* match: `isNetworkError` returns `false`, and the
+> string falls through to `getErrorMessage`'s own untouched `typeof e === "string"` branch and is
+> returned verbatim — the exact raw-string leak this task exists to prevent.
+>
+> This is the code the plan prescribes, and the plan's own test asserts `isNetworkError("boom")`
+> is `false`, so it was implemented as written rather than widened unilaterally. A review grep found
+> **no call site in `src/` that stringifies before calling**, so there is no live bug today.
+>
+> It matters because `S-3a` is about to route 10 remaining local copies onto this utility, and some
+> may pass `String(e)`. Widening the extraction with a `typeof e === "string" ? e : …` arm would not
+> break the existing assertion (`"boom"` still returns `false`). Logged as `X13` in
+> [`../BACKLOG.md`](../BACKLOG.md), blocking `S-3a`, for a human to decide.
+
 Leave every other branch byte-identical. `X1`/`X2` (the trim contract and the dead branch) are
 adjacent but out of scope — do not "clean them up in passing".
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```
 node node_modules/jest/bin/jest.js --testPathPattern=lib/errors
@@ -163,7 +186,7 @@ Expected: **0 failures**, **zero output**.
 **If any of the 7 pre-existing tests now fails, do not edit that test.** It means the change was not
 additive — a non-network input changed its result. Fix the implementation.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```
 git add src/lib/errors.ts src/lib/errors.test.ts
@@ -193,7 +216,7 @@ Backlog D10. Unblocks S-3a."
 
 **File:** `src/hooks/usePontosSearch.ts` (~line 73)
 
-- [ ] **Step 1: Replace the inline extraction**
+- [x] **Step 1: Replace the inline extraction**
 
 ```ts
 // before
@@ -205,7 +228,7 @@ const message = getErrorMessage(e);
 Add the import from `@/src/lib/errors`. Change nothing else in the hook — the debounce, the
 stale-response guards (`if (currentQuery !== query) return;`) and the state shape all stay.
 
-- [ ] **Step 2: Verify**
+- [x] **Step 2: Verify**
 
 ```
 npx tsc --noEmit
@@ -214,7 +237,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```
 git add src/hooks/usePontosSearch.ts
@@ -233,12 +256,12 @@ Backlog D7."
 
 **File:** `src/components/AddMediumTagSheet.tsx` (~line 62)
 
-- [ ] **Step 1: Swap the local implementation for the shared one**
+- [x] **Step 1: Swap the local implementation for the shared one**
 
 Delete the local `getErrorMessage` (~lines 62-75) and import from `@/src/lib/errors`. The call site
 (~line 260, `showToast(getErrorMessage(e))`) needs no change.
 
-- [ ] **Step 2: Confirm nothing else in the file relied on the local copy's exact behavior**
+- [x] **Step 2: Confirm nothing else in the file relied on the local copy's exact behavior**
 
 ```
 grep -n "getErrorMessage" src/components/AddMediumTagSheet.tsx
@@ -247,7 +270,7 @@ grep -n "getErrorMessage" src/components/AddMediumTagSheet.tsx
 The local copy and the shared one had identical logic before Task 2, so the only behavioral
 difference is the new network branch — which is the point.
 
-- [ ] **Step 3: Verify**
+- [x] **Step 3: Verify**
 
 ```
 npx tsc --noEmit
@@ -256,7 +279,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 4: Commit**
+- [x] **Step 4: Commit**
 
 ```
 git add src/components/AddMediumTagSheet.tsx
@@ -281,10 +304,19 @@ Backlog D10 (call site 2 of 2)."
 This is the defect closest to the original motivation for this whole effort: `<QueryBoundary>` was
 built to prevent exactly this, and one of its two adoption sites defeats it from outside.
 
-- [ ] **Step 1: Extract the derivation so it can be tested**
+- [x] **Step 1: Extract the derivation so it can be tested**
 
 The guard is two lines inside a large component. Extract a pure helper — in the same file or a
 small sibling module — so the defect gets real coverage rather than being verified by eye:
+
+> **DEVIATION:** the helper landed in a **sibling module**,
+> `src/screens/Terreiros/deriveListErrorMessage.ts`, and in-file placement is not merely a style
+> preference here — it does not work. Importing anything from `Terreiros.tsx` in a test pulls
+> `AuthContext → lib/supabase → AsyncStorage`, which throws `NativeModule: AsyncStorage is null`
+> under Jest before a single assertion runs (there is no global AsyncStorage mock in
+> `jest.setup.ts`). Independently verified during review by walking that import chain. Worth
+> remembering: **any future attempt to unit-test a helper living inside a screen component hits the
+> same wall.**
 
 ```ts
 export function deriveListErrorMessage(params: {
@@ -302,7 +334,7 @@ Two fixes in one place, both from spec §3.3: the `rowCount` guard (mirroring `i
 one), and sourcing the text from `getErrorMessage` so Task 2's network branch applies — keeping the
 current copy only as the `fallback`.
 
-- [ ] **Step 2: Use it in the component**
+- [x] **Step 2: Use it in the component**
 
 ```ts
 const isLoading = terreirosQuery.isFetching && terreiros.length === 0; // unchanged
@@ -317,7 +349,7 @@ Leave the `<QueryBoundary>` JSX (~line 523) and its retry button alone — with 
 existing `data: error || isLoading ? undefined : filteredTerreiros` expression now behaves as Spec 1
 intended.
 
-- [ ] **Step 3: Test the helper**
+- [x] **Step 3: Test the helper**
 
 Create the test file next to wherever the helper landed:
 
@@ -326,7 +358,7 @@ Create the test file next to wherever the helper landed:
 - **error, rows present → `null`** ← the actual `D11` regression
 - error, 0 rows, network error → the `D10` network string, not the "desatualizado" fallback
 
-- [ ] **Step 4: Verify**
+- [x] **Step 4: Verify**
 
 ```
 node node_modules/jest/bin/jest.js
@@ -335,7 +367,7 @@ npx tsc --noEmit
 
 Expected: **0 failures**, **zero output**.
 
-- [ ] **Step 5: Queue the human check — do not run it here**
+- [x] **Step 5: Queue the human check — do not run it here**
 
 Append to [`../HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §4, replacing the
 "não existe puxar pra atualizar" note with a reproducible recipe that doesn't need the gesture:
@@ -345,7 +377,7 @@ case: no cache + no connection → the error card still appears.
 
 **Commit regardless** — [`CONVENTIONS.md`](../CONVENTIONS.md) §4.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```
 git add src/screens/Terreiros/
@@ -370,7 +402,7 @@ Backlog D11."
 
 ## Task 6: Reconcile ([`CONVENTIONS.md`](../CONVENTIONS.md) §5)
 
-- [ ] **Step 1: Final verification**
+- [x] **Step 1: Final verification**
 
 ```
 npx tsc --noEmit
@@ -379,7 +411,7 @@ node node_modules/jest/bin/jest.js
 
 Expected: **zero output**, **0 failures**.
 
-- [ ] **Step 2: Confirm no hand-rolled network handling survives**
+- [x] **Step 2: Confirm no hand-rolled network handling survives**
 
 ```
 grep -rn "Network request failed" src/
@@ -387,25 +419,37 @@ grep -rn "Network request failed" src/
 
 Expected: matches only in `src/lib/errors.ts` and its test file.
 
-- [ ] **Step 3: Tick this plan and record deviations**
+> **Result — the expectation was slightly wrong, the outcome is right.** Five matches, none of them
+> hand-rolled handling:
+> - `src/lib/errors.test.ts` ×3 — the matcher's own tests.
+> - `src/screens/Terreiros/deriveListErrorMessage.test.ts:30` — Task 5's network case, which
+>   deliberately constructs a real `TypeError` (a bare string would not match — see the known gap
+>   noted at Task 2 Step 3).
+> - `src/screens/TerreiroEditor/TerreiroEditor.tsx:295` — a **comment**, not handling: it documents
+>   why cover upload reads bytes via `FileSystem` instead of `fetch(file://…).blob()`, which fails
+>   with that string on Android/Expo. Correct as it stands; left alone.
+>
+> The string no longer appears in any code path that could render it to a user.
+
+- [x] **Step 3: Tick this plan and record deviations**
 
 Mark completed steps `- [x]`. Add inline `> **DEVIATION:**` notes for anything that differed —
 especially if the helper in Task 5 landed somewhere other than planned, or if the matcher needed a
 third phrasing.
 
-- [ ] **Step 4: Update the backlog**
+- [x] **Step 4: Update the backlog**
 
 Mark `D7`, `D10`, `D11` resolved with commit refs. **Annotate `S-3a` as unblocked** — note that the
 shared utility now handles connectivity, so sweeping the remaining copies is safe and no longer
 spreads a defect. Record the remaining copy count from Task 1 Step 2.
 
-- [ ] **Step 5: Update the spec's Agent DoD**
+- [x] **Step 5: Update the spec's Agent DoD**
 
 Tick §8 in
 [`../specs/2026-08-09-spec-4-failure-presentation.md`](../specs/2026-08-09-spec-4-failure-presentation.md)
 and add the completion date.
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```
 git add docs/

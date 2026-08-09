@@ -42,8 +42,8 @@ Two rules carry most of the weight:
 | [Spec 2a — AddToCollection unify](specs/2026-06-14-spec-2a-add-to-collection-unify.md) | ❌ none | ✅ 2026-08-08 | ✅ validated 2026-08-08/09 |
 | [Spec 2b — PreferencesContext → RQ](specs/2026-06-14-spec-2b-preferences-context-rq.md) | ✅ | ✅ 2026-06-14 | ⏳ partial (invites deferred) |
 | [Spec 3 — Auth state leaks](specs/2026-08-09-spec-3-auth-state-leaks.md) | [✅](plans/2026-08-09-spec-3-auth-state-leaks.md) | ✅ 2026-08-09 | ⏳ queued 5.7–5.11 |
-| [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | [✅](plans/2026-08-09-spec-4-failure-presentation.md) | 🔜 next | ⏳ |
-| [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | [✅](plans/2026-08-09-spec-5-add-to-collection-write-path.md) | ⏳ | ⏳ |
+| [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | [✅](plans/2026-08-09-spec-4-failure-presentation.md) | ✅ 2026-08-09 | ⏳ queued |
+| [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | [✅](plans/2026-08-09-spec-5-add-to-collection-write-path.md) | 🔜 next | ⏳ |
 | [Spec 6 — Keyboard avoidance (pilot)](specs/2026-08-09-spec-6-keyboard-avoidance.md) | [✅](plans/2026-08-09-spec-6-keyboard-avoidance.md) | ⏳ | ⏳ **gates Spec 7** |
 | *Spec 7 — Keyboard avoidance (rollout)* | — | 🔒 blocked | blocked on Spec 6 sign-off |
 
@@ -66,7 +66,7 @@ permitted to run without a plan; finished as-is rather than retro-planned. While
 repo-wide grep for its own §11 rule caught a second pre-existing offender in `AddToCollection.tsx`
 sharing the same ad-hoc key pattern — both are now registered in `queryKeys.ts`.
 
-**Specs 1, 2a, 2b and 3 are Agent-DoD-complete.** Nothing is blocking a batched human validation
+**Specs 1, 2a, 2b, 3 and 4 are Agent-DoD-complete.** Nothing is blocking a batched human validation
 pass — see [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md).
 
 ## Where the priorities come from

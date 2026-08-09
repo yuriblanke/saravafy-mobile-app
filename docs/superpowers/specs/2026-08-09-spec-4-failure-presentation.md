@@ -151,13 +151,23 @@ specifically to preserve content during failures is defeated at one of its two a
 
 ## 8. Definition of done
 
-### Agent DoD
+### Agent DoD — ✅ complete 2026-08-09
 
-- [ ] `npx tsc --noEmit` → **zero output**.
-- [ ] Test suite → **0 failures**; Spec 1's original `errors.test.ts` cases pass unmodified.
-- [ ] `grep -rn "Network request failed" src/` shows no hand-rolled handling outside `src/lib/errors.ts`.
-- [ ] Backlog updated: `D7`, `D10`, `D11` marked resolved with commit refs; `S-3a` annotated as now
-      unblocked.
+- [x] `npx tsc --noEmit` → **zero output**.
+- [x] Test suite → **0 failures** (52 passing; 12 added by this spec). Spec 1's original 7
+      `errors.test.ts` cases pass **unmodified** — the diff to `errors.ts` is insertion-only.
+- [x] `grep -rn "Network request failed" src/` shows no hand-rolled handling outside
+      `src/lib/errors.ts`. Five matches, all benign: three in the matcher's own tests, one in Task 5's
+      test (a real `TypeError`, deliberately not a string), and one **comment** in
+      `TerreiroEditor.tsx:295` explaining why cover upload avoids `fetch(file://…).blob()` on
+      Android. No code path can render the raw string to a user.
+- [x] Backlog updated: `D7`, `D10`, `D11` marked resolved with commit refs; `S-3a` annotated as
+      unblocked, with its real copy count corrected from 8 to 10.
+
+**Known gap carried forward — `X13`.** `isNetworkError` matches only `Error`s and message-bearing
+objects, not a bare string. No call site stringifies today (grepped), so nothing leaks now, but
+`S-3a` routes ten more copies onto this utility and some may pass `String(e)`. Deliberately left
+as the plan prescribed rather than widened by an agent; it is a human call. See `X13` in the backlog.
 
 ### Human DoD — deferred to the queue
 
