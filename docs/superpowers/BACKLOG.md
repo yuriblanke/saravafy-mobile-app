@@ -31,6 +31,7 @@ All five verified against source on 2026-08-08. Not doc claims — code was read
 | **D7** | Raw JS error leaks to the Home search UI instead of a readable message | `src/hooks/usePontosSearch.ts:73` — `const message = e instanceof Error ? e.message : String(e);`, rendered verbatim at `Home.tsx:589`. Never routed through `src/lib/errors.ts` (`getErrorMessage`, added in Spec 1 for exactly this). Under a real network failure the user sees `TypeError: Network request failed` | Same class of defect as `S-3a` (uncentralized error handling), but here there was no local copy to sweep — just no handling at all. Found 2026-08-08 testing Spec 2a (queue item 1.4) |
 | **D8** | Admin/curimba-level edit affordances leak to a logged-out viewer after logout, without a full app restart | `src/hooks/terreiroMembership.ts:92-158` — `useTerreiroMembershipStatus`'s query uses `placeholderData: (prev) => prev`. On logout, `userId` becomes `null` and the query key changes (to `[]`, disabled), so it never fetches fresh — but `placeholderData` still serves the *previous* query's last successful `data` as a stand-in. Every permission derived from this hook (`useTerreiroRole`, `canEditCustomTags`, etc.) keeps reading the pre-logout role until the component unmounts | **Sharper than `D1`.** D1 is a cache-eviction gap for keys that never carried `userId`; this key *does* carry `userId` and *is* correctly evicted from the cache by `app/_layout.tsx`'s logout cleanup — but `placeholderData` bypasses the cache read entirely, carrying the value at the React Query observer level. Fixing D1's eviction predicate will not fix this. Found 2026-08-08 testing Spec 1 (queue item 2.6): logged out mid-session after testing as admin/curimba, still saw admin-level buttons on a screen the guest should see as read-only |
 | **D9** | Add-to-collection "+" is entirely absent when a ponto is opened from a terreiro's own collection — only appears in the public-library player | `src/screens/Player/PlayerScreen.tsx:150` (`isLibraryPlayer = source === "all"`), gates both the button (line 625) and the `AddToCollectionFlow` mount (line 815) on `isLibraryPlayer`. `inCollectionPlayer` (line 204, `!isLibraryPlayer && !!collectionId`) has no add-to-collection path at all | **Confirmed pre-existing, not a Spec 2a regression** — the restriction predates the refactor (the deleted `LibraryPlayerAddToCollectionModal.tsx` had "Library" in its own name). **User decision (2026-08-08): treat as bug, fix here** — the feature already exists in the app; wiring it into collection-mode player completes expected behavior rather than adding a new one. Found testing Spec 2a (queue item 2.7); blocks 2.8 (can't test committing from this context until fixed) |
+| **D10** | The shared `getErrorMessage` utility itself — not just its adoption — has no branch for network/connectivity failures, so any offline action shows the raw runtime string | `src/lib/errors.ts:1-22` (Spec 1's own foundation artifact): `if (e instanceof Error && ... e.message.trim()) return e.message;` passes a `TypeError` (or its stringified form) straight through with no normalization. Reproduced twice in one session under airplane mode: `D7` (Home search) and queue item 3.5 (Collection → `AddMediumTagSheet.tsx`, which has its own near-identical local copy at line 62 with the same gap) | **Fixing `S-3a` (routing every local copy through the shared util) will not fix this** — the shared util needs a network-error branch first, or every call site inherits the same ugly text regardless of centralization. Fix `D10` before or together with `S-3a`, not after it. Suggested friendly text: "Sem conexão. Verifique sua internet e tente novamente." |
 
 Detail for each: `docs/architecture/aggregation.md` §6.10, §6.11, §6.7, §6.6, §6.8.
 
@@ -170,6 +171,19 @@ connectivity, the offline banner, or re-sync on foreground.
 [`CONVENTIONS.md`](CONVENTIONS.md), add tests, and land it as a normal commit. Related existing
 doc: `docs/architecture/offline-sync.md` (generated 2026-06-12 — predates this work, so treat as
 background, not as a description of the current code).
+
+---
+
+## Future feature ideas — explicitly out of scope for this effort
+
+Not bugs, not cleanup. This effort is fix-only (see [`README.md`](README.md)); the one deliberate
+exception is the player redesign noted above. Anything else that comes up during testing that's a
+*new capability* rather than a defect goes here, not into the P-tiers, so it never gets
+accidentally worked as if it were in scope.
+
+| ID | Idea | Context |
+|---|---|---|
+| **F1** | Members-only collection gate + private collections | User request, 2026-08-08 (queue item 3.4). The **read side already partly exists**: `Collection.tsx:207` derives `isMembersOnly` from `collection.visibility === "members"` and renders a gate UI + join-request affordance at line 1250 when true. But **no write path exists anywhere** — grepped every collection create/edit screen, none sets `visibility`. So the gate is currently dead code; no collection in the live app can ever have `visibility: "members"`. A future spec would add the write-side UI (a visibility picker on create/edit: public / members-only / private) and decide what "private" means precisely (not just members-only — fully hidden from non-owners?). |
 
 ---
 

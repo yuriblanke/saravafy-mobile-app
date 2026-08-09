@@ -114,16 +114,33 @@ Origem: Spec 1 (`useTerreiroRole`, `getErrorMessage`).
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 3.1 | Abrir uma coleção | Pontos listam | |
-| 3.2 | Como admin/curimba | Sheets de adicionar/remover tag aparecem | |
-| 3.3 | Como membro comum ou não-membro | Sem afordância de edição | |
-| 3.4 | Coleção "somente membros" sem ser membro | Gate de acesso aparece, com opção de pedir entrada | |
-| 3.5 | Adicionar tag → desligar rede → adicionar outra | **Ver observação abaixo** | |
+| 3.1 | Abrir uma coleção | Pontos listam | ✅ OK |
+| 3.2 | Como admin/curimba | Sheets de adicionar/remover tag aparecem | ✅ OK |
+| 3.3 | Como membro comum ou não-membro | Sem afordância de edição | ❌ mesmo vazamento do 2.6 — ver nota |
+| 3.4 | Coleção "somente membros" sem ser membro | Gate de acesso aparece, com opção de pedir entrada | 🔮 feature não existe — ver nota |
+| 3.5 | Adicionar tag → desligar rede → adicionar outra | **Ver observação abaixo** | ❌ toast com `TypeError: Network request failed` |
 
 **Atenção 3.5 — defeito conhecido, não é regressão desta spec.** As mutations de tag fazem update
 otimista sem snapshot nem rollback (`aggregation.md` §6.6). Erro de rede deixa a tag aparecendo na
 UI mesmo sem ter salvo, até o cache expirar (~60s). Confirmar se acontece e anotar — está na fila
 de correção do §6.
+
+> **3.3 — mesmo bug do 2.6, screen diferente, não é achado novo.** `canEditCustomTags` em
+> `Collection.tsx` usa o mesmo `useTerreiroRole`/`useTerreiroMembershipStatus` do Player — o
+> vazamento de permissão pós-logout (`D8`) se manifesta aqui igual. Um fix resolve os dois.
+>
+> **3.4 — não é bug, é feature que nunca foi construída.** Confirmado no código: o lado de
+> *leitura* do gate existe (`Collection.tsx:207`, `isMembersOnly`), mas **nenhuma tela de
+> criar/editar coleção grava `visibility`** — não há como uma coleção real chegar a esse estado
+> hoje. Registrado como ideia futura `F1` em [`BACKLOG.md`](BACKLOG.md), fora do escopo "só
+> conserta bug" deste esforço. Sua sugestão de coleção privada também anotada lá.
+>
+> **3.5 — mesma família do `D7` (Home/1.4), mas revela algo mais fundo.** O toast passa por outra
+> cópia local de tratamento de erro (`AddMediumTagSheet.tsx`), só que mesmo o utilitário
+> *centralizado* do Spec 1 (`getErrorMessage`) não trata erro de rede — ele repassa o texto cru do
+> runtime sempre. Ou seja: **nem centralizar tudo resolveria isso sozinho.** Registrado como `D10`
+> em [`BACKLOG.md`](BACKLOG.md), com nota de que precisa ser corrigido antes/junto do `S-3a`, não
+> depois.
 
 ---
 
