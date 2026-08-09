@@ -2,6 +2,7 @@ import {
   getPontoAudioDurationMs,
   tryPersistPontoAudioDurationMs,
 } from "@/src/api/pontoAudio";
+import { usePontoAudioMetaById } from "@/src/hooks/pontoAudio";
 import {
   isCurrentApprovedPlayback,
   loadAndPlay,
@@ -54,6 +55,10 @@ export function AudioPlayerFooter(props: {
 
   const approvedPontoAudioIdRef = useRef<string | null>(null);
   const lastAutoplayForIdRef = useRef<string | null>(null);
+
+  const audioMeta = usePontoAudioMetaById(approvedPontoAudioId, {
+    enabled: audioState === "AUDIO_APPROVED",
+  });
 
   const [backendDurationMs, setBackendDurationMs] = useState(0);
   const lastLoggedLoadedForIdRef = useRef<string | null>(null);
@@ -259,36 +264,33 @@ export function AudioPlayerFooter(props: {
     loadedDurationMillis,
   ]);
 
-  const subtitle = useMemo(() => {
+  // Mensagens de estado (substituem as linhas de meta)
+  const stateMessage = useMemo(() => {
     if (curimbaEnabled) return "Modo Curimba: apenas letra";
     if (audioState === "AUDIO_IN_REVIEW")
       return "Áudio em revisão. Disponível em breve.";
     if (audioState === "NO_AUDIO") return "Sem áudio";
     if (rntp.error) return "Erro no áudio. Tente novamente.";
     if (isBusy) return "Carregando áudio…";
-    return "Áudio";
+    return null;
   }, [audioState, curimbaEnabled, isBusy, rntp.error]);
 
-  const metaLine = useMemo(() => {
-    const authorNameRaw = (ponto as any)?.author_name;
-    const authorName =
-      typeof authorNameRaw === "string" ? authorNameRaw.trim() : "";
-
-    const parts: string[] = [];
-    if (authorName) parts.push(`Autor: ${authorName}`);
-    return parts.length > 0 ? parts.join(" • ") : null;
+  const composicaoLine = useMemo(() => {
+    const raw = (ponto as any)?.author_name;
+    const name = typeof raw === "string" ? raw.trim() : "";
+    return name ? `Composição: ${name}` : null;
   }, [ponto]);
+
+  const interpreterLine = useMemo(() => {
+    const raw = audioMeta.data?.interpreter_name;
+    const name = typeof raw === "string" ? raw.trim() : "";
+    return name ? `Intérprete: ${name}` : null;
+  }, [audioMeta.data]);
 
   return (
     <View style={[styles.wrap, { borderColor, backgroundColor: bg }]}>
       <View style={styles.row}>
         <View style={styles.meta}>
-          <Text
-            style={[styles.nowPlaying, { color: textSecondary }]}
-            numberOfLines={1}
-          >
-            {subtitle}
-          </Text>
           <Text
             style={[styles.title, { color: textPrimary }]}
             numberOfLines={1}
@@ -296,12 +298,28 @@ export function AudioPlayerFooter(props: {
             {(displayTitle && displayTitle.trim()) ||
               (typeof ponto?.title === "string" ? ponto.title : "")}
           </Text>
-          {metaLine ? (
+          {stateMessage ? (
             <Text
               style={[styles.metaLine, { color: textSecondary }]}
               numberOfLines={1}
             >
-              {metaLine}
+              {stateMessage}
+            </Text>
+          ) : null}
+          {!stateMessage && composicaoLine ? (
+            <Text
+              style={[styles.metaLine, { color: textSecondary }]}
+              numberOfLines={1}
+            >
+              {composicaoLine}
+            </Text>
+          ) : null}
+          {!stateMessage && interpreterLine ? (
+            <Text
+              style={[styles.metaLine, { color: textSecondary }]}
+              numberOfLines={1}
+            >
+              {interpreterLine}
             </Text>
           ) : null}
         </View>

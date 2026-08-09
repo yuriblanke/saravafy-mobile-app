@@ -149,7 +149,7 @@ export function useCollectionPlayerData(
       const res = await supabase
         .from("pontos")
         .select(
-          `id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics, lyrics_preview_6)`,
+          `id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}, ponto_versoes!inner(lyrics, lyrics_preview_6, author_name)`,
         )
         .eq("is_active", true)
         .eq("restricted", false)
@@ -190,12 +190,21 @@ export function useCollectionPlayerData(
 
         const chip = parseEntidadeChipFieldsFromPontoRow(row);
 
+        // author_name em ponto_versoes tem precedência sobre pontos.author_name
+        const versaoAuthorName =
+          typeof versao?.author_name === "string"
+            ? versao.author_name.trim() || null
+            : null;
+        const pontoAuthorName =
+          typeof row.author_name === "string"
+            ? row.author_name.trim() || null
+            : null;
+
         const p: PlayerPonto = {
           id: String(row.id ?? ""),
           title,
           artist: null,
-          author_name:
-            typeof row.author_name === "string" ? row.author_name : null,
+          author_name: versaoAuthorName ?? pontoAuthorName ?? null,
           is_public_domain:
             typeof row.is_public_domain === "boolean"
               ? row.is_public_domain

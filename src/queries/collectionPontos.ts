@@ -86,7 +86,7 @@ export async function fetchCollectionPontosItems(
   const res = await supabase
     .from("collections_pontos")
     .select(
-      `position, ponto_versao_id, entidade_id, entidade_texto, entidade_orixa_id, ${COLLECTIONS_PONTOS_ENTIDADE_EMBED}, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED})`,
+      `position, ponto_versao_id, entidade_id, entidade_texto, entidade_orixa_id, ${COLLECTIONS_PONTOS_ENTIDADE_EMBED}, pontos:ponto_id (id, title, tags, author_name, is_public_domain, ${PONTOS_ENTIDADE_ORIXA_EMBED}), ponto_versao:ponto_versao_id (author_name)`,
     )
     .eq("collection_id", collectionId)
     .order("position", { ascending: true });
@@ -145,14 +145,22 @@ export async function fetchCollectionPontosItems(
         ? (row as any).entidade_texto
         : null;
 
+    // author_name fica em ponto_versoes; prioriza a versão pinada da coleção
+    const versaoRow = (row as any)?.ponto_versao;
+    const authorNameFromVersao =
+      typeof versaoRow?.author_name === "string"
+        ? versaoRow.author_name.trim() || null
+        : null;
+    const authorNameFromPonto =
+      typeof (ponto as any).author_name === "string"
+        ? (ponto as any).author_name.trim() || null
+        : null;
+
     const mapped: PlayerPonto = {
       id: String(ponto.id ?? ""),
       title,
       artist: null,
-      author_name:
-        typeof (ponto as any).author_name === "string"
-          ? (ponto as any).author_name
-          : null,
+      author_name: authorNameFromVersao ?? authorNameFromPonto ?? null,
       is_public_domain:
         typeof (ponto as any).is_public_domain === "boolean"
           ? (ponto as any).is_public_domain
