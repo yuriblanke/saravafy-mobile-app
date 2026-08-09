@@ -79,9 +79,21 @@ observação de teclado feita depois fica sem dono — não dá pra saber se o q
 que optou ou do provider. Por isso é o item 0, e por isso ele **bloqueia** o resto da rodada de
 Spec 6.
 
+> ⚠️ **Precisa de APK novo do EAS — o dev client atual não serve.** A Spec 6 adiciona módulo
+> nativo, então a mudança não chega por reload de JS. O build local (`npm run android:dev`) **não
+> funciona nesta máquina**: `ninja.exe` não declara `longPathAware`, então o limite de 260 caracteres
+> do Windows corta os caminhos do codegen mesmo com `LongPathsEnabled=1`. Por isso a verificação
+> nativa foi feita no EAS, que roda em Linux. Instale o APK do build mais recente antes de começar.
+
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
 | 0.1 | Abrir o app no APK novo e percorrer Home, o sheet de tag de médium e qualquer sheet com campo de texto — **sem digitar nada, só olhar** | Tudo exatamente igual a antes: mesmos insets, mesma altura de sheet, mesma barra de status. Nenhum deslocamento, nenhuma faixa nova em cima ou embaixo | |
+| 0.2 | O app **abre sem crashar** | O build prova que o módulo nativo linka, **não** que ele registra em runtime sob New Architecture. Se crashar no boot, é aqui que aparece | |
+| 0.3 | Coleção → adicionar tag de médium → focar o campo de texto | O campo sobe **acima** do teclado sozinho, sem você rolar na mão | |
+| 0.4 | Mesmo sheet, com **teclado de terceiro** (Gboard/SwiftKey) e/ou abrindo a linha de emoji | Continua funcionando. **Variação de altura é o ponto inteiro do piloto** — o filler de 290px falhava exatamente aqui | |
+| 0.5 | Fechar o teclado no sheet de tag de médium | **Nenhum espaço vazio sobrando** onde o filler ficava. Era esse buraco que sobrava quando o teclado era mais baixo que 290px | |
+| 0.6 | No mesmo sheet: arrastar pra fechar, tocar no backdrop, e enviar o formulário | Os três continuam funcionando. Se o arrastar-pra-fechar parou, o gesto de pan do `BottomSheet` está brigando com o scroll view novo — **isso é o achado mais valioso que este piloto pode gerar** | |
+| 0.7 | Abrir **outro** sheet que ainda usa o filler (ex.: o de convite) e focar um campo | Comportamento **antigo**, pra você sentir a diferença lado a lado. Se este também mudou, o piloto vazou pros outros 12 e isso é bug | |
 
 > **0.1 — se algo se mexeu, pare e reporte antes de testar qualquer coisa de teclado.** Um provider
 > que altera layout por conta própria torna toda observação visual seguinte não-atribuível. Não
@@ -108,6 +120,21 @@ Spec 6.
 > Como nenhuma prop é passada, a lib também **não** emite o warning de dev
 > "…ignored when using react-native-edge-to-edge" (ele só dispara para props definidas). Ausência
 > desse warning é esperada e não prova nada sobre os flags.
+>
+> **0.3 — se o campo não subir, suspeite disto primeiro.** A tela piloto passa
+> `scrollEnabled={false}` para o `BottomSheet` **junto** com o `keyboardAware` novo. No React Native
+> `scrollEnabled={false}` desliga só o arrasto do usuário — rolagem programática (que é o que o
+> `KeyboardAwareScrollView` usa) continua funcionando. Mas isso **não foi verificado em aparelho**,
+> e é a explicação mais provável caso o piloto pareça não fazer nada. Se for esse o caso, não é a
+> lib que está errada: é a combinação dessas duas props, e vira decisão para a spec de rollout.
+>
+> **0.6 é o item mais valioso da seção, mesmo se passar.** A spec de rollout precisa saber se o
+> `KeyboardAwareScrollView` conflita com o `PanResponder` do `BottomSheet`. Se conflitar, a lib
+> oferece um `ScrollViewComponent` customizado para integrar com gesture-handler — mas só dá pra
+> saber com a mão. Anote o que sentiu mesmo que funcione.
+>
+> **0.7 protege as outras 12 telas.** O `keyboardAware` tem default `false` e existe teste de
+> render provando que o caminho default não mudou, mas teste de render não é aparelho.
 >
 > **Não dá pra verificar por agente.** `tsc` e a suíte de testes passaram (Task 3), e nenhum dos
 > dois diz nada sobre pixel na tela. É check humano por natureza — ver
