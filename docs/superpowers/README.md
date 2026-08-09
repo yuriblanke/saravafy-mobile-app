@@ -41,8 +41,8 @@ Two rules carry most of the weight:
 | [Spec 2a — AddToCollection unify](specs/2026-06-14-spec-2a-add-to-collection-unify.md) | ❌ none | ✅ 2026-08-08 | ✅ validated 2026-08-08/09 |
 | [Spec 2b — PreferencesContext → RQ](specs/2026-06-14-spec-2b-preferences-context-rq.md) | ✅ | ✅ 2026-06-14 | ⏳ partial (invites deferred) |
 | [Spec 3 — Auth state leaks](specs/2026-08-09-spec-3-auth-state-leaks.md) | [✅](plans/2026-08-09-spec-3-auth-state-leaks.md) | 🔜 next | ⏳ |
-| [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | ⏳ write before executing | ⏳ | ⏳ |
-| [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | ⏳ write before executing | ⏳ | ⏳ |
+| [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | [✅](plans/2026-08-09-spec-4-failure-presentation.md) | ⏳ | ⏳ |
+| [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | [✅](plans/2026-08-09-spec-5-add-to-collection-write-path.md) | ⏳ | ⏳ |
 
 The 2026-08-08/09 validation pass confirmed **8 defects** (`D6`–`D13`). Specs 3-5 cover seven of
 them; `D13` (profile photo) needs a product decision and a likely schema change, so it stays in the
