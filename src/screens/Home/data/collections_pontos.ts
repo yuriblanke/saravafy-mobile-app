@@ -148,6 +148,11 @@ export async function addPontoToCollection(params: {
 
     // Preferência: operação idempotente por (collection_id, ponto_id).
     // `upsert` é o caminho suportado para `onConflict`/`ignoreDuplicates` no supabase-js.
+    //
+    // `ignoreDuplicates: true` => `ON CONFLICT DO NOTHING`, que NÃO levanta 23505.
+    // O `.select()` é o que torna o duplicado detectável: com `DO NOTHING`, uma
+    // inserção efetiva devolve 1 linha e uma ignorada devolve 0 (verificado contra
+    // o banco real e via supabase-js/PostgREST — Spec 5 §3.1).
     const res = await supabase
       .from(TABLE)
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -156,19 +161,27 @@ export async function addPontoToCollection(params: {
         {
           onConflict: "collection_id,ponto_id",
           // ignoreDuplicates existe no supabase-js v2.
+          // NÃO inverter para `false`: um add duplicado passaria a sobrescrever
+          // position/added_by/ponto_versao_id e os campos de entidade da linha
+          // existente, reordenando em silêncio a coleção de um terreiro.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           ignoreDuplicates: true as any,
         } as any
-      );
+      )
+      .select("ponto_id");
 
     if (!res.error) {
-      return { ok: true };
+      const inserted = Array.isArray(res.data) ? res.data.length : 0;
+      return inserted > 0 ? { ok: true } : { ok: true, alreadyExists: true };
     }
 
     const anyErr = res.error as any;
 
     if (isUniqueViolation(anyErr) && isDuplicatePontoConstraint(anyErr)) {
       // Já existia (PK). Tratar como sucesso.
+      // NÃO é mais o caminho primário de duplicata — com `ignoreDuplicates: true`
+      // o conflito de PK não gera erro, é detectado acima pelo resultado vazio.
+      // Mantido como defesa caso o comportamento de conflito mude. Não remover.
       return { ok: true, alreadyExists: true };
     }
 
