@@ -38,11 +38,17 @@ Two rules carry most of the weight:
 | Spec | Agent DoD | Human DoD |
 |---|---|---|
 | [Spec 1 — Foundations](specs/2026-06-13-spec-1-foundations.md) | ✅ 2026-06-13 | ⏳ queued (§2, §3, §4) |
-| [Spec 2a — AddToCollection unify](specs/2026-06-14-spec-2a-add-to-collection-unify.md) | 🔄 in progress | ⏳ queued (§1, §2) |
+| [Spec 2a — AddToCollection unify](specs/2026-06-14-spec-2a-add-to-collection-unify.md) | ✅ 2026-08-08 | ⏳ queued (§1, §2) |
 | [Spec 2b — PreferencesContext → RQ](specs/2026-06-14-spec-2b-preferences-context-rq.md) | ✅ 2026-06-14 | ⏳ queued (§5) |
 
-Spec 2a has **no plan** — it predates [`CONVENTIONS.md`](CONVENTIONS.md) §1. It is being finished
-as-is rather than re-planned, and is the last spec permitted to run without one.
+Spec 2a had **no plan** — it predates [`CONVENTIONS.md`](CONVENTIONS.md) §1, and is the reason
+that rule exists (it stalled half-implemented for ~2 months without one). It was the last spec
+permitted to run without a plan; finished as-is rather than retro-planned. While closing it, a
+repo-wide grep for its own §11 rule caught a second pre-existing offender in `AddToCollection.tsx`
+sharing the same ad-hoc key pattern — both are now registered in `queryKeys.ts`.
+
+**All three specs are Agent-DoD-complete.** Nothing is blocking a batched human validation pass —
+see [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md).
 
 ## Where the priorities come from
 

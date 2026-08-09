@@ -104,35 +104,54 @@ Eliminate UI duplication between the 2 fixed-ponto/pick-collection add-to-collec
 
 Split per [`CONVENTIONS.md`](../CONVENTIONS.md) §4. A pending human check never blocks a commit.
 
-### Agent DoD
+### Agent DoD — ✅ met (2026-08-08)
 
-- [ ] `npx tsc --noEmit` produces **zero output**.
-- [ ] Test suite reports **0 failures**, including new `AddToCollectionFlow.test.tsx`.
-- [ ] `HomeAddToCollectionWizard.tsx` and `LibraryPlayerAddToCollectionModal.tsx` deleted; repo-wide
+- [x] `npx tsc --noEmit` produces **zero output**.
+- [x] Test suite reports **0 failures** (5 suites, 34 tests), including new `AddToCollectionFlow.test.tsx`.
+- [x] `HomeAddToCollectionWizard.tsx` and `LibraryPlayerAddToCollectionModal.tsx` deleted; repo-wide
       grep returns no references.
-- [ ] No inline query-key literals introduced — see the note below.
-- [ ] Audit doc `code-quality-audit.md` wave 1 row cross-linked to this spec.
+- [x] No inline query-key literals remain — see the note below (fixed, not skipped).
+- [x] Audit doc `code-quality-audit.md` wave 1 row cross-linked to this spec.
 
 ### Human DoD — deferred
 
 Appended to [`HUMAN-VALIDATION-QUEUE.md`](../HUMAN-VALIDATION-QUEUE.md) §1 and §2: the Home
 2-phase wizard and the Player single-phase flow both commit correctly and behave as before.
 
-> **⚠️ CONTRACT VIOLATION INTRODUCED BY THIS SPEC — must be fixed before it closes.**
+> **⚠️ CONTRACT VIOLATION INTRODUCED BY THIS SPEC — fixed 2026-08-08.**
 >
-> `AddToCollectionFlow.tsx:232` declares an inline query key:
+> `AddToCollectionFlow.tsx:240` declared an inline query key:
 >
 > ```ts
 > queryKey: ["pontos", "versoesBatch", "addToCollectionFlow", ponto.id]
 > ```
 >
-> This reproduces the exact defect it was meant to consolidate away. The key it replaced
-> (`["pontos","versoesBatch","homeAddWizard",pontoId]`) is one of the four ad-hoc keys catalogued in
-> `aggregation.md` §6.2 — keys outside `src/queries/queryKeys.ts` that **no mutation ever
-> invalidates**, because invalidation helpers cannot see them.
+> This reproduced the exact defect the spec was meant to consolidate away. The key it replaced
+> (`["pontos","versoesBatch","homeAddWizard",pontoId]`) was one of the four ad-hoc keys catalogued
+> in `aggregation.md` §6.2 — keys outside `src/queries/queryKeys.ts` that no mutation can invalidate
+> because invalidation helpers cannot see them.
 >
-> Deduplicating UI while re-inventing the cache key relocates the bug instead of removing it.
-> Register the key in `queryKeys.ts` before closing this spec. Root fix tracked as `C1` in
+> **Resolution.** A repo-wide grep found a *second* pre-existing offender using the same
+> `"pontos","versoesBatch"` prefix: `AddToCollection.tsx:415-421` (the inverse-flow screen, out of
+> scope for this spec but sharing the same fetcher shape). Both differentiator segments
+> (`"addToCollectionFlow"` for a single ponto, `"addToCollectionSearch"` for a joined batch from
+> search) are a legitimate per-caller distinction, not arbitrary — so the fix was to register the
+> pattern, not collapse it:
+>
+> ```ts
+> // src/queries/queryKeys.ts, under pontos:
+> versoesBatch: (scope: string, idsKey: string) =>
+>   ["pontos", "versoesBatch", scope, idsKey] as const,
+> ```
+>
+> Both call sites now read `queryKeys.pontos.versoesBatch(scope, idsKey)`. Verified: `tsc` clean,
+> 34/34 tests pass, and `grep '"pontos", "versoesBatch"'` across `src/` matches only the registry
+> definition itself.
+>
+> This query is read-only within its 60s `staleTime` and no mutation writes through it, so the
+> defect's practical severity here was low — but the pattern is what mattered: deduplicating UI
+> while re-inventing the cache key relocates the bug instead of removing it. Closing the full
+> registry contract (all remaining ad-hoc keys, `aggregation.md` §6.2/§6.3) stays open as `C1` in
 > [`BACKLOG.md`](../BACKLOG.md); see [`CONVENTIONS.md`](../CONVENTIONS.md) §11.
 
 ## 9. Open questions

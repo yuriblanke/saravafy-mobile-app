@@ -57,7 +57,7 @@ import {
   AudioPlayerFooter,
   type PlayerAudioState,
 } from "./components/AudioPlayerFooter";
-import { LibraryPlayerAddToCollectionModal } from "./components/LibraryPlayerAddToCollectionModal";
+import { AddToCollectionFlow } from "@/src/features/addToCollection/AddToCollectionFlow";
 import { PlayerContent } from "./components/PlayerContent";
 import { PlayerSearchModal } from "./components/PlayerSearchModal";
 import {
@@ -813,13 +813,15 @@ export default function PlayerScreen() {
         />
 
         {isLibraryPlayer && user?.id && activePonto ? (
-          <LibraryPlayerAddToCollectionModal
+          <AddToCollectionFlow
             visible={libraryAddToCollectionOpen}
             onClose={() => setLibraryAddToCollectionOpen(false)}
-            playerPonto={activePonto}
-            activeVersao={activeVersao}
+            ponto={activePonto}
             userId={user.id}
             variant={variant}
+            allowVersionSelection={false}
+            initialPontoVersaoId={activeVersao?.id ?? null}
+            initialVersoes={activePonto.versoes}
           />
         ) : null}
 

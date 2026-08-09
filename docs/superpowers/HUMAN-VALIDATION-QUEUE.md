@@ -15,11 +15,11 @@ correção de doc e/ou de código.
 
 ## Antes de começar
 
-- [ ] `npx tsc --noEmit` → zero saída
-- [ ] `npm test` → 0 falhas
+- [x] `npx tsc --noEmit` → zero saída (verificado 2026-08-08, após fechar Spec 2a)
+- [x] `npm test` → 0 falhas (5 suites, 34 testes, verificado 2026-08-08)
 - [ ] Hard refresh / rebuild do dev client antes de testar (HMR mente — ver `CLAUDE.md`)
 
-Se `tsc` ou testes falharem, **parar**: não vale testar visual em cima de build quebrado.
+Build está limpo — as 3 specs (1, 2a, 2b) estão Agent-DoD-completas. Pode rodar o app.
 
 ---
 

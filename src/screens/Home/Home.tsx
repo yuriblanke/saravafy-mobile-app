@@ -10,24 +10,13 @@ import {
     PontoUpsertModal,
     type PontoUpsertInitialValues,
 } from "@/src/components/pontos/PontoUpsertModal";
-import { SelectModal, type SelectItem } from "@/src/components/SelectModal";
 import { SubmitPontoModal } from "@/src/components/SubmitPontoModal";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
-import {
-    applyEntidadePlaceholder,
-    lyricsHasEntidadePlaceholder,
-} from "@/src/domain/entidadePlaceholder";
 import { useLatestPontoAudioMetaByPontoIds } from "@/src/hooks/pontoAudio";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { usePontosSearch } from "@/src/hooks/usePontosSearch";
-import {
-    resolveDefaultPontoVersaoId,
-    toPlayerPonto,
-    type ListPonto,
-} from "@/src/screens/CollectionAddToCollection/addToCollectionModel";
-import { HomeAddToCollectionWizard } from "@/src/screens/Home/components/HomeAddToCollectionWizard";
-import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
-import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
+import { AddToCollectionFlow } from "@/src/features/addToCollection/AddToCollectionFlow";
+import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -44,38 +33,22 @@ import {
     Alert,
     FlatList,
     Image,
-    Modal,
     Pressable,
     StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { DownloadUpdateButton } from "@/src/components/DownloadUpdateButton";
 import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { createCollection } from "./data/collections";
-import {
-    addPontoToCollection,
-    type CollectionPontoEntidadeInput,
-} from "./data/collections_pontos";
 import type { Ponto } from "./data/ponto";
 import { fetchAllPontos } from "./data/ponto";
 
-import {
-    useEditableCollections,
-    type EditableCollection,
-} from "@/src/queries/collections";
-import {
-    incrementCollectionPontosCountInTerreiroLists,
-    removePontoFromCollectionPontosList,
-    upsertPontoInCollectionPontosList,
-} from "@/src/queries/collectionsCache";
-import { useMyEditableTerreirosQuery } from "@/src/queries/me";
+import { type EditableCollection } from "@/src/queries/collections";
 import {
     cancelQueries,
     makeTempId,
-    patchById,
     patchQueriesByPrefix,
     removeById,
     replaceId,
@@ -137,7 +110,6 @@ export default function Home() {
   const queryClient = useQueryClient();
   const rootPager = useRootPager();
   const { shouldBlockPress } = useGestureBlock();
-  const insets = useSafeAreaInsets();
 
   const [submitModalVisible, setSubmitModalVisible] = useState(false);
 
@@ -146,246 +118,9 @@ export default function Home() {
   // Estado para modal de adicionar à coleção
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [selectedPonto, setSelectedPonto] = useState<Ponto | null>(null);
-  const [isAdding, setIsAdding] = useState(false);
-  const [addSuccess, setAddSuccess] = useState(false);
-  const [addError, setAddError] = useState<string | null>(null);
 
-  const addToCollectionMutation = useMutation({
-    mutationFn: async (vars: {
-      collectionId: string;
-      pontoId: string;
-      addedBy: string;
-      pontoSnapshot?: Ponto | null;
-      pontoVersaoId?: string | null;
-      entidade?: CollectionPontoEntidadeInput | null;
-      entidadeResolvedLabel?: string | null;
-      listPonto?: ListPonto | null;
-    }) => {
-      const res = await addPontoToCollection({
-        collectionId: vars.collectionId,
-        pontoId: vars.pontoId,
-        addedBy: vars.addedBy,
-        pontoVersaoId: vars.pontoVersaoId ?? undefined,
-        entidade: vars.entidade ?? null,
-      });
-      if (!res.ok) {
-        throw new Error(res.error || "Erro ao adicionar ponto à coleção.");
-      }
-      return res;
-    },
-    onMutate: async (vars) => {
-      if (!userId) return null;
-
-      const now = new Date().toISOString();
-
-      const pontoSnapshot = vars.pontoSnapshot;
-      const shouldPatchPontosList =
-        !!pontoSnapshot && typeof pontoSnapshot?.id === "string";
-
-      const filters = [
-        { queryKey: queryKeys.collections.accountable(userId) },
-        { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
-        { queryKey: queryKeys.collections.byId(vars.collectionId) },
-        { queryKey: queryKeys.collections.pontos(vars.collectionId) },
-        { queryKey: ["terreiros", "collectionsByTerreiro"] },
-      ];
-
-      await cancelQueries(queryClient, filters);
-      const snapshot = snapshotQueries(queryClient, filters);
-
-      setQueriesDataSafe<EditableCollection[]>(
-        queryClient,
-        { queryKey: queryKeys.collections.accountable(userId) },
-        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now }),
-      );
-
-      patchQueriesByPrefix<EditableCollection[]>(
-        queryClient,
-        queryKeys.collections.editableByUserPrefix(userId),
-        (old) => patchById(old ?? [], vars.collectionId, { updated_at: now }),
-      );
-
-      // Se existir cache do detalhe da collection, mantém consistente.
-      setQueriesDataSafe<any>(
-        queryClient,
-        { queryKey: queryKeys.collections.byId(vars.collectionId) },
-        (old: any) => {
-          if (!old || typeof old !== "object") return old;
-          return { ...old, updated_at: now };
-        },
-      );
-
-      let didInsertPonto = false;
-      let didIncrementCount = false;
-
-      if (shouldPatchPontosList && pontoSnapshot) {
-        const listPonto = vars.listPonto;
-        let mappedPonto: PlayerPonto;
-
-        if (
-          listPonto &&
-          Array.isArray(listPonto.versoes) &&
-          listPonto.versoes.length > 0
-        ) {
-          const explicit =
-            typeof vars.pontoVersaoId === "string" && vars.pontoVersaoId.trim()
-              ? vars.pontoVersaoId.trim()
-              : null;
-          const vid =
-            explicit ?? resolveDefaultPontoVersaoId(listPonto.versoes);
-          const v = vid
-            ? listPonto.versoes.find((x) => x.id === vid) ?? null
-            : null;
-          const base = toPlayerPonto(listPonto);
-          const label =
-            typeof vars.entidadeResolvedLabel === "string"
-              ? vars.entidadeResolvedLabel.trim()
-              : "";
-          let lyrics = v?.lyrics ?? base.lyrics;
-          let lyrics_preview_6 =
-            typeof v?.lyrics_preview_6 === "string"
-              ? v.lyrics_preview_6
-              : base.lyrics_preview_6;
-          if (label && v && lyricsHasEntidadePlaceholder(lyrics)) {
-            lyrics = applyEntidadePlaceholder(lyrics, label);
-            if (typeof lyrics_preview_6 === "string") {
-              lyrics_preview_6 = applyEntidadePlaceholder(
-                lyrics_preview_6,
-                label,
-              );
-            }
-          }
-          const collectionEntidadeResolve =
-            vars.entidade?.kind === "custom"
-              ? {
-                  entidadeTexto: vars.entidade.texto.trim(),
-                  entidadeLabelFromId: null as string | null,
-                }
-              : vars.entidade?.kind === "registered"
-                ? {
-                    entidadeTexto: null as string | null,
-                    entidadeLabelFromId: label || null,
-                  }
-                : null;
-          mappedPonto = {
-            ...(v
-              ? {
-                  ...base,
-                  lyrics,
-                  lyrics_preview_6,
-                }
-              : base),
-            collectionPinnedVersaoId: vid ?? null,
-            collectionEntidadeResolve,
-          };
-        } else {
-          mappedPonto = {
-            id: String(pontoSnapshot.id ?? ""),
-            title:
-              (typeof (pontoSnapshot as any).title === "string" &&
-                (pontoSnapshot as any).title.trim()) ||
-              "Ponto",
-            artist: null,
-            author_name:
-              typeof (pontoSnapshot as any).author_name === "string"
-                ? (pontoSnapshot as any).author_name
-                : null,
-            is_public_domain:
-              typeof (pontoSnapshot as any).is_public_domain === "boolean"
-                ? (pontoSnapshot as any).is_public_domain
-                : null,
-            duration_seconds: null,
-            cover_url: null,
-            lyrics:
-              typeof (pontoSnapshot as any).lyrics === "string"
-                ? (pontoSnapshot as any).lyrics
-                : "",
-            tags: Array.isArray((pontoSnapshot as any).tags)
-              ? ((pontoSnapshot as any).tags as any[]).filter(
-                  (t) => typeof t === "string",
-                )
-              : [],
-            versoes: [],
-            entidade_id: null,
-            entidadeNome: null,
-            orixaNome: null,
-          };
-        }
-
-        const { didInsert } = upsertPontoInCollectionPontosList(queryClient, {
-          collectionId: vars.collectionId,
-          ponto: mappedPonto,
-        });
-        didInsertPonto = didInsert;
-
-        if (didInsertPonto) {
-          incrementCollectionPontosCountInTerreiroLists(queryClient, {
-            collectionId: vars.collectionId,
-            delta: 1,
-          });
-          didIncrementCount = true;
-        }
-      }
-
-      return {
-        snapshot,
-        didInsertPonto,
-        didIncrementCount,
-      };
-    },
-    onError: (err, _vars, ctx) => {
-      if (ctx?.snapshot) {
-        rollbackQueries(queryClient, ctx.snapshot);
-      }
-
-      const msg =
-        err instanceof Error
-          ? err.message
-          : "Erro ao adicionar ponto à coleção.";
-      setAddError(__DEV__ ? msg : "Erro ao adicionar ponto à coleção.");
-    },
-    onSuccess: (data, vars, ctx) => {
-      // Se já existia, desfaz o optimistic específico (mantém updated_at patch).
-      if (data?.alreadyExists) {
-        if (ctx?.didInsertPonto) {
-          removePontoFromCollectionPontosList(queryClient, {
-            collectionId: vars.collectionId,
-            pontoId: vars.pontoId,
-          });
-        }
-
-        if (ctx?.didIncrementCount) {
-          incrementCollectionPontosCountInTerreiroLists(queryClient, {
-            collectionId: vars.collectionId,
-            delta: -1,
-          });
-        }
-      }
-    },
-    onSettled: (_data, _err, vars) => {
-      if (!userId) return;
-
-      // Invalidação mínima: mantém as listas e o detalhe corretos.
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.collections.accountable(userId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.collections.editableByUserPrefix(userId),
-      });
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.collections.byId(vars.collectionId),
-      });
-
-      queryClient.invalidateQueries({
-        queryKey: queryKeys.collections.pontos(vars.collectionId),
-      });
-
-      // Atualiza contadores em todas as listas por-terreiro.
-      queryClient.invalidateQueries({
-        queryKey: ["terreiros", "collectionsByTerreiro"],
-      });
-    },
-  });
+  // Mutação de adicionar-à-coleção agora vive dentro de <AddToCollectionFlow>
+  // (ver src/features/addToCollection/AddToCollectionFlow.tsx).
 
   const [isCreatingCollection, setIsCreatingCollection] = useState(false);
 
@@ -398,11 +133,12 @@ export default function Home() {
 
   const createCollectionTitleInputRef = useRef<TextInput>(null);
 
+  // Filtro de dono de coleção: mantido aqui só para "+ Nova coleção" saber em
+  // que terreiro/usuário criar. A UI de filtro em si agora vive dentro de
+  // <AddToCollectionFlow>, que reporta mudanças via onCollectionsFilterChange.
   type CollectionsOwnerFilter = "all" | "user" | `terreiro:${string}`;
   const [collectionsFilter, setCollectionsFilter] =
     useState<CollectionsOwnerFilter>("all");
-  const [isCollectionsFilterModalOpen, setIsCollectionsFilterModalOpen] =
-    useState(false);
 
   const variant = effectiveTheme;
   const textPrimary =
@@ -530,104 +266,22 @@ export default function Home() {
       };
     }, [editingPonto]);
 
-  // Fonte ÚNICA do BottomSheet: coleções editáveis (escrita) por regra de produto.
-  const editableCollectionsQuery = useEditableCollections(userId);
-  const editableCollections = useMemo(
-    () => editableCollectionsQuery.data ?? [],
-    [editableCollectionsQuery.data],
-  );
-  const collectionsError = editableCollectionsQuery.isError
-    ? getErrorMessage(editableCollectionsQuery.error)
-    : null;
-
-  const myEditableTerreirosQuery = useMyEditableTerreirosQuery(userId);
-  const myEditableTerreiros = useMemo(
-    () => myEditableTerreirosQuery.data ?? [],
-    [myEditableTerreirosQuery.data],
-  );
-
-  const collectionsFilterItems: SelectItem[] = useMemo(() => {
-    const base: SelectItem[] = [
-      { key: "all", label: "Todos", value: "all" },
-      {
-        key: "user",
-        label: "Coleções do usuário",
-        value: "user",
-      },
-    ];
-
-    const terreiroItems = myEditableTerreiros.map((t) => {
-      return {
-        key: `terreiro:${t.id}`,
-        label: `Terreiro: ${t.title}`,
-        value: `terreiro:${t.id}`,
-      } satisfies SelectItem;
-    });
-
-    return [...base, ...terreiroItems];
-  }, [myEditableTerreiros]);
-
-  const collectionsFilterLabel = useMemo(() => {
-    if (collectionsFilter === "all") return "Todos";
-    if (collectionsFilter === "user") return "Coleções do usuário";
-    if (collectionsFilter.startsWith("terreiro:")) {
-      const id = collectionsFilter.slice("terreiro:".length);
-      const match = myEditableTerreiros.find((t) => t.id === id);
-      return `Terreiro: ${match?.title ?? "Terreiro"}`;
-    }
-    return "Todos";
-  }, [collectionsFilter, myEditableTerreiros]);
-
-  const visibleEditableCollections = useMemo(() => {
-    if (!userId) return [] as EditableCollection[];
-    if (collectionsFilter === "all") return editableCollections;
-    if (collectionsFilter === "user") {
-      return editableCollections.filter(
-        (c) => c.owner_user_id === userId && !c.owner_terreiro_id,
-      );
-    }
-    if (collectionsFilter.startsWith("terreiro:")) {
-      const id = collectionsFilter.slice("terreiro:".length);
-      return editableCollections.filter((c) => c.owner_terreiro_id === id);
-    }
-    return editableCollections;
-  }, [collectionsFilter, editableCollections, userId]);
+  // A lista de coleções editáveis, seu carregamento e o filtro por dono agora
+  // são geridos internamente por <AddToCollectionFlow>. Home só precisa saber
+  // qual filtro está ativo (via onCollectionsFilterChange) para decidir o
+  // dono de uma coleção criada pelo atalho "+ Nova coleção".
 
   const closeAddToCollectionSheet = useCallback(() => {
     setAddModalVisible(false);
     setIsCreateCollectionModalOpen(false);
     setCreateCollectionTitle("");
     setCreateCollectionError(null);
-    setIsCollectionsFilterModalOpen(false);
     rootPager.setIsBottomSheetOpen(false);
   }, [rootPager]);
-
-  useEffect(() => {
-    if (!addModalVisible) return;
-    if (__DEV__) {
-      console.info("[AddToCollectionDebug] sheet visible", {
-        userId,
-        dataCount: editableCollections.length,
-        isFetching: editableCollectionsQuery.isFetching,
-      });
-    }
-  }, [
-    addModalVisible,
-    editableCollections.length,
-    editableCollectionsQuery.isFetching,
-    userId,
-  ]);
 
   const openAddToCollectionSheet = useCallback(
     (ponto: Ponto) => {
       if (!userId) return;
-      if (__DEV__) {
-        console.info("[AddToCollectionDebug] open sheet", {
-          userId,
-          dataCount: editableCollections.length,
-          isFetching: editableCollectionsQuery.isFetching,
-        });
-      }
       // IMPORTANT: o sheet abre sem "piscar" loading.
       // A lista é servida do cache (ou vazia) e refetch ocorre em background.
       setIsCreateCollectionModalOpen(false);
@@ -635,28 +289,11 @@ export default function Home() {
       setCreateCollectionError(null);
 
       setSelectedPonto(ponto);
-      setAddSuccess(false);
-      setAddError(null);
-
       setAddModalVisible(true);
       rootPager.setIsBottomSheetOpen(true);
     },
-    [
-      editableCollections.length,
-      editableCollectionsQuery.isFetching,
-      rootPager,
-      userId,
-    ],
+    [rootPager, userId],
   );
-
-  const getCollectionOwnerLabel = (c: EditableCollection) => {
-    if (!userId) return "";
-    if (c.owner_user_id === userId) return "Você";
-    if (c.owner_terreiro_id) {
-      return `Terreiro: ${c.terreiro_title ?? "Terreiro"}`;
-    }
-    return "";
-  };
 
   const openCreateCollection = useCallback(() => {
     setCreateCollectionError(null);
@@ -1386,170 +1023,32 @@ export default function Home() {
         )}
       </View>
 
-      {/* Fluxo adicionar à coleção: tela cheia (versões + coleção) */}
-      <Modal
-        visible={addModalVisible}
-        animationType="slide"
-        presentationStyle="fullScreen"
-        onRequestClose={closeAddToCollectionSheet}
-      >
-        <View
-          style={[
-            styles.addToCollectionModalRoot,
-            {
-              backgroundColor: getSaravafyBaseColor(variant),
-              paddingTop: insets.top,
-              paddingBottom: insets.bottom,
-            },
-          ]}
-        >
-          <View style={styles.addToCollectionModalInner}>
-            <HomeAddToCollectionWizard
-              visible={addModalVisible}
-              onClose={closeAddToCollectionSheet}
-              ponto={selectedPonto}
-              userId={userId}
-              variant={variant}
-              textPrimary={textPrimary}
-              textSecondary={textSecondary}
-              textMuted={textMuted}
-              borderColor={
-                variant === "light"
-                  ? colors.surfaceCardBorderLight
-                  : colors.surfaceCardBorder
-              }
-              collectionsError={collectionsError}
-              visibleCollections={visibleEditableCollections}
-              totalEditableCollectionsCount={editableCollections.length}
-              collectionsLoading={
-                editableCollectionsQuery.isFetching &&
-                editableCollections.length === 0
-              }
-              getCollectionOwnerLabel={getCollectionOwnerLabel}
-              isAdding={isAdding}
-              isCreatingCollection={isCreatingCollection}
-              addError={addError}
-              addSuccess={addSuccess}
-              onRetryLoadCollections={() => {
-                void editableCollectionsQuery.queries.editableTerreiroIds.refetch();
-                void editableCollectionsQuery.queries.collections.refetch();
-              }}
-              colecaoToolbar={
-                <View style={styles.sheetActionsRow}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel="Filtrar coleções"
-                    onPress={() => setIsCollectionsFilterModalOpen(true)}
-                    disabled={
-                      editableCollectionsQuery.isFetching &&
-                      editableCollections.length === 0
-                    }
-                    hitSlop={10}
-                    style={({ pressed }) => [
-                      styles.filterBtn,
-                      pressed ? styles.filterBtnPressed : null,
-                      editableCollectionsQuery.isFetching &&
-                      editableCollections.length === 0
-                        ? styles.btnDisabled
-                        : null,
-                    ]}
-                  >
-                    <Ionicons
-                      name="funnel-outline"
-                      size={16}
-                      color={textSecondary}
-                    />
-                    <Text
-                      style={[
-                        styles.filterBtnText,
-                        { color: textPrimary, flexShrink: 1, minWidth: 0 },
-                      ]}
-                      numberOfLines={1}
-                      ellipsizeMode="tail"
-                    >
-                      {collectionsFilterLabel}
-                    </Text>
-                    <Ionicons
-                      name="chevron-down"
-                      size={16}
-                      color={textSecondary}
-                    />
-                  </Pressable>
-
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={openCreateCollection}
-                    disabled={
-                      isCreatingCollection ||
-                      (editableCollectionsQuery.isFetching &&
-                        editableCollections.length === 0)
-                    }
-                    style={({ pressed }) => [
-                      styles.newCollectionCta,
-                      pressed ? styles.newCollectionCtaPressed : null,
-                      isCreatingCollection ? styles.btnDisabled : null,
-                    ]}
-                  >
-                    <Text style={styles.newCollectionCtaText}>
-                      + Nova coleção
-                    </Text>
-                  </Pressable>
-                </View>
-              }
-              onCommit={async (payload) => {
-                if (!userId) return;
-
-                setIsAdding(true);
-                setAddError(null);
-                setAddSuccess(false);
-
-                try {
-                  const res = await addToCollectionMutation.mutateAsync({
-                    collectionId: payload.collectionId,
-                    pontoId: payload.pontoId,
-                    addedBy: userId,
-                    pontoSnapshot: payload.homePontoSnapshot,
-                    pontoVersaoId: payload.pontoVersaoId,
-                    entidade: payload.entidade,
-                    entidadeResolvedLabel: payload.entidadeResolvedLabel,
-                    listPonto: payload.listPonto,
-                  });
-                  setIsAdding(false);
-                  setAddSuccess(true);
-                  showToast(
-                    res.alreadyExists
-                      ? "Este ponto já estava na coleção"
-                      : "Ponto adicionado à coleção",
-                  );
-                  setAddModalVisible(false);
-                } catch (e) {
-                  setIsAdding(false);
-                  if (__DEV__) {
-                    console.info("[AddToCollection] unexpected error", e);
-                  }
-                }
-              }}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      <SelectModal
-        title="Filtrar coleções"
-        visible={isCollectionsFilterModalOpen}
-        variant={variant}
-        items={collectionsFilterItems}
-        onClose={() => setIsCollectionsFilterModalOpen(false)}
-        onSelect={(value) => {
-          if (
-            value === "all" ||
-            value === "user" ||
-            value.startsWith("terreiro:")
-          ) {
-            setCollectionsFilter(value as CollectionsOwnerFilter);
+      {/* Fluxo adicionar à coleção: tela cheia (versões + coleção). O Modal e
+          o filtro de coleções são geridos internamente pelo componente. */}
+      {selectedPonto && userId ? (
+        <AddToCollectionFlow
+          visible={addModalVisible}
+          onClose={closeAddToCollectionSheet}
+          ponto={selectedPonto}
+          userId={userId}
+          variant={variant}
+          onCollectionsFilterChange={setCollectionsFilter}
+          collectionsToolbarExtra={
+            <Pressable
+              accessibilityRole="button"
+              onPress={openCreateCollection}
+              disabled={isCreatingCollection}
+              style={({ pressed }) => [
+                styles.newCollectionCta,
+                pressed ? styles.newCollectionCtaPressed : null,
+                isCreatingCollection ? styles.btnDisabled : null,
+              ]}
+            >
+              <Text style={styles.newCollectionCtaText}>+ Nova coleção</Text>
+            </Pressable>
           }
-        }}
-      />
+        />
+      ) : null}
 
       <BottomSheet
         visible={isCreateCollectionModalOpen}

@@ -413,12 +413,10 @@ export default function AddToCollection() {
   );
 
   const searchVersoesQuery = useQuery({
-    queryKey: [
-      "pontos",
-      "versoesBatch",
+    queryKey: queryKeys.pontos.versoesBatch(
       "addToCollectionSearch",
       searchPontoIdsForFetch.join("|"),
-    ] as const,
+    ),
     queryFn: () => fetchActivePontoVersoesByPontoIds(searchPontoIdsForFetch),
     enabled: shouldShowSearchResults && searchPontoIdsForFetch.length > 0,
     staleTime: 60_000,

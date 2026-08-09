@@ -54,6 +54,11 @@ export const queryKeys = {
       pontoIdsHash: string;
     }) =>
       ["pontos", "customTags", params.terreiroId, params.pontoIdsHash] as const,
+    // Batch de versões ativas por lote de pontoIds. `scope` diferencia o formato
+    // de lote por chamador (ex.: um único ponto vs. resultado de busca) — não é
+    // arbitrário, mas fica registrado aqui para não escapar da invalidação central.
+    versoesBatch: (scope: string, idsKey: string) =>
+      ["pontos", "versoesBatch", scope, idsKey] as const,
   },
   terreiros: {
     exploreInitial: () => ["terreiros", "explore", "initial"] as const,

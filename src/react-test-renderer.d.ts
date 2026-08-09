@@ -28,6 +28,7 @@ declare module "react-test-renderer" {
     findByProps(props: any): ReactTestInstance;
     findAllByType(type: React.ComponentType<any> | string): ReactTestInstance[];
     findByType(type: React.ComponentType<any> | string): ReactTestInstance;
+    findAll(predicate: (node: ReactTestInstance) => boolean): ReactTestInstance[];
   }
 
   export default {
