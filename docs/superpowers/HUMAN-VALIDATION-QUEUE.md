@@ -1,6 +1,6 @@
 # Fila de validação humana
 
-**Atualizado:** 2026-08-08
+**Atualizado:** 2026-08-09 (após Specs 3, 4 e 5)
 
 Tudo que precisa de olho humano num app rodando. Agente não valida nada daqui.
 
@@ -15,27 +15,47 @@ correção de doc e/ou de código.
 
 ## Antes de começar
 
-- [x] `npx tsc --noEmit` → zero saída (verificado 2026-08-08, após fechar Spec 2a)
-- [x] `npm test` → 0 falhas (5 suites, 34 testes, verificado 2026-08-08)
+- [x] `npx tsc --noEmit` → zero saída (verificado 2026-08-09, após fechar Spec 5)
+- [x] `npm test` → 0 falhas (verificado 2026-08-09). O portão é **0 falhas**, nunca um total fixo
 - [ ] Hard refresh / rebuild do dev client antes de testar (HMR mente — ver `CLAUDE.md`)
 
-Build está limpo — as 3 specs (1, 2a, 2b) estão Agent-DoD-completas. Pode rodar o app.
+Build está limpo — **Specs 1, 2a, 2b, 3, 4 e 5** estão Agent-DoD-completas. Pode rodar o app.
+
+**Spec 6 (teclado) não entrou** e não tem item nesta fila: o portão de build nativo falhou por
+`LongPathsEnabled=0` nesta máquina (limite de 260 caracteres do Windows), não por incompatibilidade
+da lib. A instalação foi revertida, então **o build Android continua funcionando normalmente**.
+Detalhes e como destravar: `plans/2026-08-09-spec-6-keyboard-avoidance.md`, Task 2 Step 3.
 
 ---
 
 ## Estado do repo no momento deste teste
 
-Além das specs abaixo, há trabalho **não commitado** em cima de sync offline, sem spec escrita:
-`OfflineBanner.tsx`, `useOfflineAutoSync.ts` (novo), `app/_layout.tsx`, `collectionPontos.ts`,
-`AudioPlayerFooter.tsx`, `useCollectionPlayerData.ts`.
+O trabalho de sync offline que antes estava **não commitado** foi commitado em 2026-08-09
+(`87d09c3` banner offline dispensável + auto-sync, `6cc9e9d` créditos de composição/intérprete no
+player). Continua **sem spec escrita** — segue rastreado como `S-5` em [`BACKLOG.md`](BACKLOG.md).
 
-Isso muda comportamento de banner offline e re-sync. Se aparecer algo estranho relacionado a
-conexão/offline, provavelmente vem daí e não das specs. Anotar em [Fora de escopo](#fora-de-escopo).
+Isso muda comportamento de banner offline, re-sync e a linha de crédito do player. Se aparecer algo
+estranho relacionado a conexão/offline ou ao rodapé do player, provavelmente vem daí e não das
+specs. Anotar em [Fora de escopo](#fora-de-escopo).
 
 **Decidido (2026-08-08): fica como está, não reverter.** Vai ser specado *depois* desta validação,
-usando o que você observar como entrada — rastreado como `S-5` em [`BACKLOG.md`](BACKLOG.md).
-Ou seja: o que você anotar sobre offline aqui **não é bug pra corrigir agora**, é matéria-prima
-pra spec. Vale anotar mesmo o que parecer funcionar bem.
+usando o que você observar como entrada. Ou seja: o que você anotar sobre offline aqui **não é bug
+pra corrigir agora**, é matéria-prima pra spec. Vale anotar mesmo o que parecer funcionar bem.
+
+---
+
+## O que mudou desde a última rodada (Specs 3, 4, 5)
+
+Onze correções de código. As linhas novas/reabertas estão marcadas nas seções abaixo:
+
+| Defeito | O que mudou | Onde testar |
+|---|---|---|
+| `D8` | Cargo de admin não vaza mais após logout | 5.9, 5.10, 5.11 (e 2.6, 3.3) |
+| `D12` | Sem identidade falsa "? Você" nem "Sair" deslogado — **em 4 lugares**, não 2 | 5.7, 5.8 |
+| `D7` `D10` | Erro de rede vira texto legível em vez de `TypeError` | 1.4, 3.5 |
+| `D11` | Refetch que falha não esconde mais a lista já carregada | 4.x (Terreiros) |
+| `D6` | Ponto duplicado agora avisa de verdade | 1.7 |
+| `D9` | "+" de adicionar à coleção aparece no player de coleção | 2.7, 2.8 |
 
 ---
 
