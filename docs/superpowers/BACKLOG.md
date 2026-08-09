@@ -18,7 +18,21 @@ Priority tiers:
 
 ## P0 — confirmed defects
 
-All five verified against source on 2026-08-08. Not doc claims — code was read.
+`D1`–`D5` verified against source on 2026-08-08 (from `aggregation.md` §6, re-checked in code, not
+taken on the doc's word). `D6`–`D13` found during the 2026-08-08/09 human validation pass and
+root-caused in code before being written down.
+
+**Spec coverage:**
+
+| Spec | Covers |
+|---|---|
+| [Spec 3 — Auth state leaks](specs/2026-08-09-spec-3-auth-state-leaks.md) | `D8`, `D12` |
+| [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | `D7`, `D10`, `D11` |
+| [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | `D6`, `D9` |
+| *(unassigned)* | `D1`–`D5`, `D13` |
+
+`D13` is deliberately unassigned: it needs a product decision (and likely a `profiles` column)
+rather than a code fix — see its row.
 
 | ID | Defect | Evidence | Impact |
 |---|---|---|---|
