@@ -32,4 +32,14 @@ describe("deriveListErrorMessage", () => {
       })
     ).toBe("Sem conexão. Verifique sua internet e tente novamente.");
   });
+
+  it("returns the friendly copy instead of raw backend text on a non-network cold failure", () => {
+    expect(
+      deriveListErrorMessage({
+        isError: true,
+        error: new Error("column terreiros.x does not exist"),
+        rowCount: 0,
+      })
+    ).toBe("Ops, seu app parece estar desatualizado.");
+  });
 });
