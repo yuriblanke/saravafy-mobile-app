@@ -19,6 +19,13 @@ correção de doc e/ou de código.
 - [x] `npm test` → 0 falhas (verificado 2026-08-09). O portão é **0 falhas**, nunca um total fixo
 - [ ] Hard refresh / rebuild do dev client antes de testar (HMR mente — ver `CLAUDE.md`)
 
+### Os dois APKs — instale um por vez, eles não se substituem
+
+| Perfil | Build | Para que serve |
+|---|---|---|
+| **development** | [`4c675867`](https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/4c675867-6475-40a5-b97f-f8b7d7feaa33) (commit `9ae0a99`) | Seções **0 a 6**. É dev client: instale e rode `npm run start:dev` para conectar no Metro |
+| **production** | [`25cd2eae`](https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/25cd2eae-0c12-49e1-9d67-05aa34fd5b52) (commit `c7af110`, version code 27) | Item **4.4** e a seção **Offline** (`O.1`–`O.6`). Standalone, sem Metro — é o único que abre com o avião já ligado |
+
 Build está limpo — **Specs 1, 2a, 2b, 3, 4 e 5** estão Agent-DoD-completas. Pode rodar o app.
 
 **Spec 6 (teclado) está em andamento por outro caminho.** O build nativo local não passa nesta
@@ -27,16 +34,33 @@ caminhos do codegen **independente** de `LongPathsEnabled`. Não é incompatibil
 **Decisão (2026-08-09): verificar via build EAS**, que roda em Linux e não tem esse limite.
 Detalhes: `plans/2026-08-09-spec-6-keyboard-avoidance.md`, Task 2 Step 3.
 
-⚠️ **Rode a fila inteira pelo APK novo do EAS — inclusive as Specs 3-5.** O `KeyboardProvider`
-envolve **a árvore toda do app** numa view nativa de codegen. Num dev client compilado antes desta
-dependência essa view não existe, então o app pode **nem subir** — não é "não mostra a mudança", é
-possivelmente crash no boot. Este repo já tem precedente disso: `app/_layout.tsx:72-89` envolve o
-`react-native-gesture-handler` em try/catch exatamente porque dev client antigo quebrava no
-bootstrap. O `KeyboardProvider` **não** ganhou proteção equivalente, e ele não é folha — se falhar,
-leva tudo junto.
+🚨 **Rode a fila inteira pelo APK novo do EAS — inclusive as Specs 3-5. Isto foi CONFIRMADO na
+prática em 2026-08-09, não é precaução.** Rodar `npm run start:dev` contra o dev client antigo
+derruba o app inteiro:
 
-Se por algum motivo você precisar mesmo do client antigo, confirme primeiro que ele ainda abre. Se
-der tela vermelha, é o client desatualizado, não a lib.
+```
+ERROR [Error: The package 'react-native-keyboard-controller' doesn't seem to be linked.]
+  <global> (src/components/BottomSheet.tsx)
+  <global> (src/screens/Home/Home.tsx)
+  <global> (app/(app)/(tabs)/(pontos)/index.tsx)
+WARN  Route "./(app)/(tabs)/(pontos)/index.tsx" is missing the required default export.
+WARN  Route "./_layout.tsx" is missing the required default export.
+ERROR [Error: usePreferences must be used within PreferencesProvider]
+```
+
+**Por que derruba tudo, e não só a tela do teclado:** o import é **estático, no topo do
+`BottomSheet.tsx`**. Ele lança no carregamento do módulo, antes de qualquer render — então `Home.tsx`
+não carrega, a rota fica sem `default export`, e o `_layout` cai junto, o que produz aquele
+`usePreferences must be used within PreferencesProvider` no fim (efeito, não causa).
+
+**Consequência prática:** um try/catch em volta do `KeyboardProvider` — como o que
+`app/_layout.tsx:72-89` já faz com o `react-native-gesture-handler`, precisamente porque dev client
+antigo quebrava no bootstrap — **não resolveria**. Teria que envolver o import do `BottomSheet`, o
+que esconderia falha real de link. O estado correto é ter o binário certo instalado.
+
+**Isso não é bug do código e não é item de validação.** É o dev client desatualizado. Desinstale o
+antigo, instale o APK abaixo, e só então rode `npm run start:dev` — o APK do EAS é dev client, ele
+conecta no Metro normalmente.
 
 Quando o APK novo chegar, comece pela [seção 0](#0-spec-6-teclado--checar-antes-de-qualquer-outra-seção):
 o provider já está montado e tem que ser invisível — se ele mexer em layout sozinho, nenhum
