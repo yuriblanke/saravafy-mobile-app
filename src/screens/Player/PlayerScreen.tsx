@@ -231,8 +231,7 @@ export default function PlayerScreen() {
   const [lyricsFontSize, setLyricsFontSize] = useState(20);
   const [activeIndex, setActiveIndex] = useState(0);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [libraryAddToCollectionOpen, setLibraryAddToCollectionOpen] =
-    useState(false);
+  const [addToCollectionOpen, setAddToCollectionOpen] = useState(false);
   const [isCurimbaExplainerOpen, setIsCurimbaExplainerOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isReportOpen, setIsReportOpen] = useState(false);
@@ -622,12 +621,12 @@ export default function PlayerScreen() {
               </Pressable>
             ) : null}
 
-            {isLibraryPlayer && activePonto ? (
+            {activePonto ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel="Adicionar à coleção"
                 onPress={() =>
-                  requireAuth(() => setLibraryAddToCollectionOpen(true), {
+                  requireAuth(() => setAddToCollectionOpen(true), {
                     reason:
                       "Para adicionar pontos a uma coleção, entre com sua conta.",
                   })
@@ -812,10 +811,10 @@ export default function PlayerScreen() {
           onClose={() => setIsSearchOpen(false)}
         />
 
-        {isLibraryPlayer && user?.id && activePonto ? (
+        {user?.id && activePonto ? (
           <AddToCollectionFlow
-            visible={libraryAddToCollectionOpen}
-            onClose={() => setLibraryAddToCollectionOpen(false)}
+            visible={addToCollectionOpen}
+            onClose={() => setAddToCollectionOpen(false)}
             ponto={activePonto}
             userId={user.id}
             variant={variant}
