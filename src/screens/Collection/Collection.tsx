@@ -47,6 +47,7 @@ import {
   FlatList,
   Image,
   Pressable,
+  RefreshControl,
   ScrollView,
   Share,
   StyleSheet,
@@ -395,6 +396,23 @@ export default function Collection() {
   useEffect(() => {
     loadCollection();
   }, [loadCollection]);
+
+  // reloadPontos() is fire-and-forget (useCollectionPlayerData.ts:380-387 calls
+  // `void query.refetch()` and returns void, not a promise) -- it can't be
+  // awaited or thrown by. loadCollection() also can't reject: it catches its
+  // own errors internally and stores them in collectionError. So this can't
+  // follow the Promise.all shape used on the other multi-source screens; it
+  // just kicks reloadPontos off and awaits the one call that is a promise.
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      reloadPontos();
+      await loadCollection();
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [reloadPontos, loadCollection]);
 
   useFocusEffect(
     useCallback(() => {
@@ -968,6 +986,20 @@ export default function Collection() {
           onScroll={(e) => {
             onScroll(e.nativeEvent.contentOffset.y);
           }}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.brass600}
+              colors={[colors.brass600]}
+              progressBackgroundColor={
+                variant === "light"
+                  ? colors.surfaceCardBgLight
+                  : colors.surfaceCardBg
+              }
+              progressViewOffset={headerTotalHeight}
+            />
+          }
         >
           <LinearGradient
             pointerEvents="none"
