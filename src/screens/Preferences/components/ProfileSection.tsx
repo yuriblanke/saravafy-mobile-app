@@ -10,6 +10,7 @@ import {
   PreferencesSection,
   PreferencesSwitchItem,
 } from "@/src/components/preferences";
+import { useLoginPrompt } from "@/src/contexts/LoginPromptContext";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
 import { useIsDevMaster } from "@/src/hooks/useIsDevMaster";
 import { colors, spacing } from "@/src/theme";
@@ -23,6 +24,7 @@ type Props = {
 export function ProfileSection({ variant }: Props) {
   const router = useRouter();
   const { user } = useAuth();
+  const { openLoginSheet } = useLoginPrompt();
 
   const textPrimary =
     variant === "light" ? colors.textPrimaryOnLight : colors.textPrimaryOnDark;
@@ -62,6 +64,44 @@ export function ProfileSection({ variant }: Props) {
 
   const showCuratorToggle = !isCuratorLoading && isCurator;
   const showBadges = (!isCuratorLoading && isCurator) || isDevMaster;
+
+  if (!user) {
+    return (
+      <PreferencesSection title="Conta" variant={variant}>
+        <View
+          style={[
+            styles.card,
+            {
+              backgroundColor: cardBg,
+              borderColor: dividerColor,
+            },
+          ]}
+        >
+          <Text style={[styles.signedOutText, { color: textSecondary }]}>
+            Entre para ver suas preferências e terreiros.
+          </Text>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Entrar"
+            onPress={() => openLoginSheet()}
+            style={({ pressed }) => [
+              styles.loginButton,
+              pressed ? styles.loginButtonPressed : null,
+            ]}
+          >
+            <Ionicons
+              name="log-in-outline"
+              size={16}
+              color={colors.paper50}
+              style={styles.loginButtonIcon}
+            />
+            <Text style={styles.loginButtonText}>Entrar</Text>
+          </Pressable>
+        </View>
+      </PreferencesSection>
+    );
+  }
 
   return (
     <PreferencesSection title="Conta" variant={variant}>
@@ -285,5 +325,31 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     opacity: 0.9,
+  },
+  signedOutText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  loginButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    alignSelf: "flex-start",
+    backgroundColor: colors.brass600,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 999,
+    gap: 6,
+  },
+  loginButtonPressed: {
+    opacity: 0.85,
+  },
+  loginButtonIcon: {
+    marginLeft: -2,
+  },
+  loginButtonText: {
+    color: colors.paper50,
+    fontSize: 13,
+    fontWeight: "800",
   },
 });

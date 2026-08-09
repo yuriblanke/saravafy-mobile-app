@@ -204,6 +204,7 @@ Origem: Spec 2b (`PreferencesContext` → React Query).
 | 5.4 | Sair de um terreiro | Some da lista sozinho | ✅ OK |
 | 5.5 | **(novo)** Conta/perfil: deslogar de dentro da tela de Preferências | Card de identidade mostra "Entrar"; nenhum botão "Sair" aparece | ❌ mostra "? Você" + botão "Sair" continua — ver nota |
 | 5.6 | **(novo)** Remover/trocar a foto de perfil | Deveria existir alguma forma de controlar a foto exibida | ❌ não existe — ver nota |
+| 5.7 | **(novo, reteste pós-fix D12)** Deslogar de dentro da tela de Preferências (rota `/preferences`, componente `ProfileSection`) | Área "Conta" mostra uma afordância "Entrar" (convite pra login); nenhum "? Você" nem identidade falsa aparece | |
 
 **Atenção 5.2–5.4:** antes era fetch imperativo, agora é `invalidateQueries`. Se ficar dado velho,
 o `userId` passado no invalidate não bate com o que o hook lê.
