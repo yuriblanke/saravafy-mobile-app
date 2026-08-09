@@ -526,17 +526,38 @@ grep -rln "filler" src/
 Expected: **8 files**, and `AddMediumTagSheet.tsx` is **not** among them. Compare against Task 1
 Step 2's inventory. Any other difference is an accidental change — investigate before committing.
 
-> **RESULT — the expected number was wrong, the outcome is right.** `grep -rln "filler" src/` returns
-> **13**: twelve files still rendering `filler.png`, plus `BottomSheet.tsx`, which only mentions the
-> word in a doc comment. `AddMediumTagSheet.tsx` is out of the list. Nothing else changed.
+> **RESULT — the expected number was wrong, and the first correction was wrong too.**
+> `grep -rln "images/filler.png" src/` returns **11**; twelve rendered it before the pilot.
+> `AddMediumTagSheet.tsx` is out of the list and nothing else changed.
+>
+> ⚠️ **Never size this from `grep -rln "filler" src/`.** That returns 13, because it also catches
+> `BottomSheet.tsx`'s doc comment and `Terreiros.tsx:345`'s `image_cover_filler.png`, an unrelated
+> cover placeholder. A correction published here on 2026-08-09 did exactly that and claimed
+> "13 files / 12 remaining" — repeating, inside the fix, the error being fixed. Match on the asset
+> path, not the word.
 > `grep -rn "keyboardAware" src/` returns the prop definition, its tests, and **exactly one** call
 > site — `AddMediumTagSheet.tsx:268`.
 >
 > **Second count correction, and it matters more than the first.** This plan's headline constraint
-> says `BottomSheet` has **8 consumers**. The real figure is **19 files rendering `<BottomSheet`** —
-> the 8 was the filler-form subset. The pilot's safety argument is unaffected (the default is off,
-> and the default path is tested), but **the rollout spec inherits 19 render sites to think about,
-> not 8.**
+> says `BottomSheet` has **8 consumers**. The real figure is **19 files**, containing **35**
+> `<BottomSheet` JSX sites — the 8 was the filler-form subset. The pilot's safety argument is
+> unaffected (the default is off, and the default path is tested), but the rollout inherits those
+> numbers, not 8.
+>
+> **DEVIATION — commit messages.** Task 4 Step 5's and Task 5 Step 6's mandated messages were not
+> used verbatim. `a406520` carries the then-current 13/12 figures (now known to be 12/11) and adds
+> the `scrollEnabled={false}` warning; `e82548c` permanently records "8 consumers" and "the other 7
+> sheets", the pre-correction figure, now frozen in history. Nothing to do about the commits —
+> noted so a reader of `git log` is not misled.
+>
+> **Rollout hazard not visible in this pilot: `onScroll` may not survive the swap.**
+> `scrollProps.onScroll` feeds `scrollYRef`, which is the **only** gate on content-area
+> swipe-to-close (`BottomSheet.tsx:389-393` requires offset ≤ 1px). In the aware branch that handler
+> is forwarded into the library's Reanimated scroll view, which drives the same ref via
+> `useScrollViewOffset` — mixing a JS `onScroll` with a Reanimated scroll subscription on one
+> component is known-fragile. If `onScroll` is dropped, `scrollYRef` stays 0 and swipe-to-close stays
+> armed mid-scroll. **Inert here** (the pilot screen disables scrolling, so the offset never leaves
+> 0), but a real question for the rollout's scrollable sheets. Queue item 0.6 now asks for it.
 
 ```
 grep -rn "keyboardAware" src/

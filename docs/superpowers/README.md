@@ -56,9 +56,9 @@ permission-adjacent group — a signed-out viewer seeing admin affordances), the
 blocks the `S-3a` sweep, so fixing it unblocks later work), then Spec 5.
 
 **Spec 6 is the one deliberately partial spec.** It replaces a keyboard workaround on a single
-screen and stops, because the fix routes through a component with 8 consumers — changing it in
-place would not be a pilot. Spec 7 (the rollout) is *blocked*, not merely unstarted: it does not get
-written until the pilot is validated by hand.
+screen and stops, because the fix routes through a component rendered in **19 files** — changing
+it in place would not be a pilot. The rollout is *blocked*, not merely unstarted: it does not get written
+until the pilot is validated by hand, and it inherits **11** remaining filler screens.
 
 Spec 2a had **no plan** — it predates [`CONVENTIONS.md`](CONVENTIONS.md) §1, and is the reason
 that rule exists (it stalled half-implemented for ~2 months without one). It was the last spec
@@ -75,8 +75,13 @@ cannot pick it up — and `npm run android:dev` does not work on this machine at
 characters even with `LongPathsEnabled=1`, and `android/` is gitignored (Continuous Native
 Generation) so an in-repo CMake tweak would not survive the next `expo prebuild`. **For any future
 spec adding a native module here, the agent-side gate is a green EAS build, not `./gradlew`.**
-Details in the plan's Task 2 Step 3. Nothing is blocking a batched human validation
-pass — see [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md).
+Details in the plan's Task 2 Step 3.
+
+⚠️ **Run the whole queue from that APK, not only section 0.** `KeyboardProvider` wraps the entire app
+tree in a codegen native view that a dev client built before this dependency does not contain — so an
+older client may fail to boot rather than merely miss the change. `app/_layout.tsx:72-89` already
+try/catches `react-native-gesture-handler` for exactly this reason; `KeyboardProvider` has no
+equivalent guard, and it is not a leaf.
 
 ## Where the priorities come from
 

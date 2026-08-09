@@ -183,16 +183,23 @@ default — see §4.2.
       characters even with `LongPathsEnabled=1`. The module was proven to link by EAS build
       `3f9666b9` (profile `development`, SDK 54, New Architecture, APK produced). See the plan's
       Task 2 Step 3 for why every in-repo workaround was rejected.
-- [x] `grep -rln "filler" src/` → **13**: twelve files still rendering `filler.png` plus
-      `BottomSheet.tsx`, which only mentions the word in a doc comment. The pilot's usage is gone,
-      the others are untouched. `keyboardAware` appears at **exactly one** call site.
+- [x] `grep -rln "images/filler.png" src/` → **11** files still render the filler; twelve did
+      before the pilot. The pilot's usage is gone, the others are untouched. `keyboardAware` appears
+      at **exactly one** call site.
+
+      ⚠️ **Do not grep the bare word `filler` for this.** It returns 13, because it also matches
+      `BottomSheet.tsx`'s doc comment and `Terreiros.tsx:345`'s `image_cover_filler.png` — an
+      unrelated cover placeholder. An earlier correction in this very spec made that mistake and
+      published "13 files / 12 remaining", repeating inside the fix the error being fixed.
 - [x] Backlog updated: `D14` recorded, pilot marked done, the rollout noted as blocked on human
       sign-off.
 
-**Two counts in this spec were wrong.** It says nine files use the filler — thirteen do, so twelve
-remain rather than eight. And it says `BottomSheet` has 8 consumers — **19 files render
-`<BottomSheet>`**; the 8 was the filler-form subset. Neither weakens the pilot (the default is off
-and the default render path is tested), but the rollout inherits the larger numbers.
+**Two counts in this spec were wrong, and the first correction was itself wrong.** Twelve files
+rendered the filler (not nine), so **11 remain** — an intermediate "13/12" over-corrected by
+trusting `grep filler`, which also matches an unrelated cover-placeholder asset. And `BottomSheet`
+is rendered in **19 files** across **35** JSX sites, not 8 — the 8 was the filler-form subset.
+Neither weakens the pilot (the default is off and the default render path is tested), but the
+rollout inherits the larger numbers.
 
 **The most valuable thing this pilot produced is a testing hazard, not a UI result.** The library's
 shipped jest mock aliases `KeyboardAwareScrollView` to React Native's own `ScrollView`, so under it

@@ -27,9 +27,16 @@ caminhos do codegen **independente** de `LongPathsEnabled`. Não é incompatibil
 **Decisão (2026-08-09): verificar via build EAS**, que roda em Linux e não tem esse limite.
 Detalhes: `plans/2026-08-09-spec-6-keyboard-avoidance.md`, Task 2 Step 3.
 
-⚠️ **Consequência para esta rodada de validação:** a Spec 6 muda módulo nativo, então o dev client
-atual **não** serve para testá-la — vai precisar instalar o APK novo do EAS. Os itens das Specs 3-5
-abaixo não dependem disso e podem ser testados no dev client que você já tem.
+⚠️ **Rode a fila inteira pelo APK novo do EAS — inclusive as Specs 3-5.** O `KeyboardProvider`
+envolve **a árvore toda do app** numa view nativa de codegen. Num dev client compilado antes desta
+dependência essa view não existe, então o app pode **nem subir** — não é "não mostra a mudança", é
+possivelmente crash no boot. Este repo já tem precedente disso: `app/_layout.tsx:72-89` envolve o
+`react-native-gesture-handler` em try/catch exatamente porque dev client antigo quebrava no
+bootstrap. O `KeyboardProvider` **não** ganhou proteção equivalente, e ele não é folha — se falhar,
+leva tudo junto.
+
+Se por algum motivo você precisar mesmo do client antigo, confirme primeiro que ele ainda abre. Se
+der tela vermelha, é o client desatualizado, não a lib.
 
 Quando o APK novo chegar, comece pela [seção 0](#0-spec-6-teclado--checar-antes-de-qualquer-outra-seção):
 o provider já está montado e tem que ser invisível — se ele mexer em layout sozinho, nenhum
@@ -72,12 +79,14 @@ Onze correções de código. As linhas novas/reabertas estão marcadas nas seç�
 
 Origem: Spec 6 (`react-native-keyboard-controller`), §4.1.
 
-**Esta seção vem primeiro de propósito.** O `KeyboardProvider` já está montado na raiz
-(`app/_layout.tsx`, `d1efb58`), mas **nenhuma tela optou por ele ainda** — nada de teclado mudou.
-Ou seja: neste build o provider tem que ser *invisível*. Se ele mexer em layout sozinho, toda
-observação de teclado feita depois fica sem dono — não dá pra saber se o que você viu veio da tela
-que optou ou do provider. Por isso é o item 0, e por isso ele **bloqueia** o resto da rodada de
-Spec 6.
+**Esta seção vem primeiro de propósito.** O `KeyboardProvider` está montado na raiz
+(`app/_layout.tsx`, `d1efb58`) **e uma tela optou por ele**: o sheet de tag de médium
+(`a406520`). Todas as outras seguem no comportamento antigo.
+
+O item 0.1 separa as duas coisas de propósito. Nas telas que **não** optaram, o provider tem que ser
+*invisível* — se ele mexer em layout sozinho, toda observação de teclado feita depois fica sem dono,
+e não dá pra saber se o que você viu veio da tela piloto ou do provider. Por isso é o item 0, e por
+isso ele **bloqueia** o resto da rodada de Spec 6.
 
 > ⚠️ **Precisa de APK novo do EAS — o dev client atual não serve.** A Spec 6 adiciona módulo
 > nativo, então a mudança não chega por reload de JS. O build local (`npm run android:dev`) **não
@@ -87,17 +96,25 @@ Spec 6.
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 0.1 | Abrir o app no APK novo e percorrer Home, o sheet de tag de médium e qualquer sheet com campo de texto — **sem digitar nada, só olhar** | Tudo exatamente igual a antes: mesmos insets, mesma altura de sheet, mesma barra de status. Nenhum deslocamento, nenhuma faixa nova em cima ou embaixo | |
+| 0.1 | Abrir o app no APK novo e percorrer **telas que NÃO optaram** — Home, sheet de convite, editor de terreiro, qualquer sheet com campo de texto **que não seja o de tag de médium** — sem digitar nada, só olhar | Tudo exatamente igual a antes: mesmos insets, mesma altura de sheet, mesma barra de status. Nenhum deslocamento, nenhuma faixa nova | |
 | 0.2 | O app **abre sem crashar** | O build prova que o módulo nativo linka, **não** que ele registra em runtime sob New Architecture. Se crashar no boot, é aqui que aparece | |
 | 0.3 | Coleção → adicionar tag de médium → focar o campo de texto | O campo sobe **acima** do teclado sozinho, sem você rolar na mão | |
 | 0.4 | Mesmo sheet, com **teclado de terceiro** (Gboard/SwiftKey) e/ou abrindo a linha de emoji | Continua funcionando. **Variação de altura é o ponto inteiro do piloto** — o filler de 290px falhava exatamente aqui | |
 | 0.5 | Fechar o teclado no sheet de tag de médium | **Nenhum espaço vazio sobrando** onde o filler ficava. Era esse buraco que sobrava quando o teclado era mais baixo que 290px | |
 | 0.6 | No mesmo sheet: arrastar pra fechar, tocar no backdrop, e enviar o formulário | Os três continuam funcionando. Se o arrastar-pra-fechar parou, o gesto de pan do `BottomSheet` está brigando com o scroll view novo — **isso é o achado mais valioso que este piloto pode gerar** | |
-| 0.7 | Abrir **outro** sheet que ainda usa o filler (ex.: o de convite) e focar um campo | Comportamento **antigo**, pra você sentir a diferença lado a lado. Se este também mudou, o piloto vazou pros outros 12 e isso é bug | |
+| 0.7 | Abrir **outro** sheet que ainda usa o filler (ex.: o de convite) e focar um campo | Comportamento **antigo**, pra você sentir a diferença lado a lado. Se este também mudou, o piloto vazou pras outras **11** telas e isso é bug | |
 
-> **0.1 — se algo se mexeu, pare e reporte antes de testar qualquer coisa de teclado.** Um provider
-> que altera layout por conta própria torna toda observação visual seguinte não-atribuível. Não
-> tente compensar o deslocamento na tela — pela §4.1 da spec isso é achado, não ajuste.
+> ### 🚨 **0.1 — o sheet de tag de médium está FORA deste item, e de propósito.**
+>
+> **Ele vai estar ~290px mais curto que você lembra, com o teclado fechado. Isso é a correção
+> funcionando, não o provider quebrando.** Era exatamente esse o tamanho da imagem `filler.png` que
+> foi deletada dessa tela. Se o item 0.1 incluísse essa tela, ele falharia sozinho no piloto e
+> travaria a rodada inteira numa mudança intencional. O encurtamento é o que o item **0.5** mede.
+>
+> **Nas telas que não optaram: se algo se mexeu, pare e reporte antes de testar qualquer coisa de
+> teclado.** Um provider que altera layout por conta própria torna toda observação visual seguinte
+> não-atribuível. Não tente compensar o deslocamento na tela — pela §4.1 da spec isso é achado, não
+> ajuste.
 >
 > **Onde olhar com mais atenção: barra de status e barra de navegação.** O provider foi montado
 > **sem prop nenhuma**, mas isso *não* significa que os flags de translucência estejam desligados —
@@ -133,7 +150,18 @@ Spec 6.
 > oferece um `ScrollViewComponent` customizado para integrar com gesture-handler — mas só dá pra
 > saber com a mão. Anote o que sentiu mesmo que funcione.
 >
-> **0.7 protege as outras 12 telas.** O `keyboardAware` tem default `false` e existe teste de
+> **E anote separadamente se o arrastar-pra-fechar muda depois de você ter rolado o conteúdo**, não
+> só se ele funciona. O gesto é liberado por um `onScroll` que alimenta o offset do `BottomSheet`, e
+> esse handler agora é repassado para dentro do scroll view da lib, que também observa o mesmo ref
+> via Reanimated — combinação conhecida por ser frágil. Nesta tela piloto isso **não pode aparecer**
+> (ela tem scroll desabilitado, o offset nunca sai de 0), mas é o que a spec de rollout precisa saber
+> para os sheets que rolam de verdade.
+>
+> **0.7 protege as outras 11 telas.** Se quiser um controle bem limpo, `ReviewSubmission.tsx` (fila
+> de revisão do curador) é a única tela com filler que **não** fica dentro de um `BottomSheet` — ou
+> seja, não passa por nada que esta spec tocou.
+>
+> **0.7 protege as outras 11 telas.** O `keyboardAware` tem default `false` e existe teste de
 > render provando que o caminho default não mudou, mas teste de render não é aparelho.
 >
 > **Não dá pra verificar por agente.** `tsc` e a suíte de testes passaram (Task 3), e nenhum dos
