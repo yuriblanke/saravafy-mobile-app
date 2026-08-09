@@ -134,6 +134,7 @@ isso ele **bloqueia** o resto da rodada de Spec 6.
 | 0.5 | Fechar o teclado no sheet de tag de médium | **Nenhum espaço vazio sobrando** onde o filler ficava. Era esse buraco que sobrava quando o teclado era mais baixo que 290px | |
 | 0.6 | No mesmo sheet: arrastar pra fechar, tocar no backdrop, e enviar o formulário | Os três continuam funcionando. Se o arrastar-pra-fechar parou, o gesto de pan do `BottomSheet` está brigando com o scroll view novo — **isso é o achado mais valioso que este piloto pode gerar** | |
 | 0.7 | Abrir **outro** sheet que ainda usa o filler (ex.: o de convite) e focar um campo | Comportamento **antigo**, pra você sentir a diferença lado a lado. Se este também mudou, o piloto vazou pras outras **11** telas e isso é bug | |
+| 0.8 | **(novo)** Num sheet com campo de texto, focar o campo (teclado aberto) e tocar direto no botão de ação principal — ex.: "Salvar" no sheet de tag de médium | Um único toque **fecha o teclado e executa a ação** (salva + toast de sucesso) — não precisa mais de dois toques. Tocar em espaço vazio do sheet continua só fechando o teclado, sem acionar nada | |
 
 > ### 🚨 **0.1 — o sheet de tag de médium está FORA deste item, e de propósito.**
 >
@@ -194,6 +195,16 @@ isso ele **bloqueia** o resto da rodada de Spec 6.
 >
 > **0.7 protege as outras 11 telas.** O `keyboardAware` tem default `false` e existe teste de
 > render provando que o caminho default não mudou, mas teste de render não é aparelho.
+>
+> **0.8 — bug relatado por você, causa raiz confirmada e corrigida em `BottomSheet.tsx`.** O
+> `ScrollView` do sheet usava o default do React Native (`keyboardShouldPersistTaps="never"`): com o
+> teclado aberto, o primeiro toque em qualquer lugar — inclusive num botão — era consumido só pra
+> fechar o teclado, e o botão só disparava no segundo toque. Trocado para `"handled"`, o mesmo valor
+> que os outros **15** lugares do app já usam nos próprios `ScrollView`; agora um toque num filho que
+> trata o evento (o botão) passa e dispara, fechando o teclado na mesma tela. Toque em espaço vazio
+> continua só fechando. **Teste de propósito num sheet que NÃO optou por `keyboardAware`** (ex.:
+> sheet de convite, não o de tag de médium) — é o caminho que cobre os outros 15 pontos de chamada,
+> e é onde o defeito original foi sentido.
 >
 > **Não dá pra verificar por agente.** `tsc` e a suíte de testes passaram (Task 3), e nenhum dos
 > dois diz nada sobre pixel na tela. É check humano por natureza — ver
