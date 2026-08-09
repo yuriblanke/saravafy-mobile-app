@@ -21,10 +21,15 @@ correção de doc e/ou de código.
 
 Build está limpo — **Specs 1, 2a, 2b, 3, 4 e 5** estão Agent-DoD-completas. Pode rodar o app.
 
-**Spec 6 (teclado) não entrou** e não tem item nesta fila: o portão de build nativo falhou por
-`LongPathsEnabled=0` nesta máquina (limite de 260 caracteres do Windows), não por incompatibilidade
-da lib. A instalação foi revertida, então **o build Android continua funcionando normalmente**.
-Detalhes e como destravar: `plans/2026-08-09-spec-6-keyboard-avoidance.md`, Task 2 Step 3.
+**Spec 6 (teclado) está em andamento por outro caminho.** O build nativo local não passa nesta
+máquina — `ninja.exe` não é long-path-aware, então o limite de 260 caracteres do Windows corta os
+caminhos do codegen **independente** de `LongPathsEnabled`. Não é incompatibilidade da lib.
+**Decisão (2026-08-09): verificar via build EAS**, que roda em Linux e não tem esse limite.
+Detalhes: `plans/2026-08-09-spec-6-keyboard-avoidance.md`, Task 2 Step 3.
+
+⚠️ **Consequência para esta rodada de validação:** a Spec 6 muda módulo nativo, então o dev client
+atual **não** serve para testá-la — vai precisar instalar o APK novo do EAS. Os itens das Specs 3-5
+abaixo não dependem disso e podem ser testados no dev client que você já tem.
 
 ---
 
@@ -68,10 +73,10 @@ Origem: Spec 1 (`getErrorMessage`), Spec 2a (add-to-collection).
 | 1.1 | Abrir Home | Pontos carregam | ✅ OK |
 | 1.2 | Buscar um ponto | Filtra sem travar ao digitar | ✅ OK |
 | 1.3 | Busca sem resultado | Estado vazio, não spinner infinito | ✅ OK |
-| 1.4 | ~~Modo avião → puxar pra atualizar~~ Modo avião → buscar | ~~Erro com mensagem legível~~ ver nota | ❌ mostra `TypeError: Network request failed` cru |
+| 1.4 | ~~Modo avião → puxar pra atualizar~~ Modo avião → buscar | ~~Erro com mensagem legível~~ ver nota | 🔧 corrigido (`D7`+`D10`, `2958f6d`/`5722160`) — reteste: deve mostrar "Sem conexão. Verifique sua internet e tente novamente." |
 | 1.5 | Ponto → "Adicionar à coleção" | Wizard abre em 2 fases: escolher versão → escolher coleção | ✅ OK |
 | 1.6 | Concluir adição | Ponto entra na coleção; toast de sucesso | ✅ OK |
-| 1.7 | Adicionar ponto que já está na coleção | Mensagem de duplicado clara, sem crash | ❌ não acontece — ver nota |
+| 1.7 | Adicionar ponto que já está na coleção | Mensagem de duplicado clara, sem crash | 🔧 corrigido (`D6`, `925b8da`) — reteste: "Este ponto já estava na coleção", e o ponto **não** duplica nem muda de posição |
 
 > **1.4 — item da fila estava errado, corrigido 2026-08-08.** Home **não tem** "puxar pra
 > atualizar" — nunca teve (`fetchAllPontos()` único + refetch ao focar tela, não
@@ -101,7 +106,7 @@ Origem: Spec 1 (`useTerreiroRole`), Spec 2a (add-to-collection).
 | 2.3 | Navegar entre versões (‹ Versão N de N ›) | Título, letra e áudio trocam juntos | ✅ OK |
 | 2.4 | Como **admin/curimba** do terreiro | Botões de editar tag aparecem | ✅ OK |
 | 2.5 | Como **membro comum** | Botões de editar tag **não** aparecem | ✅ OK |
-| 2.6 | Como **não-membro** | Nenhuma afordância de edição | ❌ vazamento de permissão — ver nota |
+| 2.6 | Como **não-membro** | Nenhuma afordância de edição | 🔧 corrigido (`D8`, `8fd05c3`) — reteste junto com 5.9 |
 | 2.7 | Menu → "Adicionar à coleção" | Abre direto na escolha de coleção (fase única, versão já selecionada) | 🔧 corrigido em código (`D9`) — pendente de teste manual, ver nota |
 | 2.8 | Concluir adição pelo player | Ponto entra na coleção; toast de sucesso | 🔧 desbloqueado por 2.7 (`D9`) — pendente de teste manual, ver nota |
 
@@ -151,7 +156,7 @@ Origem: Spec 1 (`useTerreiroRole`, `getErrorMessage`).
 | 3.2 | Como admin/curimba | Sheets de adicionar/remover tag aparecem | ✅ OK |
 | 3.3 | Como membro comum ou não-membro | Sem afordância de edição | ❌ mesmo vazamento do 2.6 — ver nota |
 | 3.4 | Coleção "somente membros" sem ser membro | Gate de acesso aparece, com opção de pedir entrada | 🔮 feature não existe — ver nota |
-| 3.5 | Adicionar tag → desligar rede → adicionar outra | **Ver observação abaixo** | ❌ toast com `TypeError: Network request failed` |
+| 3.5 | Adicionar tag → desligar rede → adicionar outra | **Ver observação abaixo** | 🔧 parcialmente corrigido (`D10`, `cdfc461`) — o toast agora é legível. **`D4` continua aberto**: a tag some da tela só quando o cache expira |
 
 **Atenção 3.5 — defeito conhecido, não é regressão desta spec.** As mutations de tag fazem update
 otimista sem snapshot nem rollback (`aggregation.md` §6.6). Erro de rede deixa a tag aparecendo na
@@ -250,7 +255,7 @@ Origem: Spec 2b (`PreferencesContext` → React Query).
 | 5.2 | Editar um terreiro → salvar → voltar | Lista reflete a mudança **sem refresh manual** | ✅ OK |
 | 5.3 | Aceitar convite de admin → voltar | Terreiro novo aparece na lista sozinho | ⏸️ adiado, ver nota |
 | 5.4 | Sair de um terreiro | Some da lista sozinho | ✅ OK |
-| 5.5 | **(novo)** Conta/perfil: deslogar de dentro da tela de Preferências | Card de identidade mostra "Entrar"; nenhum botão "Sair" aparece | ❌ mostra "? Você" + botão "Sair" continua — ver nota |
+| ~~5.5~~ | ~~Conta/perfil: deslogar de dentro da tela de Preferências~~ | — | 🔧 corrigido (`D12`) — **não reteste esta linha**, use 5.7 e 5.8 |
 | 5.6 | **(novo)** Remover/trocar a foto de perfil | Deveria existir alguma forma de controlar a foto exibida | ❌ não existe — ver nota |
 | 5.7 | **(novo, reteste pós-fix D12)** Deslogar de dentro da tela de Preferências (rota `/preferences`, componente `ProfileSection`) | Área "Conta" mostra uma afordância "Entrar" (convite pra login); nenhum "? Você" nem identidade falsa aparece | |
 | 5.8 | **(novo, pós-fix D12)** Mesmo teste na **outra** implementação: abrir o overlay de preferências pelo header (`TabsHeaderWithPreferences`) deslogado | Nem a linha "Sair" nem a linha de identidade/avatar aparecem. O lápis de editar perfil não fica clicável | |
@@ -268,11 +273,13 @@ o `userId` passado no invalidate não bate com o que o hook lê.
 > **5.3 — adiado por decisão sua.** Todos os fluxos de convite (aceitar, rejeitar, reenviar) ficam
 > pra testar só depois do refactor completo. Não retestar isso nesta rodada.
 >
-> **5.5 — ✅ corrigido 2026-08-09 pela Spec 3, substituído pelos itens 5.7–5.8.** Não reteste 5.5
-> direto; os retestes estão nas linhas novas. O bug era em **quatro** lugares, não dois — a varredura
-> do overlay achou também a linha de identidade do perfil dentro do `BottomSheet` de preferências.
+> **5.5 — ✅ corrigido 2026-08-09 pela Spec 3. Substituído pelos itens 5.7–5.8; não reteste esta
+> linha.** O diagnóstico original está preservado abaixo porque explica *por que* eram quatro sites e
+> não dois — mas ele descreve o estado **anterior** ao fix.
 >
-> **5.5 — bug confirmado, dois lugares independentes.** `ProfileSection.tsx` e `LogoutSection.tsx`
+> <details><summary>Diagnóstico original (2026-08-08) — histórico</summary>
+>
+> **Bug confirmado, dois lugares independentes.** `ProfileSection.tsx` e `LogoutSection.tsx`
 > (as duas telas de "Conta" dentro de `Preferences.tsx`) não têm **nenhuma** checagem de `user` —
 > renderizam a UI de logado mesmo deslogado. `getDisplayName("")` retorna literalmente `"Você"`
 > (por isso o "? Você" exato que você viu), e o botão "Sair" não tem guard nenhum no JSX. **O mesmo
