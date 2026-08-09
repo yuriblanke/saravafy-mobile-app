@@ -87,12 +87,27 @@ Spec 6.
 > que altera layout por conta própria torna toda observação visual seguinte não-atribuível. Não
 > tente compensar o deslocamento na tela — pela §4.1 da spec isso é achado, não ajuste.
 >
-> **Onde olhar com mais atenção (Android):** barra de status e barra de navegação. O app roda
-> `edgeToEdgeEnabled: true` (`app.config.ts:106`), mas a lib detecta edge-to-edge pela presença do
-> pacote `react-native-edge-to-edge`, que **não** está instalado aqui. Então o provider foi montado
-> sem prop nenhuma, ficando com os defaults `statusBarTranslucent: false` e
-> `navigationBarTranslucent: false` — que é a configuração que *não* mexe em layout. Se mesmo assim
-> aparecer faixa/deslocamento em cima ou embaixo, é exatamente esse ponto e vale anotar com print.
+> **Onde olhar com mais atenção: barra de status e barra de navegação.** O provider foi montado
+> **sem prop nenhuma**, mas isso *não* significa que os flags de translucência estejam desligados —
+> essa era a leitura errada, corrigida em revisão. A lib faz
+> `statusBarTranslucent={IS_EDGE_TO_EDGE || statusBarTranslucent}`, e o mesmo OR para
+> `navigationBarTranslucent` e `preserveEdgeToEdge`. Ou seja: **com edge-to-edge ligado, esses três
+> chegam `true` na view nativa independente do que a gente passe.** No iOS, `isEdgeToEdge()` é
+> `() => true` fixo. No Android, ele lê a constante `isEdgeToEdge` do `DeviceInfo` do **core do RN**
+> (não do pacote `react-native-edge-to-edge`, que realmente não está instalado) — e este app liga
+> `edgeToEdgeEnabled: true` (`app.config.ts:106`) em RN 0.81.5, então quase certamente é `true`
+> também no Android.
+>
+> **O que isso muda no que você procura.** Não é "`true` seria bandeira vermelha" — `true` é o
+> estado esperado, e é coerente com o edge-to-edge que o app já tem hoje sem a lib. A pergunta é se
+> a view nativa do keyboard-controller faz **algo além** disso: conteúdo passando por baixo da barra
+> de status ou da de navegação onde antes não passava, padding que sumiu no topo ou no rodapé, altura
+> de sheet diferente. Se as barras se comportarem exatamente como no build anterior, o item passa.
+> Qualquer diferença aí vale print — é o ponto mais provável de regressão desta montagem.
+>
+> Como nenhuma prop é passada, a lib também **não** emite o warning de dev
+> "…ignored when using react-native-edge-to-edge" (ele só dispara para props definidas). Ausência
+> desse warning é esperada e não prova nada sobre os flags.
 >
 > **Não dá pra verificar por agente.** `tsc` e a suíte de testes passaram (Task 3), e nenhum dos
 > dois diz nada sobre pixel na tela. É check humano por natureza — ver

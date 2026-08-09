@@ -129,8 +129,14 @@ export default function RootLayout() {
           e por fora de tudo que é da aplicação (query client, contexts, navegação).
           É a mesma ordem do exemplo oficial da lib:
           SafeAreaProvider > GestureHandlerRootView > KeyboardProvider > navegação.
-          Nenhuma prop é passada de propósito: os defaults (statusBarTranslucent e
-          navigationBarTranslucent = false) são os que não mexem em layout.
+          Nenhuma prop é passada de propósito — mas NÃO porque os defaults sejam false.
+          A lib faz `statusBarTranslucent={IS_EDGE_TO_EDGE || statusBarTranslucent}`
+          (mesmo OR para navigationBarTranslucent e preserveEdgeToEdge), então com
+          edge-to-edge ligado esses flags chegam true na view nativa independente do
+          que a gente passar. No iOS `isEdgeToEdge()` é `() => true` fixo; no Android
+          ele lê a constante `isEdgeToEdge` do DeviceInfo do core do RN, que este app
+          liga via `edgeToEdgeEnabled: true` (app.config.ts). Passar prop aqui não
+          desligaria nada — só seria ignorada, com warning em dev.
         */}
         <KeyboardProvider>
           <QueryClientProvider client={queryClient}>
