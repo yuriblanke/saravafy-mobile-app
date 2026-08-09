@@ -1472,62 +1472,64 @@ export function PreferencesOverlaySheets(
       >
         <View style={[styles.menuWrap, { paddingBottom: insets.bottom }]}>
           <View style={styles.pagesList}>
-            <PreferencesPageItem
-              variant={variant}
-              title={userDisplayName}
-              afterTitle={
-                <View style={styles.profileTitleRight}>
-                  <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={`Editar ${userDisplayName}`}
-                    onPress={() => {
-                      setIsEditProfileOpen(true);
-                    }}
-                    hitSlop={12}
-                    style={({ pressed }) => [
-                      styles.profileEditBtn,
-                      pressed ? styles.profileEditBtnPressed : null,
-                    ]}
-                  >
-                    <Ionicons name="pencil" size={18} color={textMuted} />
-                  </Pressable>
-                </View>
-              }
-              subtitle={
-                shouldShowCurator ? (
-                  <View style={styles.profileBadgeRow}>
-                    <View style={styles.profileBadgeLeft}>
-                      <Badge
-                        label={getGlobalRoleBadgeLabel("curator")}
-                        variant={variant}
-                        appearance="primary"
-                        style={{ maxWidth: 220 }}
-                      />
-                      <AccessRoleInfo
-                        variant={variant}
-                        info={curatorModeInfo}
-                      />
-                    </View>
-
-                    <View style={styles.profileBadgeRight}>
-                      <Switch
-                        value={curatorModeEnabled}
-                        onValueChange={(next) => {
-                          void setCuratorModeEnabled(next);
-                        }}
-                        disabled={curatorModeLoading || curatorModeSaving}
-                      />
-                    </View>
+            {!userId ? null : (
+              <PreferencesPageItem
+                variant={variant}
+                title={userDisplayName}
+                afterTitle={
+                  <View style={styles.profileTitleRight}>
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={`Editar ${userDisplayName}`}
+                      onPress={() => {
+                        setIsEditProfileOpen(true);
+                      }}
+                      hitSlop={12}
+                      style={({ pressed }) => [
+                        styles.profileEditBtn,
+                        pressed ? styles.profileEditBtnPressed : null,
+                      ]}
+                    >
+                      <Ionicons name="pencil" size={18} color={textMuted} />
+                    </Pressable>
                   </View>
-                ) : null
-              }
-              rightAccessory={null}
-              showEditButton={false}
-              avatarUrl={userPhotoUrl}
-              initials={initials}
-              onPress={undefined}
-              onPressEdit={undefined}
-            />
+                }
+                subtitle={
+                  shouldShowCurator ? (
+                    <View style={styles.profileBadgeRow}>
+                      <View style={styles.profileBadgeLeft}>
+                        <Badge
+                          label={getGlobalRoleBadgeLabel("curator")}
+                          variant={variant}
+                          appearance="primary"
+                          style={{ maxWidth: 220 }}
+                        />
+                        <AccessRoleInfo
+                          variant={variant}
+                          info={curatorModeInfo}
+                        />
+                      </View>
+
+                      <View style={styles.profileBadgeRight}>
+                        <Switch
+                          value={curatorModeEnabled}
+                          onValueChange={(next) => {
+                            void setCuratorModeEnabled(next);
+                          }}
+                          disabled={curatorModeLoading || curatorModeSaving}
+                        />
+                      </View>
+                    </View>
+                  ) : null
+                }
+                rightAccessory={null}
+                showEditButton={false}
+                avatarUrl={userPhotoUrl}
+                initials={initials}
+                onPress={undefined}
+                onPressEdit={undefined}
+              />
+            )}
 
             {!userId || !isDevMaster ? null : (
               <Pressable
@@ -1945,18 +1947,20 @@ export function PreferencesOverlaySheets(
               onValueChange={onToggleCurimba}
             />
 
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => {
-                setIsLogoutConfirmOpen(true);
-              }}
-              style={({ pressed }) => [
-                styles.logoutRow,
-                pressed ? styles.logoutPressed : null,
-              ]}
-            >
-              <Text style={styles.logoutText}>Sair</Text>
-            </Pressable>
+            {user ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setIsLogoutConfirmOpen(true);
+                }}
+                style={({ pressed }) => [
+                  styles.logoutRow,
+                  pressed ? styles.logoutPressed : null,
+                ]}
+              >
+                <Text style={styles.logoutText}>Sair</Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
       </BottomSheet>
