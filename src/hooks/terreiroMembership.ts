@@ -158,10 +158,10 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
   });
 
   const memberRow = useMemo(() => {
-    if (!terreiroId) return null;
+    if (!terreiroId || !userId) return null;
     const rows = membershipQuery.data ?? [];
     return rows.find((r) => r.terreiro_id === terreiroId) ?? null;
-  }, [membershipQuery.data, terreiroId]);
+  }, [membershipQuery.data, terreiroId, userId]);
 
   const role = memberRow?.role ?? null;
   const isActiveMember = role !== null;
@@ -197,7 +197,7 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
     placeholderData: (prev) => prev,
   });
 
-  const pendingRequestId = pendingQuery.data ?? null;
+  const pendingRequestId = userId ? (pendingQuery.data ?? null) : null;
 
   const data = useMemo((): TerreiroMembershipStatus => {
     return {
