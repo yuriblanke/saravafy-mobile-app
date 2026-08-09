@@ -34,6 +34,7 @@ import {
     FlatList,
     Image,
     Pressable,
+    RefreshControl,
     StyleSheet,
     Text,
     TextInput,
@@ -246,6 +247,20 @@ export default function Home() {
         });
     }, [refetchIsCurator]),
   );
+
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const onRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const next = await fetchAllPontos();
+      setPontos(next);
+    } catch {
+      // Offline/falha: o banner global de conectividade já avisa o usuário;
+      // não vale a pena travar ou poluir com um toast por um pull que falhou.
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
 
   const editingInitialValues: PontoUpsertInitialValues | undefined =
     useMemo(() => {
@@ -841,6 +856,19 @@ export default function Home() {
             keyExtractor={(item) => item.id}
             contentContainerStyle={styles.listContent}
             keyboardShouldPersistTaps="handled"
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor={colors.brass600}
+                colors={[colors.brass600]}
+                progressBackgroundColor={
+                  variant === "light"
+                    ? colors.surfaceCardBgLight
+                    : colors.surfaceCardBg
+                }
+              />
+            }
             extraData={variant}
             viewabilityConfig={viewabilityConfig}
             onViewableItemsChanged={onViewableItemsChanged.current}
