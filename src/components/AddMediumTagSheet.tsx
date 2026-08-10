@@ -21,6 +21,10 @@ import {
   TextInput,
   View,
 } from "react-native";
+import {
+  addTagToCustomTagsMap,
+  isCustomTagsQueryKeyForTerreiro,
+} from "@/src/queries/terreiroPontoCustomTagsCache";
 
 const HINT_STORAGE_KEY = "hint_medium_tag_long_press_remove_shown_v1";
 
@@ -182,52 +186,26 @@ export function AddMediumTagSheet(props: {
       const insertedCreatedAt =
         typeof inserted?.created_at === "string" ? inserted.created_at : "";
 
-      // Optimistic update: atualiza qualquer query do map desse terreiro.
-      queryClient.setQueriesData(
-        {
-          predicate: (q) => {
-            const key = q.queryKey;
-            return (
-              Array.isArray(key) &&
-              key.length >= 3 &&
-              key[0] === "pontos" &&
-              key[1] === "customTags" &&
-              key[2] === terreiroId
-            );
-          },
-        },
-        (old) => {
-          const prev = (old ?? {}) as Record<
-            string,
-            {
-              id: string;
-              tagText: string;
-              tagTextNormalized: string;
-              createdAt: string;
-            }[]
-          >;
+      // Não é update otimista: o insert acima já foi aguardado e qualquer erro
+      // lançado antes daqui. É um patch pós-escrita, para a tag aparecer sem
+      // esperar o refetch — seguido da invalidação que faz o cache convergir com
+      // o que o banco realmente gravou (o `tag_text_normalized` é calculado no
+      // cliente e pode não bater com o que o servidor guardou).
+      const customTagsFilter = {
+        predicate: (q: { queryKey: unknown }) =>
+          isCustomTagsQueryKeyForTerreiro(q.queryKey, terreiroId),
+      };
 
-          const existing = Array.isArray(prev[pontoId]) ? prev[pontoId] : [];
-          if (
-            existing.some((t) => t.tagTextNormalized === tag_text_normalized)
-          ) {
-            return prev;
-          }
-
-          return {
-            ...prev,
-            [pontoId]: [
-              ...existing,
-              {
-                id: insertedId || `tmp_${Date.now().toString(36)}`,
-                tagText: tag_text,
-                tagTextNormalized: tag_text_normalized,
-                createdAt: insertedCreatedAt || new Date().toISOString(),
-              },
-            ],
-          };
-        }
+      queryClient.setQueriesData(customTagsFilter, (old) =>
+        addTagToCustomTagsMap(old, pontoId, {
+          id: insertedId || `tmp_${Date.now().toString(36)}`,
+          tagText: tag_text,
+          tagTextNormalized: tag_text_normalized,
+          createdAt: insertedCreatedAt || new Date().toISOString(),
+        })
       );
+
+      queryClient.invalidateQueries(customTagsFilter);
 
       const shouldShowHint = canShowRemoveHint && !(await wasHintShown());
 

@@ -11,6 +11,10 @@ import {
   Text,
   View,
 } from "react-native";
+import {
+  isCustomTagsQueryKeyForTerreiro,
+  removeTagFromCustomTagsMap,
+} from "@/src/queries/terreiroPontoCustomTagsCache";
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
@@ -82,38 +86,19 @@ export function RemoveMediumTagSheet(props: {
         throw res.error;
       }
 
-      queryClient.setQueriesData(
-        {
-          predicate: (q) => {
-            const key = q.queryKey;
-            return (
-              Array.isArray(key) &&
-              key.length >= 3 &&
-              key[0] === "pontos" &&
-              key[1] === "customTags" &&
-              key[2] === terreiroId
-            );
-          },
-        },
-        (old) => {
-          const prev = (old ?? {}) as Record<
-            string,
-            {
-              id: string;
-              tagText: string;
-              tagTextNormalized: string;
-              createdAt: string;
-            }[]
-          >;
+      // Mesma forma do AddMediumTagSheet: o delete já foi aguardado, então isto
+      // é patch pós-escrita, não update otimista. A invalidação fecha a
+      // divergência com o banco.
+      const customTagsFilter = {
+        predicate: (q: { queryKey: unknown }) =>
+          isCustomTagsQueryKeyForTerreiro(q.queryKey, terreiroId),
+      };
 
-          const existing = Array.isArray(prev[pontoId]) ? prev[pontoId] : [];
-
-          return {
-            ...prev,
-            [pontoId]: existing.filter((t) => t.id !== tagId),
-          };
-        }
+      queryClient.setQueriesData(customTagsFilter, (old) =>
+        removeTagFromCustomTagsMap(old, pontoId, tagId)
       );
+
+      queryClient.invalidateQueries(customTagsFilter);
 
       setIsDeleting(false);
       onClose();

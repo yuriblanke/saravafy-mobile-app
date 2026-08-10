@@ -647,6 +647,36 @@ terreiro, outra não).
 
 ---
 
+## 12. Tags de médium — `D4` (novo, e a premissa mudou)
+
+Origem: `D4`. **Leia isto antes de testar:** o `D4` estava descrito no backlog como *update otimista
+sem rollback*. Não é — nos dois sheets a escrita é aguardada e o erro lançado **antes** do patch de
+cache. Não existe janela otimista, logo não existe o que reverter.
+
+**Por isso o item mais importante desta seção é o 12.1: preciso que você redescubra o sintoma.**
+O `§6.6` da lista de defeitos conhecidos dizia "tag fica na tela mesmo com erro de rede (~60s)".
+Pelo código isso não pode acontecer por esse caminho. Ou o sintoma era outro, ou a causa é outra —
+o palpite é o cliente do Supabase pendurado num socket morto segurando o sheet aberto, o que é
+questão de timeout, não de rollback.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 12.1 | **Modo avião ligado**, abrir um ponto num terreiro onde você edita, adicionar um médium | A tag **não** aparece na lista, e vem um toast de erro. Se ela aparecer, anote **exatamente** o que aconteceu e quanto tempo levou — é o `§6.6` e ele precisa de causa nova | |
+| 12.2 | Mesma coisa, mas **removendo** um médium offline | A tag **continua** na lista e vem toast de erro | |
+| 12.3 | Cronometrar o 12.1: quanto tempo até o toast aparecer? | Anote o número. Se for ~60s com o sheet travado no spinner, essa é a causa real do `§6.6` e vira defeito novo | |
+| 12.4 | Online: adicionar um médium e conferir que ele aparece na hora | Aparece imediatamente, sem piscar. O patch continua acontecendo — só ganhou uma revalidação depois | |
+| 12.5 | Online: adicionar um médium, e conferir a mesma tag na **outra** tela (Coleção e Player mostram o mesmo mapa) | Aparece nas duas. O patch atinge todos os lotes em cache daquele terreiro, de propósito | |
+| 12.6 | Online: remover um médium e conferir que some das duas telas | Some das duas | |
+| 12.7 | Adicionar um médium **repetido** (mesmo nome, mesma grafia) | Toast dizendo que já está cadastrado, e a lista **não** ganha item duplicado | |
+| 12.8 | Sem permissão (conta que não edita aquele terreiro): tentar adicionar | Toast de permissão, nada entra na lista | |
+
+> **O que ganhou revalidação:** depois de gravar, o app agora invalida o mapa de tags além de aplicar
+> o patch local. Isso existe porque o `tag_text_normalized` é calculado no cliente e pode não bater
+> com o que o banco guardou. Não deve piscar — o hook mantém o dado anterior enquanto revalida. **Se
+> piscar, é regressão e vale anotar.**
+
+---
+
 ## Fora de escopo
 
 Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez de tentar consertar:
@@ -690,7 +720,7 @@ Confirmados no código, ainda sem correção. Se aparecerem, é esperado:
 |---|---|---|
 | §6.11 | Enviar ponto novo **com áudio** → ponto salva, áudio some, toast "ID do ponto indisponível" | `PontoUpsertModal.tsx:591` lê `approved_ponto_id` antes do curador aprovar |
 | §6.7 | "Reenviar convite" toasta sucesso e não reenvia nada | `terreiroMembership.ts:1224` é stub |
-| §6.6 | Tag de médium fica na tela mesmo com erro de rede (~60s) | Update otimista sem rollback |
+| §6.6 ⚠️ | Tag de médium fica na tela mesmo com erro de rede (~60s) | **A causa registrada estava errada** — não há update otimista nesse caminho (ver `D4` no backlog). O sintoma segue sem causa conhecida: **redescobrir na seção 12** |
 | §6.8 | Editar ponto e não ver a mudança em outra tela | UPDATE direto sem invalidar cache |
 
 ~~`§6.10` — trocar de usuário no mesmo device mostrando dado de membership do anterior~~ —
