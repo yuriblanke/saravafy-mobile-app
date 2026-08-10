@@ -556,6 +556,50 @@ terreiro com papel admin/curimba**. Ninguém mais.
 
 ---
 
+## 9. Rollout do teclado — as 11 telas restantes (novo)
+
+Origem: `D14`, rollout liberado pela seção 0. **Precisa de build novo** — as 11 telas não estão no
+APK `d796d95e`/`b85d0a95`, só o piloto está.
+
+O `filler.png` não existe mais em lugar nenhum do app. Então **toda tela abaixo vai estar ~290px
+mais curta com o teclado fechado** — igual ao que aconteceu no piloto e que o item `0.5` mediu. Isso
+é a correção, não regressão. O que você procura é o oposto: campo que **não** sobe, ou espaço morto
+que **sobrou**.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 9.1 | Cada tela: focar o campo mais **baixo** do formulário. Sheet de remover tag, convite (`InviteModal`), criar coleção no Home, criar coleção na Biblioteca, sheet de curador, `AccessManager` (**dois** sheets: convite e seleção de papel), `TerreiroMembers` (**dois**: menu de membro e convite) | Campo sobe acima do teclado sozinho, sem rolar na mão | |
+| 9.2 | Mesmas telas: fechar o teclado | Sem faixa vazia sobrando no fim do formulário | |
+| 9.3 | Mesmas telas: arrastar-pra-fechar, backdrop e enviar continuam funcionando | Igual ao `0.6`. Se algum sheet parou de fechar no arrasto, o pan está brigando com o scroll novo **naquele** sheet | |
+| 9.4 | 🚨 **`PontoUpsertModal` (criar/editar ponto) — o de maior risco desta seção.** Focar os campos do fim do formulário | Campo sobe. **Por que é o mais arriscado:** é a única tela onde o `KeyboardAwareScrollView` fica **dentro** de um `<Modal>` do React Native (`PontoUpsertModal.tsx:751` envolve `:946`). No Android o `Modal` é uma janela nativa separada, e o `windowSoftInputMode="adjustResize"` do `AndroidManifest.xml:19` vale pra Activity, **não** pra essa janela. Se alguma tela do rollout não avoidar, a aposta é nesta | |
+| 9.5 | `TerreiroEditor`, `PlayerAudioUpload`, `ReviewSubmission` (curadoria) — focar os campos do fim | Campo sobe. Estes três também trocaram o `ScrollView` direto, mas **fora** de `Modal` (no `TerreiroEditor` o scroll e o `Modal` são irmãos, `:1629-2045` vs `:2094-2205`), então não têm o risco do 9.4 | |
+| 9.6 | Em qualquer uma delas: rolar o formulário na mão, com e sem teclado aberto | Rolagem normal, sem travar e sem pular. Os 4 swaps diretos eram `ScrollView` com props simples, mas o comportamento de rolagem é do componente novo | |
+
+---
+
+## 10. Toque nas abas depois de vários "voltar" — `D15` (novo)
+
+Origem: `D15`, correção layer 2 (`8c8e962`). **Precisa de build novo.** É um bug de estado
+acumulado, então repetição importa mais que capricho.
+
+**Reiniciar o app antes de testar** — uma montagem nova de `(tabs)` re-registra o handler e mascara
+o bug. Se você matar e reabrir no meio, começa de novo.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 10.1 | Aba Terreiros → abrir um terreiro → **voltar 3 vezes** | Depois do 3º voltar, você fica num terreiro. **Tocar** na aba Pontos tem que trocar de aba. Antes do fix, o toque morria aqui e só o swipe funcionava | |
+| 10.2 | Sessão longa: 15–20 navegações quicando entre terreiro, coleção e player, sempre voltando, e **tocando na barra de abas a cada 3 voltas** | Toque nunca para de funcionar. É o teste que importa — o bug antigo aparecia no meio do caminho e ficava dead até reiniciar | |
+| 10.3 | Comparar toque e swipe na mesma tela, várias vezes | Os dois sempre concordam. **Toque morto + swipe vivo é a assinatura exata do `D15`** — se você vir isso de novo, o layer 2 não pegou o caso e vale anotar o caminho | |
+| 10.4 | (Só no APK de **desenvolvimento**, com Metro aberto) Filtrar o console em `[TabController]` durante 10.1 e 10.2 | O aviso `goToTab called without registered handler` **nunca** aparece. Ele é o defeito impresso em texto | |
+
+> **O que o layer 2 não conserta, de propósito:** duas instâncias de `(tabs)` continuam sendo criadas
+> e montadas ao mesmo tempo — header duplicado, queries duplicadas, render duplicado. O layer 2 só
+> garante que a instância visível é a dona do handler. Tirar a duplicação é o layer 1, que muda a
+> semântica de "voltar" em 5 telas e por isso é decisão sua, não do agente. Ver `D15` no
+> [`BACKLOG.md`](BACKLOG.md).
+
+---
+
 ## Fora de escopo
 
 Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez de tentar consertar:
