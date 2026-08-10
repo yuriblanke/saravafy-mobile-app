@@ -31,7 +31,10 @@ root-caused in code before being written down.
 | [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | `D6`, `D9` |
 | [Spec 6 — Keyboard avoidance (pilot)](specs/2026-08-09-spec-6-keyboard-avoidance.md) | `D14` (1 screen only) |
 | *(rollout spec — blocked on Spec 6 sign-off)* | `D14` (remaining **11** screens) |
-| *(unassigned)* | `D1`–`D5`, `D13` |
+| [Spec 7 — Unificar navegação](specs/2026-08-10-spec-7-navigation-unification.md) | `S-4a`; fecha o `D15` estruturalmente. **Escrita, não implementada** |
+| [Spec 8 — Uma implementação de Preferências](specs/2026-08-10-spec-8-preferences-unification.md) | `C5`, `X12`. **Escrita, não implementada**; depende da Spec 7 e de uma decisão do usuário |
+| [Spec 9 — Player e New Architecture](specs/2026-08-10-spec-9-player-new-architecture.md) | `N1`. **Levantamento, não implementação** |
+| *(unassigned)* | `D2`, `D3`, `D5`, `D13` |
 
 `D13` is deliberately unassigned: it needs a product decision (and likely a `profiles` column)
 rather than a code fix — see its row.
