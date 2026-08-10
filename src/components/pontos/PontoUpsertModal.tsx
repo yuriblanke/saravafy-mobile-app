@@ -7,18 +7,17 @@ import React, {
 } from "react";
 import {
     ActivityIndicator,
-    Image,
     Linking,
     Modal,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Switch,
     Text,
     TextInput,
     View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { useToast } from "@/contexts/ToastContext";
 import {
@@ -40,8 +39,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { useRouter } from "expo-router";
-
-const fillerPng = require("@/assets/images/filler.png");
 
 const TERMS_URL =
   "https://www.saravafy.com.br/termos-de-uso-interprete-de-ponto-audio";
@@ -946,11 +943,12 @@ export function PontoUpsertModal({
             <View style={styles.headerRight} />
           </View>
 
-          <ScrollView
+          <KeyboardAwareScrollView
             style={styles.formScroll}
             contentContainerStyle={styles.form}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
+            bottomOffset={spacing.lg}
           >
             {mode === "create" ? (
               <View style={styles.toggleRow}>
@@ -1539,14 +1537,7 @@ export function PontoUpsertModal({
                 )}
               </Pressable>
             </View>
-
-            <Image
-              source={fillerPng}
-              style={styles.fillerImage}
-              resizeMode="contain"
-              accessibilityIgnoresInvertColors
-            />
-          </ScrollView>
+          </KeyboardAwareScrollView>
         </View>
       </SaravafyScreen>
     </Modal>
@@ -1825,11 +1816,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "900",
-  },
-  fillerImage: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   pressed: {
     opacity: 0.85,
