@@ -13,13 +13,13 @@ import {
   Modal,
   Platform,
   Pressable,
-  ScrollView,
   StyleSheet,
   Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 import { useAuth } from "@/contexts/AuthContext";
 import { usePreferences } from "@/contexts/PreferencesContext";
@@ -1626,10 +1626,11 @@ export default function TerreiroEditor() {
         <View style={styles.topBarSpacer} />
       </View>
 
-      <ScrollView
+      <KeyboardAwareScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        bottomOffset={spacing.lg}
       >
         <View style={styles.section}>
           <Text style={[styles.label, { color: textSecondary }]}>
@@ -2040,15 +2041,8 @@ export default function TerreiroEditor() {
           </Pressable>
         </View>
 
-        <Image
-          source={require("@/assets/images/filler.png")}
-          style={styles.filler}
-          resizeMode="contain"
-          accessibilityIgnoresInvertColors
-        />
-
         <View style={styles.bottomPad} />
-      </ScrollView>
+      </KeyboardAwareScrollView>
 
       {loading ? (
         <View style={styles.loadingOverlay} pointerEvents="none">
@@ -2815,11 +2809,6 @@ const styles = StyleSheet.create({
   },
   footerBtnDisabled: {
     opacity: 0.6,
-  },
-  filler: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   bottomPad: {
     height: spacing.xl,
