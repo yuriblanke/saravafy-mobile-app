@@ -23,8 +23,13 @@ correção de doc e/ou de código.
 
 | Perfil | Build | Para que serve |
 |---|---|---|
-| **development** | [`4c675867`](https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/4c675867-6475-40a5-b97f-f8b7d7feaa33) (commit `9ae0a99`) | Seções **0 a 6**. É dev client: instale e rode `npm run start:dev` para conectar no Metro |
-| **production** | [`25cd2eae`](https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/25cd2eae-0c12-49e1-9d67-05aa34fd5b52) (commit `c7af110`, version code 27) | Item **4.4** e a seção **Offline** (`O.1`–`O.6`). Standalone, sem Metro — é o único que abre com o avião já ligado |
+| **development** | [`b85d0a95`](https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/b85d0a95-7536-47d1-8667-cf26e63bebc1) (commit `6604988`) — [APK direto](https://expo.dev/artifacts/eas/n0-IJmtHnfdcOJY2Yted68EMZoamBDnVOzgl1CPzqaA.apk) | Seções **0 a 8**. É dev client: instale e rode `npm run start:dev` para conectar no Metro |
+| **production** | [`d796d95e`](https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/d796d95e-86f3-4ca1-9619-d3af31f312e6) (commit `6604988`, version code 28) — [APK direto](https://expo.dev/artifacts/eas/5ERUXjgtlEs5tJOjl2uAdQR1xe6XE-xPYKLNSqiz0aE.apk) | Item **4.4** e a seção **Offline** (`O.1`–`O.6`). Standalone, sem Metro — é o único que abre com o avião já ligado |
+
+> Ambos os builds são do commit `6604988` (HEAD), ou seja, **já contêm** as correções desta rodada:
+> pull-to-refresh nas 6 telas, mensagem de erro do Home em produção (4.4), tap-through do
+> `BottomSheet` com teclado aberto, e o gate de permissão da Coleção. Os builds anteriores
+> (`4c675867` dev / `25cd2eae` prod) estão obsoletos — **não use.**
 
 Build está limpo — **Specs 1, 2a, 2b, 3, 4 e 5** estão Agent-DoD-completas. Pode rodar o app.
 
@@ -118,12 +123,13 @@ isso ele **bloqueia** o resto da rodada de Spec 6.
 > do Windows corta os caminhos do codegen mesmo com `LongPathsEnabled=1`. Por isso a verificação
 > nativa foi feita no EAS, que roda em Linux.
 >
-> **APK a instalar** — build `4c675867`, commit `9ae0a99`, perfil `development`, SDK 54, New
+> **APK a instalar** — build `b85d0a95`, commit `6604988`, perfil `development`, SDK 54, New
 > Architecture, status `finished`:
-> https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/4c675867-6475-40a5-b97f-f8b7d7feaa33
+> https://expo.dev/accounts/yuriblanke/projects/saravafy/builds/b85d0a95-7536-47d1-8667-cf26e63bebc1
 >
-> Esse build contém o piloto inteiro (provider + prop opt-in + adoção na tela). Um build anterior
-> (`3f9666b9`) provou só que o módulo linka, sem UI — **não use aquele.**
+> Esse build contém o piloto inteiro (provider + prop opt-in + adoção na tela) **mais** o fix de
+> tap-through do `BottomSheet` (item 0.8). Builds anteriores (`3f9666b9`, `4c675867`) estão
+> obsoletos — **não use.**
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
@@ -451,7 +457,7 @@ o `userId` passado no invalidate não bate com o que o hook lê.
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
 | 6.1 | Login com Google | Entra sem loop | ✅ OK |
-| 6.2 | Percurso: login → Home → buscar → player → coleção de terreiro → voltar | Sem crash, sem warning de hook order no console | ✅ OK |
+| 6.2 | Percurso: login → Home → buscar → player → coleção de terreiro → voltar | Sem crash, sem warning de hook order no console | ⚠️ Sem crash, mas **achou bug novo**: depois de vários "voltar", chegando em terreiro, o **toque** na aba pontos/terreiro para de funcionar — o **swipe** entre as mesmas abas continua funcionando. Registrado como `D15` no [`BACKLOG.md`](BACKLOG.md). Se reproduzir de novo, anote quantos "voltar" e se veio do player ou da coleção |
 | 6.3 | Trocar de aba (Pontos ↔ Terreiros) por swipe | Sem frame estranho na transição | ✅ OK |
 | 6.4 | Abrir e fechar Preferências pelo header | Sem flash de conteúdo errado | ✅ OK hoje — ver nota importante |
 
