@@ -262,7 +262,7 @@ export default function TerreiroBiblioteca() {
     if (terreiroId) return;
     if (params.bootStart === "1") return;
 
-    router.replace((returnTo || "/(app)/(tabs)/(pontos)") as any);
+    router.dismissTo((returnTo || "/(app)/(tabs)/(pontos)") as any);
   }, [params.bootStart, router, terreiroId]);
 
   // Boot offline: se abrimos via snapshot e o fetch falhar, volta para Pontos.
@@ -273,7 +273,7 @@ export default function TerreiroBiblioteca() {
     if (!collectionsQuery.isError) return;
 
     clearStartPageSnapshotOnly().catch(() => undefined);
-    router.replace((returnTo || "/(app)/(tabs)/(pontos)") as any);
+    router.dismissTo((returnTo || "/(app)/(tabs)/(pontos)") as any);
   }, [
     clearStartPageSnapshotOnly,
     collectionsQuery.isError,
@@ -565,9 +565,12 @@ export default function TerreiroBiblioteca() {
     },
   });
 
+  // `dismissTo`, não `replace`: `replace` criava uma segunda instância de
+  // `(tabs)` em vez de voltar para a que já estava no stack, e a instância
+  // extra roubava o handler de troca de aba (ver `D15` no BACKLOG).
   const goBack = useCallback(() => {
     if (returnTo) {
-      router.replace(returnTo as any);
+      router.dismissTo(returnTo as any);
       return;
     }
 
@@ -578,7 +581,7 @@ export default function TerreiroBiblioteca() {
     if (!returnTo) return;
 
     const sub = BackHandler.addEventListener("hardwareBackPress", () => {
-      router.replace(returnTo as any);
+      router.dismissTo(returnTo as any);
       return true;
     });
 

@@ -104,7 +104,7 @@ export default function AppTabsLayout() {
       }
 
       // Fallback defensivo (não deveria acontecer em runtime normal).
-      router.replace(
+      router.dismissTo(
         (tab === "terreiros"
           ? "/(app)/(tabs)/(terreiros)"
           : "/(app)/(tabs)/(pontos)") as any

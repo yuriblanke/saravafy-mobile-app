@@ -401,7 +401,7 @@ export function TabsHeaderWithPreferences(
           accessibilityRole="button"
           onPress={() => {
             if (!isInTabs) {
-              router.replace("/(app)/(tabs)/(pontos)" as any);
+              router.dismissTo("/(app)/(tabs)/(pontos)" as any);
               return;
             }
 
@@ -438,7 +438,7 @@ export function TabsHeaderWithPreferences(
           accessibilityRole="button"
           onPress={() => {
             if (!isInTabs) {
-              router.replace("/(app)/(tabs)/(terreiros)" as any);
+              router.dismissTo("/(app)/(tabs)/(terreiros)" as any);
               return;
             }
 

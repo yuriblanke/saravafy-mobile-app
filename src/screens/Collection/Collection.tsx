@@ -190,7 +190,7 @@ export default function Collection() {
       return;
     }
 
-    router.replace("/(app)/(tabs)/(pontos)" as any);
+    router.dismissTo("/(app)/(tabs)/(pontos)" as any);
   }, [isInTabs, router, tabController]);
 
   const terreiroIdFromParams = Array.isArray(params.terreiroId)

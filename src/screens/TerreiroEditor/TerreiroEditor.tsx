@@ -941,7 +941,7 @@ export default function TerreiroEditor() {
       });
 
       setDeleteModalOpen(false);
-      router.replace("/(app)/(tabs)/(terreiros)" as any);
+      router.dismissTo("/(app)/(tabs)/(terreiros)" as any);
     } catch (error) {
       // Rollback optimistic cache changes
       queryClient.setQueryData(

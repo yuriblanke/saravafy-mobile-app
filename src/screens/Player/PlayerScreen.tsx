@@ -164,7 +164,7 @@ export default function PlayerScreen() {
       if (router.canGoBack()) {
         router.back();
       } else {
-        router.replace("/(app)/(tabs)/(pontos)" as any);
+        router.dismissTo("/(app)/(tabs)/(pontos)" as any);
       }
       return;
     }
@@ -181,7 +181,7 @@ export default function PlayerScreen() {
     }
     tabController.goToTab("pontos");
     rootPager.setActiveKey("pontos");
-    router.replace("/(app)/(tabs)/(pontos)" as any);
+    router.dismissTo("/(app)/(tabs)/(pontos)" as any);
   }, [
     addFlowCollectionId,
     collectionId,
