@@ -39,6 +39,7 @@ import {
   prefetchEditableTerreiroIds,
 } from "@/src/queries/collections";
 import { shouldEvictQueryOnLogout } from "@/src/queries/logoutCacheEviction";
+import { queryKeys } from "@/src/queries/queryKeys";
 import {
   prefetchMyEditableTerreiros,
   prefetchMyTerreiroAccessIds,
@@ -416,7 +417,7 @@ function RootLayoutNav() {
 
       if (__DEV__) {
         const editableCollections = queryClient.getQueryCache().findAll({
-          queryKey: ["collections", "editableByUser", userId],
+          queryKey: queryKeys.collections.editableByUserPrefix(userId),
         });
         console.info("[BootPrefetch] done", {
           userId,

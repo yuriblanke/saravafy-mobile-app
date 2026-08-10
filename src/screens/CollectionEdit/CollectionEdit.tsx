@@ -194,7 +194,7 @@ export default function EditCollectionPointsScreen() {
       });
 
       queryClient.invalidateQueries({
-        queryKey: ["terreiros", "collectionsByTerreiro"],
+        queryKey: queryKeys.terreiros.collectionsByTerreiroPrefix(),
       });
     },
     [collectionId, originalPontoIds, queryClient, user?.id],

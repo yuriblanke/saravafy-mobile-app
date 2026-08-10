@@ -404,7 +404,7 @@ export function AddToCollectionFlow(props: AddToCollectionFlowProps) {
         { queryKey: queryKeys.collections.editableByUserPrefix(userId) },
         { queryKey: queryKeys.collections.byId(vars.collectionId) },
         { queryKey: queryKeys.collections.pontos(vars.collectionId) },
-        { queryKey: ["terreiros", "collectionsByTerreiro"] },
+        { queryKey: queryKeys.terreiros.collectionsByTerreiroPrefix() },
       ];
 
       await cancelQueries(queryClient, filters);
@@ -529,7 +529,7 @@ export function AddToCollectionFlow(props: AddToCollectionFlowProps) {
         queryKey: queryKeys.collections.pontos(vars.collectionId),
       });
       queryClient.invalidateQueries({
-        queryKey: ["terreiros", "collectionsByTerreiro"],
+        queryKey: queryKeys.terreiros.collectionsByTerreiroPrefix(),
       });
     },
   });

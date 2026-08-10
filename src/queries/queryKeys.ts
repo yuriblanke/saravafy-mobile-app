@@ -1,25 +1,45 @@
+/**
+ * Contrato fechado de chaves do React Query (`C1`).
+ *
+ * Toda chave sai daqui. Literal inline em call site é o mecanismo por trás do `D5`
+ * e de metade do §6.2 do `aggregation.md`: a invalidação central não alcança o que
+ * não está no registro, e o defeito não aparece na escrita — aparece depois, numa
+ * tela que não recarregou.
+ *
+ * **Namespaces de terreiro (`C2`).** São dois, e a divisão é literal:
+ * - `terreiro.*` — sub-recursos de **um** terreiro (`["terreiro", id, <recurso>]`).
+ * - `terreiros.*` — consultas sobre **conjuntos** de terreiros (diretório, por
+ *   usuário, coleções por terreiro).
+ *
+ * Existia um terceiro grupo, achatado no topo (`terreiroMembersCount`,
+ * `terreiroMembersList`, `terreiroMembersListInfinite`), que descrevia sub-recursos
+ * de um terreiro com outro formato de chave. Foi absorvido por `terreiro.*` em
+ * 2026-08-10. Isso importa além da estética: chave achatada não compartilha prefixo
+ * com as irmãs, então uma invalidação por prefixo de `["terreiro", id]` nunca as
+ * alcançava — a mesma raiz do `D1`.
+ *
+ * **Prefixos.** Quando a intenção é invalidar uma família inteira, use o helper
+ * `*Prefix` correspondente em vez de escrever o array curto no call site. O prefixo
+ * é parte do contrato tanto quanto a chave completa.
+ */
 export const queryKeys = {
-  terreiroMembersCount: (terreiroId: string) =>
-    ["terreiroMembersCount", terreiroId] as const,
-  terreiroMembersList: (params: {
-    terreiroId: string;
-    visibilityTier: "public" | "member" | "admin";
-  }) =>
-    ["terreiroMembersList", params.terreiroId, params.visibilityTier] as const,
-  terreiroMembersListInfinite: (params: {
-    terreiroId: string;
-    visibilityTier: "public" | "member" | "admin";
-  }) =>
-    [
-      "terreiroMembersListInfinite",
-      params.terreiroId,
-      params.visibilityTier,
-    ] as const,
   terreiro: {
+    /** Prefixo de tudo que pertence a um terreiro. */
+    all: (terreiroId: string) => ["terreiro", terreiroId] as const,
     members: (terreiroId: string) =>
       ["terreiro", terreiroId, "members"] as const,
     membersCount: (terreiroId: string) =>
       ["terreiro", terreiroId, "membersCount"] as const,
+    membersListInfinite: (params: {
+      terreiroId: string;
+      visibilityTier: "public" | "member" | "admin";
+    }) =>
+      [
+        "terreiro",
+        params.terreiroId,
+        "membersListInfinite",
+        params.visibilityTier,
+      ] as const,
     invites: (terreiroId: string) =>
       ["terreiro", terreiroId, "invites"] as const,
     membershipRequests: (terreiroId: string) =>
@@ -31,21 +51,30 @@ export const queryKeys = {
       ["preferences", "terreiros", userId] as const,
   },
   me: {
-    profile: (userId: string) => ["me", "profile", userId] as const,
     membership: (userId: string) => ["me", "membership", userId] as const,
     terreiros: (userId: string) => ["me", "terreiros", userId] as const,
     terreiroAccessIds: (userId: string) =>
       ["me", "terreiroAccessIds", userId] as const,
-    // Deprecated (mantido por compatibilidade): use queryKeys.preferences.terreiros
-    terreirosWithRole: (userId: string) =>
-      ["preferences", "terreiros", userId] as const,
     editableTerreiros: (userId: string) =>
       ["me", "editableTerreiros", userId] as const,
     managedTerreiros: (userId: string) =>
       ["me", "managedTerreiros", userId] as const,
     permissions: (userId: string) => ["me", "permissions", userId] as const,
+    /**
+     * Modo curador ligado/desligado. É um **booleano**.
+     *
+     * Vivia sob `me.profile(userId)` (`C7`), cujo nome prometia um objeto de
+     * perfil: a primeira query de perfil de verdade teria sobrescrito o booleano
+     * do `CuratorModeContext`, ou vice-versa, sem nada indicando o conflito.
+     */
+    curatorModeEnabled: (userId: string) =>
+      ["me", "curatorModeEnabled", userId] as const,
   },
   pontos: {
+    /** Prefixo de tudo que é ponto. Use para invalidação ampla, deliberada. */
+    allPrefix: () => ["pontos"] as const,
+    /** Catálogo público completo, sem escopo de usuário nem de terreiro. */
+    allPublic: () => ["pontos", "all", "public"] as const,
     terreiro: (terreiroId: string) =>
       ["pontos", { scope: "terreiro", terreiroId }] as const,
     feed: (userId: string) => ["pontos", "feed", userId] as const,
@@ -68,6 +97,9 @@ export const queryKeys = {
       ["terreiros", "editableByUser", userId] as const,
     collectionsByTerreiro: (terreiroId: string) =>
       ["terreiros", "collectionsByTerreiro", terreiroId] as const,
+    /** Coleções de **todos** os terreiros em cache. */
+    collectionsByTerreiroPrefix: () =>
+      ["terreiros", "collectionsByTerreiro"] as const,
   },
   collections: {
     // QueryKey por usuário para todas as coleções visíveis pela usuária
@@ -85,14 +117,6 @@ export const queryKeys = {
     editableByUserPrefix: (userId: string) =>
       ["collections", "editableByUser", userId] as const,
 
-    // Deprecated: manter por compatibilidade temporária
-    available: (params: { userId: string; terreiroId?: string | null }) =>
-      [
-        "collections",
-        "available",
-        params.userId,
-        params.terreiroId ?? null,
-      ] as const,
     terreiro: (terreiroId: string) =>
       ["collections", { scope: "terreiro", terreiroId }] as const,
     byId: (id: string) => ["collection", { id }] as const,
@@ -100,6 +124,8 @@ export const queryKeys = {
     // Pontos ordenados de uma coleção (somente depende do collectionId)
     pontos: (collectionId: string) =>
       ["collections", "pontos", collectionId] as const,
+    /** Pontos de **todas** as coleções em cache. */
+    pontosPrefix: () => ["collections", "pontos"] as const,
   },
   entidades: {
     /** Catálogo global (`entidades.is_active`) para pickers. */
@@ -111,6 +137,8 @@ export const queryKeys = {
   curatorInvites: {
     pendingForInvitee: (normalizedEmail: string) =>
       ["curatorInvites", "pendingForInvitee", normalizedEmail] as const,
+    /** Lista de convites de curador na visão de quem administra. */
+    adminList: () => ["curatorInvites", "adminList"] as const,
   },
   terreiroInvites: {
     pendingForInvitee: (normalizedEmail: string) =>
@@ -142,5 +170,8 @@ export const queryKeys = {
       ["pontoAudios", "hasAnyUploadedByPontoId", pontoId] as const,
     byPontoIdsHash: (pontoIdsHash: string) =>
       ["pontoAudios", "byPontoIds", pontoIdsHash] as const,
+    /** Metadados de um áudio pelo id do próprio áudio (não do ponto). */
+    metaById: (pontoAudioId: string) =>
+      ["pontoAudios", "metaById", pontoAudioId] as const,
   },
 } as const;

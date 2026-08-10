@@ -12,6 +12,7 @@ import {
     fetchActivePontoVersoesByPontoIds,
     type PontoVersaoPlayerRow,
 } from "@/src/queries/pontoVersoes";
+import { queryKeys } from "@/src/queries/queryKeys";
 
 export type PlayerPontoVersao = PontoVersaoPlayerRow;
 
@@ -141,7 +142,7 @@ export function useCollectionPlayerData(
 
   // Modo: biblioteca inteira (cache sem depender do filtro local)
   const allPontosQuery = useQuery({
-    queryKey: ["pontos", "all", "public"] as const,
+    queryKey: queryKeys.pontos.allPublic(),
     enabled: enabled && isAllMode,
     staleTime: 3 * 60 * 1000,
     gcTime: 45 * 60 * 1000,

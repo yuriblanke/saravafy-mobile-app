@@ -97,7 +97,7 @@ export function useTerreiroInviteDecision(params: {
         queryKey: queryKeys.me.terreiros(userId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.me.terreirosWithRole(userId),
+        queryKey: queryKeys.preferences.terreiros(userId),
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreiroAccessIds(userId),
@@ -159,7 +159,7 @@ export function useTerreiroInviteDecision(params: {
           queryKey: queryKeys.me.terreiros(userId),
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.me.terreirosWithRole(userId),
+          queryKey: queryKeys.preferences.terreiros(userId),
         });
         queryClient.invalidateQueries({
           queryKey: queryKeys.me.terreiroAccessIds(userId),

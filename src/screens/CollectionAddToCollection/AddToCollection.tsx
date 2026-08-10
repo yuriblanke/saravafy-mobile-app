@@ -262,7 +262,7 @@ export default function AddToCollection() {
   // Reusa a mesma queryKey do player (e mantém o mesmo shape) para evitar
   // duplicar fetch e evitar sobrescrever o cache com um shape incompatível.
   const allPontosQuery = useQuery({
-    queryKey: ["pontos", "all", "public"] as const,
+    queryKey: queryKeys.pontos.allPublic(),
     enabled: true,
     staleTime: 3 * 60 * 1000,
     gcTime: 45 * 60 * 1000,

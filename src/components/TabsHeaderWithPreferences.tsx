@@ -940,7 +940,7 @@ export function PreferencesOverlaySheets(
 
       // Optimistic: remove from list immediately
       queryClient.setQueryData(
-        userId ? queryKeys.me.terreirosWithRole(userId) : [],
+        userId ? queryKeys.preferences.terreiros(userId) : [],
         (prev: any) => {
           const arr = Array.isArray(prev) ? prev : [];
           return arr.filter(
@@ -951,7 +951,7 @@ export function PreferencesOverlaySheets(
 
       // Invalidate related caches
       queryClient.invalidateQueries({
-        queryKey: queryKeys.me.terreirosWithRole(userId),
+        queryKey: queryKeys.preferences.terreiros(userId),
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.membership(userId),
@@ -1060,7 +1060,7 @@ export function PreferencesOverlaySheets(
   const visiblePendingTerreiroInvites = pendingTerreiroInvites;
 
   const curatorInvitesAdminQuery = useQuery({
-    queryKey: ["curatorInvites", "adminList"],
+    queryKey: queryKeys.curatorInvites.adminList(),
     enabled: !!userId && isDevMaster && isCuratorAdminOpen,
     staleTime: 0,
     queryFn: async () => {
@@ -1236,7 +1236,7 @@ export function PreferencesOverlaySheets(
         invite.role === "member"
       ) {
         queryClient.setQueryData(
-          queryKeys.me.terreirosWithRole(userId),
+          queryKeys.preferences.terreiros(userId),
           (prev: any) => {
             const arr = Array.isArray(prev) ? prev : [];
             const already = arr.some(
@@ -1286,7 +1286,7 @@ export function PreferencesOverlaySheets(
         queryKey: queryKeys.me.terreiros(userId),
       });
       queryClient.invalidateQueries({
-        queryKey: queryKeys.me.terreirosWithRole(userId),
+        queryKey: queryKeys.preferences.terreiros(userId),
       });
       queryClient.invalidateQueries({
         queryKey: queryKeys.me.terreiroAccessIds(userId),
@@ -1371,7 +1371,7 @@ export function PreferencesOverlaySheets(
           queryKey: queryKeys.me.terreiros(userId),
         });
         queryClient.invalidateQueries({
-          queryKey: queryKeys.me.terreirosWithRole(userId),
+          queryKey: queryKeys.preferences.terreiros(userId),
         });
         queryClient.invalidateQueries({
           queryKey: queryKeys.me.terreiroAccessIds(userId),

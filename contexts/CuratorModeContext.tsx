@@ -55,7 +55,7 @@ export function CuratorModeProvider({
   const { isCurator } = useIsCurator();
 
   const profileKey = useMemo(() => {
-    return userId ? queryKeys.me.profile(userId) : ([] as any);
+    return userId ? queryKeys.me.curatorModeEnabled(userId) : ([] as any);
   }, [userId]);
 
   const q = useQuery({

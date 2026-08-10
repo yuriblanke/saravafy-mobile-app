@@ -135,14 +135,6 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.editableByUserPrefix(myUserId),
             });
-
-            // Compat (legado)
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.collections.available({
-                userId: myUserId,
-                terreiroId: scopeTerreiroId,
-              }),
-            });
           }
         }
       );
@@ -183,14 +175,6 @@ export function useRealtimeTerreiroScope(params: RealtimeParams) {
             });
             queryClient.invalidateQueries({
               queryKey: queryKeys.collections.editableByUserPrefix(myUserId),
-            });
-
-            // Compat (legado)
-            queryClient.invalidateQueries({
-              queryKey: queryKeys.collections.available({
-                userId: myUserId,
-                terreiroId: scopeTerreiroId,
-              }),
             });
           }
         }

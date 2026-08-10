@@ -621,7 +621,7 @@ export default function TerreiroBiblioteca() {
   }, [orderedCollections.length]);
 
   const membersCountQuery = useQuery({
-    queryKey: terreiroId ? queryKeys.terreiroMembersCount(terreiroId) : [],
+    queryKey: terreiroId ? queryKeys.terreiro.membersCount(terreiroId) : [],
     enabled: !!terreiroId,
     staleTime: 60 * 1000,
     gcTime: 5 * 60 * 1000,

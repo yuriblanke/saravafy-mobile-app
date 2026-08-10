@@ -180,7 +180,7 @@ export default function TerreiroMembersList() {
 
   const membersQuery = useInfiniteQuery({
     queryKey: terreiroId
-      ? queryKeys.terreiroMembersListInfinite({
+      ? queryKeys.terreiro.membersListInfinite({
           terreiroId,
           visibilityTier: visibilityTierForQuery,
         })

@@ -863,9 +863,9 @@ export default function ReviewSubmissionScreen() {
           typeof submission?.ponto_id === "string" ? submission.ponto_id : null;
         if (targetId) {
           queryClient.invalidateQueries({
-            queryKey: ["collections", "pontos"],
+            queryKey: queryKeys.collections.pontosPrefix(),
           });
-          queryClient.invalidateQueries({ queryKey: ["pontos"] });
+          queryClient.invalidateQueries({ queryKey: queryKeys.pontos.allPrefix() });
         }
 
         showToast("Correção aprovada.");
@@ -915,7 +915,7 @@ export default function ReviewSubmissionScreen() {
         }
 
         removeFromPendingList(submissionId);
-        queryClient.invalidateQueries({ queryKey: ["pontos"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.pontos.allPrefix() });
         queryClient.invalidateQueries({
           queryKey: queryKeys.pontosSubmissions.pending(),
         });
@@ -989,11 +989,11 @@ export default function ReviewSubmissionScreen() {
 
         if (typeof pontoAudioId === "string" && pontoAudioId) {
           queryClient.invalidateQueries({
-            queryKey: ["pontoAudios", "metaById", pontoAudioId],
+            queryKey: queryKeys.pontoAudios.metaById(pontoAudioId),
           });
         }
 
-        queryClient.invalidateQueries({ queryKey: ["pontos"] });
+        queryClient.invalidateQueries({ queryKey: queryKeys.pontos.allPrefix() });
 
         showToast("Áudio aprovado.");
         router.back();
@@ -1058,7 +1058,7 @@ export default function ReviewSubmissionScreen() {
       await reviewNewMutation.mutateAsync(payload);
 
       removeFromPendingList(submissionId);
-      queryClient.invalidateQueries({ queryKey: ["pontos"] });
+      queryClient.invalidateQueries({ queryKey: queryKeys.pontos.allPrefix() });
 
       showToast("Envio aprovado.");
       router.back();
@@ -1144,11 +1144,11 @@ export default function ReviewSubmissionScreen() {
 
                 if (typeof pontoAudioId === "string" && pontoAudioId) {
                   queryClient.invalidateQueries({
-                    queryKey: ["pontoAudios", "metaById", pontoAudioId],
+                    queryKey: queryKeys.pontoAudios.metaById(pontoAudioId),
                   });
                 }
 
-                queryClient.invalidateQueries({ queryKey: ["pontos"] });
+                queryClient.invalidateQueries({ queryKey: queryKeys.pontos.allPrefix() });
 
                 showToast("Áudio rejeitado.");
                 router.back();
