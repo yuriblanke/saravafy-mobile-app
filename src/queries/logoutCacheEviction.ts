@@ -21,21 +21,24 @@
  * O match é por **prefixo**: uma entrada aqui cobre a si mesma e tudo abaixo dela.
  *
  * Critério para entrar nesta lista: ler o `queryFn` e confirmar que ele não filtra
- * por `auth.uid()`, por membership, nem por papel. Ambas as entradas atuais foram
- * verificadas em 2026-08-10:
+ * por `auth.uid()`, por membership, nem por papel. A entrada atual foi verificada
+ * em 2026-08-10:
  *
  * - `["entidades", "catalog"]` — `entidadesCatalog.ts` filtra apenas
  *   `is_active = true`. Catálogo global usado por pickers.
- * - `["terreiros", "explore", "initial"]` — `terreirosExplore.ts` seleciona
- *   `id, title, cover_image_url` sem nenhum `WHERE` de membership. É o diretório
- *   público (ver `F1`/`F2` no backlog: a aba Terreiros é um diretório por desenho).
  *
  * Não acrescente uma entrada sem fazer essa verificação — cada linha aqui é uma
  * chave que sobrevive à troca de usuário.
+ *
+ * **Encolheu de duas para uma em 2026-08-10.** `["terreiros","explore","initial"]`
+ * era pública e estava corretamente verificada, mas o `X5` mostrou que ninguém lia
+ * esse cache: o prefetch de boot o aquecia e nenhuma tela o consumia. Com a chave
+ * removida do registro, a entrada aqui protegia algo que não existe mais. A aba
+ * Terreiros lê `terreiros.withRole(userId)`, que é escopada por usuário e portanto
+ * despejada — como deve ser.
  */
 export const PUBLIC_QUERY_KEY_PREFIXES: readonly (readonly unknown[])[] = [
   ["entidades", "catalog"],
-  ["terreiros", "explore", "initial"],
 ] as const;
 
 function matchesPrefix(

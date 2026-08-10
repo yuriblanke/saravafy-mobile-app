@@ -28,10 +28,13 @@ describe("shouldEvictQueryOnLogout", () => {
       expect(shouldEvictQueryOnLogout(["entidades", "catalog"])).toBe(false);
     });
 
-    it("mantém o diretório público de terreiros", () => {
-      expect(
-        shouldEvictQueryOnLogout(["terreiros", "explore", "initial"]),
-      ).toBe(false);
+    it("despeja o diretório de terreiros, que é escopado por usuário", () => {
+      // Deixou de ser entrada da allowlist com o `X5`: o cache público que ela
+      // protegia não é mais lido por ninguém e saiu do registro. A aba Terreiros
+      // lê `terreiros.withRole(userId)`.
+      expect(shouldEvictQueryOnLogout(["terreiros", "withRole", PREV_USER_ID])).toBe(
+        true,
+      );
     });
   });
 
@@ -121,7 +124,6 @@ describe("shouldEvictQueryOnLogout", () => {
     });
 
     it("não mantém uma chave que é prefixo *da entrada* (match é na direção oposta)", () => {
-      expect(shouldEvictQueryOnLogout(["terreiros", "explore"])).toBe(true);
       expect(shouldEvictQueryOnLogout(["entidades"])).toBe(true);
     });
 
@@ -142,11 +144,8 @@ describe("shouldEvictQueryOnLogout", () => {
     // Não é estética: cada entrada aqui é uma chave que sobrevive ao logout, e
     // por isso precisa de verificação no fetcher de que o dado independe de
     // quem está logado. Crescer sem essa verificação reabre o D1.
-    it("tem exatamente as duas entradas verificadas", () => {
-      expect(PUBLIC_QUERY_KEY_PREFIXES).toEqual([
-        ["entidades", "catalog"],
-        ["terreiros", "explore", "initial"],
-      ]);
+    it("tem exatamente a entrada verificada", () => {
+      expect(PUBLIC_QUERY_KEY_PREFIXES).toEqual([["entidades", "catalog"]]);
     });
   });
 });

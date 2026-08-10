@@ -340,15 +340,3 @@ export function useTerreirosWithRoleQuery(userId: string | null) {
   });
 }
 
-export async function prefetchTerreirosWithRole(
-  queryClient: QueryClient,
-  params: { userId: string }
-): Promise<TerreiroListItem[]> {
-  if (!params.userId) return [];
-
-  return queryClient.fetchQuery({
-    queryKey: queryKeys.terreiros.withRole(params.userId),
-    staleTime: 30_000,
-    queryFn: () => fetchTerreirosWithRole(params.userId),
-  });
-}

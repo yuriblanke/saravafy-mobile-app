@@ -210,7 +210,6 @@ export default function PlayerScreen() {
         : { collectionId },
     );
 
-  const membership = useTerreiroMembershipStatus(terreiroId);
   // Leituras são públicas em contexto de terreiro (sem gate de role/membership).
   const canSeeMediumTags = !!terreiroId;
 

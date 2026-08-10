@@ -115,7 +115,7 @@ describe("contrato do registro de query keys", () => {
       ],
       [queryKeys.collections.pontosPrefix(), queryKeys.collections.pontos("c1")],
       [queryKeys.pontos.allPrefix(), queryKeys.pontos.allPublic()],
-      [queryKeys.pontos.allPrefix(), queryKeys.pontos.feed("u1")],
+      [queryKeys.pontos.allPrefix(), queryKeys.pontos.terreiro("t1")],
       [queryKeys.terreiro.all("t1"), queryKeys.terreiro.members("t1")],
       [
         queryKeys.collections.editableByUserPrefix("u1"),

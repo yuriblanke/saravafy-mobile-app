@@ -44,9 +44,7 @@ import {
   prefetchMyEditableTerreiros,
   prefetchMyTerreiroAccessIds,
 } from "@/src/queries/me";
-import { prefetchHomeFeedPontos } from "@/src/queries/pontosFeed";
 import { prefetchCollectionsByTerreiro } from "@/src/queries/terreirosCollections";
-import { prefetchExploreTerreiros } from "@/src/queries/terreirosExplore";
 import {
   QueryClient,
   QueryClientProvider,
@@ -338,20 +336,10 @@ function RootLayoutNav() {
         console.info("[BootPrefetch] start", { userId });
       }
 
-      // 1) Pontos (feed inicial) - 10
-      // 2) Terreiros (explore inicial) - 10
-      const independent = await Promise.allSettled([
-        prefetchHomeFeedPontos(queryClient, { userId, limit: 10 }),
-        prefetchExploreTerreiros(queryClient, { limit: 10 }),
-      ]);
-
-      if (__DEV__) {
-        console.info("[BootPrefetch] step independent done", {
-          userId,
-          ok: independent.filter((r) => r.status === "fulfilled").length,
-          fail: independent.filter((r) => r.status === "rejected").length,
-        });
-      }
+      // As duas primeiras etapas (feed inicial de pontos e explore inicial de
+      // terreiros) foram removidas em 2026-08-10 com o `X5`: aqueciam caches que
+      // nenhuma tela lia. A numeração das etapas abaixo foi mantida no texto
+      // original para não invalidar as referências nos logs de dev.
 
       // 3) Terreiros editáveis do usuário (admin/editor active)
       let editableTerreiroIds: string[] = [];

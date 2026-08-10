@@ -77,7 +77,6 @@ export const queryKeys = {
     allPublic: () => ["pontos", "all", "public"] as const,
     terreiro: (terreiroId: string) =>
       ["pontos", { scope: "terreiro", terreiroId }] as const,
-    feed: (userId: string) => ["pontos", "feed", userId] as const,
     customTagsByTerreiro: (params: {
       terreiroId: string;
       pontoIdsHash: string;
@@ -90,7 +89,6 @@ export const queryKeys = {
       ["pontos", "versoesBatch", scope, idsKey] as const,
   },
   terreiros: {
-    exploreInitial: () => ["terreiros", "explore", "initial"] as const,
     withRole: (userId: string) => ["terreiros", "withRole", userId] as const,
     byId: (terreiroId: string) => ["terreiros", "byId", terreiroId] as const,
     editableByUser: (userId: string) =>
