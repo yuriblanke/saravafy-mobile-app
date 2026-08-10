@@ -6,14 +6,11 @@ import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   ActivityIndicator,
-  Image,
   Pressable,
   StyleSheet,
   Text,
   View,
 } from "react-native";
-
-const fillerPng = require("@/assets/images/filler.png");
 
 function getErrorMessage(e: unknown): string {
   if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
@@ -133,6 +130,7 @@ export function RemoveMediumTagSheet(props: {
       variant={variant}
       scrollEnabled={false}
       bounces={false}
+      keyboardAware
     >
       <View style={{ paddingBottom: 16 }}>
         <View style={styles.sheetHeaderRow}>
@@ -189,13 +187,6 @@ export function RemoveMediumTagSheet(props: {
             )}
           </Pressable>
         </View>
-
-        <Image
-          source={fillerPng}
-          style={styles.filler}
-          resizeMode="contain"
-          accessibilityIgnoresInvertColors
-        />
       </View>
     </BottomSheet>
   );
@@ -268,10 +259,5 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.6,
-  },
-  filler: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
 });

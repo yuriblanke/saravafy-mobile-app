@@ -32,7 +32,6 @@ import {
     ActivityIndicator,
     Alert,
     FlatList,
-    Image,
     Pressable,
     RefreshControl,
     StyleSheet,
@@ -1083,6 +1082,7 @@ export default function Home() {
           setCreateCollectionError(null);
         }}
         variant={variant}
+        keyboardAware
       >
         <View style={{ paddingBottom: 16 }}>
           <View style={styles.sheetHeaderRow}>
@@ -1181,13 +1181,6 @@ export default function Home() {
               <Text style={styles.primaryActionText}>Criar</Text>
             </Pressable>
           </View>
-
-          <Image
-            source={require("@/assets/images/filler.png")}
-            style={styles.filler}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -1558,11 +1551,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.sm,
-  },
-  filler: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   secondaryActionBtn: {
     flex: 1,

@@ -75,8 +75,6 @@ import Reanimated, {
 } from "react-native-reanimated";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const fillerPng = require("@/assets/images/filler.png");
-
 type TerreiroRow = {
   id: string;
   title?: string | null;
@@ -1162,6 +1160,7 @@ export default function TerreiroBiblioteca() {
           setNewCollectionError("");
           pendingInitialTitleSelectionRef.current = null;
         }}
+        keyboardAware
       >
         <View style={styles.newCollectionSheet}>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
@@ -1232,13 +1231,6 @@ export default function TerreiroBiblioteca() {
               {newCollectionSheetMode === "rename" ? "Renomear" : "Criar"}
             </Text>
           </Pressable>
-
-          <Image
-            source={fillerPng}
-            style={styles.newCollectionFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -2105,11 +2097,6 @@ const styles = StyleSheet.create({
   },
   iconButtonDisabled: {
     opacity: 0.6,
-  },
-  newCollectionFiller: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.md,
   },
 
   sheetActions: {

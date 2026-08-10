@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
 import {
-  Image,
   Pressable,
   StyleSheet,
   Text,
@@ -150,7 +149,12 @@ export function InviteModal(props: Props) {
 
   return (
     <>
-      <BottomSheet visible={visible} variant={variant} onClose={onClose}>
+      <BottomSheet
+        visible={visible}
+        variant={variant}
+        onClose={onClose}
+        keyboardAware
+      >
         <View style={styles.sheetHead}>
           <Text
             style={[styles.sheetTitle, { color: textPrimary }]}
@@ -296,13 +300,6 @@ export function InviteModal(props: Props) {
             </Text>
           </Pressable>
         </View>
-
-        <Image
-          source={require("@/assets/images/filler.png")}
-          style={styles.filler}
-          resizeMode="contain"
-          accessibilityIgnoresInvertColors
-        />
       </BottomSheet>
 
       <SelectModal
@@ -326,11 +323,6 @@ const styles = StyleSheet.create({
   sheetHead: {
     marginBottom: spacing.md,
     gap: 4,
-  },
-  filler: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   sheetTitle: {
     fontSize: 16,
