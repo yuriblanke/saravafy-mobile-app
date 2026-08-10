@@ -16,22 +16,19 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
     BackHandler,
-    Image,
     Linking,
     Platform,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
 const TERMS_URL =
   "https://www.saravafy.com.br/termos-de-uso-interprete-de-ponto-audio";
-
-const fillerPng = require("@/assets/images/filler.png");
 
 type SelectedAudio = {
   uri: string;
@@ -405,10 +402,11 @@ function PlayerAudioUploadView(props: {
           </Pressable>
         </View>
 
-        <ScrollView
+        <KeyboardAwareScrollView
           style={styles.scroll}
           contentContainerStyle={styles.scrollContent}
           keyboardShouldPersistTaps="handled"
+          bottomOffset={spacing.lg}
         >
           {!isDone ? (
             <>
@@ -688,15 +686,9 @@ function PlayerAudioUploadView(props: {
               >
                 <Text style={styles.primaryText}>Fechar</Text>
               </Pressable>
-
-              <Image
-                source={fillerPng}
-                style={styles.fillerImage}
-                resizeMode="contain"
-              />
             </>
           )}
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </SaravafyScreen>
   );
@@ -842,9 +834,5 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     fontSize: 12,
     fontWeight: "800",
-  },
-  fillerImage: {
-    width: "100%",
-    height: 290,
   },
 });
