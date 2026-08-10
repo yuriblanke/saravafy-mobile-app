@@ -40,27 +40,39 @@ pior do que entre 5.
 
 ---
 
-## Faixa segura — implementar, em ordem de valor
+## Faixa segura — estado em 2026-08-10
 
-| Ordem | Item | Por que aqui |
+Sessão autônoma de 2026-08-10 trabalhou esta lista de cima para baixo. `main` saiu de `6de19c1` e
+está em 10 commits novos; `tsc` limpo, **115 testes, zero falhas** (eram 61).
+
+| Ordem | Item | Estado |
 |---|---|---|
-| 1 | **`X14`** — auditar a RLS de `collections_pontos` (**só ler e reportar, nenhuma alteração no banco**) | A policy de INSERT parece mais larga que as três de SELECT. Hoje (2026-08-09) o gate de permissão da Coleção foi fechado **no cliente** (`8159160`, `5222c9a`) e foi dito que o backstop real era a RLS. Se o `X14` proceder, esse backstop não existe. Ler policy é seguro; **mudar policy exige o usuário.** Ferramentas MCP do Supabase disponíveis |
-| 2 | **`D1`** — logout não despeja chaves sem `userId` | `app/_layout.tsx:206,212`. Dado de terreiro de um usuário pode aparecer para o próximo no mesmo aparelho. Testável em unidade. **Cuidado:** não é o `D8` (esse já foi resolvido em `8fd05c3` e é `placeholderData`, não despejo) |
-| 3 | **`D4`** + **`C3`** — rollback em mutation otimista | `AddMediumTagSheet.tsx:203`: `setQueriesData` sem snapshot e sem `onError`. `C3` é a regra geral — cancel → snapshot → otimista → rollback → invalidate, ou nada de otimista. Fazer os dois juntos: corrigir só o call site repete o erro no próximo |
-| 4 | **`X13`** — `isNetworkError` não casa string pura | `src/lib/errors.ts`. Pré-requisito do `S-3a`: varrer sem isso espalha o buraco |
-| 5 | **`X1`, `X2`** — `getErrorMessage` diverge da spec e tem branch morto | Mesmo arquivo do item 4, fazer na mesma passada |
-| 6 | **`C1`, `C2`, `C6`, `C7`** — contrato de query keys | Chaves inline, três namespaces de terreiro, chave depreciada ainda invalidada, e `me.profile` guardando booleano de modo curador |
-| 7 | **`S-3b`** — varrer os 10+ `role === "admin"` inline pro `useTerreiroRole` | Mesma classe do vazamento de permissão achado na Coleção em 2026-08-09 |
-| 8 | **`X15`, `X16`** — sobras da Spec 5 | `AddToCollection.tsx:591-612` (o consumidor inverso que a Spec 5 não alcançou) e as duas queries que o `D9` desgateou junto |
-| 9 | **`S-4c`** — cascatas N+1 em `Collection.tsx:300-310` e `PlayerScreen.tsx:226-229` | Lógica de fetch, sem efeito visual se feito certo |
-| 10 | **Código morto** — `AppTabSwipeOverlay` (**confirmado: nunca importado em lugar nenhum**, achado ao investigar o `D15`), `assets/images/filler.png` (zero referências desde o rollout), `X5`, `X8`, `X10` | Justificar cada remoção no commit, conforme `CLAUDE.md` |
-| 11 | **`X11`, `X12`, `X9`** — dedup do mock do Supabase, testes de render que faltam para os guards da Spec 3 (`ProfileSection`, `LogoutSection`, `TabsHeaderWithPreferences`), e limpar o ruído de `act()` na saída | `X12` é o que mais importa: hoje os guards da Spec 3 não têm teste de render |
+| 1 | **`X14`** — auditar a RLS de `collections_pontos` | ✅ **Confirmado**, e rendeu dois achados novos: `X17` (policy de UPDATE com `WITH CHECK (true)` — escalação de privilégio) e `X18` (reordenar coleção reescreve `added_by`). **Corrige a premissa deste item:** o backstop RLS por trás do gate da Coleção **existe e está correto**; `X14` é assimetria de leitura, não buraco de escrita. Corrigir as policies precisa de você — [`QUESTIONS-FOR-USER.md`](QUESTIONS-FOR-USER.md) |
+| 2 | **`D1`** — logout não despeja chaves sem `userId` | ✅ Corrigido invertendo o predicado: nega por padrão, allowlist explícita. O vazamento era maior que o descrito — incluía convites por **e-mail** do usuário anterior. Fila: seção 11 |
+| 3 | **`D4`** + **`C3`** — rollback em mutation otimista | ✅ **Premissa refutada** — não havia update otimista nos dois sheets. Corrigido o que de fato faltava (invalidação, duplicação, patch espúrio). O sintoma de ~60s segue **sem causa**: fila seção 12, item 12.1 |
+| 4 | **`X13`** — `isNetworkError` não casa string pura | ✅ Corrigido estruturalmente: extração única compartilhada. **`S-3a` desbloqueado** |
+| 5 | **`X1`, `X2`** | ✅ Resolvidos a favor da spec; ramo morto removido |
+| 6 | **`C1`, `C2`, `C6`, `C7`** | ✅ Todos. Guardados por um teste que percorre o registro e falha se duas entradas colidirem — verificado re-inserindo o alias e vendo quebrar |
+| 7 | **`S-3b`** | ⏸️ **Não varrido de propósito.** O "10+" era enganoso: 58 ocorrências, a maioria não é o defeito. Inventário refinado no backlog. **Fazer o `X12` antes** — é derivação de permissão em 4 telas sem teste de render |
+| 8 | **`X15`, `X16`** — sobras da Spec 5 | ⬜ Não feito |
+| 9 | **`S-4c`** — cascatas N+1 | 🚫 **Bloqueado.** Estava listado aqui por engano: depende de RPC nova, que é faixa proibida |
+| 10 | **Código morto** | ✅ `AppTabSwipeOverlay`, `filler.png`, `X5`, `X8`, `X10`. O `X5` cascateou: dois módulos inteiros e duas chaves órfãs saíram junto |
+| 11 | **`X11`, `X12`, `X9`** | ⬜ Não feito. **O `X12` foi absorvido pela Spec 8** (Task 2), que é onde ele tem mais valor |
+
+**O que sobrou, em ordem:** `X15`/`X16` (item 8), depois `X11`/`X9` (item 11). O `S-3b` fica atrás do
+`X12`, que agora vive na Spec 8.
 
 ---
 
-## Specs a escrever — **escrever, não implementar**
+## Specs a escrever — ✅ **entregues 2026-08-10**
 
-Entregar spec + plano nos formatos de `specs/` e `plans/`, prontos para o usuário aprovar.
+As três estão escritas com spec + plano, prontas para aprovação. **Nenhuma foi implementada.**
+
+- **`S-4a`** → [Spec 7](specs/2026-08-10-spec-7-navigation-unification.md) + [plano](plans/2026-08-10-spec-7-navigation-unification.md)
+- **`C5`** → [Spec 8](specs/2026-08-10-spec-8-preferences-unification.md) + [plano](plans/2026-08-10-spec-8-preferences-unification.md) — depende da Spec 7 e de uma decisão sua
+- **`N1`** → [Spec 9](specs/2026-08-10-spec-9-player-new-architecture.md) + [plano](plans/2026-08-10-spec-9-player-new-architecture.md) — levantamento, não implementação
+
+Descrição original de cada uma, mantida:
 
 - **`S-4a`** — unificar os 4 contextos de gesto/pager (`RootPager`, `TabController`, `GestureBlock`,
   `GestureGate`). O `D15` já entregou metade da investigação: leia a entrada dele no
