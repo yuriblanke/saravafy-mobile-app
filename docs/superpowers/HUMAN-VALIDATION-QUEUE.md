@@ -133,15 +133,14 @@ isso ele **bloqueia** o resto da rodada de Spec 6.
 
 | # | Verificar | Esperado | Observado |
 |---|---|---|---|
-| 0.1 | Abrir o app no APK novo e percorrer **telas que NÃO optaram** — Home, sheet de convite, editor de terreiro, qualquer sheet com campo de texto **que não seja o de tag de médium** — sem digitar nada, só olhar | Tudo exatamente igual a antes: mesmos insets, mesma altura de sheet, mesma barra de status. Nenhum deslocamento, nenhuma faixa nova | |
-| 0.2 | O app **abre sem crashar** | O build prova que o módulo nativo linka, **não** que ele registra em runtime sob New Architecture. Se crashar no boot, é aqui que aparece | |
-| 0.3 | Coleção → adicionar tag de médium → focar o campo de texto | O campo sobe **acima** do teclado sozinho, sem você rolar na mão | |
-| 0.4 | Mesmo sheet, com **teclado de terceiro** (Gboard/SwiftKey) e/ou abrindo a linha de emoji | Continua funcionando. **Variação de altura é o ponto inteiro do piloto** — o filler de 290px falhava exatamente aqui | |
-| 0.5 | Fechar o teclado no sheet de tag de médium | **Nenhum espaço vazio sobrando** onde o filler ficava. Era esse buraco que sobrava quando o teclado era mais baixo que 290px | |
-| 0.6 | No mesmo sheet: arrastar pra fechar, tocar no backdrop, e enviar o formulário | Os três continuam funcionando. Se o arrastar-pra-fechar parou, o gesto de pan do `BottomSheet` está brigando com o scroll view novo — **isso é o achado mais valioso que este piloto pode gerar** | |
-| 0.7 | Abrir **outro** sheet que ainda usa o filler (ex.: o de convite) e focar um campo | Comportamento **antigo**, pra você sentir a diferença lado a lado. Se este também mudou, o piloto vazou pras outras **11** telas e isso é bug | |
-| 0.8 | **(novo)** Num sheet com campo de texto, focar o campo (teclado aberto) e tocar direto no botão de ação principal — ex.: "Salvar" no sheet de tag de médium | Um único toque **fecha o teclado e executa a ação** (salva + toast de sucesso) — não precisa mais de dois toques. Tocar em espaço vazio do sheet continua só fechando o teclado, sem acionar nada | |
-
+| 0.1 | Abrir o app no APK novo e percorrer **telas que NÃO optaram** — Home, sheet de convite, editor de terreiro, qualquer sheet com campo de texto **que não seja o de tag de médium** — sem digitar nada, só olhar | Tudo exatamente igual a antes: mesmos insets, mesma altura de sheet, mesma barra de status. Nenhum deslocamento, nenhuma faixa nova | | ✅ OK |
+| 0.2 | O app **abre sem crashar** | O build prova que o módulo nativo linka, **não** que ele registra em runtime sob New Architecture. Se crashar no boot, é aqui que aparece | | ✅ OK |
+| 0.3 | Coleção → adicionar tag de médium → focar o campo de texto | O campo sobe **acima** do teclado sozinho, sem você rolar na mão | | ✅ OK |
+| 0.4 | Mesmo sheet, com **teclado de terceiro** (Gboard/SwiftKey) e/ou abrindo a linha de emoji | Continua funcionando. **Variação de altura é o ponto inteiro do piloto** — o filler de 290px falhava exatamente aqui | | ✅ OK |
+| 0.5 | Fechar o teclado no sheet de tag de médium | **Nenhum espaço vazio sobrando** onde o filler ficava. Era esse buraco que sobrava quando o teclado era mais baixo que 290px | | ✅ OK |
+| 0.6 | No mesmo sheet: arrastar pra fechar, tocar no backdrop, e enviar o formulário | Os três continuam funcionando. Se o arrastar-pra-fechar parou, o gesto de pan do `BottomSheet` está brigando com o scroll view novo — **isso é o achado mais valioso que este piloto pode gerar** | | ✅ OK |
+| 0.7 | Abrir **outro** sheet que ainda usa o filler (ex.: o de convite) e focar um campo | Comportamento **antigo**, pra você sentir a diferença lado a lado. Se este também mudou, o piloto vazou pras outras **11** telas e isso é bug | | ✅ OK |
+| 0.8 | **(novo)** Num sheet com campo de texto, focar o campo (teclado aberto) e tocar direto no botão de ação principal — ex.: "Salvar" no sheet de tag de médium | Um único toque **fecha o teclado e executa a ação** (salva + toast de sucesso) — não precisa mais de dois toques. Tocar em espaço vazio do sheet continua só fechando o teclado, sem acionar nada | | ✅ OK |
 > ### 🚨 **0.1 — o sheet de tag de médium está FORA deste item, e de propósito.**
 >
 > **Ele vai estar ~290px mais curto que você lembra, com o teclado fechado. Isso é a correção
