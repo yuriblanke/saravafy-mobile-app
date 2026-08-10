@@ -38,6 +38,7 @@ import {
   prefetchEditableCollections,
   prefetchEditableTerreiroIds,
 } from "@/src/queries/collections";
+import { shouldEvictQueryOnLogout } from "@/src/queries/logoutCacheEviction";
 import {
   prefetchMyEditableTerreiros,
   prefetchMyTerreiroAccessIds,
@@ -219,14 +220,16 @@ function RootLayoutNav() {
 
       // Cancel any in-flight requests first
       queryClient.cancelQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
+        predicate: (q) => shouldEvictQueryOnLogout(q.queryKey),
       });
 
-      // Remove only user-scoped queries (keys that include previous userId)
+      // Despeja tudo que não seja comprovadamente público (D1). O predicado
+      // anterior era `queryKey.includes(prevUserId)`, que mantinha por padrão e
+      // só alcançava chaves que carregassem o id — deixando passar
+      // `["terreiro", id, "invites"]`, `["pontosSubmissions","pending"]` e as
+      // chaveadas por e-mail. A allowlist vive em `logoutCacheEviction.ts`.
       queryClient.removeQueries({
-        predicate: (q) =>
-          Array.isArray(q.queryKey) && q.queryKey.includes(prevUserId),
+        predicate: (q) => shouldEvictQueryOnLogout(q.queryKey),
       });
 
       // Reset memory-only preferences that can leak between users

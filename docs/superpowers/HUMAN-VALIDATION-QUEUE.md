@@ -618,6 +618,35 @@ que você tem na cabeça, anote qual tela e onde foi parar.
 
 ---
 
+## 11. Troca de usuário no mesmo aparelho — `D1` (novo)
+
+Origem: `D1`, corrigido em modo *nega por padrão* (`src/queries/logoutCacheEviction.ts`). **Precisa de
+build novo.** O predicado de despejo era `queryKey.includes(prevUserId)`, que só alcançava chaves
+carregando o id do usuário; agora só sobrevive ao logout o que estiver numa allowlist explícita de
+duas entradas públicas (catálogo de entidades e diretório de terreiros).
+
+**Precisa de duas contas** — idealmente com terreiros e papéis diferentes (uma admin de algum
+terreiro, outra não).
+
+**O que você está caçando é dado da conta A aparecendo na conta B**, não tela quebrada.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 11.1 | Logar com A, abrir um terreiro onde A é admin, ver a **lista de membros** e a **contagem**. Sair. Logar com B (que não é membro desse terreiro) e abrir o mesmo terreiro | B **nunca** vê a lista/contagem que A carregou. Era o vazamento nomeado no `D1` — essas chaves não têm `userId` | |
+| 11.2 | Com A admin de um terreiro, abrir **convites** e **pedidos de adesão**. Sair, logar com B, abrir o mesmo terreiro | B não vê nada disso, nem por um frame. Dado só de admin, chave sem `userId` — o caso mais grave | |
+| 11.3 | Se alguma conta for **curadora**: abrir a fila de curadoria, sair, logar com a outra | A fila não sobrevive à troca | |
+| 11.4 | A tem convite pendente por e-mail (curador ou de terreiro). Sair, logar com B | B não vê o convite de A. Essas chaves são indexadas pelo **e-mail** de quem estava logado | |
+| 11.5 | Depois de sair, **antes** de logar de novo: navegar pelo app deslogado | Diretório de terreiros e pickers de entidade continuam funcionando sem tela de erro. São as duas únicas coisas que a allowlist mantém de propósito | |
+| 11.6 | Logar de novo com a **mesma** conta A logo em seguida | Tudo recarrega normal. Um pouco mais de rede que antes é **esperado**, não é regressão — o cache agora é esvaziado de verdade | |
+| 11.7 | Sair estando com uma tela pesada aberta (coleção grande, player tocando) | Sem crash e sem tela presa carregando para sempre. As requisições em voo são canceladas junto | |
+
+> **Se 11.6 parecer lento a ponto de incomodar, anote** — a resposta certa não é reverter, é
+> justificar mais entradas na allowlist lendo o `queryFn` de cada uma e confirmando que o dado não
+> depende de quem está logado. A lista é pequena de propósito: cada entrada é uma chave que
+> atravessa a troca de usuário.
+
+---
+
 ## Fora de escopo
 
 Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez de tentar consertar:
@@ -663,6 +692,8 @@ Confirmados no código, ainda sem correção. Se aparecerem, é esperado:
 | §6.7 | "Reenviar convite" toasta sucesso e não reenvia nada | `terreiroMembership.ts:1224` é stub |
 | §6.6 | Tag de médium fica na tela mesmo com erro de rede (~60s) | Update otimista sem rollback |
 | §6.8 | Editar ponto e não ver a mudança em outra tela | UPDATE direto sem invalidar cache |
-| §6.10 | Trocar de usuário no mesmo device pode mostrar dado de membership do anterior | Eviction de logout não pega chave sem `userId` |
+
+~~`§6.10` — trocar de usuário no mesmo device mostrando dado de membership do anterior~~ —
+**corrigido**, virou a seção 11 acima. Se aparecer, é regressão, não defeito conhecido.
 
 Todos entram na próxima leva de specs — ver [`BACKLOG.md`](BACKLOG.md).
