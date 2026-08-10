@@ -24,7 +24,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -32,8 +31,6 @@ import {
   TextInput,
   View,
 } from "react-native";
-
-const fillerPng = require("@/assets/images/filler.png");
 
 type ManagementMember = {
   id: string;
@@ -647,6 +644,7 @@ export default function AccessManager() {
         visible={isInviteSheetOpen}
         variant={variant}
         onClose={closeInviteSheet}
+        keyboardAware
       >
         <View style={styles.inviteSheet}>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
@@ -717,13 +715,6 @@ export default function AccessManager() {
           >
             <Text style={styles.primaryButtonText}>Enviar convite</Text>
           </Pressable>
-
-          <Image
-            source={fillerPng}
-            style={styles.sheetFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -732,6 +723,7 @@ export default function AccessManager() {
         visible={isRoleSelectOpen}
         variant={variant}
         onClose={() => setIsRoleSelectOpen(false)}
+        keyboardAware
       >
         <View>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
@@ -773,13 +765,6 @@ export default function AccessManager() {
               </Text>
             </Pressable>
           </View>
-
-          <Image
-            source={fillerPng}
-            style={styles.sheetFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -1168,11 +1153,6 @@ const styles = StyleSheet.create({
   },
   sheetActionPressed: {
     opacity: 0.75,
-  },
-  sheetFiller: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   inviteSheet: {
     paddingHorizontal: spacing.lg,
