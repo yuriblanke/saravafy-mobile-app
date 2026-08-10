@@ -592,11 +592,29 @@ o bug. Se você matar e reabrir no meio, começa de novo.
 | 10.3 | Comparar toque e swipe na mesma tela, várias vezes | Os dois sempre concordam. **Toque morto + swipe vivo é a assinatura exata do `D15`** — se você vir isso de novo, o layer 2 não pegou o caso e vale anotar o caminho | |
 | 10.4 | (Só no APK de **desenvolvimento**, com Metro aberto) Filtrar o console em `[TabController]` durante 10.1 e 10.2 | O aviso `goToTab called without registered handler` **nunca** aparece. Ele é o defeito impresso em texto | |
 
-> **O que o layer 2 não conserta, de propósito:** duas instâncias de `(tabs)` continuam sendo criadas
-> e montadas ao mesmo tempo — header duplicado, queries duplicadas, render duplicado. O layer 2 só
-> garante que a instância visível é a dona do handler. Tirar a duplicação é o layer 1, que muda a
-> semântica de "voltar" em 5 telas e por isso é decisão sua, não do agente. Ver `D15` no
-> [`BACKLOG.md`](BACKLOG.md).
+### 10.5 a 10.9 — semântica de "voltar" (layer 1, `11427e4`)
+
+O layer 1 entrou no mesmo build por decisão sua. Ele troca `router.replace` por `router.dismissTo`
+em 11 lugares: "voltar" agora **desempilha até o `(tabs)` que já existe** em vez de criar outro.
+
+**O que você está caçando aqui é diferente do resto da seção.** Não é tela quebrada — é "voltar"
+levando pro lugar errado, ou voltando demais, ou voltando de menos. Se o destino mudou em relação ao
+que você tem na cabeça, anote qual tela e onde foi parar.
+
+| # | Verificar | Esperado | Observado |
+|---|---|---|---|
+| 10.5 | Biblioteca do terreiro: voltar pelo botão da tela **e** pelo botão físico/gesto do Android | Os dois vão pro mesmo lugar de antes — a aba de onde você veio (Pontos ou Terreiros, conforme o caso). São os dois caminhos do mesmo `returnTo`, e eram sites distintos no código | |
+| 10.6 | Coleção → voltar. Player aberto da biblioteca pública → voltar. Player aberto de dentro de uma coleção → voltar | Cada um volta pro mesmo lugar de antes. O do player tem três caminhos diferentes dependendo de onde abriu | |
+| 10.7 | Editor de terreiro → **excluir** o terreiro | Vai pra aba Terreiros, como antes. É o único site do editor que mudou | |
+| 10.8 | Abrir Preferências (ou membros/gestão de acesso) e tocar em "Pontos"/"Terreiros" no cabeçalho | Volta pra aba certa. Este é o caminho `!isInTabs` do cabeçalho | |
+| 10.9 | Login: sair do app e entrar de novo, e passar pelo fluxo de login do zero | Depois de logar, **não** dá pra voltar pra tela de login pelo botão físico. Login e callback continuam usando `replace` de propósito — se isso mudou, é regressão | |
+
+> **Isto agora conserta a causa, não só o sintoma.** O `(tabs)` duplicado não é mais criado, então o
+> app deixa de manter duas árvores de tabs montadas ao mesmo tempo (header duplicado, queries
+> duplicadas, render duplicado). Isso é suspeito do flicker de transição do `S-4a` — se você notar
+> transição mais limpa em algum lugar, vale anotar, é sinal. O `S-4a` em si continua aberto: o alvo
+> final dele é o toque e o swipe compartilharem um caminho só, o que tornaria a assimetria do `D15`
+> impossível por construção. Ver [`BACKLOG.md`](BACKLOG.md).
 
 ---
 
