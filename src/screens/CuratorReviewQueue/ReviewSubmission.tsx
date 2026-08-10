@@ -31,17 +31,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Image,
     Pressable,
-    ScrollView,
     StyleSheet,
     Text,
     TextInput,
     View,
 } from "react-native";
+import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-const fillerPng = require("@/assets/images/filler.png");
 
 function getErrorMessage(error: unknown): string {
   const message =
@@ -1354,7 +1351,10 @@ export default function ReviewSubmissionScreen() {
           </Text>
         </View>
 
-        <ScrollView contentContainerStyle={styles.content}>
+        <KeyboardAwareScrollView
+          contentContainerStyle={styles.content}
+          bottomOffset={spacing.lg}
+        >
           <View style={styles.metaRow}>
             <Badge label={kindLabel} variant={variant} />
             {submitterEmail ? (
@@ -1718,9 +1718,7 @@ export default function ReviewSubmissionScreen() {
               </Text>
             </Pressable>
           </View>
-
-          <Image source={fillerPng} style={styles.fillerImage} />
-        </ScrollView>
+        </KeyboardAwareScrollView>
       </View>
     </SafeAreaView>
   );
@@ -1923,13 +1921,6 @@ const styles = StyleSheet.create({
   audioRetryText: {
     fontSize: 13,
     fontWeight: "900",
-  },
-  fillerImage: {
-    marginTop: spacing.lg,
-    width: "100%",
-    height: 290,
-    resizeMode: "contain",
-    opacity: 0.9,
   },
   actionPressed: {
     transform: [{ translateY: 1 }],
