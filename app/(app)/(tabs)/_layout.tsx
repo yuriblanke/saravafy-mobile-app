@@ -1,5 +1,8 @@
 import { useRootPagerOptional } from "@/contexts/RootPagerContext";
-import { useTabController } from "@/contexts/TabControllerContext";
+import {
+  useTabController,
+  type TabKey,
+} from "@/contexts/TabControllerContext";
 import { TabsHeaderWithPreferences } from "@/src/components/TabsHeaderWithPreferences";
 import { navTrace } from "@/src/utils/navTrace";
 import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
@@ -92,8 +95,8 @@ export default function AppTabsLayout() {
     return null;
   }, []);
 
-  useEffect(() => {
-    tabController.registerGoToTab((tab) => {
+  const goToTabHandler = useCallback(
+    (tab: TabKey) => {
       const nav = tabsNavigationRef.current;
       if (nav?.navigate) {
         nav.navigate(tab === "terreiros" ? "(terreiros)" : "(pontos)");
@@ -106,12 +109,22 @@ export default function AppTabsLayout() {
           ? "/(app)/(tabs)/(terreiros)"
           : "/(app)/(tabs)/(pontos)") as any
       );
-    });
+    },
+    [router]
+  );
 
-    return () => {
-      tabController.registerGoToTab(null);
-    };
-  }, [router, tabController]);
+  // Registro por foco, não por montagem. Pode haver mais de uma instância de
+  // `(tabs)` montada ao mesmo tempo — "voltar" é `router.replace` em várias
+  // telas, e o expo-router cria uma rota nova em vez de reaproveitar a que já
+  // está no stack. Registrando na montagem, a instância de cima ganhava o slot
+  // e, ao ser removida, deixava a instância visível sem handler: o toque na
+  // aba morria e só o swipe continuava funcionando. Ver `D15` no BACKLOG.
+  useFocusEffect(
+    useCallback(
+      () => tabController.registerGoToTab(goToTabHandler),
+      [tabController, goToTabHandler]
+    )
+  );
 
   return (
     <View style={styles.container}>

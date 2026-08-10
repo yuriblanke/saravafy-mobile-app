@@ -20,8 +20,13 @@ type TabControllerContextValue = {
 
   /**
    * Permite ao layout de Tabs registrar o handler real de troca de aba.
+   *
+   * Retorna a função de desregistro. Ela só limpa o slot se o handler
+   * registrado ainda for o mesmo `fn` — pode haver mais de uma instância de
+   * `(tabs)` montada ao mesmo tempo, e uma não pode apagar o registro da
+   * outra. Ver `D15` no BACKLOG.
    */
-  registerGoToTab: (fn: GoToTabFn | null) => void;
+  registerGoToTab: (fn: GoToTabFn) => () => void;
 };
 
 const TabControllerContext = createContext<TabControllerContextValue | null>(
@@ -35,8 +40,18 @@ export function TabControllerProvider({
 }) {
   const goToTabRef = useRef<GoToTabFn | null>(null);
 
-  const registerGoToTab = useCallback((fn: GoToTabFn | null) => {
+  const registerGoToTab = useCallback((fn: GoToTabFn) => {
     goToTabRef.current = fn;
+
+    return () => {
+      // Só limpa se ainda formos o dono. Sem essa checagem, uma instância de
+      // `(tabs)` sendo desmontada apaga o handler de outra que continua na
+      // tela, e o toque na aba vira no-op silencioso (o swipe continua
+      // funcionando, porque vai por outro caminho). Ver `D15` no BACKLOG.
+      if (goToTabRef.current === fn) {
+        goToTabRef.current = null;
+      }
+    };
   }, []);
 
   const goToTab = useCallback((tab: TabKey) => {
