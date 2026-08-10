@@ -32,8 +32,6 @@ import {
   View,
 } from "react-native";
 
-const fillerPng = require("@/assets/images/filler.png");
-
 type MemberItem = {
   id: string;
   userId: string;
@@ -565,6 +563,7 @@ export default function TerreiroMembers() {
         visible={!!memberMenuTarget}
         variant={variant}
         onClose={closeMemberMenu}
+        keyboardAware
       >
         <View>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>Ações</Text>
@@ -596,13 +595,6 @@ export default function TerreiroMembers() {
               </Text>
             </Pressable>
           </View>
-
-          <Image
-            source={fillerPng}
-            style={styles.sheetFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -673,6 +665,7 @@ export default function TerreiroMembers() {
         visible={isInviteSheetOpen}
         variant={variant}
         onClose={closeInviteSheet}
+        keyboardAware
       >
         <View style={styles.inviteSheet}>
           <Text style={[styles.sheetTitle, { color: textPrimary }]}>
@@ -723,13 +716,6 @@ export default function TerreiroMembers() {
           >
             <Text style={styles.primaryButtonText}>Enviar convite</Text>
           </Pressable>
-
-          <Image
-            source={fillerPng}
-            style={styles.sheetFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -1313,11 +1299,6 @@ const styles = StyleSheet.create({
   },
   sheetActionPressed: {
     opacity: 0.75,
-  },
-  sheetFiller: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   inviteSheet: {
     paddingHorizontal: spacing.lg,
