@@ -2068,6 +2068,7 @@ export function PreferencesOverlaySheets(
           setCuratorInviteEmail("");
           setCuratorInviteInlineError(null);
         }}
+        keyboardAware
       >
         <View style={[styles.menuWrap, { paddingBottom: insets.bottom }]}>
           <Text
@@ -2252,13 +2253,6 @@ export function PreferencesOverlaySheets(
               ))
             )}
           </View>
-
-          <Image
-            source={require("@/assets/images/filler.png")}
-            style={styles.curatorAdminFiller}
-            resizeMode="contain"
-            accessibilityIgnoresInvertColors
-          />
         </View>
       </BottomSheet>
 
@@ -2841,11 +2835,6 @@ const styles = StyleSheet.create({
     color: colors.brass600,
     fontSize: 13,
     fontWeight: "900",
-  },
-  curatorAdminFiller: {
-    width: "100%",
-    height: 290,
-    marginTop: spacing.lg,
   },
   sectionDesc: {
     marginBottom: spacing.sm,
