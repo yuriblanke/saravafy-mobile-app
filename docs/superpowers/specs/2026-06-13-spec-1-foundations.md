@@ -70,14 +70,25 @@ The real perf issue at `Collection.tsx:300-310` + `PlayerScreen.tsx:226-229` is 
 - **API:** `function getErrorMessage(e: unknown, fallback?: string): string`
 - **Behavior:** matches existing inlined implementations:
   1. If `e instanceof Error` and `e.message.trim()` → return trimmed message.
-     > **⚠️ SPEC/IMPL MISMATCH (found 2026-08-08, unresolved).** The shipped `src/lib/errors.ts`
-     > uses `.trim()` only as a *non-empty test* and returns `e.message` **untrimmed**. The test in
-     > the plan is titled `"trims and returns object.message"` but asserts `.toBe("  hello  ")` —
-     > i.e. it ratifies the untrimmed implementation, not this spec. Contract must be decided and
-     > all three aligned. Tracked as `X1` in [`BACKLOG.md`](../BACKLOG.md).
-  2. If `e` is object with string `message` field → return that.
-  3. If `e` is string → return it.
+     > **✅ RESOLVED 2026-08-10 in favour of this spec (`X1`).** The shipped implementation had used
+     > `.trim()` only as a *non-empty test* and returned the message **untrimmed**, with a test
+     > titled `"trims and returns object.message"` that asserted `.toBe("  hello  ")` — ratifying
+     > the implementation rather than the contract. All three are now aligned on trimming.
+     > **Trimming was extended to all three shapes**, not only `Error`: a call site cannot justify
+     > receiving a trimmed message from an `Error` and an untrimmed one from `{ message }`.
+     > Consequently a blank message now counts as *absent* in every shape — previously
+     > `new Error("")` fell through to the fallback but the bare string `""` did not.
+  2. If `e` is object with string `message` field → return it **trimmed**.
+  3. If `e` is string → return it **trimmed**.
   4. Otherwise → return `fallback ?? String(e)`.
+     > **`X2` resolved in the same pass:** a preceding `if (e == null && fallback !== undefined)
+     > return fallback;` was dead — fully subsumed by this line, including the `fallback === ""`
+     > boundary, since `??` only falls through on `null`/`undefined`.
+- **Message extraction is shared with `isNetworkError`** (`extractMessage`, added 2026-08-10 for
+  `X13`). The two used to read the message differently, and `isNetworkError`'s version did not cover
+  a **bare string** — so `"Network request failed"` arriving as a string (which is what a call site
+  doing `String(e)` produces) escaped the matcher and leaked verbatim to the UI. One extraction means
+  the two can no longer diverge. This was the prerequisite blocking `S-3a`.
 - **Coverage:** unit tests for all 4 branches + null/undefined/0.
 
 ### 3.3 `<QueryBoundary>` component
