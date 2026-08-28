@@ -225,7 +225,6 @@ export default function Collection() {
   );
 
   const terreiroRole = useTerreiroRole(terreiroId);
-  const myRole = terreiroRole.role;
   const canEditCustomTags = terreiroRole.canEditCustomTags;
 
   const isLoggedIn = !!user?.id;
@@ -441,9 +440,7 @@ export default function Collection() {
     (!!user?.id &&
       typeof collection?.owner_user_id === "string" &&
       collection.owner_user_id === user.id) ||
-    (!!terreiroId &&
-      membership.data.isActiveMember &&
-      (myRole === "admin" || myRole === "curimba"));
+    (!!terreiroId && terreiroRole.isAdminOrCurimba);
 
   const openEdit = useCallback(() => {
     if (!collectionId) return;
