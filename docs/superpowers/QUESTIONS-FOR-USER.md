@@ -117,3 +117,77 @@ Nada aqui foi tocado, listado para você não achar que passou despercebido:
 - Pull-to-refresh em `AccessManager` e `TerreiroMembersList` — o segundo usa `useInfiniteQuery` e
   precisa de decisão (recarregar todas as páginas ou voltar à página 1).
 - Disparar build EAS.
+
+---
+
+## 6. `C5` — rota ou overlay de Preferências? (inventário pronto, decisão sua)
+
+**Contexto:** [`Spec 8`](plans/2026-08-10-spec-8-preferences-unification.md) §5 propunha manter a
+rota (`Preferences.tsx`) e absorver o overlay (`TabsHeaderWithPreferences.tsx`). A Task 1 do plano
+(inventário campo a campo, só leitura) está feita — tabela completa em
+[`plans/2026-08-10-spec-8-preferences-unification.md` §1](plans/2026-08-10-spec-8-preferences-unification.md).
+Isto não é a fusão (Tasks 3-5, ainda bloqueadas por esta pergunta) — é o levantamento que a Spec 8
+pediu antes de fundir.
+
+### O achado que muda a pergunta
+
+**O overlay está inalcançável hoje.** `openPreferences()` (`src/contexts/PreferencesOverlayContext.tsx:27-29`)
+não é chamada em nenhum lugar do código — confirmado por grep no repo inteiro. O avatar do header
+(`TabsHeaderWithPreferences.tsx:496-562`) hoje empurra a **rota** (`router.push("/preferences")`,
+linha 560), não abre o overlay. `TabsHeaderWithPreferences.tsx:638` nem importa `openPreferences` do
+contexto. Resultado: `PreferencesModal` está montado (`app/_layout.tsx:157`) mas seu `<Modal
+visible={isOpen && …}>` nunca fica `true` — nenhuma ação do usuário abre essa UI em produção hoje.
+`docs/architecture/preferences.md:46,51`, que descreve o avatar como gatilho do overlay, está
+desatualizado nisso.
+
+Isso não é só um detalhe técnico: muda a pergunta de "qual você prefere usar" (nenhuma das duas —
+você só consegue abrir a rota) para "o que fazer com um bloco de lógica morto que ainda contém
+funcionalidade real que a rota não tem".
+
+### O que cada lado tem que o outro não tem (resumo — tabela completa no plano)
+
+**Só na rota**, perdido se o overlay vencer sem port: e-mail no card de perfil, estado "deslogado"
+completo dentro da tela, badge "Dev Master", **seção inteira de downloads offline**, parâmetro `from`
+na navegação ao terreiro (afeta o botão voltar), cabeçalho fixo com seta de voltar, nav cover
+anti-flash.
+
+**Só no overlay**, perdido se a rota vencer sem port: **painel "Administrar guardiões"** (criar/
+listar/cancelar convite de curador, RPCs `create_curator_invite`/`cancel_curator_invite`, restrito a
+dev master), card de convite de curador pendente para o próprio usuário, ícone "ⓘ" explicando o Modo
+Guardião, seção "Página inicial" (só leitura — o setter também está morto nos dois lados). O botão de
+editar perfil (lápis) só existe no overlay, mas abre um bottom sheet **vazio** — não há nada
+funcional para portar aí.
+
+**Achado à parte, fora desta decisão mas real:** como "Administrar guardiões" só existe dentro do
+overlay inalcançável, hoje **não existe nenhuma forma, na UI do app, de convidar um novo curador** —
+a funcionalidade e as RPCs funcionam, só o caminho até elas está morto. Pode valer um item de
+backlog próprio, independente de qual lado você escolher aqui.
+
+### Divergências de comportamento encontradas (não só de presença — a mesma ação faz coisas diferentes)
+
+1. **Sair do papel** (admin/curimba → member): rota faz `update` direto na tabela, sem pré-checagem
+   de último admin; overlay faz RPC `fn_remove_terreiro_member`, exige digitar `"sair"`, e
+   **pré-checa** admin único antes de deixar o usuário tentar.
+2. **Sair do terreiro** (member): rota confirma com modal customizado com mensagem específica para
+   erro de RLS; overlay confirma com `Alert.alert` nativo, sem essa mensagem específica.
+3. **Logout redireciona só no overlay.** A rota (`LogoutSection.tsx:28-40`) só chama `signOut()`. O
+   overlay (`TabsHeaderWithPreferences.tsx:904-915`) chama `signOut()` **e depois**
+   `router.replace("/login")`. Textos da confirmação também diferem ("Sair da conta?" vs. "Sair do
+   Saravafy"). Isso corrige uma frase do §2 da Spec 8 ("nenhuma das duas redireciona... no logout") —
+   vale só para a rota, não para o overlay como está hoje.
+4. Explicador de Curimba mostra o texto errado no overlay (não passa `context="preferences"`, cai no
+   texto padrão que manda o usuário "ir em Preferências" estando já lá).
+5. Rótulo do menu de ações do terreiro difere ("Editar detalhes" vs. "Renomear e editar detalhes").
+
+### A pergunta
+
+**Mantemos a proposta original da Spec 8 (rota vence, overlay é absorvido e depois deletado), ou
+você quer outra direção agora que sabemos que o overlay já está morto em produção?**
+
+Se a resposta for "mantém a proposta original" (rota vence): a Task 3 do plano precisa portar as
+funções "só no overlay" listadas acima que você quiser manter — meu palpite é que "Administrar
+guardiões" e o convite de curador pendente valem a pena (são as únicas com lógica de negócio real
+por trás; o resto do overlay é ícone informativo, stub vazio, ou display morto), mas isso também é
+decisão sua, não só técnica. E as cinco divergências de comportamento acima precisam de uma escolha
+explícita de qual das duas versões vira a única (ex.: a pré-checagem de admin único do overlay
+parece estritamente melhor que o "trata o erro depois" da rota — mas é você quem decide, não eu).
