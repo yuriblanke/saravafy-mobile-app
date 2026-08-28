@@ -181,7 +181,7 @@ function flushPromises() {
 
 type ReactTestRenderer = ReturnType<typeof TestRenderer.create>;
 
-function renderFlow(
+async function renderFlow(
   overrideProps: Partial<AddToCollectionFlowProps> = {},
   registries?: { renderers: ReactTestRenderer[]; queryClients: QueryClient[] },
 ) {
@@ -194,7 +194,7 @@ function renderFlow(
   const onClose = jest.fn();
 
   let renderer!: ReactTestRenderer;
-  TestRenderer.act(() => {
+  await TestRenderer.act(async () => {
     renderer = TestRenderer.create(
       <QueryClientProvider client={queryClient}>
         <AddToCollectionFlow
@@ -209,6 +209,11 @@ function renderFlow(
         />
       </QueryClientProvider>,
     );
+    // @expo/vector-icons' Icon (createIconSet.tsx) loads its font
+    // asynchronously in componentDidMount and then calls setState. Draining
+    // that here keeps it inside this act(...) instead of firing after it
+    // returns, which is what produced "not wrapped in act(...)" warnings.
+    await flushPromises();
   });
 
   registries?.renderers.push(renderer);
@@ -245,8 +250,8 @@ describe("AddToCollectionFlow", () => {
     }
   });
 
-  it("renders the list of editable collections (single-phase / Player-style)", () => {
-    const { renderer } = renderFlow(
+  it("renders the list of editable collections (single-phase / Player-style)", async () => {
+    const { renderer } = await renderFlow(
       {},
       { renderers: activeRenderers, queryClients: activeQueryClients },
     );
@@ -255,12 +260,12 @@ describe("AddToCollectionFlow", () => {
     expect(findByText(renderer.root, "Coleção do Terreiro")).not.toBeNull();
   });
 
-  it("shows the no-permission empty state when there are no editable collections", () => {
+  it("shows the no-permission empty state when there are no editable collections", async () => {
     mockUseEditableCollections.mockReturnValue(
       editableCollectionsResult({ data: [] }),
     );
 
-    const { renderer } = renderFlow(
+    const { renderer } = await renderFlow(
       {},
       { renderers: activeRenderers, queryClients: activeQueryClients },
     );
@@ -273,7 +278,7 @@ describe("AddToCollectionFlow", () => {
     ).not.toBeNull();
   });
 
-  it("shows an error message when the collections query fails", () => {
+  it("shows an error message when the collections query fails", async () => {
     mockUseEditableCollections.mockReturnValue(
       editableCollectionsResult({
         data: [],
@@ -282,7 +287,7 @@ describe("AddToCollectionFlow", () => {
       }),
     );
 
-    const { renderer } = renderFlow(
+    const { renderer } = await renderFlow(
       {},
       { renderers: activeRenderers, queryClients: activeQueryClients },
     );
@@ -291,7 +296,7 @@ describe("AddToCollectionFlow", () => {
   });
 
   it("commits the ponto to the tapped collection and closes on success", async () => {
-    const { renderer, onClose } = renderFlow(
+    const { renderer, onClose } = await renderFlow(
       {},
       { renderers: activeRenderers, queryClients: activeQueryClients },
     );
@@ -318,7 +323,7 @@ describe("AddToCollectionFlow", () => {
       ok: false,
       error: "Falha ao adicionar.",
     });
-    const { renderer, onClose } = renderFlow(
+    const { renderer, onClose } = await renderFlow(
       {},
       { renderers: activeRenderers, queryClients: activeQueryClients },
     );
@@ -342,7 +347,7 @@ describe("AddToCollectionFlow", () => {
       ok: true,
       alreadyExists: true,
     });
-    const { renderer, queryClient } = renderFlow(
+    const { renderer, queryClient } = await renderFlow(
       {},
       { renderers: activeRenderers, queryClients: activeQueryClients },
     );
@@ -380,7 +385,7 @@ describe("AddToCollectionFlow", () => {
   });
 
   it("Home-style two-phase flow: starts on versão selection, then advances to coleção", async () => {
-    const { renderer } = renderFlow(
+    const { renderer } = await renderFlow(
       {
         allowVersionSelection: true,
         initialVersoes: [versaoCanonica, versaoAlternativa],
