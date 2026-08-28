@@ -13,6 +13,7 @@ import { AudioProgressSlider } from "@/src/components/AudioProgressSlider";
 import { Badge } from "@/src/components/Badge";
 import { TagChip } from "@/src/components/TagChip";
 import { useIsCurator } from "@/src/hooks/useIsCurator";
+import { getErrorMessage } from "@/src/lib/errors";
 import {
     extractSubmissionContentFromPayload,
     usePontoSubmissionById,
@@ -39,14 +40,6 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-function getErrorMessage(error: unknown): string {
-  const message =
-    error && typeof error === "object" && "message" in error
-      ? String((error as any).message)
-      : "";
-  return message.trim() ? message.trim() : "Erro";
-}
 
 function safeJsonForLog(value: unknown, maxLen = 4000) {
   try {
