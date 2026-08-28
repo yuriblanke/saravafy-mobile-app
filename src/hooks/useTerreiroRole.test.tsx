@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import React from "react";
 import TestRenderer from "react-test-renderer";
 import { useTerreiroRole } from "./useTerreiroRole";
+import { flushMacrotask } from "../test-utils/supabaseQueryBuilderMock";
 
 const mockMembership = jest.fn();
 
@@ -34,37 +35,12 @@ jest.mock("@/contexts/AuthContext", () => ({
 }));
 
 jest.mock("@/lib/supabase", () => {
-  const build = (table: string) => {
-    const filters: Record<string, unknown> = {};
-
-    const run = async (): Promise<any> => {
-      if (table === "terreiro_members") {
-        const userId = String(filters.user_id ?? "");
-        return { data: mockMembershipRowsByUser[userId] ?? [], error: null };
-      }
-      if (table === "terreiro_membership_requests") {
-        return { data: null, error: null };
-      }
-      throw new Error(`Unexpected table in test: ${table}`);
-    };
-
-    const builder: any = {
-      select: () => builder,
-      eq: (column: string, value: unknown) => {
-        filters[column] = value;
-        return builder;
-      },
-      in: () => builder,
-      order: () => builder,
-      maybeSingle: () => run(),
-      then: (onFulfilled: any, onRejected: any) =>
-        run().then(onFulfilled, onRejected),
-    };
-
-    return builder;
-  };
-
-  return { supabase: { from: (table: string) => build(table) } };
+  const {
+    mockSupabaseQueryBuilder,
+  } = require("../test-utils/supabaseQueryBuilderMock");
+  return mockSupabaseQueryBuilder({
+    getMembershipRowsByUser: () => mockMembershipRowsByUser,
+  });
 });
 
 const baseData = {
@@ -95,14 +71,6 @@ function renderHookTest<T>(hook: () => T) {
     TestRenderer.create(<TestComponent />);
   });
   return result;
-}
-
-// React Query's notifyManager flushes its batch on a `setTimeout(0)`, so a
-// single macrotask tick is not always enough to see a resolved query.
-async function flushMacrotask() {
-  for (let i = 0; i < 5; i += 1) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
 }
 
 type RoleResult = ReturnType<typeof useTerreiroRole>;

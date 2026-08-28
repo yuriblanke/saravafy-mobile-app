@@ -3,14 +3,14 @@ import React from "react";
 import TestRenderer from "react-test-renderer";
 
 import { useTerreiroMembershipStatus } from "./terreiroMembership";
+import { flushMacrotask } from "../test-utils/supabaseQueryBuilderMock";
+import type { PendingResponse } from "../test-utils/supabaseQueryBuilderMock";
 
 type MembershipRow = {
   terreiro_id: string;
   role: string;
   status: string;
 };
-
-type PendingResponse = { data: { id: string } | null; error: null };
 
 // Mutable module-level state driven per test. Names must start with `mock` so
 // babel-plugin-jest-hoist allows the jest.mock factories to close over them.
@@ -26,53 +26,16 @@ jest.mock("@/contexts/AuthContext", () => ({
 }));
 
 jest.mock("@/lib/supabase", () => {
-  const build = (table: string) => {
-    const filters: Record<string, unknown> = {};
-
-    const run = async (): Promise<any> => {
-      if (table === "terreiro_members") {
-        const userId = String(filters.user_id ?? "");
-        return { data: mockMembershipRowsByUser[userId] ?? [], error: null };
-      }
-      if (table === "terreiro_membership_requests") {
-        return mockPendingResponder(
-          String(filters.terreiro_id ?? ""),
-          String(filters.user_id ?? "")
-        );
-      }
-      throw new Error(`Unexpected table in test: ${table}`);
-    };
-
-    const builder: any = {
-      select: () => builder,
-      eq: (column: string, value: unknown) => {
-        filters[column] = value;
-        return builder;
-      },
-      in: () => builder,
-      order: () => builder,
-      maybeSingle: () => run(),
-      // Makes the builder awaitable, like a real PostgrestFilterBuilder.
-      then: (onFulfilled: any, onRejected: any) =>
-        run().then(onFulfilled, onRejected),
-    };
-
-    return builder;
-  };
-
-  return { supabase: { from: (table: string) => build(table) } };
+  const {
+    mockSupabaseQueryBuilder,
+  } = require("../test-utils/supabaseQueryBuilderMock");
+  return mockSupabaseQueryBuilder({
+    getMembershipRowsByUser: () => mockMembershipRowsByUser,
+    getPendingResponder: () => mockPendingResponder,
+  });
 });
 
 type Status = ReturnType<typeof useTerreiroMembershipStatus>;
-
-// React Query's notifyManager flushes its batch on a `setTimeout(0)`, so a
-// single macrotask tick is not always enough to see a resolved query. Drain a
-// few ticks so the assertions do not depend on scheduler luck.
-async function flushMacrotask() {
-  for (let i = 0; i < 5; i += 1) {
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  }
-}
 
 function renderMembership(initialTerreiroId: string) {
   const client = new QueryClient({
