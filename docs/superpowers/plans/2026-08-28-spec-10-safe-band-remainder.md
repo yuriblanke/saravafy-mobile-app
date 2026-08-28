@@ -267,15 +267,26 @@ da UI de revisão usa `"problem"`.
 
 ### Steps
 
-1. Ler `src/domain/ponto.ts` na região do tipo e localizar o mapeamento na UI de revisão.
-   **Uma busca de 2026-08-28 por `"problem"` nesses arquivos voltou vazia** — confirme se o item
-   ainda procede.
-2. Se **não** procede: marque `X4` como falso positivo no `BACKLOG.md`, citando o que você leu
-   ([`CONVENTIONS.md`](../CONVENTIONS.md) §6 — marcar, não apagar). Commit de doc. Fim da task.
-3. Se procede: descobrir qual dos dois valores o **banco** grava. É leitura de dado, permitida.
-   Sem acesso, decidir pelo que o código de escrita envia. O domínio se alinha ao dado, nunca o
-   contrário.
-4. Corrigir o lado errado, com teste que fixa o valor.
+**Confirmado vivo em 2026-08-28**, e o `BACKLOG.md` aponta o lugar errado: o mapeamento não está
+sob `src/screens/ReviewSubmission*`, está em `src/screens/CuratorReviewQueue/` — **dois** arquivos,
+não um: `ReviewQueue.tsx:44` e `ReviewSubmission.tsx:187`, ambos com
+`if (k === "problem") return "Problema";`. `src/domain/ponto.ts:48` tem `"issue"`.
+
+Consequência que a task precisa medir: se o banco grava `"issue"`, esses dois ramos são **mortos** e
+a submissão desse tipo cai no rótulo de fallback, o que é um defeito visível de rótulo, não só
+divergência de nome.
+
+### Steps
+
+1. Descobrir qual valor o **banco** grava. Leitura é permitida — `mcp__supabase__execute_sql` com
+   `SELECT DISTINCT kind FROM …` na tabela de submissões (descubra o nome real em
+   `docs/schema.md`). Se o banco for inalcançável, decidir pelo que o **código de escrita** envia:
+   procure quem faz `insert` com esse campo.
+2. O domínio se alinha ao dado, nunca o contrário. Corrigir o lado errado.
+3. Se o valor gravado for `"issue"`: os dois ramos `"problem"` viram `"issue"`. Teste que fixa o
+   rótulo para o valor real.
+4. Se for `"problem"`: o tipo em `ponto.ts` muda, e o `tsc` vai apontar todo consumidor.
+5. Corrigir o ponteiro errado no `BACKLOG.md` no mesmo commit ([`CONVENTIONS.md`](../CONVENTIONS.md) §6).
 
 **Agent DoD:** item resolvido ou marcado falso positivo com evidência; `tsc` limpo; zero falhas.
 
