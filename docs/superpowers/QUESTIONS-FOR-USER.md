@@ -191,3 +191,57 @@ por trás; o resto do overlay é ícone informativo, stub vazio, ou display mort
 decisão sua, não só técnica. E as cinco divergências de comportamento acima precisam de uma escolha
 explícita de qual das duas versões vira a única (ex.: a pré-checagem de admin único do overlay
 parece estritamente melhor que o "trata o erro depois" da rota — mas é você quem decide, não eu).
+
+---
+
+## 7. O SQL das policies está escrito e esperando você — `X17` é o urgente
+
+Escrito em [`sql/2026-08-28-rls-collections-pontos.sql`](sql/2026-08-28-rls-collections-pontos.sql),
+**não aplicado**. Verificado contra as policies vivas em 2026-08-28: nenhuma mudou desde a auditoria.
+
+- **`X17` é obrigatório e não tem decisão embutida** — uma instrução, trocar `WITH CHECK (true)`
+  pelo mesmo predicado do `USING`. É o furo de escalação de privilégio.
+- **`X14` tem duas variantes mutuamente exclusivas**, e a escolha é sua porque é semântica de
+  produto: o que `private` significa numa coleção de terreiro. **A** trata como "só membros"
+  (adiciona uma quarta policy de SELECT); **B** trata `private` como exclusivo de coleção de
+  usuário (restringe a escrita). O arquivo comenta o que cada uma implica.
+- Ressalva registrada no arquivo: a variante **B** só impede *adicionar pontos* a uma coleção
+  privada de terreiro. Nada ali impede **criar** uma — ela só ficaria vazia e inpreenchível.
+  Fechar isso de verdade pede constraint na tabela `collections`, fora do escopo daquele arquivo.
+
+---
+
+## 8. O player: o achado da Spec 9 muda a conta
+
+A investigação está na [Spec 9](specs/2026-08-10-spec-9-player-new-architecture.md). O resumo que
+muda decisão:
+
+- `react-native-track-player` v4 foi **congelada em 2026-05-06**, sem mais releases. Não é "ainda
+  não suportam"; é definitivo para essa linha.
+- **Existe um segundo braço da incompatibilidade, vivo e não patcheado:** `MusicService.emit()`
+  está morto sob New Architecture. Não é crash, é **perda silenciosa de evento** — o que explica
+  mecanicamente a dor que você relata no player.
+- A superfície de RNTP encolheu para **11 chamadas**, então trocar de motor ficou barato.
+- A saída `C` tem data de morte conhecida, e a camada de interop de que as outras dependem começa a
+  ser removida no RN 0.83 (SDK 55). O app está três SDKs atrás. **A decisão tem janela.**
+
+**Pergunta:** aplico a recomendação `A'` (estender o patch existente, ~6 linhas, para consertar o
+`emit()`)? Não foi feito nesta passada porque é patch em módulo nativo de terceiro e **só valida com
+build EAS**, que é você quem dispara. O achado central também é **inferido de fonte, não observado
+num aparelho** — a spec §6 traz um teste de dois minutos que fecha isso.
+
+---
+
+## 9. Achados novos que ficaram parados por serem decisão sua
+
+- **`X19` — o painel "Administrar guardiões" não tem entrada alcançável.** Os convites de curadoria
+  são RPCs reais e funcionando, mas a UI só existe dentro do overlay de Preferências, e o overlay
+  está morto (`openPreferences` tem zero call sites). Consertar é decidir onde essa UI passa a
+  viver, que é a mesma decisão do item 6.
+- **`X20` — `src/screens/CuratorReviewQueue/diagnostics`** é um despejo de `adb logcat` de 45 KB
+  commitado dentro de `src/`, sem extensão. Apago? Não apaguei porque é evidência que alguém
+  capturou de propósito.
+- **`S-3b` e `S-3a` mexeram em permissão e em texto de erro** e estão nas seções **13** e **14** da
+  [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md). O item **13.4** (Coleção) é o que mais
+  merece seu olho: é derivação de permissão, e foi conferido por leitura, não por relatório de
+  agente, porque a sessão foi interrompida no meio.

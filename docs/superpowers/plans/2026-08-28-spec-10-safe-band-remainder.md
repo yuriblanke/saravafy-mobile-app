@@ -379,3 +379,64 @@ sobrepõe a tabela.
 4. Atualizar `WORK-ORDER.md` com o estado final da faixa segura.
 5. Anexar as checagens humanas (Tasks 6 e 7) à `HUMAN-VALIDATION-QUEUE.md`.
 6. Consolidar `QUESTIONS-FOR-USER.md` com tudo que ficou para o usuário.
+
+---
+
+## Reconciliação — 2026-08-28 (Task 12, main thread)
+
+**Todas as tasks 1-11 executadas.** Gate final, rodado pelo main thread e não copiado de relatório:
+`npx tsc --noEmit` sem saída; `npm test` 23 suítes, 160 testes, zero falhas, zero `act()`.
+Árvore limpa. Baseline era 12 suítes / 115 testes.
+
+| Task | Item | Commits |
+|---|---|---|
+| 1 | `X18` | `14660f2` (mobile), `ed0cc99` (web) |
+| 2 | `X15` | `d622497` |
+| 3 | `X11` | `ae0d1d6` |
+| 4 | `X9` | `7345d27` |
+| 5 | `X12` | `fdcf7d3` |
+| 6 | `S-3b` | `cf0f603`, `b7fac7e`, `8c56189`, `7cfc194` |
+| 7 | `S-3a` | `1b3c890`, `a0e5956`, `c85fa7c`, `094947a`, `12a2bf7` |
+| 8 | `X4` | `714d6f4` |
+| 9 | Spec 9 | `4c583e4` |
+| 10 | Spec 8 Task 1 | `806952a` |
+| 11 | SQL RLS | `c408d2b` |
+
+### Desvios
+
+> **DEVIATION — Task 1 e Task 2.** As duas extraíram a lógica pura para um módulo irmão
+> (`saveCollectionPontosDraft.ts`, `addToCollectionCache.ts`) porque importar a tela num teste Jest
+> carrega `PreferencesContext` → `AsyncStorage` e falha no load. O plano não previa isso. O padrão
+> já existia no repo (`src/screens/Home/data/collections_pontos.ts`), a lógica movida foi conferida
+> como equivalente, e nenhum comportamento mudou.
+
+> **DEVIATION — Task 5 rodou em Sonnet, não em Opus.** O plano pedia Opus pelo caso (a) do
+> [`EXECUTION.md`](../EXECUTION.md). Trocado porque o modo de falha que o Opus protegeria — um teste
+> que fica verde sem o guard — é **mecanicamente detectável** pelo main thread a partir da evidência
+> colada, então a tentativa barata era verificável em vez de aposta. A evidência veio correta nas
+> três, cada uma falhando numa asserção diferente.
+
+> **DEVIATION — Task 5, "cache quente".** O plano mandava popular o `QueryClient`. Nenhum dos três
+> componentes lê o conteúdo protegido do `QueryClient` no render — identidade vem do objeto `user`
+> vivo e papel vem de hooks com cache próprio. O cache quente foi aplicado na camada de que cada um
+> realmente lê. Isso **fortalece** o teste; se aplicado ao pé da letra, o teste passaria sem o guard.
+
+> **DEVIATION — Task 6 não tem relatório.** O agente foi morto por limite de sessão depois de
+> commitar 3 dos 4 alvos. O 4º (`Collection.tsx`) ficou na árvore e foi conferido e commitado pelo
+> main thread. A evidência de preservação dos 3 primeiros existe só como diff.
+
+> **DEVIATION — Task 7 precisou de uma rodada de correção.** A varredura trocou, em 2 dos 10
+> sítios, um fallback fixo `"Erro"` por uma chamada sem fallback, o que renderiza o texto literal
+> `null` para erro nulo. Pego na revisão do main thread e corrigido em `12a2bf7`. Os outros 8 já
+> faziam `String(e)` cru antes, então ali não houve regressão — correção do próprio agente à minha
+> descrição, verificada e aceita.
+
+> **DEVIATION — Task 11 precisou de uma rodada de correção.** Todo `ALTER POLICY` saiu com uma
+> cláusula `FOR UPDATE`/`FOR INSERT`, que a gramática do PostgreSQL não aceita: o arquivo teria
+> falhado na primeira instrução ao ser colado.
+
+### O que ficou de fora, e por quê
+
+`X16`, `C4`, `X3`, `X6`, Spec 7, Specs 8 Tasks 3-5, aplicação das policies — todos registrados com
+motivo no [`BACKLOG.md`](../BACKLOG.md) e no [`WORK-ORDER.md`](../WORK-ORDER.md).
+Dois achados novos viraram `X19` e `X20` no backlog.
