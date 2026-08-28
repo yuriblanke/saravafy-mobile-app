@@ -4,6 +4,7 @@ import {
   useCreateTerreiroMembershipRequest,
   useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
+import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 import { colors } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
 import { Pressable, StyleSheet, Text } from "react-native";
@@ -21,6 +22,7 @@ export function JoinTerreiroButton({
   const { showToast } = useToast();
 
   const membership = useTerreiroMembershipStatus(terreiroId);
+  const terreiroRole = useTerreiroRole(terreiroId);
   const createRequest = useCreateTerreiroMembershipRequest(terreiroId);
 
   const performJoin = async () => {
@@ -29,7 +31,7 @@ export function JoinTerreiroButton({
       return;
     }
 
-    if (membership.data.isActiveMember) {
+    if (terreiroRole.isMember) {
       showToast("Você já é membro deste terreiro.");
       return;
     }
