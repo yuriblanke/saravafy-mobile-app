@@ -45,7 +45,16 @@ Two rules carry most of the weight:
 | [Spec 4 — Failure presentation](specs/2026-08-09-spec-4-failure-presentation.md) | [✅](plans/2026-08-09-spec-4-failure-presentation.md) | ✅ 2026-08-09 | ⏳ queued |
 | [Spec 5 — Add-to-collection write path](specs/2026-08-09-spec-5-add-to-collection-write-path.md) | [✅](plans/2026-08-09-spec-5-add-to-collection-write-path.md) | ✅ 2026-08-09 | ⏳ queued |
 | [Spec 6 — Keyboard avoidance (pilot)](specs/2026-08-09-spec-6-keyboard-avoidance.md) | [✅](plans/2026-08-09-spec-6-keyboard-avoidance.md) | ✅ 2026-08-09 (via EAS) | ⏳ **gates Spec 7** — needs the EAS APK |
-| *Spec 7 — Keyboard avoidance (rollout)* | — | 🔒 blocked | blocked on Spec 6 sign-off |
+| ~~*Spec 7 — Keyboard avoidance (rollout)*~~ | — | ✅ **feito 2026-08-09**, fora de spec | ⏳ fila seção 9 |
+| [Spec 7 — Navigation unification](specs/2026-08-10-spec-7-navigation-unification.md) | [✅](plans/2026-08-10-spec-7-navigation-unification.md) | 🔒 não implementada | faixa proibida |
+| [Spec 8 — Preferences unification](specs/2026-08-10-spec-8-preferences-unification.md) | [✅](plans/2026-08-10-spec-8-preferences-unification.md) | ⏳ Task 1 (inventário) feita 2026-08-28 | decisão do usuário |
+| [Spec 9 — Player × New Architecture](specs/2026-08-10-spec-9-player-new-architecture.md) | [✅](plans/2026-08-10-spec-9-player-new-architecture.md) | ✅ investigada 2026-08-28 | teste opcional §6 |
+| [Spec 10 — Fechar a faixa segura](specs/2026-08-28-spec-10-safe-band-remainder.md) | [✅](plans/2026-08-28-spec-10-safe-band-remainder.md) | ✅ 2026-08-28 | ⏳ fila seções 13-14 + bloco "COMECE AQUI" |
+
+> ⚠️ **Colisão de nome corrigida aqui:** este README chamava de "Spec 7" o *rollout do teclado*,
+> que na verdade foi executado em 2026-08-09 **sem spec** (as 11 telas, ver fila seção 9). A Spec 7
+> que existe em `specs/` é **outra coisa**: unificação de navegação (`S-4a`). Duas linhas acima, para
+> quem vier atrás não procurar a spec errada.
 
 The 2026-08-08/09 validation pass confirmed **8 defects** (`D6`–`D13`). Specs 3-5 cover seven of
 them; `D13` (profile photo) needs a product decision and a likely schema change, so it stays in the
@@ -66,8 +75,36 @@ permitted to run without a plan; finished as-is rather than retro-planned. While
 repo-wide grep for its own §11 rule caught a second pre-existing offender in `AddToCollection.tsx`
 sharing the same ad-hoc key pattern — both are now registered in `queryKeys.ts`.
 
-**All six specs are Agent-DoD-complete.** Nothing is blocking a batched human validation pass — see
-[`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md), and start at its **section 0**.
+## Estado atual — 2026-08-28
+
+**A faixa segura acabou.** A [Spec 10](specs/2026-08-28-spec-10-safe-band-remainder.md) fechou tudo
+o que restava dela (`X18`, `X15`, `X11`, `X9`, `X12`, `S-3b`, `S-3a`, `X4`). O que sobra no
+[`BACKLOG.md`](BACKLOG.md) precisa de decisão do usuário, de aparelho, ou dos dois.
+
+Gate em `master`: `tsc` sem saída, **23 suítes / 160 testes / 0 falhas / 0 avisos de `act()`**.
+Era 12 suítes / 115 testes antes desta rodada.
+
+**Se você é a próxima sessão, leia nesta ordem:**
+
+1. [`WORK-ORDER.md`](WORK-ORDER.md) — o estado, e os **dois achados que mudam premissa**
+   (o `emit()` morto no player; o overlay de Preferências inalcançável). Não re-derive nada disso.
+2. [`QUESTIONS-FOR-USER.md`](QUESTIONS-FOR-USER.md) — 9 decisões acumuladas. Nada ali foi executado.
+3. [`BACKLOG.md`](BACKLOG.md) — inclui o porquê de `X16`, `C4`, `X3` e `X6` **não** terem sido
+   feitos, para não parecerem esquecimento.
+
+**Se você é o usuário voltando para testar:** vá direto ao bloco **"⭐ COMECE AQUI"** no topo da
+[`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md). Não precisa de build novo — a rodada de
+2026-08-28 é 100% JS/TS.
+
+---
+
+**Todas as specs escritas estão Agent-DoD-completas**, exceto as que estão deliberadamente
+não implementadas (7, e as Tasks 3-5 da 8). Nada bloqueia uma passada de validação humana — veja a
+[`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md).
+
+> Este parágrafo dizia "**all six specs**" e mandava começar pela **seção 0**. Desatualizado desde
+> 2026-08-28: hoje são dez specs, e o ponto de entrada certo é o bloco **"⭐ COMECE AQUI"** no topo
+> da fila. A seção 0 continua válida, mas é da Spec 6 (teclado), não da rodada mais recente.
 
 ⚠️ **Spec 6 needs the EAS APK, not the current dev client.** It adds a native module, so a JS reload
 cannot pick it up — and `npm run android:dev` does not work on this machine at all. `ninja.exe` and

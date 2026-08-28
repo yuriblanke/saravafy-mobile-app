@@ -1,6 +1,6 @@
 # Fila de validação humana
 
-**Atualizado:** 2026-08-09 (após Specs 3, 4 e 5)
+**Atualizado:** 2026-08-28 (após a Spec 10). Comece pelo bloco abaixo.
 
 Tudo que precisa de olho humano num app rodando. Agente não valida nada daqui.
 
@@ -10,6 +10,61 @@ correção de doc e/ou de código.
 
 **Regra:** item pendente aqui **nunca** bloqueia commit de agente. Ver
 [`CONVENTIONS.md`](CONVENTIONS.md) §4.
+
+---
+
+## ⭐ COMECE AQUI — o que testar da rodada de 2026-08-28
+
+**Não precisa de build novo.** Nada nesta rodada mexeu em dependência nativa, `app.config.ts`,
+`android/` ou `ios/` — são 100% mudanças de JS/TS. **O APK de dev client que você já tem serve.**
+Instale-o (se ainda não estiver no aparelho), rode `npm run start:dev` e conecte no Metro.
+
+> Se o app cair no boot com `react-native-keyboard-controller doesn't seem to be linked`, aí sim o
+> dev client é velho demais — é o caso descrito no bloco "Antes de começar" mais abaixo, e não tem
+> nada a ver com esta rodada.
+
+Ordem abaixo é **por risco**, não por área. Se você só tiver tempo para uma coisa, faça a 1.
+
+| Prio | O que | Onde | Por que arriscado |
+|---|---|---|---|
+| **1** 🔴 | **Permissão nas 4 telas** | [seção 13](#13-papéis-derivados-pelo-hook--s-3b-novo-2026-08-28) | Quatro telas passaram a derivar "qual meu papel" por um hook em vez de à mão. É pra ser idêntico. A Coleção (13.4) é onde já houve vazamento de permissão antes, e é a única cujo agente foi interrompido antes de registrar a evidência |
+| **2** 🟠 | **Adicionar ponto que já está na coleção** | [seção 3](#3-coleção) + tabela abaixo | Correção de cache. Se errei, some ou duplica item da lista |
+| **3** 🟡 | **Rótulo na fila de curadoria** | tabela abaixo | Envio do tipo "problema" mostrava rótulo errado. Corrigido, mas é o único item com mudança visível *intencional* |
+| **4** 🟡 | **Mensagens de erro** | [seção 14](#14-mensagens-de-erro-unificadas--s-3a-novo-2026-08-28) | Dez cópias viraram uma. Alguns textos mudaram de propósito |
+| **5** ⚪ | **Reordenar coleção** | tabela abaixo | Correção real, mas **quase invisível** — leia a nota |
+
+### Os itens que não têm seção própria
+
+| # | Verificar | Observado |
+|---|---|---|
+| A.1 | Abrir uma coleção, adicionar um ponto que **já está nela**. Toast diz "Este ponto já estava na coleção", e a lista **não** ganha item repetido nem perde o que tinha | |
+| A.2 | Mesmo caso: voltar para a lista de coleções do terreiro e conferir que a **contagem de pontos** do card não subiu | |
+| A.3 | Repetir A.1 pelo **outro** caminho: a partir do ponto, escolhendo a coleção (era o caminho que já estava certo — serve de comparação) | |
+| A.4 | Fila de curadoria: um envio do tipo **problema** mostra o rótulo "Problema", e não o rótulo genérico de fallback | |
+| A.5 | Reordenar os pontos de uma coleção (arrastar) e salvar: a ordem persiste depois de sair e voltar | |
+
+> **Sobre a A.5 — não vá caçar sintoma.** O defeito corrigido (`X18`) era a reordenação reescrever
+> a **autoria** (`added_by`) de todos os pontos para quem arrastou a lista. Essa coluna hoje **não é
+> lida por nenhuma tela**, nem no app nem no backoffice — então não existe nada visível para você
+> conferir. O que a A.5 testa é só que eu **não quebrei a reordenação** ao remover o campo do
+> payload. Se a ordem salva e persiste, está certo.
+
+### O que **não** dá para testar nesta rodada
+
+- **O achado do player** (`emit()` morto sob New Architecture) é **inferido de código-fonte, não
+  observado num aparelho**, e nada foi mudado no player. A [Spec 9](specs/2026-08-10-spec-9-player-new-architecture.md)
+  §6 traz um teste de dois minutos que confirma ou derruba o achado, se você quiser fechá-lo.
+- **As policies de RLS** (`X14`, `X17`) não foram aplicadas — o SQL está escrito esperando sua
+  decisão. Nada mudou no banco.
+- **O painel "Administrar guardiões"** (`X19`) continua sem entrada alcançável no app. Não é
+  regressão desta rodada: já era assim.
+
+### Decisões esperando você
+
+[`QUESTIONS-FOR-USER.md`](QUESTIONS-FOR-USER.md) — 9 itens. Os três que importam mais:
+**rotacionar o PAT do Supabase versionado no `saravafy-web-app`** (item 1, o mais urgente, e é
+segurança), **as duas variantes da policy `X14`** (item 7), e **o rumo do player** (item 8, que tem
+janela: a camada de interop de que ele depende começa a sair no RN 0.83).
 
 ---
 
