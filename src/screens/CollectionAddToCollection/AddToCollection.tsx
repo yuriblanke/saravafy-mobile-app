@@ -56,11 +56,11 @@ import {
   addPontoToCollection,
   type CollectionPontoEntidadeInput,
 } from "@/src/screens/Home/data/collections_pontos";
+import { getErrorMessage } from "@/src/lib/errors";
 import type { PlayerPonto } from "@/src/screens/Player/hooks/useCollectionPlayerData";
 
 import {
   coerceStringArray,
-  getErrorMessage,
   getLyricsPreview,
   resolveDefaultPontoVersaoId,
   toListPonto,

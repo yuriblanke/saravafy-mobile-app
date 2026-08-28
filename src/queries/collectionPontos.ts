@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { getErrorMessage } from "@/src/lib/errors";
 import { isOffline } from "@/src/offline/networkCheck";
 import { listPackages, getPackage } from "@/src/offline/terreiroPackage";
 import {
@@ -37,21 +38,6 @@ function coerceTags(value: unknown): string[] {
   }
 
   return [];
-}
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
 }
 
 async function tryOfflineFallback(

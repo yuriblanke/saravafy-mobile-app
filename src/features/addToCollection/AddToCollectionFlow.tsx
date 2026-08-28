@@ -30,8 +30,8 @@ import {
   type PontoVersaoPlayerRow,
 } from "@/src/queries/pontoVersoes";
 import { queryKeys } from "@/src/queries/queryKeys";
+import { getErrorMessage } from "@/src/lib/errors";
 import {
-  getErrorMessage,
   resolveDefaultPontoVersaoId,
   toPlayerPonto,
   versaoCardTitle,
