@@ -1,6 +1,7 @@
 import { useToast } from "@/contexts/ToastContext";
 import { supabase } from "@/lib/supabase";
 import { BottomSheet } from "@/src/components/BottomSheet";
+import { getErrorMessage } from "@/src/lib/errors";
 import { colors, spacing } from "@/src/theme";
 import { useQueryClient } from "@tanstack/react-query";
 import React, { useCallback, useMemo, useState } from "react";
@@ -15,21 +16,6 @@ import {
   isCustomTagsQueryKeyForTerreiro,
   removeTagFromCustomTagsMap,
 } from "@/src/queries/terreiroPontoCustomTagsCache";
-
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    return e.message;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr.message === "string" && anyErr.message.trim()) {
-      return anyErr.message;
-    }
-  }
-
-  return String(e);
-}
 
 export function RemoveMediumTagSheet(props: {
   visible: boolean;
