@@ -7,6 +7,7 @@ import {
   resolveProfiles,
   type PublicProfile,
 } from "@/src/features/identity/resolveProfiles";
+import { getErrorMessage } from "@/src/lib/errors";
 import { queryKeys } from "@/src/queries/queryKeys";
 
 export type TerreiroMemberKind = "corrente" | "assistencia";
@@ -20,29 +21,11 @@ export type TerreiroMembershipStatus = {
   hasPendingRequest: boolean;
 };
 
-function getErrorMessage(e: unknown): string {
-  if (e instanceof Error && typeof e.message === "string" && e.message.trim()) {
-    const msg = e.message;
-    const m = msg.toLowerCase();
-    if (m.includes("cannot_remove_last_admin")) {
-      return "Não é possível remover o último admin";
-    }
-    return msg;
-  }
-
-  if (e && typeof e === "object") {
-    const anyErr = e as any;
-    if (typeof anyErr?.message === "string" && anyErr.message.trim()) {
-      const msg = anyErr.message as string;
-      const m = msg.toLowerCase();
-      if (m.includes("cannot_remove_last_admin")) {
-        return "Não é possível remover o último admin";
-      }
-      return msg;
-    }
-  }
-
-  const msg = String(e);
+// Wrapper sobre a extração canônica: mantém a tradução de
+// "cannot_remove_last_admin" para uma mensagem amigável, que é lógica de
+// domínio deste hook, não parte do contrato genérico de extração (S-3a).
+function getMembershipErrorMessage(e: unknown): string {
+  const msg = getErrorMessage(e);
   if (msg.toLowerCase().includes("cannot_remove_last_admin")) {
     return "Não é possível remover o último admin";
   }
@@ -210,9 +193,9 @@ export function useTerreiroMembershipStatus(terreiroId: string) {
 
   const error =
     membershipQuery.error != null
-      ? getErrorMessage(membershipQuery.error)
+      ? getMembershipErrorMessage(membershipQuery.error)
       : pendingQuery.error != null
-      ? getErrorMessage(pendingQuery.error)
+      ? getMembershipErrorMessage(pendingQuery.error)
       : null;
 
   const reload = useCallback(async () => {
@@ -266,7 +249,7 @@ export function useCreateTerreiroMembershipRequest(terreiroId: string) {
 
       return { ok: true, alreadyExisted: false } as const;
     } catch (e) {
-      const msg = getErrorMessage(e);
+      const msg = getMembershipErrorMessage(e);
       setError(msg);
       return { ok: false, alreadyExisted: false, error: msg } as const;
     } finally {
@@ -392,7 +375,7 @@ export function usePendingTerreiroMembershipRequests(terreiroId: string) {
     items: data.items,
     profilesById: data.profilesById,
     isLoading: query.isLoading,
-    error: query.error ? getErrorMessage(query.error) : null,
+    error: query.error ? getMembershipErrorMessage(query.error) : null,
     reload: () => query.refetch().then((r) => r.data?.items ?? []),
   };
 }
@@ -538,7 +521,7 @@ export function useReviewTerreiroMembershipRequest(terreiroId: string) {
         const data = await approveMutation.mutateAsync(requestId);
         return { ok: true, data } as const;
       } catch (e) {
-        return { ok: false, error: getErrorMessage(e) } as const;
+        return { ok: false, error: getMembershipErrorMessage(e) } as const;
       }
     },
     [approveMutation]
@@ -550,7 +533,7 @@ export function useReviewTerreiroMembershipRequest(terreiroId: string) {
         const data = await rejectMutation.mutateAsync(requestId);
         return { ok: true, data } as const;
       } catch (e) {
-        return { ok: false, error: getErrorMessage(e) } as const;
+        return { ok: false, error: getMembershipErrorMessage(e) } as const;
       }
     },
     [rejectMutation]
@@ -558,9 +541,9 @@ export function useReviewTerreiroMembershipRequest(terreiroId: string) {
 
   const lastError =
     approveMutation.error != null
-      ? getErrorMessage(approveMutation.error)
+      ? getMembershipErrorMessage(approveMutation.error)
       : rejectMutation.error != null
-      ? getErrorMessage(rejectMutation.error)
+      ? getMembershipErrorMessage(rejectMutation.error)
       : null;
 
   const friendlyError = useMemo(() => {
@@ -779,7 +762,7 @@ export function useTerreiroMembers(terreiroId: string) {
     items: data.items,
     profilesById: data.profilesById,
     isLoading: query.isLoading,
-    error: query.error ? getErrorMessage(query.error) : null,
+    error: query.error ? getMembershipErrorMessage(query.error) : null,
     reload: () => query.refetch().then((r) => r.data?.items ?? []),
   };
 }
@@ -898,7 +881,7 @@ export function useTerreiroInvites(terreiroId: string) {
     pending,
     profilesByEmailLower: data.profilesByEmailLower,
     isLoading: query.isLoading,
-    error: query.error ? getErrorMessage(query.error) : null,
+    error: query.error ? getMembershipErrorMessage(query.error) : null,
     reload: () => query.refetch().then((r) => r.data?.items ?? []),
   };
 }
@@ -980,7 +963,7 @@ export function useCreateTerreiroInvite(terreiroId: string) {
         await mutation.mutateAsync(params);
         return { ok: true } as const;
       } catch (e) {
-        return { ok: false, error: getErrorMessage(e) } as const;
+        return { ok: false, error: getMembershipErrorMessage(e) } as const;
       }
     },
     [mutation]
@@ -989,7 +972,7 @@ export function useCreateTerreiroInvite(terreiroId: string) {
   return {
     create,
     isCreating: mutation.isPending,
-    error: mutation.error ? getErrorMessage(mutation.error) : null,
+    error: mutation.error ? getMembershipErrorMessage(mutation.error) : null,
   };
 }
 export function useRemoveTerreiroMember(terreiroId: string) {
@@ -1070,7 +1053,7 @@ export function useRemoveTerreiroMember(terreiroId: string) {
         await mutation.mutateAsync(memberUserId);
         return { ok: true } as const;
       } catch (e) {
-        return { ok: false, error: getErrorMessage(e) } as const;
+        return { ok: false, error: getMembershipErrorMessage(e) } as const;
       }
     },
     [mutation]
@@ -1079,7 +1062,7 @@ export function useRemoveTerreiroMember(terreiroId: string) {
   return {
     remove,
     isRemoving: mutation.isPending,
-    error: mutation.error ? getErrorMessage(mutation.error) : null,
+    error: mutation.error ? getMembershipErrorMessage(mutation.error) : null,
   };
 }
 
@@ -1196,7 +1179,7 @@ export function useCancelTerreiroInvite(terreiroId: string) {
         await mutation.mutateAsync(inviteId);
         return { ok: true } as const;
       } catch (e) {
-        return { ok: false, error: getErrorMessage(e) } as const;
+        return { ok: false, error: getMembershipErrorMessage(e) } as const;
       }
     },
     [mutation]
@@ -1205,7 +1188,7 @@ export function useCancelTerreiroInvite(terreiroId: string) {
   return {
     cancel,
     isCancelling: mutation.isPending,
-    error: mutation.error ? getErrorMessage(mutation.error) : null,
+    error: mutation.error ? getMembershipErrorMessage(mutation.error) : null,
   };
 }
 
@@ -1238,7 +1221,7 @@ export function useResendTerreiroInvite() {
 
       return { ok: true } as const;
     } catch (e) {
-      const msg = getErrorMessage(e);
+      const msg = getMembershipErrorMessage(e);
       setError(msg);
       return { ok: false, error: msg } as const;
     } finally {
