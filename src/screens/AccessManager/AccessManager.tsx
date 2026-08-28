@@ -15,8 +15,8 @@ import {
   useResendTerreiroInvite,
   useTerreiroInvites,
   useTerreiroMembers,
-  useTerreiroMembershipStatus,
 } from "@/src/hooks/terreiroMembership";
+import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, spacing } from "@/src/theme";
 import { Ionicons } from "@expo/vector-icons";
@@ -112,25 +112,20 @@ export default function AccessManager() {
     variant === "light" ? colors.inputBorderLight : colors.inputBorderDark;
 
   // Check permissions - only admin can access
-  const membershipQuery = useTerreiroMembershipStatus(terreiroId);
-  const membership = membershipQuery.data;
-  const myRole = membership.role;
-  const canManage = membership.isActiveMember && myRole === "admin";
+  const terreiroRole = useTerreiroRole(terreiroId);
+  const canManage = terreiroRole.isAdmin;
 
   useEffect(() => {
     if (!terreiroId) return;
-    if (membershipQuery.isLoading) return;
+    if (terreiroRole.isLoading) return;
 
-    const role = membershipQuery.data?.role ?? null;
-    const isActive = membershipQuery.data?.isActiveMember ?? false;
-
-    if (isActive && role === "curimba") {
+    if (terreiroRole.isCurimba) {
       showToast("Acesso restrito à administração.");
       router.back();
     }
   }, [
-    membershipQuery.data,
-    membershipQuery.isLoading,
+    terreiroRole.isCurimba,
+    terreiroRole.isLoading,
     router,
     showToast,
     terreiroId,
@@ -457,7 +452,7 @@ export default function AccessManager() {
   }, [router]);
 
   if (!canManage) {
-    if (membership.isActiveMember && myRole === "curimba") {
+    if (terreiroRole.isCurimba) {
       return <View style={[styles.screen, { backgroundColor: baseBgColor }]} />;
     }
 
