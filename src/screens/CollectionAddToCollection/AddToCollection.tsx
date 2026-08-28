@@ -15,6 +15,10 @@ import {
   removePontoFromCollectionPontosList,
   upsertPontoInCollectionPontosList,
 } from "@/src/queries/collectionsCache";
+import {
+  invalidateAddToCollectionQueries,
+  revertOptimisticAddOnAlreadyExists,
+} from "@/src/screens/CollectionAddToCollection/addToCollectionCache";
 import { queryKeys } from "@/src/queries/queryKeys";
 import { colors, getSaravafyBaseColor, spacing } from "@/src/theme";
 import { normalizeTag } from "@/src/utils/mergeTags";
@@ -615,7 +619,18 @@ export default function AddToCollection() {
 
       showToast(getErrorMessage(e));
     },
-    onSuccess: (res) => {
+    onSuccess: (res, _vars, ctx) => {
+      // alreadyExists is a success, not an error: onError's revert never
+      // runs for it, so the optimistic patch made in onMutate has to be
+      // undone here instead of leaving a phantom row + inflated count.
+      if (res.alreadyExists && collectionId && ctx?.pontoId) {
+        revertOptimisticAddOnAlreadyExists(queryClient, {
+          collectionId,
+          pontoId: ctx.pontoId,
+          didInsert: !!ctx.didInsert,
+        });
+      }
+
       showToast(
         res.alreadyExists
           ? "Este ponto já estava na coleção"
@@ -629,12 +644,7 @@ export default function AddToCollection() {
       }
 
       if (collectionId) {
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.pontos(collectionId),
-        });
-        queryClient.invalidateQueries({
-          queryKey: queryKeys.collections.byId(collectionId),
-        });
+        invalidateAddToCollectionQueries(queryClient, collectionId);
       }
     },
   });
