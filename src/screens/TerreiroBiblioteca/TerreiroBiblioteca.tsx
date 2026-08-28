@@ -16,7 +16,7 @@ import { JoinTerreiroButton } from "@/src/components/JoinTerreiroButton";
 import { Separator } from "@/src/components/Separator";
 import { SurfaceCard } from "@/src/components/SurfaceCard";
 import { useGlobalSafeAreaInsets } from "@/src/contexts/GlobalSafeAreaInsetsContext";
-import { useTerreiroMembershipStatus } from "@/src/hooks/terreiroMembership";
+import { useTerreiroRole } from "@/src/hooks/useTerreiroRole";
 import {
   cancelQueries,
   patchById,
@@ -251,11 +251,8 @@ export default function TerreiroBiblioteca() {
     };
   });
 
-  const membershipQuery = useTerreiroMembershipStatus(terreiroId);
-  const membership = membershipQuery.data;
-  const myRole = membership.role;
-  const canEdit =
-    membership.isActiveMember && (myRole === "admin" || myRole === "curimba");
+  const terreiroRole = useTerreiroRole(terreiroId);
+  const canEdit = terreiroRole.isAdminOrCurimba;
 
   // Se não tiver terreiroId e não for bootStart, mantém o comportamento atual de fallback.
   useEffect(() => {
@@ -1654,7 +1651,7 @@ export default function TerreiroBiblioteca() {
                   setActionsBottomY(y + height);
                 }}
               >
-                {!membership.isActiveMember ? (
+                {!terreiroRole.isActiveMember ? (
                   <JoinTerreiroButton
                     terreiroId={terreiroId}
                     variant={variant}
