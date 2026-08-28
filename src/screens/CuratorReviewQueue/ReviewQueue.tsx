@@ -12,6 +12,7 @@ import {
     extractSubmissionContentFromPayload,
     usePendingPontoSubmissions,
 } from "@/src/queries/pontoSubmissions";
+import { toKindLabel } from "@/src/screens/CuratorReviewQueue/submissionKindLabel";
 import { colors, spacing } from "@/src/theme";
 import { useRouter } from "expo-router";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -35,16 +36,6 @@ function formatDateLabel(value: string | null | undefined) {
   } catch {
     return "";
   }
-}
-
-function toKindLabel(kind: string | null | undefined) {
-  const k = typeof kind === "string" ? kind.trim().toLowerCase() : "";
-  if (k === "new") return "Novo";
-  if (k === "correction") return "Correção";
-  if (k === "problem") return "Problema";
-  if (k === "audio_upload") return "Áudio";
-  if (k === "variation") return "Variação";
-  return "Envio";
 }
 
 export default function ReviewQueueScreen() {
