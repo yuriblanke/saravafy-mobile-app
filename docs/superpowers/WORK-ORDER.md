@@ -101,3 +101,52 @@ Descrição original de cada uma, mantida:
 - Pull-to-refresh em `AccessManager` e `TerreiroMembersList` — o segundo usa `useInfiniteQuery` e
   precisa de decisão: recarregar todas as páginas ou voltar para a página 1.
 - **Disparar build EAS.**
+
+---
+
+## Estado em 2026-08-28 — a faixa segura acabou
+
+Sessão autônoma de 2026-08-28, sob a [Spec 10](specs/2026-08-28-spec-10-safe-band-remainder.md)
+(+ [plano](plans/2026-08-28-spec-10-safe-band-remainder.md)). **Todos os itens que restavam da
+tabela acima foram fechados.** Não sobrou faixa segura: o que resta no `BACKLOG.md` precisa de
+decisão sua, de aparelho, ou das duas coisas.
+
+| Item | Estado |
+|---|---|
+| `X15` (item 8) | ✅ O fluxo inverso revertia o patch otimista só em `onError`, e `alreadyExists` chega como **sucesso** — item fantasma e contagem +1. Corrigido espelhando o irmão que já estava certo. Faltava também invalidar `terreiros.collectionsByTerreiroPrefix()` |
+| `X16` (item 8) | 🚫 **Recusado de propósito, corrigindo a tabela acima:** condicionar as duas queries a `visible` troca *quando* a busca acontece e cria spinner onde não havia. É mudança visual, faixa proibida. O `BACKLOG.md` já o classificava como registrado, não acionado |
+| `X11` (item 11) | ✅ As duas cópias do mock **tinham divergido** — a extração é a união, não uma das duas |
+| `X9` (item 11) | ✅ Causa achada, não silenciada: os 3 avisos vinham de **um** teste, porque o `expo-font` guarda "carregado" no escopo do módulo. Efeito colateral: a suíte caiu de 40,6s para 4,3s |
+| `X12` (item 11) | ✅ Seis testes de render. Cada guard foi removido, a falha registrada, e o guard restaurado — sem essa prova o teste passaria sem o guard e não valeria nada |
+| `S-3b` (item 7) | ✅ Desbloqueado pelo `X12` e concluído. Os 4 alvos migrados, um commit cada. O `Collection.tsx` tinha **duas** derivações do mesmo papel no mesmo componente; colapsaram em uma |
+| `X18` | ✅ Reordenar não reescreve mais `added_by`. Corrigido nos **dois** repositórios — o defeito tinha sido duplicado no `saravafy-web-app` junto com a lógica |
+| `X14`, `X17` | ⏸️ SQL escrito e revisável em [`sql/2026-08-28-rls-collections-pontos.sql`](sql/2026-08-28-rls-collections-pontos.sql), **não aplicado**. Alterar policy segue sendo seu |
+| Spec 9 (`N1`) | ✅ Investigada. **A premissa mudou** — ver abaixo |
+| Spec 8 (`C5`) | ⏸️ Inventário feito. **A premissa mudou** — ver abaixo. A fusão continua dependendo de uma decisão sua |
+| Spec 7 (`S-4a`) | 🚫 Não tocada. Faixa proibida |
+
+### Os dois achados que mudam premissa — leia antes de decidir qualquer coisa
+
+**1. O player: a incompatibilidade tem um segundo braço, e ele está vivo.** A Spec 9 dizia que
+`react-native-track-player` não suporta New Architecture. Verdade, e agora permanente: a v4 foi
+congelada em 2026-05-06, sem mais releases. Mas o que ninguém tinha visto é que
+**`MusicService.emit()` está morto** sob New Arch — não é crash, é **perda silenciosa de evento**, e
+explica mecanicamente a dor que você relata com o player. Ao mesmo tempo a superfície de RNTP
+encolheu para 11 chamadas, então **trocar de motor ficou barato, não caro**. Aplicado como estava
+escrito, o critério da própria spec **não** recomenda "deixar quieto". Detalhe e as quatro saídas
+custeadas na [Spec 9](specs/2026-08-10-spec-9-player-new-architecture.md).
+
+**2. A UI de Preferências que "diverge" está morta de um lado.** O `C5` pressupunha duas
+implementações vivas em paralelo. **O overlay está inalcançável:** `openPreferences` tem definição e
+**zero call sites**. Só a rota roda. Consequência que ninguém tinha notado: o painel
+"Administrar guardiões" (convites de curadoria) **só existe no overlay**, logo não tem entrada
+alcançável em lugar nenhum do app. A pergunta deixa de ser "qual das duas manter" e passa a ser
+"o que resgatar da que vai morrer" — [`QUESTIONS-FOR-USER.md`](QUESTIONS-FOR-USER.md).
+
+### O que fazer quando você voltar
+
+1. Rodar a [`HUMAN-VALIDATION-QUEUE.md`](HUMAN-VALIDATION-QUEUE.md), com atenção às seções **13** e
+   **14** (novas) e ao item **13.4**, que é derivação de permissão na Coleção.
+2. Decidir as pendências acumuladas em [`QUESTIONS-FOR-USER.md`](QUESTIONS-FOR-USER.md) — a mais
+   urgente continua sendo rotacionar o PAT do Supabase versionado no `saravafy-web-app`.
+3. Decidir o rumo do player à luz do achado do `emit()`.

@@ -677,6 +677,47 @@ questão de timeout, não de rollback.
 
 ---
 
+## 13. Papéis derivados pelo hook — `S-3b` (novo, 2026-08-28)
+
+Quatro telas derivavam "qual o meu papel neste terreiro" à mão; agora todas passam pelo
+`useTerreiroRole`. **Refatoração para preservar comportamento** — se qualquer coisa aqui mudar, é
+regressão, não melhoria.
+
+O que olhar em cada uma: os mesmos controles aparecem para os mesmos papéis que antes. Testar de
+preferência com duas contas de papéis diferentes no mesmo terreiro.
+
+| # | Verificar | Observado |
+|---|---|---|
+| 13.1 | `Gestão de acesso`: admin vê a tela e os controles de gerir membros; curimba/editor e membro comum veem o que viam antes | |
+| 13.2 | `Biblioteca do terreiro`: os botões de editar/criar aparecem para os mesmos papéis de antes | |
+| 13.3 | Botão de entrar no terreiro: aparece para não-membro, some para membro ativo, e o estado "pedido pendente" continua correto | |
+| 13.4 | **Coleção — o mais delicado.** Editar/reordenar/apagar coleção continua liberado para dono, admin e curimba, e continua bloqueado para membro comum e não-membro | |
+| 13.5 | Nenhuma tela acima passou a mostrar controle que **não** mostrava antes | |
+
+> ⚠️ **Por que a 13.4 merece atenção extra.** Os outros três alvos foram migrados por um agente que
+> registrou a evidência de preservação; o quarto (`Collection.tsx`) foi migrado quando esse agente
+> foi interrompido, e foi conferido por leitura em vez de por relatório. A equivalência é
+> demonstrável (`isAdminOrCurimba` expande exatamente para o predicado antigo), mas foi conferida,
+> não testada num aparelho. E derivação de permissão na Coleção é precisamente onde já houve
+> vazamento antes.
+
+---
+
+## 14. Mensagens de erro unificadas — `S-3a` (novo, 2026-08-28)
+
+Cerca de dez cópias locais de extração de mensagem de erro foram apagadas em favor da canônica de
+`src/lib/errors.ts`. Onde uma cópia divergia, a canônica venceu — então **o texto de alguns erros
+pode ter mudado**. Isso foi decidido de propósito: cada cópia era uma divergência não revisada do
+contrato já fixado.
+
+| # | Verificar | Observado |
+|---|---|---|
+| 14.1 | Forçar erro de rede (modo avião) em telas variadas: a mensagem é legível, em português, e não é `TypeError` nem `[object Object]` | |
+| 14.2 | Nenhuma mensagem virou genérica demais a ponto de não dizer o que falhou | |
+| 14.3 | Nenhuma mensagem aparece vazia ou só com espaços | |
+
+---
+
 ## Fora de escopo
 
 Coisas que você notar e que **não** vêm das specs acima. Anotar aqui em vez de tentar consertar:
