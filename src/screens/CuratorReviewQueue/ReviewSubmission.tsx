@@ -124,7 +124,7 @@ async function callRpcWithParamFallback(
 }
 
 function mapReviewErrorToFriendlyMessage(error: unknown): string {
-  const raw = getErrorMessage(error);
+  const raw = getErrorMessage(error, "Erro");
   const lower = raw.toLowerCase();
 
   const has = (token: string) => lower.includes(token);
@@ -856,7 +856,7 @@ export default function ReviewSubmissionScreen() {
         router.back();
       } catch (e) {
         const friendly = mapReviewErrorToFriendlyMessage(e);
-        const raw = getErrorMessage(e);
+        const raw = getErrorMessage(e, "Erro");
 
         // Não logar IDs externamente.
         void raw;
@@ -908,7 +908,7 @@ export default function ReviewSubmissionScreen() {
         router.back();
       } catch (e) {
         const friendly = mapReviewErrorToFriendlyMessage(e);
-        const raw = getErrorMessage(e);
+        const raw = getErrorMessage(e, "Erro");
         void raw;
 
         if (raw.toLowerCase().includes("submission_not_pending")) {
@@ -983,7 +983,7 @@ export default function ReviewSubmissionScreen() {
         router.back();
       } catch (e) {
         const friendly = mapReviewErrorToFriendlyMessage(e);
-        const raw = getErrorMessage(e);
+        const raw = getErrorMessage(e, "Erro");
 
         if (raw.toLowerCase().includes("submission_not_pending")) {
           removeFromPendingList(submissionId);
@@ -1048,7 +1048,7 @@ export default function ReviewSubmissionScreen() {
       router.back();
     } catch (e) {
       const friendly = mapReviewErrorToFriendlyMessage(e);
-      const raw = getErrorMessage(e);
+      const raw = getErrorMessage(e, "Erro");
 
       if (raw.toLowerCase().includes("submission_not_pending")) {
         removeFromPendingList(submissionId);
@@ -1151,7 +1151,7 @@ export default function ReviewSubmissionScreen() {
               router.back();
             } catch (e) {
               const friendly = mapReviewErrorToFriendlyMessage(e);
-              const raw = getErrorMessage(e);
+              const raw = getErrorMessage(e, "Erro");
 
               // Não logar IDs externamente.
               void raw;
@@ -1208,7 +1208,7 @@ export default function ReviewSubmissionScreen() {
             Não foi possível carregar o envio.
           </Text>
           <Text style={[styles.centerText, { color: textSecondary }]}>
-            {getErrorMessage(submissionQuery.error)}
+            {getErrorMessage(submissionQuery.error, "Erro")}
           </Text>
         </View>
       </SafeAreaView>

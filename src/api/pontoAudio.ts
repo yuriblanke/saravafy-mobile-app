@@ -288,7 +288,7 @@ export async function callFunctionAuthed<T>(name: string, body: unknown) {
     const msg =
       typeof anyErr?.message === "string" && anyErr.message.trim()
         ? anyErr.message
-        : getErrorMessage(anyErr);
+        : getErrorMessage(anyErr, "Erro");
 
     const e = new Error(msg);
     (e as any).status = status;

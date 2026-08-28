@@ -32,6 +32,21 @@ describe("getErrorMessage", () => {
     expect(getErrorMessage(undefined, "default")).toBe("default");
   });
 
+  // Fix round 1 on Task 7 (S-3a): call sites swept off a local copy that
+  // used a fixed fallback ("Erro" in pontoAudio.ts and ReviewSubmission.tsx)
+  // must pass it explicitly. Without it, the canonical's no-fallback
+  // default (`String(e)`) turns a null/undefined error into the literal
+  // text "null" or "undefined" on screen - worse than the "Erro" those
+  // copies showed. This pins that the canonical still honours an explicit
+  // "Erro" fallback for exactly that shape.
+  it("returns the Erro fallback for null (S-3a fix round 1)", () => {
+    expect(getErrorMessage(null, "Erro")).toBe("Erro");
+  });
+
+  it("returns the Erro fallback for undefined (S-3a fix round 1)", () => {
+    expect(getErrorMessage(undefined, "Erro")).toBe("Erro");
+  });
+
   it("returns String(e) when no fallback is provided and shape is unknown", () => {
     expect(getErrorMessage({ noMessage: true })).toBe("[object Object]");
   });
